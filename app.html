@@ -6958,12 +6958,21 @@
       const town = state.current?.Town || "";
       const md = state.current?.Mail_Date || "";
 
-      // Extract month name from mail date (e.g., "2025-12-06" -> "December")
+      // Extract month name from mail date (e.g., "2025-12-01" -> "December")
+      // Parse ISO format without timezone issues
       let monthName = "";
       if (md) {
         try {
-          const date = new Date(md);
-          monthName = date.toLocaleString('en-US', { month: 'long' });
+          if (/^\d{4}-\d{2}-\d{2}/.test(md)) {
+            // ISO format: extract month directly from string to avoid timezone issues
+            const month = parseInt(md.split('-')[1]);
+            const monthNames = ["", "January", "February", "March", "April", "May", "June",
+                                "July", "August", "September", "October", "November", "December"];
+            monthName = monthNames[month] || "";
+          } else {
+            const date = new Date(md);
+            monthName = date.toLocaleString('en-US', { month: 'long' });
+          }
         } catch (e) {
           monthName = "";
         }
