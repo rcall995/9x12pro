@@ -1857,13 +1857,6 @@
     // IMPORTANT: Restrict this key by HTTP referrer in Google Cloud Console to prevent abuse
     const GOOGLE_PLACES_API_KEY = "YOUR_GOOGLE_PLACES_API_KEY_HERE";
 
-    // Outscraper API Key - For enriched contact data (phone, email, social media)
-    // This key is ONLY used to pass to backend - never called directly from frontend
-    // The backend (GoogleAppsScript_FIXED.js) proxies all Outscraper requests
-    // Get your key at: https://app.outscraper.com/profile
-    const OUTSCRAPER_API_KEY = "YOUR_OUTSCRAPER_API_KEY_HERE";
-    const OUTSCRAPER_COST_PER_BUSINESS = 0.01; // $0.01 per business enriched
-
     // Message Templates - For outreach to prospects
     const MESSAGE_TEMPLATES = {
       messenger: {
@@ -4026,78 +4019,18 @@ Thanks!
 
     // Fetch enriched business details from Outscraper (phone, email, social media)
     // Uses Vercel serverless function as proxy to avoid CORS issues
+    // Removed Outscraper - use CSV import workflow for Facebook/Instagram enrichment
     async function fetchOutscraperDetails(businessName, address, placeId) {
-      try {
-        // Call Vercel serverless function proxy
-        const response = await fetch('/api/enrich', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            businessName,
-            address,
-            placeId
-          })
-        });
-
-        if (!response.ok) {
-          console.warn('⚠️ Outscraper proxy returned error:', response.status);
-          return {
-            phone: '',
-            website: '',
-            email: '',
-            facebook: '',
-            instagram: '',
-            enriched: false,
-            source: 'google-places'
-          };
-        }
-
-        const data = await response.json();
-
-        if (!data.enriched) {
-          console.log('ℹ️ No enrichment data found for:', businessName);
-          if (data.error) {
-            console.warn('⚠️ Outscraper error:', data.error);
-            if (data.debug) {
-              console.warn('💡 Hint:', data.debug.hint);
-              if (data.debug.status === 402) {
-                console.error('💳💳💳 OUT OF CREDITS! Go to: https://app.outscraper.com/billing');
-              }
-            }
-          }
-          return {
-            ...data,
-            source: 'google-places'
-          };
-        }
-
-        console.log('✅ Enriched from Outscraper:', businessName, {
-          hasPhone: !!data.phone,
-          hasEmail: !!data.email,
-          hasFacebook: !!data.facebook,
-          hasInstagram: !!data.instagram
-        });
-
-        return {
-          ...data,
-          source: 'outscraper'
-        };
-
-      } catch (error) {
-        console.error('💥 Error calling Outscraper proxy:', error);
-        return {
-          phone: '',
-          website: '',
-          email: '',
-          facebook: '',
-          instagram: '',
-          enriched: false,
-          source: 'google-places',
-          error: error.message
-        };
-      }
+      // Return empty social media fields - user will enrich via CSV import
+      return {
+        phone: '',
+        website: '',
+        email: '',
+        facebook: '',
+        instagram: '',
+        enriched: false,
+        source: 'google-places'
+      };
     }
 
     async function runAutoPopulate() {
@@ -4455,30 +4388,17 @@ Thanks!
       const selectedBusinesses = businesses.filter(b => selectedIds.has(b.placeId) && !b.alreadyExists);
 
       try {
-        // Track total enrichment cost
-        let totalCost = 0;
-        let enrichedCount = 0;
-
         // Fetch details for all selected businesses
         for (let i = 0; i < selectedBusinesses.length; i++) {
           const business = selectedBusinesses[i];
 
-          btn.textContent = `⏳ Fetching contact details... (${i + 1}/${selectedBusinesses.length})`;
+          btn.textContent = `⏳ Fetching details... (${i + 1}/${selectedBusinesses.length})`;
 
-          // Try Outscraper first (if available), fall back to Google Places Details
-          let details = await fetchOutscraperDetails(business.name, business.address, business.placeId);
+          // Fetch basic details from Google Places API
+          let details = { phone: '', website: '', email: '', facebook: '', instagram: '', source: 'google-places' };
 
-          // If Outscraper failed (CORS or error), fall back to Google Places Details API
-          if (!details.enriched && business.placeId) {
+          if (business.placeId) {
             details = await fetchPlaceDetails(business.placeId);
-            details.source = 'google-places';
-          } else {
-            details.source = 'outscraper';
-          }
-
-          if (details.enriched) {
-            enrichedCount++;
-            totalCost += details.cost || OUTSCRAPER_COST_PER_BUSINESS;
           }
 
           const newLead = {
@@ -4488,12 +4408,12 @@ Thanks!
             phone: details.phone || '',
             email: details.email || '',
             estimatedValue: 500,
-            notes: `Found via Google Places${details.source === 'outscraper' ? ' + Outscraper' : ''}\nAddress: ${business.address}\nRating: ${business.rating} (${business.userRatingsTotal} reviews)\n${details.phone ? `Phone: ${details.phone}\n` : ''}${details.website ? `Website: ${details.website}\n` : ''}${details.email ? `Email: ${details.email}\n` : ''}${details.facebook ? `Facebook: ${details.facebook}\n` : ''}${details.instagram ? `Instagram: ${details.instagram}\n` : ''}Place ID: ${business.placeId}${details.enriched ? (details.cost ? `\n\n💰 Enrichment cost: $${details.cost.toFixed(2)}` : '') : ''}`,
-            source: details.source || 'google-places',
+            notes: `Found via Google Places\nAddress: ${business.address}\nRating: ${business.rating} (${business.userRatingsTotal} reviews)\n${details.phone ? `Phone: ${details.phone}\n` : ''}${details.website ? `Website: ${details.website}\n` : ''}Place ID: ${business.placeId}\n\n💡 Use CSV export/import to add Facebook/Instagram URLs`,
+            source: 'google-places',
             placeId: business.placeId,
             website: details.website || '',
-            facebook: details.facebook || '',
-            instagram: details.instagram || '',
+            facebook: '',
+            instagram: '',
             category: business.category || 'other',
             zipCode: business.zipCode || null, // Tag with ZIP code from search
             mailerId: state.current?.Mailer_ID || null, // Tag with current postcard
@@ -4515,10 +4435,8 @@ Thanks!
         renderKanban();
         closeProspectsResultsModal();
 
-        // Show success message with enrichment stats
-        const costMessage = totalCost > 0 ? ` 💰 Cost: $${totalCost.toFixed(2)}` : '';
-        const enrichmentMessage = enrichedCount > 0 ? ` (${enrichedCount} enriched)` : '';
-        toast(`✅ Added ${addedCount} new prospect${addedCount === 1 ? '' : 's'} with contact details!${enrichmentMessage}${costMessage}`, true);
+        // Show success message
+        toast(`✅ Added ${addedCount} new prospect${addedCount === 1 ? '' : 's'} to pipeline! Use CSV export/import to add social media URLs.`, true);
 
         // Scroll to kanban section
         setTimeout(() => {
@@ -5166,8 +5084,6 @@ Thanks!
 
         let addedCount = 0;
         let skippedCount = 0;
-        let enrichedCount = 0;
-        let totalCost = 0;
 
         for (let i = 0; i < selectedBusinesses.length; i++) {
           const business = selectedBusinesses[i];
@@ -5180,20 +5096,11 @@ Thanks!
 
           btn.textContent = `⏳ Fetching contact details... (${i + 1}/${selectedBusinesses.length})`;
 
-          // Try Outscraper first (if available), fall back to Google Places Details
-          let details = await fetchOutscraperDetails(business.name, business.address, business.placeId);
+          // Fetch basic details from Google Places API
+          let details = { phone: '', website: '', email: '', facebook: '', instagram: '', source: 'google-places' };
 
-          // If Outscraper failed (CORS or error), fall back to Google Places Details API
-          if (!details.enriched && business.placeId) {
+          if (business.placeId) {
             details = await fetchPlaceDetails(business.placeId);
-            details.source = 'google-places';
-          } else {
-            details.source = 'outscraper';
-          }
-
-          if (details.enriched) {
-            enrichedCount++;
-            totalCost += details.cost || OUTSCRAPER_COST_PER_BUSINESS;
           }
 
           const newLead = {
@@ -5203,17 +5110,18 @@ Thanks!
             phone: details.phone || '',
             email: details.email || '',
             estimatedValue: 500,
-            notes: `Found via Google Places${details.source === 'outscraper' ? ' + Outscraper' : ''}\nAddress: ${business.address}\nRating: ${business.rating} (${business.userRatingsTotal} reviews)\n${details.phone ? `Phone: ${details.phone}\n` : ''}${details.website ? `Website: ${details.website}\n` : ''}${details.email ? `Email: ${details.email}\n` : ''}${details.facebook ? `Facebook: ${details.facebook}\n` : ''}${details.instagram ? `Instagram: ${details.instagram}\n` : ''}Place ID: ${business.placeId}${details.enriched ? (details.cost ? `\n\n💰 Enrichment cost: $${details.cost.toFixed(2)}` : '') : ''}`,
-            source: details.source || 'google-places',
+            notes: `Found via Google Places\nAddress: ${business.address}\nRating: ${business.rating} (${business.userRatingsTotal} reviews)\n${details.phone ? `Phone: ${details.phone}\n` : ''}${details.website ? `Website: ${details.website}\n` : ''}Place ID: ${business.placeId}\n\n💡 Use CSV export/import to add Facebook/Instagram URLs`,
+            source: 'google-places',
             placeId: business.placeId,
             website: details.website || '',
-            facebook: details.facebook || '',
-            instagram: details.instagram || '',
+            facebook: '',
+            instagram: '',
             category: business.category || 'other',
             zipCode: business.zipCode || null, // Tag with ZIP code from search
             mailerId: currentMailerId, // Link to current card
             town: state.current?.Town, // Tag with town for organization
-            addedDate: new Date().toISOString()
+            addedDate: new Date().toISOString(),
+            interactions: [] // Interaction history: [{date, type, notes, nextFollowUp}]
           };
 
           kanbanState.columns[prospectingColumn].push(newLead);
@@ -5232,13 +5140,12 @@ Thanks!
         prospectPoolState.selectedIds.clear();
         renderProspectPool();
 
-        // Show success message with enrichment stats
-        const costMessage = totalCost > 0 ? ` 💰 Cost: $${totalCost.toFixed(2)}` : '';
-        const enrichmentMessage = enrichedCount > 0 ? ` (${enrichedCount} enriched)` : '';
-        let message = `✅ Added ${addedCount} prospect${addedCount === 1 ? '' : 's'} to Pipeline with contact details!${enrichmentMessage}${costMessage}`;
+        // Show success message
+        let message = `✅ Added ${addedCount} prospect${addedCount === 1 ? '' : 's'} to Pipeline!`;
         if (skippedCount > 0) {
           message += ` ${skippedCount} duplicate${skippedCount === 1 ? '' : 's'} skipped.`;
         }
+        message += ` Use CSV export/import to add social media URLs.`;
         toast(message, true);
 
         // Switch to pipeline tab
