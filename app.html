@@ -496,14 +496,11 @@
             </div>
 
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 p-4 bg-gray-50 rounded-lg border">
-                <div class="flex items-center gap-2 w-full sm:w-auto">
-                    <label class="text-sm font-medium text-gray-700 whitespace-nowrap">Filter by ZIP Codes:</label>
-                    <select id="prospectPoolZipFilter" multiple onchange="renderProspectPool()" class="border rounded-md px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-indigo-500 w-full sm:w-64" style="min-height: 38px;">
-                        <option value="all">All ZIP Codes</option>
-                    </select>
-                    <button onclick="document.getElementById('prospectPoolZipFilter').value='all'; renderProspectPool()" class="px-3 py-2 text-xs bg-gray-200 hover:bg-gray-300 rounded-md font-medium whitespace-nowrap">
-                        Clear
-                    </button>
+                <div class="flex flex-col gap-2 w-full sm:w-auto">
+                    <label class="text-sm font-medium text-gray-700">Filter by ZIP Codes:</label>
+                    <div id="prospectPoolZipCheckboxes" class="flex flex-wrap gap-3">
+                        <!-- Checkboxes will be populated dynamically -->
+                    </div>
                 </div>
                 <div class="flex items-center gap-2">
                     <label class="text-sm font-medium text-gray-700 whitespace-nowrap">Show from:</label>
@@ -4750,7 +4747,7 @@ Thanks!
     function renderProspectPool() {
       const container = document.getElementById('prospectPoolContainer');
       const statsContainer = document.getElementById('prospectPoolStats');
-      const zipFilterSelect = document.getElementById('prospectPoolZipFilter');
+      const zipCheckboxContainer = document.getElementById('prospectPoolZipCheckboxes');
 
       if (!container || !statsContainer) return;
 
@@ -4759,9 +4756,13 @@ Thanks!
       console.log('🔍 DEBUG: placesCache.searches:', placesCache.searches);
       console.log('🔍 DEBUG: manualProspects count:', prospectPoolState.manualProspects.length);
 
-      // Get selected ZIP codes for filtering
-      const selectedZips = zipFilterSelect ? Array.from(zipFilterSelect.selectedOptions).map(opt => opt.value) : ['all'];
-      const filterByZip = !selectedZips.includes('all') && selectedZips.length > 0;
+      // Get selected ZIP codes from checkboxes
+      const selectedZips = [];
+      if (zipCheckboxContainer) {
+        const checkboxes = zipCheckboxContainer.querySelectorAll('input[type="checkbox"]:checked');
+        checkboxes.forEach(cb => selectedZips.push(cb.value));
+      }
+      const filterByZip = selectedZips.length > 0 && !selectedZips.includes('all');
 
       console.log('🔍 DEBUG: selectedZips:', selectedZips, 'filterByZip:', filterByZip);
 
@@ -4886,6 +4887,19 @@ Thanks!
           <div class="text-xs text-gray-600 mt-1">Available to Add</div>
         </div>
       `;
+
+      // Populate ZIP code checkboxes
+      if (zipCheckboxContainer) {
+        const sortedZips = Array.from(availableZips).sort();
+        const currentlySelected = selectedZips.length === 0 ? sortedZips : selectedZips; // If none selected, show all
+
+        zipCheckboxContainer.innerHTML = sortedZips.map(zip => `
+          <label class="inline-flex items-center gap-2 px-3 py-2 bg-white border-2 rounded-lg cursor-pointer hover:bg-indigo-50 hover:border-indigo-300 transition-colors ${currentlySelected.includes(zip) ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300'}">
+            <input type="checkbox" value="${zip}" ${currentlySelected.includes(zip) ? 'checked' : ''} onchange="renderProspectPool()" class="w-4 h-4 text-indigo-600 rounded focus:ring-2 focus:ring-indigo-500">
+            <span class="text-sm font-medium text-gray-700">${zip}</span>
+          </label>
+        `).join('');
+      }
 
       // ========= UNIFIED POOL: Merge manual prospects + search results by category =========
 
