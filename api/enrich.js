@@ -47,39 +47,31 @@ export default async function handler(req, res) {
       });
     }
 
-    // Prefer Place ID for most accurate results, fall back to name+address search
-    let outscraperUrl;
-    let fetchOptions;
-
+    // Build query - Place IDs work with the standard search endpoint
+    let query;
     if (placeId) {
-      // Use Place ID endpoint - different endpoint that takes Place IDs directly
+      // Place IDs can be used directly as search queries
       console.log('🔍 Enriching business by Place ID:', placeId, '(', businessName, ')');
-      outscraperUrl = `https://api.app.outscraper.com/maps/places-v2?query=${encodeURIComponent(placeId)}&language=en&region=us&fields=name,full_address,phone,site,emails,social_media,rating,reviews`;
-      fetchOptions = {
-        method: 'GET',
-        headers: {
-          'X-API-KEY': apiKey,
-          'Content-Type': 'application/json'
-        }
-      };
+      query = placeId;
     } else {
       // Fall back to name+address search
-      let query = businessName;
+      query = businessName;
       if (address) {
         query += `, ${address}`;
       }
       console.log('🔍 Enriching business by name:', query);
-      outscraperUrl = `https://api.app.outscraper.com/maps/search-v3?query=${encodeURIComponent(query)}&limit=1&language=en&region=us`;
-      fetchOptions = {
-        method: 'GET',
-        headers: {
-          'X-API-KEY': apiKey,
-          'Content-Type': 'application/json'
-        }
-      };
     }
 
-    const response = await fetch(outscraperUrl, fetchOptions);
+    // Use the standard Google Maps Search API v3
+    const outscraperUrl = `https://api.app.outscraper.com/maps/search-v3?query=${encodeURIComponent(query)}&limit=1&language=en&region=us`;
+
+    const response = await fetch(outscraperUrl, {
+      method: 'GET',
+      headers: {
+        'X-API-KEY': apiKey,
+        'Content-Type': 'application/json'
+      }
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
