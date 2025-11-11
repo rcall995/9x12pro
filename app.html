@@ -4739,8 +4739,36 @@ Thanks!
     window.moveProspectToPool = moveProspectToPool;
     window.moveProspectFromPool = moveProspectFromPool;
     window.filterProspectPoolByDate = filterProspectPoolByDate;
+    window.toggleAllZips = toggleAllZips;
+    window.handleZipChange = handleZipChange;
 
     function filterProspectPoolByDate() {
+      renderProspectPool();
+    }
+
+    function toggleAllZips(checkbox) {
+      const container = document.getElementById('prospectPoolZipCheckboxes');
+      if (!container) return;
+
+      if (checkbox.checked) {
+        // When ALL is checked, uncheck all individual ZIPs
+        const individualCheckboxes = container.querySelectorAll('input[type="checkbox"]:not([value="all"])');
+        individualCheckboxes.forEach(cb => cb.checked = false);
+      }
+      // Re-render to apply filter
+      renderProspectPool();
+    }
+
+    function handleZipChange(checkbox) {
+      const container = document.getElementById('prospectPoolZipCheckboxes');
+      if (!container) return;
+
+      if (checkbox.checked) {
+        // When an individual ZIP is checked, uncheck ALL
+        const allCheckbox = container.querySelector('input[value="all"]');
+        if (allCheckbox) allCheckbox.checked = false;
+      }
+      // Re-render to apply filter
       renderProspectPool();
     }
 
@@ -4758,13 +4786,27 @@ Thanks!
 
       // Get selected ZIP codes from checkboxes
       const selectedZips = [];
+      let allSelected = false;
       if (zipCheckboxContainer) {
         const checkboxes = zipCheckboxContainer.querySelectorAll('input[type="checkbox"]:checked');
-        checkboxes.forEach(cb => selectedZips.push(cb.value));
+        checkboxes.forEach(cb => {
+          if (cb.value === 'all') {
+            allSelected = true;
+          } else {
+            selectedZips.push(cb.value);
+          }
+        });
       }
-      const filterByZip = selectedZips.length > 0 && !selectedZips.includes('all');
 
-      console.log('🔍 DEBUG: selectedZips:', selectedZips, 'filterByZip:', filterByZip);
+      // ZIP filter logic:
+      // - ALL selected: show all ZIPs (no filter)
+      // - Specific ZIPs selected: show only those ZIPs
+      // - NONE selected: show nothing (filter with empty list)
+      const showAllZips = allSelected;
+      const showNoZips = !allSelected && selectedZips.length === 0;
+      const filterByZip = !allSelected; // Always filter unless ALL is checked
+
+      console.log('🔍 DEBUG: allSelected:', allSelected, 'selectedZips:', selectedZips, 'showNoZips:', showNoZips, 'filterByZip:', filterByZip);
 
       // Get date filter selection
       const filterDays = document.getElementById('prospectPoolDateFilter')?.value || 'all';
@@ -4891,11 +4933,21 @@ Thanks!
       // Populate ZIP code checkboxes
       if (zipCheckboxContainer) {
         const sortedZips = Array.from(availableZips).sort();
-        const currentlySelected = selectedZips.length === 0 ? sortedZips : selectedZips; // If none selected, show all
 
-        zipCheckboxContainer.innerHTML = sortedZips.map(zip => `
-          <label class="inline-flex items-center gap-2 px-3 py-2 bg-white border-2 rounded-lg cursor-pointer hover:bg-indigo-50 hover:border-indigo-300 transition-colors ${currentlySelected.includes(zip) ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300'}">
-            <input type="checkbox" value="${zip}" ${currentlySelected.includes(zip) ? 'checked' : ''} onchange="renderProspectPool()" class="w-4 h-4 text-indigo-600 rounded focus:ring-2 focus:ring-indigo-500">
+        // Determine what should be checked
+        // Default: ALL is checked
+        // If user has made selections: honor those
+        const isFirstLoad = !zipCheckboxContainer.querySelector('input[type="checkbox"]');
+        const shouldCheckAll = isFirstLoad || (allSelected && selectedZips.length === 0);
+
+        zipCheckboxContainer.innerHTML = `
+          <label class="inline-flex items-center gap-2 px-4 py-2 bg-white border-2 rounded-lg cursor-pointer hover:bg-blue-50 hover:border-blue-400 transition-colors font-semibold ${shouldCheckAll ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}">
+            <input type="checkbox" value="all" ${shouldCheckAll ? 'checked' : ''} onchange="toggleAllZips(this)" class="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500">
+            <span class="text-sm font-bold text-gray-900">ALL</span>
+          </label>
+        ` + sortedZips.map(zip => `
+          <label class="inline-flex items-center gap-2 px-3 py-2 bg-white border-2 rounded-lg cursor-pointer hover:bg-indigo-50 hover:border-indigo-300 transition-colors ${selectedZips.includes(zip) ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300'}">
+            <input type="checkbox" value="${zip}" ${selectedZips.includes(zip) ? 'checked' : ''} onchange="handleZipChange(this)" class="w-4 h-4 text-indigo-600 rounded focus:ring-2 focus:ring-indigo-500">
             <span class="text-sm font-medium text-gray-700">${zip}</span>
           </label>
         `).join('');
