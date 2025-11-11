@@ -47,23 +47,17 @@ export default async function handler(req, res) {
       });
     }
 
-    // Build query - Place IDs work with the standard search endpoint
-    let query;
-    if (placeId) {
-      // Place IDs can be used directly as search queries
-      console.log('🔍 Enriching business by Place ID:', placeId, '(', businessName, ')');
-      query = placeId;
-    } else {
-      // Fall back to name+address search
-      query = businessName;
-      if (address) {
-        query += `, ${address}`;
-      }
-      console.log('🔍 Enriching business by name:', query);
+    // Build query using business name + address (most reliable)
+    // Note: Outscraper doesn't support Place IDs directly, use name+location instead
+    let query = businessName;
+    if (address) {
+      query += `, ${address}`;
     }
 
-    // Use the standard Google Maps Search API v3
-    const outscraperUrl = `https://api.app.outscraper.com/maps/search-v3?query=${encodeURIComponent(query)}&limit=1&language=en&region=us`;
+    console.log('🔍 Enriching business:', query);
+
+    // Use the Google Maps Scraper API endpoint
+    const outscraperUrl = `https://api.app.outscraper.com/maps/search?query=${encodeURIComponent(query)}&limit=1&language=en&region=us`;
 
     const response = await fetch(outscraperUrl, {
       method: 'GET',
