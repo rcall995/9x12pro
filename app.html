@@ -4494,6 +4494,9 @@
 
       if (!container || !statsContainer) return;
 
+      // Get current town for filtering
+      const currentTown = state.current?.Town;
+
       // Get date filter selection
       const filterDays = document.getElementById('prospectPoolDateFilter')?.value || 'all';
       const now = new Date();
@@ -4611,7 +4614,6 @@
 
       // Merge both manual prospects and search results into unified categories
       const unifiedByCategory = {};
-      const currentTown = state.current?.Town;
 
       // 1. Add manual prospects (enriched) to unified pool - filter by current town and date
       prospectPoolState.manualProspects
@@ -7011,7 +7013,7 @@
         const monthSelect = document.getElementById("headerMonthSelect");
         if (townSelect && mostRecent.Town) {
           townSelect.value = mostRecent.Town;
-          onTownChanged(); // Populate month dropdown for this town
+          populateMonthsForTown(mostRecent.Town); // Populate month dropdown without triggering events
           if (monthSelect && mostRecent.Mail_Date) monthSelect.value = mostRecent.Mail_Date;
         }
 
@@ -7237,11 +7239,44 @@
       if (selManager) selManager.value = i;
 
       // Update town and month selectors to match current postcard
+      // Use a flag to prevent infinite recursion
       if (townSelect && m.Town) {
         townSelect.value = m.Town;
-        onTownChanged(); // This will populate month dropdown for this town
+        // Manually populate month dropdown without triggering events
+        populateMonthsForTown(m.Town);
         if (monthSelect && m.Mail_Date) monthSelect.value = m.Mail_Date;
       }
+    }
+
+    // Helper function to populate months without triggering onchange events
+    function populateMonthsForTown(town) {
+      const monthSelect = document.getElementById("headerMonthSelect");
+      if (!monthSelect) return;
+
+      const townMailers = state.mailers.filter(m => m.Town === town);
+
+      if (townMailers.length === 0) {
+        monthSelect.innerHTML = '<option value="">— No cards for this town —</option>';
+        monthSelect.disabled = true;
+        return;
+      }
+
+      // Get months for this town (sorted by date descending - newest first)
+      const monthDates = townMailers.map(m => m.Mail_Date).sort((a, b) => b.localeCompare(a));
+
+      // Enable and populate month dropdown
+      monthSelect.disabled = false;
+      monthSelect.innerHTML = '<option value="">— Select Month —</option>' +
+        monthDates.map(date => {
+          let displayDate = date;
+          if (/^\d{4}-\d{2}-\d{2}/.test(date)) {
+            const [year, month] = date.split('-');
+            const monthNames = ["", "January", "February", "March", "April", "May", "June",
+                                "July", "August", "September", "October", "November", "December"];
+            displayDate = `${monthNames[parseInt(month)]} ${year}`;
+          }
+          return `<option value="${esc(date)}">${esc(displayDate)}</option>`;
+        }).join('');
     }
     
     /* ========= RENDERING ========= */
