@@ -2308,8 +2308,8 @@
     }
     
     /* ========= CRM FUNCTIONS ========= */
-    
-    function createClient(data) {
+
+    function buildClientObject(data) {
       return {
         id: data.id || `CLT-${String(crmState.nextClientId++).padStart(4, '0')}`,
         businessName: data.businessName || "",
@@ -2667,7 +2667,7 @@
       
       let client;
       if (isNew) {
-        client = createClient(clientData);
+        client = buildClientObject(clientData);
         crmState.clients[client.id] = client;
       } else {
         client = crmState.clients[clientId];
