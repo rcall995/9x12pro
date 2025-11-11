@@ -743,6 +743,7 @@
                 <div class="flex flex-col gap-2">
                      <button id="btnAdjustPostcard" class="text-sm px-3 py-1.5 rounded-md control-btn">Adjust Postcard Colors</button>
                      <button id="btnSortOpen" class="text-sm px-3 py-1.5 rounded-md control-btn">Sort Statuses</button>
+                     <button onclick="deleteCurrentPostcard()" class="text-sm px-3 py-1.5 rounded-md bg-red-600 text-white hover:bg-red-700 font-medium">🗑️ Delete This Postcard</button>
                     <button id="btnSaveCommit"
                         class="text-sm px-6 py-3 rounded-md bg-green-600 text-white hover:bg-green-700 opacity-50 cursor-not-allowed font-bold"
                         disabled>
@@ -3607,7 +3608,8 @@
                   placeIds: businesses.map(b => b.placeId),
                   cachedData: businesses,
                   cachedUntil: cacheExpiry.toISOString(),
-                  lastFetched: new Date().toISOString()
+                  lastFetched: new Date().toISOString(),
+                  town: state.current?.Town || null // Tag with current town
                 };
 
                 savePlacesCache();
@@ -3653,7 +3655,8 @@
                   placeIds: businesses.map(b => b.placeId),
                   cachedData: businesses,
                   cachedUntil: cacheExpiry.toISOString(),
-                  lastFetched: new Date().toISOString()
+                  lastFetched: new Date().toISOString(),
+                  town: state.current?.Town || null // Tag with current town
                 };
 
                 savePlacesCache();
@@ -4497,6 +4500,11 @@
 
         if (!cached.cachedData || cached.cachedData.length === 0) return;
 
+        // Filter by town - only show cached searches for the current town
+        if (currentTown && cached.town && cached.town !== currentTown) {
+          return; // Skip searches from other towns
+        }
+
         // Check if cache is still valid
         const cacheDate = new Date(cached.cachedUntil);
         if (new Date() > cacheDate) return; // Skip expired cache
@@ -4573,16 +4581,15 @@
 
       // Merge both manual prospects and search results into unified categories
       const unifiedByCategory = {};
-      const currentMailerId = state.current?.Mailer_ID;
+      const currentTown = state.current?.Town;
 
-      // 1. Add manual prospects (enriched) to unified pool - filter by current card and date
+      // 1. Add manual prospects (enriched) to unified pool - filter by current town and date
       prospectPoolState.manualProspects
         .filter(prospect => {
-          // Show prospects that either:
-          // 1. Match current card, OR
-          // 2. Have no mailerId (legacy, show everywhere)
-          if (!currentMailerId) return true; // Show all if no card selected
-          return !prospect.mailerId || prospect.mailerId === currentMailerId;
+          // Show prospects that match the current town
+          // This is based on the town they were added for, not the specific postcard
+          if (!currentTown) return true; // Show all if no card selected
+          return !prospect.town || prospect.town === currentTown;
         })
         .filter(prospect => {
           // Apply date filter
@@ -6505,7 +6512,61 @@
       document.getElementById('emailSubject').value = subject;
       document.getElementById('emailBody').value = body;
     }
-    
+
+    // Delete the current postcard
+    async function deleteCurrentPostcard() {
+      if (!state.current) {
+        toast('No postcard selected', false);
+        return;
+      }
+
+      const postcard = state.current;
+      const confirmMsg = `Are you sure you want to delete the postcard for ${postcard.Town} — ${postcard.Mail_Date}?\n\nThis action cannot be undone.`;
+
+      if (!confirm(confirmMsg)) return;
+
+      try {
+        // Delete from Supabase
+        const { error } = await supabaseClient
+          .from('postcards')
+          .delete()
+          .eq('user_email', ACTIVE_USER)
+          .eq('mailer_id', postcard.Mailer_ID);
+
+        if (error) throw error;
+
+        // Remove from state
+        const currentIndex = state.mailers.findIndex(m => m.Mailer_ID === postcard.Mailer_ID);
+        if (currentIndex !== -1) {
+          state.mailers.splice(currentIndex, 1);
+        }
+
+        // Clear current selection
+        state.current = null;
+        state.availability = {};
+        state.initial = {};
+        state.merged.clear();
+        state.selected.clear();
+        state.dirty = false;
+
+        // Refresh dropdowns
+        populateTownAndMonthSelectors();
+
+        // Select first postcard if available
+        if (state.mailers.length > 0) {
+          pickCampaign({ target: { value: '0' } });
+        } else {
+          renderAll();
+        }
+
+        toast(`✅ Postcard for ${postcard.Town} deleted successfully`, true);
+
+      } catch (err) {
+        console.error('Error deleting postcard:', err);
+        toast('Failed to delete postcard', false);
+      }
+    }
+
     /* ========= PERSISTED COLORS ========= */
     const POSTCARD_BG_KEY = "mailslot-postcard-bg";
     const BANNER_BG_KEY = "mailslot-banner-bg";
@@ -6623,7 +6684,11 @@
       } catch(e) {}
       updateAutoSaveStatus(); // Initialize auto-save status indicator
       updateQuickApiUsage(); // Initialize API usage display in prospecting section
-      switchTab('pipeline');
+
+      // Restore last active tab, or default to pipeline
+      const lastTab = localStorage.getItem('9x12_active_tab') || 'pipeline';
+      switchTab(lastTab);
+
       window.addEventListener('resize', () => renderLegend());
       bindUI();
 
@@ -6657,6 +6722,7 @@
       window.clearProspectPool = clearProspectPool;
       window.renderProspectPool = renderProspectPool;
       window.switchTab = switchTab;
+      window.deleteCurrentPostcard = deleteCurrentPostcard;
     });
     
     function bindUI(){
@@ -6745,6 +6811,9 @@
             performAutoSave(); // Immediate save on tab switch
         }
 
+        // Save current tab to remember it on refresh
+        localStorage.setItem('9x12_active_tab', tabName);
+
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.classList.remove('active');
         });
@@ -6752,7 +6821,7 @@
         if (activeBtn) {
             activeBtn.classList.add('active');
         }
-        
+
         document.querySelectorAll('.tab-pane').forEach(pane => {
             pane.classList.add('hidden');
             pane.classList.remove('active-pane');
@@ -6762,7 +6831,7 @@
             activePane.classList.remove('hidden');
             activePane.classList.add('active-pane');
         }
-        
+
         const legendArea = document.getElementById("legendArea");
         if (legendArea) show(legendArea, tabName === 'manager');
         
