@@ -4691,14 +4691,23 @@ Thanks!
 
       if (!container || !statsContainer) return;
 
+      // DEBUG: Log what's in the cache
+      console.log('🔍 DEBUG: placesCache.searches keys:', Object.keys(placesCache.searches));
+      console.log('🔍 DEBUG: placesCache.searches:', placesCache.searches);
+      console.log('🔍 DEBUG: manualProspects count:', prospectPoolState.manualProspects.length);
+
       // Get selected ZIP codes for filtering
       const selectedZips = zipFilterSelect ? Array.from(zipFilterSelect.selectedOptions).map(opt => opt.value) : ['all'];
       const filterByZip = !selectedZips.includes('all') && selectedZips.length > 0;
+
+      console.log('🔍 DEBUG: selectedZips:', selectedZips, 'filterByZip:', filterByZip);
 
       // Get date filter selection
       const filterDays = document.getElementById('prospectPoolDateFilter')?.value || 'all';
       const now = new Date();
       const cutoffDate = filterDays === 'all' ? null : new Date(now.getTime() - (parseInt(filterDays) * 24 * 60 * 60 * 1000));
+
+      console.log('🔍 DEBUG: filterDays:', filterDays, 'cutoffDate:', cutoffDate);
 
       // Get all cached searches and organize by category
       const categorizedProspects = {};
@@ -4728,9 +4737,15 @@ Thanks!
 
       // Process cached searches (with deduplication)
       const seenPlaceIds = new Set(); // Track placeIds to prevent duplicates
+      let skippedByZip = 0;
+      let skippedByDate = 0;
+      let processedCaches = 0;
+
       Object.keys(placesCache.searches).forEach(cacheKey => {
         const [zipCode, category] = cacheKey.split('-');
         const cached = placesCache.searches[cacheKey];
+
+        console.log(`🔍 DEBUG: Processing cache key: ${cacheKey}, has data: ${cached.cachedData ? cached.cachedData.length : 0}, lastFetched: ${cached.lastFetched}`);
 
         if (!cached.cachedData || cached.cachedData.length === 0) return;
 
@@ -4739,17 +4754,25 @@ Thanks!
 
         // Filter by selected ZIP codes
         if (filterByZip && !selectedZips.includes(zipCode)) {
+          skippedByZip++;
+          console.log(`🔍 DEBUG: Skipping ${cacheKey} - ZIP filter (${zipCode} not in selected)`);
           return; // Skip searches from unselected ZIP codes
         }
 
         // NOTE: Don't check cache expiration - user should always see their prospect data
         // even if it's older than 30 days. They worked hard to build this list!
 
-        // Apply date filter
+        // Apply date filter - ONLY if lastFetched exists and cutoff is set
         if (cutoffDate && cached.lastFetched) {
           const fetchedDate = new Date(cached.lastFetched);
-          if (fetchedDate < cutoffDate) return; // Skip if outside date range
+          if (fetchedDate < cutoffDate) {
+            skippedByDate++;
+            console.log(`🔍 DEBUG: Skipping ${cacheKey} - Date filter (fetched: ${fetchedDate.toLocaleDateString()}, cutoff: ${cutoffDate.toLocaleDateString()})`);
+            return; // Skip if outside date range
+          }
         }
+
+        processedCaches++;
 
         if (!categorizedProspects[category]) {
           categorizedProspects[category] = [];
@@ -4772,6 +4795,9 @@ Thanks!
           }
         });
       });
+
+      console.log(`🔍 DEBUG SUMMARY: Total cache keys: ${Object.keys(placesCache.searches).length}, Processed: ${processedCaches}, Skipped by ZIP: ${skippedByZip}, Skipped by Date: ${skippedByDate}`);
+      console.log(`🔍 DEBUG SUMMARY: Total prospects found: ${totalProspects}, Categories: ${Object.keys(categorizedProspects).length}`);
 
       // Render stats
       const categories = Object.keys(categorizedProspects).length;
