@@ -2436,6 +2436,7 @@ Thanks!
           address: data.address || ""
         },
         history: data.history || [],
+        interactions: data.interactions || [], // Interaction tracking: [{date, type, notes, nextFollowUp}]
         lifetime: {
           totalSpent: 0,
           cardsBought: 0,
@@ -4306,7 +4307,8 @@ Thanks!
             zipCode: business.zipCode || null, // Tag with ZIP code from search
             mailerId: state.current?.Mailer_ID || null, // Tag with current postcard
             town: state.current?.Town || null, // Tag with current town
-            addedDate: new Date().toISOString()
+            addedDate: new Date().toISOString(),
+            interactions: [] // Interaction history: [{date, type, notes, nextFollowUp}]
           };
 
           kanbanState.columns[prospectingColumn].push(newLead);
