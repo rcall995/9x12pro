@@ -9022,10 +9022,28 @@ Thanks!
     }
 
     async function saveToSheet(){
-      if (!state.current) return;
-      if (!state.dirty) { toast("No changes to save"); return; }
+      console.log('🚀 saveToSheet() CALLED!', {
+        hasCurrent: !!state.current,
+        isDirty: state.dirty,
+        currentMailerId: state.current?.Mailer_ID
+      });
+
+      if (!state.current) {
+        console.log('❌ Exiting: No current postcard');
+        return;
+      }
+
+      if (!state.dirty) {
+        console.log('❌ Exiting: Not dirty');
+        toast("No changes to save");
+        return;
+      }
+
       const availabilityDiffs = buildAvailabilityPayload();
+      console.log('📝 Availability diffs:', availabilityDiffs, 'Count:', Object.keys(availabilityDiffs).length);
+
       if (Object.keys(availabilityDiffs).length === 0) {
+        console.log('❌ Exiting: No availability diffs');
         toast("No changes to save");
         state.dirty = false;
         updateToolbar();
@@ -9033,6 +9051,8 @@ Thanks!
       }
 
       const updates = computeUpdates();
+      console.log('📊 Computed updates count:', updates);
+
       const payload = {
         User: ACTIVE_USER,  // Use uppercase User to match backend
         Mailer_ID: state.current.Mailer_ID,
@@ -9059,7 +9079,7 @@ Thanks!
           updateData[`spot_${spotNumber}`] = availabilityDiffs[spotKey];
         });
 
-        // Update in Supabase
+        console.log('💾 ABOUT TO CALL SUPABASE UPDATE');
         console.log('💾 SAVING TO SUPABASE:', {
           mailer_id: state.current.Mailer_ID,
           user_email: ACTIVE_USER,
