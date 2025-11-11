@@ -2350,6 +2350,7 @@
         const cloudData = await loadFromCloud('clients');
 
         if (cloudData) {
+          console.log('📦 Loaded clients from cloud:', cloudData);
           crmState.clients = cloudData.clients || {};
           crmState.nextClientId = cloudData.nextClientId || 1;
         } else {
@@ -2363,10 +2364,16 @@
             saveToCloud('clients', { clients: crmState.clients, nextClientId: crmState.nextClientId }).catch(e => console.warn('Failed to sync clients to cloud:', e));
           }
         }
+
+        // Render client list (inside try-catch to prevent promise rejection)
+        renderClientList();
       } catch(e) {
         console.error('Error loading clients:', e);
+        // Still try to render with empty state
+        crmState.clients = {};
+        crmState.nextClientId = 1;
+        renderClientList();
       }
-      renderClientList();
     }
 
     async function saveClients() {
