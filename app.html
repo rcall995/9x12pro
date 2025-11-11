@@ -3792,6 +3792,15 @@
 
         if (!data.enriched) {
           console.log('ℹ️ No enrichment data found for:', businessName);
+          if (data.error) {
+            console.warn('⚠️ Outscraper error:', data.error);
+            if (data.debug) {
+              console.warn('💡 Hint:', data.debug.hint);
+              if (data.debug.status === 402) {
+                console.error('💳💳💳 OUT OF CREDITS! Go to: https://app.outscraper.com/billing');
+              }
+            }
+          }
           return {
             ...data,
             source: 'google-places'

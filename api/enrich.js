@@ -76,7 +76,7 @@ export default async function handler(req, res) {
       const errorText = await response.text();
       console.error('❌ Outscraper API error:', response.status, errorText);
 
-      // Return fallback data instead of failing
+      // Return detailed error info
       return res.status(200).json({
         phone: '',
         website: '',
@@ -84,22 +84,33 @@ export default async function handler(req, res) {
         facebook: '',
         instagram: '',
         enriched: false,
-        error: `API error: ${response.status}`
+        error: `Outscraper API ${response.status}: ${errorText.substring(0, 200)}`,
+        debug: {
+          status: response.status,
+          hint: response.status === 402 ? '💳 Out of credits! Add credits at https://app.outscraper.com/billing' :
+                response.status === 401 || response.status === 403 ? '🔑 Invalid API key! Check at https://app.outscraper.com/api-keys' :
+                '❓ Unknown API error'
+        }
       });
     }
 
     const data = await response.json();
 
+    // Log the raw API response for debugging
+    console.log('📥 Raw Outscraper API response:', JSON.stringify(data, null, 2));
+
     // Parse Outscraper response
     if (!data.data || data.data.length === 0 || !data.data[0] || data.data[0].length === 0) {
-      console.warn('⚠️ No results found for:', query);
+      console.warn('⚠️ No results found for:', placeId || businessName);
+      console.warn('⚠️ Response structure:', JSON.stringify(data, null, 2));
       return res.status(200).json({
         phone: '',
         website: '',
         email: '',
         facebook: '',
         instagram: '',
-        enriched: false
+        enriched: false,
+        error: 'No results found - business might not exist in Google Maps or account out of credits'
       });
     }
 
