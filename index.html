@@ -14,6 +14,8 @@
   </script>
   <!-- Google Maps JavaScript API with Places Library -->
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCNzXL-8UT-JI1Dy9wBN14KtH-UDMbeOlo&libraries=places&callback=initGoogleMaps" async defer></script>
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22><circle cx=%228%22 cy=%228%22 r=%226%22 fill=%22%23333%22/></svg>">
   <style>
     /* Core card */
@@ -1595,8 +1597,14 @@
 
   <script>
     /* ========= CONFIG ========= */
-    const GAS_URL = "https://script.google.com/macros/s/AKfycby9_d0yMKxyn5qYgOooQX6IjHZHh9C5QS7hG4XYn5tJAqFzBKu455fMp-0O2Xft54L9ag/exec";
+    // Supabase Configuration
+    const SUPABASE_URL = "https://kurhsdvxsgkgnfimfqdo.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1cmhzZHZ4c2drZ25maW1mcWRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4MDk3NDYsImV4cCI6MjA3ODM4NTc0Nn0.nB_GsE89WJ3eAQrgmNKb-fbCktHTHf-987D-G6lscZA";
     const ACTIVE_USER = "lastcall.me@hotmail.com";
+
+    // Initialize Supabase client
+    const { createClient } = window.supabase;
+    const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     // Cloud Sync State - Tracks what's syncing and when
     const cloudSyncState = {
@@ -6321,27 +6329,40 @@
         btn.innerHTML = '☁️ Saving to cloud...';
 
         try {
-          // Use the updateSpotAvailability endpoint which now handles creating new rows
-          const payload = {
-            User: ACTIVE_USER,
-            Payment_Status: newPostcard.Payment_Status,
-            Mailer_ID: newPostcard.Mailer_ID,
-            Town: newPostcard.Town,
-            Mail_Date: newPostcard.Mail_Date,
-            In_Homes_Date: newPostcard.In_Homes_Date,
-            Postcard_BG: newPostcard.Postcard_BG,
-            Banner_BG: newPostcard.Banner_BG,
-            availability: newPostcard.availability
-          };
+          // Insert into Supabase with snake_case column names
+          const { error } = await supabaseClient
+            .from('postcards')
+            .insert({
+              user_email: ACTIVE_USER,
+              mailer_id: newPostcard.Mailer_ID,
+              town: newPostcard.Town,
+              mail_date: newPostcard.Mail_Date,
+              in_homes_date: newPostcard.In_Homes_Date,
+              payment_status: newPostcard.Payment_Status,
+              postcard_bg: newPostcard.Postcard_BG,
+              banner_bg: newPostcard.Banner_BG,
+              spot_1: newPostcard.availability.Spot_1 || 'Available',
+              spot_2: newPostcard.availability.Spot_2 || 'Available',
+              spot_3: newPostcard.availability.Spot_3 || 'Available',
+              spot_4: newPostcard.availability.Spot_4 || 'Available',
+              spot_5: newPostcard.availability.Spot_5 || 'Available',
+              spot_6: newPostcard.availability.Spot_6 || 'Available',
+              spot_7: newPostcard.availability.Spot_7 || 'Available',
+              spot_8: newPostcard.availability.Spot_8 || 'Available',
+              spot_9: newPostcard.availability.Spot_9 || 'Available',
+              spot_10: newPostcard.availability.Spot_10 || 'Available',
+              spot_11: newPostcard.availability.Spot_11 || 'Available',
+              spot_12: newPostcard.availability.Spot_12 || 'Available',
+              spot_13: newPostcard.availability.Spot_13 || 'Available',
+              spot_14: newPostcard.availability.Spot_14 || 'Available',
+              spot_15: newPostcard.availability.Spot_15 || 'Available',
+              spot_16: newPostcard.availability.Spot_16 || 'Available',
+              spot_17: newPostcard.availability.Spot_17 || 'Available',
+              spot_18: newPostcard.availability.Spot_18 || 'Available'
+            });
 
-          const response = await fetch(GAS_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
+          if (error) throw error;
 
-          // no-cors mode doesn't allow reading response, assume success
           toast("✅ Postcard created and saved to cloud!", true);
 
         } catch (cloudErr) {
@@ -6692,18 +6713,48 @@
     
     /* ========= LOAD CAMPAIGNS ========= */
     async function loadCampaigns() {
-      const url = `${GAS_URL}?user=${encodeURIComponent(ACTIVE_USER)}`;
       try {
-        const resp = await fetch(url, { cache: 'no-cache', credentials: 'omit' });
-        if (!resp.ok) throw new Error('Network error');
-        const contentType = resp.headers.get('Content-Type') || '';
-        if (!contentType.includes('application/json') && !contentType.includes('text/javascript')) {
-          throw new Error('Unexpected content-type');
-        }
-        const data = await resp.json();
-        onCampaignsLoaded(data);
+        const { data, error } = await supabaseClient
+          .from('postcards')
+          .select('*')
+          .eq('user_email', ACTIVE_USER)
+          .order('mail_date', { ascending: false });
+
+        if (error) throw error;
+
+        // Transform Supabase column names to match app expectations
+        const mailers = (data || []).map(postcard => ({
+          Mailer_ID: postcard.mailer_id,
+          Town: postcard.town,
+          Mail_Date: postcard.mail_date,
+          In_Homes_Date: postcard.in_homes_date,
+          Payment_Status: postcard.payment_status,
+          Postcard_BG: postcard.postcard_bg,
+          Banner_BG: postcard.banner_bg,
+          Spot_1: postcard.spot_1,
+          Spot_2: postcard.spot_2,
+          Spot_3: postcard.spot_3,
+          Spot_4: postcard.spot_4,
+          Spot_5: postcard.spot_5,
+          Spot_6: postcard.spot_6,
+          Spot_7: postcard.spot_7,
+          Spot_8: postcard.spot_8,
+          Spot_9: postcard.spot_9,
+          Spot_10: postcard.spot_10,
+          Spot_11: postcard.spot_11,
+          Spot_12: postcard.spot_12,
+          Spot_13: postcard.spot_13,
+          Spot_14: postcard.spot_14,
+          Spot_15: postcard.spot_15,
+          Spot_16: postcard.spot_16,
+          Spot_17: postcard.spot_17,
+          Spot_18: postcard.spot_18
+        }));
+
+        onCampaignsLoaded(mailers);
       } catch (err) {
-        jsonpLoad(url, onCampaignsLoaded);
+        console.error('Failed to load campaigns from Supabase:', err);
+        toast("⚠️ Failed to load campaigns. Please refresh.", false);
       }
     }
     
@@ -7763,21 +7814,34 @@
       try {
         toast(`☁️ Saving ${updates} change${updates===1?"":"s"}...`, false);
 
-        const response = await fetch(GAS_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+        // Build Supabase update object with snake_case column names
+        const updateData = {
+          postcard_bg: stagedColors.Postcard_BG || state.current.Postcard_BG || '#000000',
+          banner_bg: stagedColors.Banner_BG || state.current.Banner_BG || '#000000'
+        };
+
+        // Add spot updates
+        Object.keys(availabilityDiffs).forEach(spotKey => {
+          const spotNumber = spotKey.replace('Spot_', '');
+          updateData[`spot_${spotNumber}`] = availabilityDiffs[spotKey];
         });
 
-        // no-cors mode doesn't allow reading response, assume success
+        // Update in Supabase
+        const { error } = await supabaseClient
+          .from('postcards')
+          .update(updateData)
+          .eq('mailer_id', state.current.Mailer_ID)
+          .eq('user_email', ACTIVE_USER);
+
+        if (error) throw error;
+
         toast(`✅ Saved ${updates} change${updates===1?"":"s"} to cloud!`, true);
         state.dirty = false;
         autoSaveState.lastSaveTime = Date.now();
         updateToolbar();
         updateAutoSaveStatus();
 
-        // Reload campaigns to get fresh data from sheet
+        // Reload campaigns to get fresh data
         setTimeout(() => loadCampaigns(), 500);
 
       } catch (err) {
