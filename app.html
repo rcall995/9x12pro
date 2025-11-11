@@ -8877,12 +8877,24 @@ Thanks!
 
     function performAutoSave() {
       try {
+        // Auto-save disabled - using manual Supabase saves only
+        // The old Google Sheets auto-save has been removed
+        // Use the "Commit to Cloud" button to save changes
         if (!state.dirty) return;
-        if (autoSaveState.saving) {
-          // Already saving - reschedule for after current save completes
-          return;
-        }
-        if (!state.current) return;
+
+        // Just mark as clean since we're using manual saves now
+        state.dirty = false;
+        autoSaveState.saving = false;
+        updateAutoSaveStatus();
+        return;
+
+      // OLD CODE BELOW - DISABLED
+      /*
+      if (autoSaveState.saving) {
+        // Already saving - reschedule for after current save completes
+        return;
+      }
+      if (!state.current) return;
 
       const availabilityDiffs = buildAvailabilityPayload();
       if (Object.keys(availabilityDiffs).length === 0) {
