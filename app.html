@@ -309,7 +309,7 @@
     <div class="flex-1 flex justify-center">
       <div class="flex flex-col md:flex-row items-center gap-2">
         <label class="text-sm font-semibold text-gray-700 whitespace-nowrap">Town:</label>
-        <select id="headerTownSelect" onchange="updatePostcardFromSelectors()" class="border-2 border-indigo-300 rounded-lg px-3 py-2 bg-white text-sm font-medium hover:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" style="min-width: 150px;">
+        <select id="headerTownSelect" onchange="onTownChanged()" class="border-2 border-indigo-300 rounded-lg px-3 py-2 bg-white text-sm font-medium hover:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" style="min-width: 150px;">
           <option value="">— Select Town —</option>
         </select>
         <label class="text-sm font-semibold text-gray-700 whitespace-nowrap">Month:</label>
@@ -3595,7 +3595,8 @@
                     rating: place.rating || 0,
                     userRatingsTotal: place.user_ratings_total || 0,
                     types: place.types || [],
-                    category: category // Track which category this came from
+                    category: category, // Track which category this came from
+                    zipCode: zipCode // Track which ZIP code was used for the search
                   }));
 
                 // Cache results for 30 days
@@ -3640,7 +3641,8 @@
                     rating: place.rating || 0,
                     userRatingsTotal: place.user_ratings_total || 0,
                     types: place.types || [],
-                    category: category // Track which category this came from
+                    category: category, // Track which category this came from
+                    zipCode: zipCode // Track which ZIP code was used for the search
                   }));
 
                 // Cache results for 30 days
@@ -4183,6 +4185,7 @@
             facebook: details.facebook || '',
             instagram: details.instagram || '',
             category: business.category || 'other',
+            zipCode: business.zipCode || null, // Tag with ZIP code from search
             mailerId: state.current?.Mailer_ID || null, // Tag with current postcard
             town: state.current?.Town || null, // Tag with current town
             addedDate: new Date().toISOString()
@@ -6382,8 +6385,11 @@
         populateTownAndMonthSelectors();
         const townSelect = document.getElementById("headerTownSelect");
         const monthSelect = document.getElementById("headerMonthSelect");
-        if (townSelect && newPostcard.Town) townSelect.value = newPostcard.Town;
-        if (monthSelect && newPostcard.Mail_Date) monthSelect.value = newPostcard.Mail_Date;
+        if (townSelect && newPostcard.Town) {
+          townSelect.value = newPostcard.Town;
+          onTownChanged(); // Populate month dropdown for this town
+          if (monthSelect && newPostcard.Mail_Date) monthSelect.value = newPostcard.Mail_Date;
+        }
 
         // Save to cloud immediately
         btn.innerHTML = '☁️ Saving to cloud...';
@@ -6898,32 +6904,67 @@
         const mostRecent = mailers[mostRecentIndex];
         const townSelect = document.getElementById("headerTownSelect");
         const monthSelect = document.getElementById("headerMonthSelect");
-        if (townSelect && mostRecent.Town) townSelect.value = mostRecent.Town;
-        if (monthSelect && mostRecent.Mail_Date) monthSelect.value = mostRecent.Mail_Date;
+        if (townSelect && mostRecent.Town) {
+          townSelect.value = mostRecent.Town;
+          onTownChanged(); // Populate month dropdown for this town
+          if (monthSelect && mostRecent.Mail_Date) monthSelect.value = mostRecent.Mail_Date;
+        }
 
         pickCampaign({ target: { value: mostRecentIndex.toString() } });
       }
     }
 
-    // Populate town and month selectors from available mailers
+    // Populate town selector from available mailers
     function populateTownAndMonthSelectors() {
       const townSelect = document.getElementById("headerTownSelect");
-      const monthSelect = document.getElementById("headerMonthSelect");
 
-      if (!townSelect || !monthSelect) return;
+      if (!townSelect) return;
 
       // Get unique towns (sorted alphabetically)
       const towns = [...new Set(state.mailers.map(m => m.Town))].sort();
-
-      // Get unique months (sorted by date descending)
-      const monthDates = [...new Set(state.mailers.map(m => m.Mail_Date))];
-      monthDates.sort((a, b) => b.localeCompare(a)); // Newest first
 
       // Populate town dropdown
       townSelect.innerHTML = '<option value="">— Select Town —</option>' +
         towns.map(town => `<option value="${esc(town)}">${esc(town)}</option>`).join('');
 
-      // Populate month dropdown with formatted dates
+      // Month dropdown will be populated when town is selected
+      const monthSelect = document.getElementById("headerMonthSelect");
+      if (monthSelect) {
+        monthSelect.innerHTML = '<option value="">— Select Town First —</option>';
+        monthSelect.disabled = true;
+      }
+    }
+
+    // When town changes, populate month dropdown with only months for that town
+    function onTownChanged() {
+      const townSelect = document.getElementById("headerTownSelect");
+      const monthSelect = document.getElementById("headerMonthSelect");
+
+      if (!townSelect || !monthSelect) return;
+
+      const selectedTown = townSelect.value;
+
+      if (!selectedTown) {
+        // No town selected, disable month dropdown
+        monthSelect.innerHTML = '<option value="">— Select Town First —</option>';
+        monthSelect.disabled = true;
+        return;
+      }
+
+      // Filter mailers for this town only
+      const townMailers = state.mailers.filter(m => m.Town === selectedTown);
+
+      if (townMailers.length === 0) {
+        monthSelect.innerHTML = '<option value="">— No cards for this town —</option>';
+        monthSelect.disabled = true;
+        return;
+      }
+
+      // Get months for this town (sorted by date descending - newest first)
+      const monthDates = townMailers.map(m => m.Mail_Date).sort((a, b) => b.localeCompare(a));
+
+      // Enable and populate month dropdown
+      monthSelect.disabled = false;
       monthSelect.innerHTML = '<option value="">— Select Month —</option>' +
         monthDates.map(date => {
           let displayDate = date;
@@ -6935,6 +6976,12 @@
           }
           return `<option value="${esc(date)}">${esc(displayDate)}</option>`;
         }).join('');
+
+      // If there's only one month for this town, auto-select it
+      if (monthDates.length === 1) {
+        monthSelect.value = monthDates[0];
+        updatePostcardFromSelectors();
+      }
     }
 
     // Update selected postcard when town or month selector changes
@@ -7085,8 +7132,11 @@
       if (selManager) selManager.value = i;
 
       // Update town and month selectors to match current postcard
-      if (townSelect && m.Town) townSelect.value = m.Town;
-      if (monthSelect && m.Mail_Date) monthSelect.value = m.Mail_Date;
+      if (townSelect && m.Town) {
+        townSelect.value = m.Town;
+        onTownChanged(); // This will populate month dropdown for this town
+        if (monthSelect && m.Mail_Date) monthSelect.value = m.Mail_Date;
+      }
     }
     
     /* ========= RENDERING ========= */
