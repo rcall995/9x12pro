@@ -4882,6 +4882,7 @@
             facebook: details.facebook || '',
             instagram: details.instagram || '',
             category: business.category || 'other',
+            zipCode: business.zipCode || null, // Tag with ZIP code from search
             mailerId: currentMailerId, // Link to current card
             town: state.current?.Town, // Tag with town for organization
             addedDate: new Date().toISOString()
@@ -5303,7 +5304,7 @@
                       `}
                       <div class="flex-1">
                         <div class="font-medium text-xs break-words">${esc(leadName)}</div>
-                        ${item.town ? `<div class="text-xs text-gray-500 font-medium mt-0.5">📍 ${esc(item.town)}</div>` : ''}
+                        ${item.zipCode ? `<div class="text-xs text-gray-500 font-medium mt-0.5">📍 ${esc(item.zipCode)}</div>` : ''}
                       </div>
                       <div class="flex gap-1 flex-shrink-0">
                         <button onclick="openContactLaterModal(${leadId}, event)" class="text-purple-600 hover:text-purple-800 text-sm cursor-pointer" title="Contact Later">📅</button>
@@ -5337,7 +5338,7 @@
                     ` : ''}
                     <div class="flex-1">
                       <div class="font-medium">${esc(leadName)}</div>
-                      ${typeof item === 'object' && item.town ? `<div class="text-xs text-gray-500 font-medium mt-0.5">📍 ${esc(item.town)}</div>` : ''}
+                      ${typeof item === 'object' && item.zipCode ? `<div class="text-xs text-gray-500 font-medium mt-0.5">📍 ${esc(item.zipCode)}</div>` : ''}
                     </div>
                     <div class="flex gap-1">
                       <button onclick="editLead('${col.key}', ${leadId}, event)" class="text-blue-600 hover:text-blue-800 cursor-pointer" title="Edit">✎</button>
