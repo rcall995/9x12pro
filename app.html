@@ -8888,8 +8888,12 @@ Thanks!
         updateAutoSaveStatus();
         return;
 
-      // OLD CODE BELOW - DISABLED
-      /*
+      } catch(e) {
+        console.error('Error in performAutoSave:', e);
+      }
+    }
+
+      /* OLD CODE BELOW - DISABLED
       if (autoSaveState.saving) {
         // Already saving - reschedule for after current save completes
         return;
@@ -8957,6 +8961,7 @@ Thanks!
         toast('Auto-save failed', false);
       }
     }
+    */
 
     function manualSaveNow() {
       if (!state.dirty) {
