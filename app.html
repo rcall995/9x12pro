@@ -6325,19 +6325,39 @@
           }
         }
 
-        // Add the new postcard to state.mailers (locally - won't persist to Google Sheets until backend is updated)
+        // Add the new postcard to state.mailers
         state.mailers.push(newPostcard);
+
+        // Sort mailers by date (newest first), then by town (alphabetically)
+        state.mailers = state.mailers.sort((a, b) => {
+          const dateA = a.Mail_Date || '';
+          const dateB = b.Mail_Date || '';
+          if (dateA !== dateB) {
+            return dateB.localeCompare(dateA); // Reverse order for descending
+          }
+          const townA = (a.Town || '').toLowerCase();
+          const townB = (b.Town || '').toLowerCase();
+          return townA.localeCompare(townB);
+        });
+
+        // Find the index of the newly created postcard after sorting
+        const newIndex = state.mailers.findIndex(m => m.Mailer_ID === newPostcard.Mailer_ID);
 
         // Update the dropdown selectors
         const selManager = document.getElementById("postcardSelect");
         const selDashboard = document.getElementById("headerPostcardSelect");
-        const newIndex = state.mailers.length - 1;
 
         const selectHtml = '<option value="">— Select —</option>' +
           state.mailers.map((m,i)=>{
-            // Extract month name from Mail_Date string (e.g., "December 2025")
-            const monthYear = m.Mail_Date || "";
-            return `<option value="${i}">${esc(m.Town)} — ${esc(monthYear)}</option>`;
+            // Format date display
+            let displayDate = m.Mail_Date || "";
+            if (/^\d{4}-\d{2}-\d{2}/.test(displayDate)) {
+              const [year, month] = displayDate.split('-');
+              const monthNames = ["", "January", "February", "March", "April", "May", "June",
+                                  "July", "August", "September", "October", "November", "December"];
+              displayDate = `${monthNames[parseInt(month)]} ${year}`;
+            }
+            return `<option value="${i}">${esc(m.Town)} — ${esc(displayDate)}</option>`;
           }).join("");
 
         if (selManager) {
@@ -6794,7 +6814,22 @@
     
     function onCampaignsLoaded(res){
       // Backend returns array directly, not wrapped in {mailers: []}
-      const mailers = Array.isArray(res) ? res : (res && res.mailers) ? res.mailers : [];
+      let mailers = Array.isArray(res) ? res : (res && res.mailers) ? res.mailers : [];
+
+      // Sort by date (newest first), then by town (alphabetically)
+      mailers = mailers.sort((a, b) => {
+        // Compare dates in descending order (newest first)
+        const dateA = a.Mail_Date || '';
+        const dateB = b.Mail_Date || '';
+        if (dateA !== dateB) {
+          return dateB.localeCompare(dateA); // Reverse order for descending
+        }
+        // If dates are the same, sort by town alphabetically
+        const townA = (a.Town || '').toLowerCase();
+        const townB = (b.Town || '').toLowerCase();
+        return townA.localeCompare(townB);
+      });
+
       state.mailers = mailers;
       const selectHtml = '<option value="">— Select —</option>' +
         mailers.map((m,i)=>{
@@ -7113,18 +7148,24 @@
       }
       
       // Add overlay edit button if selected
+      // When multiple spots are selected, only show button on the first (lowest numbered) spot
       if (selected) {
-        const overlay = document.createElement('div');
-        overlay.className = 'card-edit-overlay';
-        const editBtn = document.createElement('button');
-        // Show "EDIT SPOT" (singular) when multiple spots selected, "Edit Spot" otherwise
-        editBtn.textContent = state.selected.size > 1 ? '✎ EDIT SPOT' : '✎ Edit Spot';
-        editBtn.onclick = (e) => {
-          e.stopPropagation();
-          openEditModal();
-        };
-        overlay.appendChild(editBtn);
-        el.appendChild(overlay);
+        const showButton = state.selected.size === 1 ||
+                          (spots.length > 0 && spots[0] === Math.min(...Array.from(state.selected)));
+
+        if (showButton) {
+          const overlay = document.createElement('div');
+          overlay.className = 'card-edit-overlay';
+          const editBtn = document.createElement('button');
+          // Show "EDIT SPOT" (singular) when multiple spots selected, "Edit Spot" otherwise
+          editBtn.textContent = state.selected.size > 1 ? '✎ EDIT SPOT' : '✎ Edit Spot';
+          editBtn.onclick = (e) => {
+            e.stopPropagation();
+            openEditModal();
+          };
+          overlay.appendChild(editBtn);
+          el.appendChild(overlay);
+        }
       }
       
       el.addEventListener('keydown', (e) => {
