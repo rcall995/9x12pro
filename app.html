@@ -5574,15 +5574,18 @@ Thanks!
       const modal = document.getElementById('prospectDetailModal');
       if (!modal) return;
 
-      // Store current prospect data
-      currentProspectDetail = { ...prospectData, source };
+      // Normalize business name field (raw prospects have 'name', enriched have 'businessName')
+      const businessName = prospectData.businessName || prospectData.name || 'Unknown Business';
+
+      // Store current prospect data with normalized businessName
+      currentProspectDetail = { ...prospectData, businessName, source };
 
       // Set title and subtitle
-      document.getElementById('prospectDetailTitle').textContent = prospectData.businessName || 'Business Details';
+      document.getElementById('prospectDetailTitle').textContent = businessName;
       document.getElementById('prospectDetailSubtitle').textContent = source === 'client' ? 'Client' : 'Prospect';
 
       // Populate business info
-      document.getElementById('detailBusinessName').textContent = prospectData.businessName || '—';
+      document.getElementById('detailBusinessName').textContent = businessName;
       document.getElementById('detailCategory').textContent = prospectData.category || '—';
       document.getElementById('detailZipCode').textContent = prospectData.zipCode || prospectData.town || '—';
 
@@ -5857,22 +5860,38 @@ Thanks!
       localStorage.setItem('mailslot-not-interested', JSON.stringify(window.notInterestedList));
 
       // Remove from prospect pool (searches cache)
+      let removedCount = 0;
       Object.keys(placesCache.searches).forEach(cacheKey => {
         const cached = placesCache.searches[cacheKey];
         if (cached.cachedData) {
-          cached.cachedData = cached.cachedData.filter(p =>
-            (p.placeId !== placeId && p.placeId !== prospectId) &&
-            (p.id !== prospectId)
-          );
+          const beforeLength = cached.cachedData.length;
+          cached.cachedData = cached.cachedData.filter(p => {
+            // Keep item unless it matches the one we want to remove
+            // Match by placeId
+            if (placeId && p.placeId === placeId) return false;
+            // Match by id
+            if (prospectId && p.id === prospectId) return false;
+            // Match by business name (fallback)
+            if (businessName && (p.name === businessName || p.businessName === businessName)) return false;
+            // Keep all others
+            return true;
+          });
+          removedCount += (beforeLength - cached.cachedData.length);
         }
       });
       localStorage.setItem('mailslot-places-cache', JSON.stringify(placesCache));
 
+      console.log(`Removed ${removedCount} items from prospect pool for: ${businessName}`);
+
       // Remove from kanban
       Object.keys(kanbanState.columns).forEach(columnKey => {
-        kanbanState.columns[columnKey] = kanbanState.columns[columnKey].filter(item =>
-          item.id !== prospectId && item.placeId !== placeId
-        );
+        kanbanState.columns[columnKey] = kanbanState.columns[columnKey].filter(item => {
+          // Keep item unless it matches the one we want to remove
+          if (placeId && item.placeId === placeId) return false;
+          if (prospectId && item.id === prospectId) return false;
+          if (businessName && (item.businessName === businessName || item.name === businessName)) return false;
+          return true;
+        });
       });
       saveKanban();
 
