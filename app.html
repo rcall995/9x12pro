@@ -305,12 +305,16 @@
       <span class="font-bold">PRO</span>
     </h1>
 
-    <!-- Current Postcard Selector (Main Control) -->
+    <!-- Current Postcard Selector (Main Control) - Split into Town and Month -->
     <div class="flex-1 flex justify-center">
       <div class="flex flex-col md:flex-row items-center gap-2">
-        <label class="text-sm font-semibold text-gray-700 whitespace-nowrap">Current Postcard:</label>
-        <select id="headerPostcardSelect" class="border-2 border-indigo-300 rounded-lg px-4 py-2 bg-white text-sm font-medium hover:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" style="min-width: 250px; max-width: 400px;">
-          <option value="">— Select Postcard —</option>
+        <label class="text-sm font-semibold text-gray-700 whitespace-nowrap">Town:</label>
+        <select id="headerTownSelect" onchange="updatePostcardFromSelectors()" class="border-2 border-indigo-300 rounded-lg px-3 py-2 bg-white text-sm font-medium hover:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" style="min-width: 150px;">
+          <option value="">— Select Town —</option>
+        </select>
+        <label class="text-sm font-semibold text-gray-700 whitespace-nowrap">Month:</label>
+        <select id="headerMonthSelect" onchange="updatePostcardFromSelectors()" class="border-2 border-indigo-300 rounded-lg px-3 py-2 bg-white text-sm font-medium hover:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" style="min-width: 150px;">
+          <option value="">— Select Month —</option>
         </select>
       </div>
     </div>
@@ -4179,6 +4183,8 @@
             facebook: details.facebook || '',
             instagram: details.instagram || '',
             category: business.category || 'other',
+            mailerId: state.current?.Mailer_ID || null, // Tag with current postcard
+            town: state.current?.Town || null, // Tag with current town
             addedDate: new Date().toISOString()
           };
 
@@ -6353,7 +6359,6 @@
 
         // Update the dropdown selectors
         const selManager = document.getElementById("postcardSelect");
-        const selDashboard = document.getElementById("headerPostcardSelect");
 
         const selectHtml = '<option value="">— Select —</option>' +
           state.mailers.map((m,i)=>{
@@ -6372,10 +6377,13 @@
           selManager.innerHTML = selectHtml;
           selManager.value = newIndex.toString();
         }
-        if (selDashboard) {
-          selDashboard.innerHTML = selectHtml;
-          selDashboard.value = newIndex.toString();
-        }
+
+        // Repopulate town and month selectors and set to new postcard
+        populateTownAndMonthSelectors();
+        const townSelect = document.getElementById("headerTownSelect");
+        const monthSelect = document.getElementById("headerMonthSelect");
+        if (townSelect && newPostcard.Town) townSelect.value = newPostcard.Town;
+        if (monthSelect && newPostcard.Mail_Date) monthSelect.value = newPostcard.Mail_Date;
 
         // Save to cloud immediately
         btn.innerHTML = '☁️ Saving to cloud...';
@@ -6870,16 +6878,14 @@
           return `<option value="${i}">${esc(m.Town)} — ${displayDate}</option>`;
         }).join("");
       const selManager = document.getElementById("postcardSelect");
-      const selDashboard = document.getElementById("headerPostcardSelect");
 
       if (selManager) {
         selManager.innerHTML = selectHtml;
         selManager.onchange = pickCampaign;
       }
-      if (selDashboard) {
-        selDashboard.innerHTML = selectHtml;
-        selDashboard.onchange = pickCampaign;
-      }
+
+      // Populate town and month dropdowns
+      populateTownAndMonthSelectors();
 
       renderAll();
 
@@ -6887,11 +6893,82 @@
       if (mailers.length > 0) {
         const mostRecentIndex = mailers.length - 1;
         if (selManager) selManager.value = mostRecentIndex.toString();
-        if (selDashboard) selDashboard.value = mostRecentIndex.toString();
+
+        // Set town and month selectors to match the most recent postcard
+        const mostRecent = mailers[mostRecentIndex];
+        const townSelect = document.getElementById("headerTownSelect");
+        const monthSelect = document.getElementById("headerMonthSelect");
+        if (townSelect && mostRecent.Town) townSelect.value = mostRecent.Town;
+        if (monthSelect && mostRecent.Mail_Date) monthSelect.value = mostRecent.Mail_Date;
+
         pickCampaign({ target: { value: mostRecentIndex.toString() } });
       }
     }
-    
+
+    // Populate town and month selectors from available mailers
+    function populateTownAndMonthSelectors() {
+      const townSelect = document.getElementById("headerTownSelect");
+      const monthSelect = document.getElementById("headerMonthSelect");
+
+      if (!townSelect || !monthSelect) return;
+
+      // Get unique towns (sorted alphabetically)
+      const towns = [...new Set(state.mailers.map(m => m.Town))].sort();
+
+      // Get unique months (sorted by date descending)
+      const monthDates = [...new Set(state.mailers.map(m => m.Mail_Date))];
+      monthDates.sort((a, b) => b.localeCompare(a)); // Newest first
+
+      // Populate town dropdown
+      townSelect.innerHTML = '<option value="">— Select Town —</option>' +
+        towns.map(town => `<option value="${esc(town)}">${esc(town)}</option>`).join('');
+
+      // Populate month dropdown with formatted dates
+      monthSelect.innerHTML = '<option value="">— Select Month —</option>' +
+        monthDates.map(date => {
+          let displayDate = date;
+          if (/^\d{4}-\d{2}-\d{2}/.test(date)) {
+            const [year, month] = date.split('-');
+            const monthNames = ["", "January", "February", "March", "April", "May", "June",
+                                "July", "August", "September", "October", "November", "December"];
+            displayDate = `${monthNames[parseInt(month)]} ${year}`;
+          }
+          return `<option value="${esc(date)}">${esc(displayDate)}</option>`;
+        }).join('');
+    }
+
+    // Update selected postcard when town or month selector changes
+    function updatePostcardFromSelectors() {
+      const townSelect = document.getElementById("headerTownSelect");
+      const monthSelect = document.getElementById("headerMonthSelect");
+
+      if (!townSelect || !monthSelect) return;
+
+      const selectedTown = townSelect.value;
+      const selectedMonth = monthSelect.value;
+
+      // If either is not selected, don't do anything
+      if (!selectedTown || !selectedMonth) {
+        return;
+      }
+
+      // Find the postcard that matches both town and month
+      const matchingIndex = state.mailers.findIndex(m =>
+        m.Town === selectedTown && m.Mail_Date === selectedMonth
+      );
+
+      if (matchingIndex !== -1) {
+        // Update the manager selector if it exists
+        const selManager = document.getElementById("postcardSelect");
+        if (selManager) selManager.value = matchingIndex.toString();
+
+        // Select this postcard
+        pickCampaign({ target: { value: matchingIndex.toString() } });
+      } else {
+        toast('No postcard found for this town and month combination', false);
+      }
+    }
+
     /* ========= LEGEND & SORT ========= */
     function renderLegend(){
       const grid = document.getElementById("legendGrid");
@@ -7000,11 +7077,16 @@
       updateFinancialDashboard();
       checkRenewals();
 
-      // Sync both dropdowns
+      // Sync all dropdowns
       const selManager = document.getElementById("postcardSelect");
-      const selDashboard = document.getElementById("headerPostcardSelect");
+      const townSelect = document.getElementById("headerTownSelect");
+      const monthSelect = document.getElementById("headerMonthSelect");
+
       if (selManager) selManager.value = i;
-      if (selDashboard) selDashboard.value = i;
+
+      // Update town and month selectors to match current postcard
+      if (townSelect && m.Town) townSelect.value = m.Town;
+      if (monthSelect && m.Mail_Date) monthSelect.value = m.Mail_Date;
     }
     
     /* ========= RENDERING ========= */
