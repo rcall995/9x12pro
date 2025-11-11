@@ -1711,24 +1711,30 @@
     // Unified function to load data from Google Sheets
     async function loadFromCloud(dataType) {
       try {
-        const url = `${GAS_URL}?user=${encodeURIComponent(ACTIVE_USER)}&action=load&dataType=${dataType}`;
+        // Query Supabase app_data table for this data type
+        const { data, error } = await supabaseClient
+          .from('app_data')
+          .select('data')
+          .eq('user_email', ACTIVE_USER)
+          .eq('data_type', dataType)
+          .single();
 
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
+        if (error) {
+          // If no data found (404), return null (not an error)
+          if (error.code === 'PGRST116') {
+            return null;
+          }
+          throw error;
         }
 
-        const response_data = await response.json();
+        const appData = data?.data || null;
 
-        // Extract the actual data if wrapped in {success: true, data: ...}
-        const data = response_data.data !== undefined ? response_data.data : response_data;
-
-        // Only cache to localStorage if we got actual data (not null/undefined)
-        if (data !== null && data !== undefined) {
-          safeSetItem(`mailslot-${dataType}`, JSON.stringify(data));
+        // Cache to localStorage
+        if (appData !== null && appData !== undefined) {
+          safeSetItem(`mailslot-${dataType}`, JSON.stringify(appData));
         }
 
-        return data;
+        return appData;
       } catch (err) {
         console.warn(`⚠️ Failed to load ${dataType} from cloud, using localStorage:`, err);
         cloudSyncState.syncErrors[dataType] = err.message;
@@ -1739,29 +1745,21 @@
       }
     }
 
-    // Unified function to save data to Google Sheets (using GET to avoid CORS)
+    // Unified function to save data to Supabase
     async function saveToCloud(dataType, data, options = {}) {
       try {
-        // Encode the data as JSON string for URL parameter
-        const dataJson = encodeURIComponent(JSON.stringify(data));
+        // Use upsert to insert or update
+        const { error } = await supabaseClient
+          .from('app_data')
+          .upsert({
+            user_email: ACTIVE_USER,
+            data_type: dataType,
+            data: data
+          }, {
+            onConflict: 'user_email,data_type'
+          });
 
-        const url = `${GAS_URL}?user=${encodeURIComponent(ACTIVE_USER)}&action=save&dataType=${dataType}&data=${dataJson}&timestamp=${Date.now()}`;
-
-        // Check URL length limit (browsers typically support 2000-8000 chars)
-        if (url.length > CLOUD_SYNC_URL_LENGTH_LIMIT) {
-          throw new Error(`Data too large for cloud sync (${url.length} chars). Keep ${dataType} in localStorage only.`);
-        }
-
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-
-        const result = await response.json();
-
-        if (result.error) {
-          throw new Error(result.error);
-        }
+        if (error) throw error;
 
         // Update cache
         safeSetItem(`mailslot-${dataType}`, JSON.stringify(data));
