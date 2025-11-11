@@ -47,13 +47,21 @@ export default async function handler(req, res) {
       });
     }
 
-    // Prefer Place ID for more accurate results, fall back to name+address search
+    // Prefer Place ID for most accurate results, fall back to name+address search
     let outscraperUrl;
+    let fetchOptions;
 
     if (placeId) {
-      // Use Place ID for most accurate results
+      // Use Place ID endpoint - different endpoint that takes Place IDs directly
       console.log('🔍 Enriching business by Place ID:', placeId, '(', businessName, ')');
-      outscraperUrl = `https://api.app.outscraper.com/maps/search-v3?query=${encodeURIComponent(placeId)}&limit=1&language=en&region=us`;
+      outscraperUrl = `https://api.app.outscraper.com/maps/places-v2?query=${encodeURIComponent(placeId)}&language=en&region=us&fields=name,full_address,phone,site,emails,social_media,rating,reviews`;
+      fetchOptions = {
+        method: 'GET',
+        headers: {
+          'X-API-KEY': apiKey,
+          'Content-Type': 'application/json'
+        }
+      };
     } else {
       // Fall back to name+address search
       let query = businessName;
@@ -62,15 +70,16 @@ export default async function handler(req, res) {
       }
       console.log('🔍 Enriching business by name:', query);
       outscraperUrl = `https://api.app.outscraper.com/maps/search-v3?query=${encodeURIComponent(query)}&limit=1&language=en&region=us`;
+      fetchOptions = {
+        method: 'GET',
+        headers: {
+          'X-API-KEY': apiKey,
+          'Content-Type': 'application/json'
+        }
+      };
     }
 
-    const response = await fetch(outscraperUrl, {
-      method: 'GET',
-      headers: {
-        'X-API-KEY': apiKey,
-        'Content-Type': 'application/json'
-      }
-    });
+    const response = await fetch(outscraperUrl, fetchOptions);
 
     if (!response.ok) {
       const errorText = await response.text();
