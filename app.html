@@ -7649,7 +7649,15 @@ Thanks!
       document.getElementById("pickerBanner").addEventListener('input', (e)=> { stagedColors.Banner_BG = e.target.value; previewPostcardModal(); });
      
       const commitBtn = document.getElementById("btnSaveCommit");
-      if (commitBtn) commitBtn.onclick = saveToSheet;
+      if (commitBtn) {
+        console.log('✅ Wiring btnSaveCommit to saveToSheet');
+        commitBtn.onclick = function() {
+          console.log('🔘 BUTTON CLICKED!');
+          return saveToSheet();
+        };
+      } else {
+        console.error('❌ btnSaveCommit not found!');
+      }
      
       window.addEventListener('beforeunload', (e) => {
         if (state.dirty) {
@@ -9022,6 +9030,7 @@ Thanks!
     }
 
     async function saveToSheet(){
+      alert('SAVETOSHEET CALLED!'); // Emergency debug
       console.log('🚀 saveToSheet() CALLED!', {
         hasCurrent: !!state.current,
         isDirty: state.dirty,
