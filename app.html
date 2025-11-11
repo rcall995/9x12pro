@@ -295,6 +295,36 @@
   </style>
 </head>
 <body class="bg-gray-100 min-h-screen font-sans">
+  <!-- Inline script to set initial tab state before page renders -->
+  <script>
+    (function() {
+      // Hide all tabs initially to prevent flash
+      document.addEventListener('DOMContentLoaded', function() {
+        const savedTab = localStorage.getItem('9x12_active_tab') || 'pipeline';
+
+        // Hide all tabs and deactivate all buttons
+        document.querySelectorAll('.tab-pane').forEach(pane => {
+          pane.classList.add('hidden');
+          pane.classList.remove('active-pane');
+        });
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+          btn.classList.remove('active');
+        });
+
+        // Show the saved tab
+        const activePane = document.querySelector(`.tab-pane[data-content="${savedTab}"]`);
+        const activeBtn = document.querySelector(`.tab-btn[data-tab="${savedTab}"]`);
+
+        if (activePane) {
+          activePane.classList.remove('hidden');
+          activePane.classList.add('active-pane');
+        }
+        if (activeBtn) {
+          activeBtn.classList.add('active');
+        }
+      });
+    })();
+  </script>
   <iframe name="saveFrame" style="display:none"></iframe>
   <form id="saveForm" target="saveFrame" style="display:none" method="POST" enctype="multipart/form-data">
     <input type="hidden" name="payload" id="payloadField" />
@@ -5297,7 +5327,10 @@
                           class="mt-1 w-4 h-4 text-purple-600 rounded cursor-pointer flex-shrink-0"
                         />
                       `}
-                      <div class="flex-1 font-medium text-xs break-words">${esc(leadName)}</div>
+                      <div class="flex-1">
+                        <div class="font-medium text-xs break-words">${esc(leadName)}</div>
+                        ${item.town ? `<div class="text-xs text-gray-500 font-medium mt-0.5">📍 ${esc(item.town)}</div>` : ''}
+                      </div>
                       <div class="flex gap-1 flex-shrink-0">
                         <button onclick="openContactLaterModal(${leadId}, event)" class="text-purple-600 hover:text-purple-800 text-sm cursor-pointer" title="Contact Later">📅</button>
                         <button onclick="editLead('${col.key}', ${leadId}, event)" class="text-blue-600 hover:text-blue-800 text-sm cursor-pointer" title="Edit">✎</button>
@@ -5328,7 +5361,10 @@
                         class="mt-0.5 w-4 h-4 text-blue-600 rounded cursor-pointer flex-shrink-0"
                       />
                     ` : ''}
-                    <div class="flex-1 font-medium">${esc(leadName)}</div>
+                    <div class="flex-1">
+                      <div class="font-medium">${esc(leadName)}</div>
+                      ${typeof item === 'object' && item.town ? `<div class="text-xs text-gray-500 font-medium mt-0.5">📍 ${esc(item.town)}</div>` : ''}
+                    </div>
                     <div class="flex gap-1">
                       <button onclick="editLead('${col.key}', ${leadId}, event)" class="text-blue-600 hover:text-blue-800 cursor-pointer" title="Edit">✎</button>
                       <button onclick="deleteLead('${col.key}', ${leadId}, event)" class="text-red-600 hover:text-red-800 cursor-pointer" title="Delete">🗑</button>
