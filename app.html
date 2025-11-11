@@ -3759,19 +3759,70 @@
     }
 
     // Fetch enriched business details from Outscraper (phone, email, social media)
-    // Now uses Google Apps Script backend as proxy to avoid CORS issues
-    async function fetchOutscraperDetails(businessName, address) {
-      // Outscraper enrichment disabled - migrated away from Google Apps Script
-      // Return empty enrichment data (Google Places API provides enough info)
-      return {
-        phone: '',
-        website: '',
-        email: '',
-        facebook: '',
-        instagram: '',
-        enriched: false,
-        source: 'google-places'
-      };
+    // Uses Vercel serverless function as proxy to avoid CORS issues
+    async function fetchOutscraperDetails(businessName, address, placeId) {
+      try {
+        // Call Vercel serverless function proxy
+        const response = await fetch('/api/enrich', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            businessName,
+            address,
+            placeId
+          })
+        });
+
+        if (!response.ok) {
+          console.warn('⚠️ Outscraper proxy returned error:', response.status);
+          return {
+            phone: '',
+            website: '',
+            email: '',
+            facebook: '',
+            instagram: '',
+            enriched: false,
+            source: 'google-places'
+          };
+        }
+
+        const data = await response.json();
+
+        if (!data.enriched) {
+          console.log('ℹ️ No enrichment data found for:', businessName);
+          return {
+            ...data,
+            source: 'google-places'
+          };
+        }
+
+        console.log('✅ Enriched from Outscraper:', businessName, {
+          hasPhone: !!data.phone,
+          hasEmail: !!data.email,
+          hasFacebook: !!data.facebook,
+          hasInstagram: !!data.instagram
+        });
+
+        return {
+          ...data,
+          source: 'outscraper'
+        };
+
+      } catch (error) {
+        console.error('💥 Error calling Outscraper proxy:', error);
+        return {
+          phone: '',
+          website: '',
+          email: '',
+          facebook: '',
+          instagram: '',
+          enriched: false,
+          source: 'google-places',
+          error: error.message
+        };
+      }
     }
 
     async function runAutoPopulate() {
