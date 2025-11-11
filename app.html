@@ -6218,8 +6218,8 @@
 
       try {
 
-        // Build mail date - store as first day of month for consistency with existing data
-        const mailDate = `${month}/1/${year}`;  // e.g., "12/1/2025"
+        // Build mail date - store in ISO format (YYYY-MM-DD) to avoid timezone issues
+        const mailDate = `${year}-${month.padStart(2, '0')}-01`;  // e.g., "2025-12-01"
 
         // Build display name for duplicate check
         const monthNames = ["", "January", "February", "March", "April", "May", "June",
@@ -6779,11 +6779,19 @@
           const isMonthYearFormat = displayDate && /^[A-Za-z]+ \d{4}$/.test(displayDate);
 
           if (!isMonthYearFormat && displayDate) {
-            // Parse and format the date
+            // Parse and format the date (handle ISO format YYYY-MM-DD)
             try {
-              const date = new Date(displayDate);
-              if (!isNaN(date.getTime())) {
-                displayDate = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+              // If it's ISO format (YYYY-MM-DD), parse it without timezone issues
+              if (/^\d{4}-\d{2}-\d{2}/.test(displayDate)) {
+                const [year, month] = displayDate.split('-');
+                const monthNames = ["", "January", "February", "March", "April", "May", "June",
+                                    "July", "August", "September", "October", "November", "December"];
+                displayDate = `${monthNames[parseInt(month)]} ${year}`;
+              } else {
+                const date = new Date(displayDate);
+                if (!isNaN(date.getTime())) {
+                  displayDate = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                }
               }
             } catch (e) {
               // Keep original if parsing fails
