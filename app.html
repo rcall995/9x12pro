@@ -514,6 +514,15 @@
                         <option value="90">Last 90 Days</option>
                     </select>
                 </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="exportProspectPoolCSV()" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium text-sm whitespace-nowrap">
+                        📥 Export CSV
+                    </button>
+                    <label for="importProspectPoolCSV" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium text-sm cursor-pointer whitespace-nowrap">
+                        📤 Import CSV
+                    </label>
+                    <input type="file" id="importProspectPoolCSV" accept=".csv" onchange="importProspectPoolCSV(event)" class="hidden" />
+                </div>
             </div>
 
             <div id="prospectPoolStats" class="grid grid-cols-4 gap-4 mb-6">
@@ -5304,6 +5313,257 @@ Thanks!
 
     // Expose globally
     window.clearAllProspects = clearAllProspects;
+
+    /* ========= PROSPECT POOL CSV EXPORT/IMPORT ========= */
+
+    function exportProspectPoolCSV() {
+      // Collect all prospects from searches cache
+      const allProspects = [];
+
+      Object.keys(placesCache.searches).forEach(cacheKey => {
+        const cached = placesCache.searches[cacheKey];
+        if (cached.cachedData && cached.cachedData.length > 0) {
+          cached.cachedData.forEach(business => {
+            // Skip if already in system
+            if (notInterestedState.placeIds.has(business.placeId)) return;
+
+            allProspects.push({
+              businessName: business.name || '',
+              phone: business.phone || '',
+              website: business.website || '',
+              email: business.email || '',
+              facebook: business.facebook || '',
+              instagram: business.instagram || '',
+              category: business.category || '',
+              zipCode: business.zipCode || '',
+              address: business.address || '',
+              rating: business.rating || '',
+              reviewsCount: business.reviewsCount || '',
+              placeId: business.placeId || '',
+              notes: business.notes || '',
+              dateAdded: business.dateAdded || new Date().toISOString().split('T')[0]
+            });
+          });
+        }
+      });
+
+      if (allProspects.length === 0) {
+        toast('⚠️ No prospects to export', false);
+        return;
+      }
+
+      // Create CSV
+      const headers = [
+        'Business Name',
+        'Phone',
+        'Website',
+        'Email',
+        'Facebook',
+        'Instagram',
+        'Category',
+        'ZIP Code',
+        'Address',
+        'Rating',
+        'Review Count',
+        'Place ID',
+        'Notes',
+        'Date Added'
+      ];
+
+      const rows = allProspects.map(p => [
+        p.businessName,
+        p.phone,
+        p.website,
+        p.email,
+        p.facebook,
+        p.instagram,
+        p.category,
+        p.zipCode,
+        p.address,
+        p.rating,
+        p.reviewsCount,
+        p.placeId,
+        p.notes,
+        p.dateAdded
+      ]);
+
+      let csv = headers.join(',') + '\n';
+      rows.forEach(row => {
+        csv += row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(',') + '\n';
+      });
+
+      // Download
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `prospect-pool-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast(`✅ Exported ${allProspects.length} prospects to CSV`, true);
+    }
+
+    function importProspectPoolCSV(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const csv = e.target.result;
+          const lines = csv.split('\n').filter(line => line.trim());
+
+          if (lines.length < 2) {
+            toast('⚠️ CSV file is empty or invalid', false);
+            return;
+          }
+
+          // Parse CSV (simple parser for quoted fields)
+          const parseCsvLine = (line) => {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+
+            for (let i = 0; i < line.length; i++) {
+              const char = line[i];
+              if (char === '"') {
+                if (inQuotes && line[i + 1] === '"') {
+                  current += '"';
+                  i++;
+                } else {
+                  inQuotes = !inQuotes;
+                }
+              } else if (char === ',' && !inQuotes) {
+                result.push(current);
+                current = '';
+              } else {
+                current += char;
+              }
+            }
+            result.push(current);
+            return result;
+          };
+
+          const headers = parseCsvLine(lines[0]);
+
+          // Find column indices
+          const colMap = {
+            businessName: headers.findIndex(h => h.toLowerCase().includes('business')),
+            phone: headers.findIndex(h => h.toLowerCase().includes('phone')),
+            website: headers.findIndex(h => h.toLowerCase().includes('website')),
+            email: headers.findIndex(h => h.toLowerCase().includes('email')),
+            facebook: headers.findIndex(h => h.toLowerCase().includes('facebook')),
+            instagram: headers.findIndex(h => h.toLowerCase().includes('instagram')),
+            category: headers.findIndex(h => h.toLowerCase().includes('category')),
+            zipCode: headers.findIndex(h => h.toLowerCase().includes('zip')),
+            address: headers.findIndex(h => h.toLowerCase().includes('address')),
+            rating: headers.findIndex(h => h.toLowerCase().includes('rating')),
+            reviewsCount: headers.findIndex(h => h.toLowerCase().includes('review')),
+            placeId: headers.findIndex(h => h.toLowerCase().includes('place')),
+            notes: headers.findIndex(h => h.toLowerCase().includes('notes')),
+            dateAdded: headers.findIndex(h => h.toLowerCase().includes('date'))
+          };
+
+          let updated = 0;
+          let added = 0;
+
+          // Process each row
+          for (let i = 1; i < lines.length; i++) {
+            const fields = parseCsvLine(lines[i]);
+            if (fields.length < 2) continue; // Skip empty/invalid rows
+
+            const businessName = fields[colMap.businessName] || '';
+            if (!businessName.trim()) continue;
+
+            const prospectData = {
+              name: businessName,
+              businessName: businessName,
+              phone: fields[colMap.phone] || '',
+              website: fields[colMap.website] || '',
+              email: fields[colMap.email] || '',
+              facebook: fields[colMap.facebook] || '',
+              instagram: fields[colMap.instagram] || '',
+              category: fields[colMap.category] || 'other',
+              zipCode: fields[colMap.zipCode] || '',
+              address: fields[colMap.address] || '',
+              rating: parseFloat(fields[colMap.rating]) || 0,
+              reviewsCount: parseInt(fields[colMap.reviewsCount]) || 0,
+              placeId: fields[colMap.placeId] || `MANUAL-${Date.now()}-${Math.random()}`,
+              notes: fields[colMap.notes] || '',
+              dateAdded: fields[colMap.dateAdded] || new Date().toISOString().split('T')[0]
+            };
+
+            // Try to find existing prospect by Place ID or business name
+            let found = false;
+            Object.keys(placesCache.searches).forEach(cacheKey => {
+              const cached = placesCache.searches[cacheKey];
+              if (cached.cachedData) {
+                const existingIndex = cached.cachedData.findIndex(p =>
+                  p.placeId === prospectData.placeId ||
+                  (p.name && p.name.toLowerCase() === businessName.toLowerCase())
+                );
+
+                if (existingIndex !== -1) {
+                  // Update existing prospect with enriched data
+                  cached.cachedData[existingIndex] = {
+                    ...cached.cachedData[existingIndex],
+                    ...prospectData,
+                    interactions: cached.cachedData[existingIndex].interactions || []
+                  };
+                  found = true;
+                  updated++;
+                }
+              }
+            });
+
+            // If not found, add to appropriate category in cache
+            if (!found) {
+              const category = prospectData.category || 'other';
+              const cacheKey = `${prospectData.zipCode || 'UNKNOWN'}-${category}`;
+
+              if (!placesCache.searches[cacheKey]) {
+                placesCache.searches[cacheKey] = {
+                  cachedData: [],
+                  cachedAt: Date.now(),
+                  zipCode: prospectData.zipCode,
+                  category: category
+                };
+              }
+
+              placesCache.searches[cacheKey].cachedData.push({
+                ...prospectData,
+                interactions: []
+              });
+              added++;
+            }
+          }
+
+          // Save to localStorage
+          localStorage.setItem('mailslot-places-cache', JSON.stringify(placesCache));
+
+          // Re-render prospect pool
+          renderProspectPool();
+
+          toast(`✅ CSV Import Complete: ${updated} updated, ${added} added`, true);
+
+          // Reset file input
+          event.target.value = '';
+
+        } catch (error) {
+          console.error('CSV import error:', error);
+          toast('⚠️ Failed to import CSV. Check format and try again.', false);
+        }
+      };
+
+      reader.readAsText(file);
+    }
+
+    // Expose globally
+    window.exportProspectPoolCSV = exportProspectPoolCSV;
+    window.importProspectPoolCSV = importProspectPoolCSV;
 
     /* ========= PROSPECT DETAIL MODAL FUNCTIONS ========= */
 
