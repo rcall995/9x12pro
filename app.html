@@ -4237,11 +4237,13 @@
 
         if (cloudData && Array.isArray(cloudData)) {
           prospectPoolState.manualProspects = cloudData;
+          console.log('📦 Loaded', cloudData.length, 'manual prospects from cloud');
         } else {
           // Fallback to localStorage
           const saved = localStorage.getItem('9x12_manual_prospects');
           if (saved) {
             prospectPoolState.manualProspects = JSON.parse(saved);
+            console.log('📦 Loaded', prospectPoolState.manualProspects.length, 'manual prospects from localStorage (syncing to cloud...)');
             // Sync to cloud
             saveToCloud('manualProspects', prospectPoolState.manualProspects).catch(e => console.warn('Failed to sync manual prospects to cloud:', e));
           }
@@ -4254,9 +4256,11 @@
     // Save manual prospects to cloud and localStorage
     async function saveManualProspects() {
       try {
+        console.log('💾 Saving manual prospects to cloud:', prospectPoolState.manualProspects.length, 'prospects');
         await saveToCloud('manualProspects', prospectPoolState.manualProspects);
+        console.log('✅ Manual prospects saved to cloud successfully');
       } catch(err) {
-        console.warn('Manual prospects saved to localStorage only (cloud sync failed):', err);
+        console.warn('⚠️ Manual prospects saved to localStorage only (cloud sync failed):', err);
       }
     }
 
@@ -4317,10 +4321,12 @@
 
       // Move each prospect
       movedProspects.forEach(({ lead, index }) => {
-        // Add to manual prospects pool
+        // Add to manual prospects pool with current postcard association
         prospectPoolState.manualProspects.push({
           ...lead,
-          movedToPoolDate: new Date().toISOString()
+          movedToPoolDate: new Date().toISOString(),
+          mailerId: state.current?.Mailer_ID || null, // Tag with current postcard
+          town: state.current?.Town || null // Tag with current town
         });
 
         // Remove from prospecting
@@ -4334,7 +4340,7 @@
       saveKanban();
       renderKanban();
 
-      toast(`✅ Moved ${selectedCount} prospect${selectedCount === 1 ? '' : 's'} to Prospect Pool`, true);
+      toast(`✅ Moved ${selectedCount} prospect${selectedCount === 1 ? '' : 's'} to Prospect Pool for ${state.current?.Town || 'current campaign'}`, true);
     }
 
     // Legacy function - kept for backwards compatibility but now uses bulk selection
@@ -4355,10 +4361,12 @@
 
       const lead = items[leadIndex];
 
-      // Add to manual prospects pool
+      // Add to manual prospects pool with current postcard association
       prospectPoolState.manualProspects.push({
         ...lead,
-        movedToPoolDate: new Date().toISOString()
+        movedToPoolDate: new Date().toISOString(),
+        mailerId: state.current?.Mailer_ID || null, // Tag with current postcard
+        town: state.current?.Town || null // Tag with current town
       });
 
       // Remove from prospecting
@@ -4371,7 +4379,7 @@
       saveKanban();
       renderKanban();
 
-      toast(`"${lead.businessName}" moved to Prospect Pool`, true);
+      toast(`"${lead.businessName}" moved to Prospect Pool for ${state.current?.Town || 'current campaign'}`, true);
 
       // Ask if user wants to view the pool
       setTimeout(() => {
