@@ -1634,6 +1634,188 @@
     </div>
   </div>
 
+  <!-- Prospect/Client Detail Modal -->
+  <div id="prospectDetailModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+      <div class="flex justify-between items-start mb-4">
+        <div>
+          <h3 id="prospectDetailTitle" class="text-xl font-bold">Business Details</h3>
+          <p id="prospectDetailSubtitle" class="text-sm text-gray-600 mt-1"></p>
+        </div>
+        <button onclick="closeProspectDetailModal()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+      </div>
+
+      <!-- Business Info Section -->
+      <div class="bg-gray-50 rounded-lg p-4 mb-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <div class="text-xs text-gray-500 font-medium">Business Name</div>
+            <div id="detailBusinessName" class="text-base font-semibold text-gray-900 mt-1">—</div>
+          </div>
+          <div>
+            <div class="text-xs text-gray-500 font-medium">Category</div>
+            <div id="detailCategory" class="text-base text-gray-900 mt-1">—</div>
+          </div>
+          <div>
+            <div class="text-xs text-gray-500 font-medium">ZIP Code</div>
+            <div id="detailZipCode" class="text-base text-gray-900 mt-1">—</div>
+          </div>
+          <div>
+            <div class="text-xs text-gray-500 font-medium">Rating</div>
+            <div id="detailRating" class="text-base text-gray-900 mt-1">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Contact Info & Quick Actions Section -->
+      <div class="bg-white rounded-lg border p-4 mb-4">
+        <h4 class="font-semibold text-gray-700 mb-3">Contact Information & Quick Actions</h4>
+
+        <div class="space-y-2">
+          <div class="flex justify-between items-center">
+            <div>
+              <div class="text-xs text-gray-500">Phone</div>
+              <div id="detailPhone" class="text-sm text-gray-900">—</div>
+            </div>
+            <button id="btnCallAction" onclick="quickAction('call')" class="px-3 py-1.5 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
+              📞 Call
+            </button>
+          </div>
+
+          <div class="flex justify-between items-center">
+            <div>
+              <div class="text-xs text-gray-500">Email</div>
+              <div id="detailEmail" class="text-sm text-gray-900">—</div>
+            </div>
+            <button id="btnEmailAction" onclick="quickAction('email')" class="px-3 py-1.5 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
+              ✉️ Email
+            </button>
+          </div>
+
+          <div class="flex justify-between items-center">
+            <div>
+              <div class="text-xs text-gray-500">Website</div>
+              <div id="detailWebsite" class="text-sm text-gray-900 truncate max-w-md">—</div>
+            </div>
+            <button id="btnWebsiteAction" onclick="quickAction('website')" class="px-3 py-1.5 bg-gray-600 text-white rounded-md text-sm hover:bg-gray-700 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
+              🌐 Visit
+            </button>
+          </div>
+
+          <div class="flex justify-between items-center">
+            <div>
+              <div class="text-xs text-gray-500">Facebook</div>
+              <div id="detailFacebook" class="text-sm text-gray-900 truncate max-w-md">—</div>
+            </div>
+            <button id="btnFacebookAction" onclick="quickAction('facebook')" class="px-3 py-1.5 bg-blue-700 text-white rounded-md text-sm hover:bg-blue-800 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
+              📘 Message
+            </button>
+          </div>
+
+          <div class="flex justify-between items-center">
+            <div>
+              <div class="text-xs text-gray-500">Instagram</div>
+              <div id="detailInstagram" class="text-sm text-gray-900 truncate max-w-md">—</div>
+            </div>
+            <button id="btnInstagramAction" onclick="quickAction('instagram')" class="px-3 py-1.5 bg-pink-600 text-white rounded-md text-sm hover:bg-pink-700 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
+              📷 DM
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interaction Timeline Section -->
+      <div class="bg-white rounded-lg border p-4 mb-4">
+        <h4 class="font-semibold text-gray-700 mb-3">Interaction History</h4>
+        <div id="interactionTimeline" class="space-y-3 max-h-64 overflow-y-auto">
+          <div class="text-sm text-gray-400 italic text-center py-4">No interactions yet</div>
+        </div>
+      </div>
+
+      <!-- Add New Interaction Form -->
+      <div class="bg-blue-50 rounded-lg border border-blue-200 p-4 mb-4">
+        <h4 class="font-semibold text-blue-900 mb-3">Log New Interaction</h4>
+
+        <div class="space-y-3">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs font-medium text-gray-700 block mb-1">Interaction Type</label>
+              <select id="newInteractionType" class="border rounded-md w-full p-2 text-sm bg-white">
+                <option value="call">📞 Phone Call</option>
+                <option value="email">✉️ Email</option>
+                <option value="messenger">📘 Facebook Messenger</option>
+                <option value="instagram">📷 Instagram DM</option>
+                <option value="in-person">🤝 In-Person Meeting</option>
+                <option value="other">📝 Other</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs font-medium text-gray-700 block mb-1">Date</label>
+              <input id="newInteractionDate" type="date" class="border rounded-md w-full p-2 text-sm" />
+            </div>
+          </div>
+
+          <div>
+            <label class="text-xs font-medium text-gray-700 block mb-1">Notes</label>
+            <textarea id="newInteractionNotes" rows="2" class="border rounded-md w-full p-2 text-sm" placeholder="What was discussed? What's the next step?"></textarea>
+          </div>
+
+          <div>
+            <label class="text-xs font-medium text-gray-700 block mb-1">Next Follow-Up Date (Optional)</label>
+            <input id="newInteractionFollowUp" type="date" class="border rounded-md w-full p-2 text-sm" />
+          </div>
+
+          <button onclick="addNewInteraction()" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium">
+            Add Interaction
+          </button>
+        </div>
+      </div>
+
+      <!-- Message Templates Section -->
+      <div class="bg-green-50 rounded-lg border border-green-200 p-4 mb-4">
+        <h4 class="font-semibold text-green-900 mb-3">📋 Message Templates</h4>
+
+        <div class="space-y-2">
+          <button onclick="showMessageTemplate('messenger')" class="w-full text-left px-3 py-2 bg-white border rounded-md hover:bg-gray-50 text-sm">
+            <span class="font-medium">Facebook Messenger - First Contact</span>
+          </button>
+          <button onclick="showMessageTemplate('email')" class="w-full text-left px-3 py-2 bg-white border rounded-md hover:bg-gray-50 text-sm">
+            <span class="font-medium">Email - First Contact</span>
+          </button>
+          <button onclick="showMessageTemplate('instagram')" class="w-full text-left px-3 py-2 bg-white border rounded-md hover:bg-gray-50 text-sm">
+            <span class="font-medium">Instagram DM - First Contact</span>
+          </button>
+          <button onclick="showMessageTemplate('followup')" class="w-full text-left px-3 py-2 bg-white border rounded-md hover:bg-gray-50 text-sm">
+            <span class="font-medium">Follow-up After Initial Contact</span>
+          </button>
+        </div>
+
+        <div id="templatePreview" class="hidden mt-3 p-3 bg-white border rounded-md">
+          <div class="flex justify-between items-start mb-2">
+            <h5 id="templateTitle" class="font-semibold text-sm"></h5>
+            <button onclick="copyTemplate()" class="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700">
+              📋 Copy
+            </button>
+          </div>
+          <div id="templateSubject" class="text-xs text-gray-600 mb-2"></div>
+          <pre id="templateBody" class="text-xs text-gray-700 whitespace-pre-wrap font-sans"></pre>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex justify-between items-center gap-2 pt-4 border-t">
+        <button id="btnNotInterested" onclick="markNotInterested()" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 font-medium">
+          🚫 Not Interested
+        </button>
+        <div class="flex gap-2">
+          <button onclick="closeProspectDetailModal()" class="px-4 py-2 border rounded-md bg-gray-100 hover:bg-gray-200">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <script>
@@ -4793,11 +4975,11 @@ Thanks!
                   if (prospect.instagram) contactIcons.push('📷');
 
                   return `
-                    <div class="bg-white border-2 ${hasContact ? 'border-green-400' : 'border-gray-200'} rounded-lg p-3 hover:shadow-md transition">
+                    <div class="bg-white border-2 ${hasContact ? 'border-green-400' : 'border-gray-200'} rounded-lg p-3 hover:shadow-md transition cursor-pointer" onclick="openProspectDetailModal(${JSON.stringify(prospect).replace(/"/g, '&quot;')}, 'prospect')">
                       <h5 class="font-semibold text-sm text-gray-900 mb-2">${esc(prospect.businessName)}</h5>
                       ${contactIcons.length > 0 ? `<div class="flex gap-2 text-lg mb-2">${contactIcons.join(' ')}</div>` : ''}
                       ${prospect.followUpDate ? `<div class="text-xs text-purple-600 font-medium mb-2">📅 ${prospect.followUpDate}</div>` : ''}
-                      <button onclick="moveProspectFromPool(${prospect.id})" class="w-full px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-semibold text-xs">
+                      <button onclick="event.stopPropagation(); moveProspectFromPool(${prospect.id})" class="w-full px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-semibold text-xs">
                         Add to Prospecting →
                       </button>
                     </div>
@@ -4809,13 +4991,14 @@ Thanks!
                 const isDisabled = prospect.inSystem;
 
                 return `
-                  <div class="border rounded-lg p-3 ${isDisabled ? 'bg-gray-50 opacity-60' : 'bg-white hover:shadow-md'} transition">
+                  <div class="border rounded-lg p-3 ${isDisabled ? 'bg-gray-50 opacity-60' : 'bg-white hover:shadow-md cursor-pointer'} transition" onclick="openProspectDetailModal(${JSON.stringify(prospect).replace(/"/g, '&quot;')}, 'prospect')">
                     <div class="flex items-start gap-2">
                       <input
                         type="checkbox"
                         ${isSelected ? 'checked' : ''}
                         ${isDisabled ? 'disabled' : ''}
-                        onchange="togglePoolProspect('${prospect.placeId}')"
+                        onchange="event.stopPropagation(); togglePoolProspect('${prospect.placeId}')"
+                        onclick="event.stopPropagation()"
                         class="mt-1 w-4 h-4 text-indigo-600 rounded cursor-pointer flex-shrink-0"
                       />
                       <div class="flex-1 min-w-0">
@@ -5122,6 +5305,334 @@ Thanks!
     // Expose globally
     window.clearAllProspects = clearAllProspects;
 
+    /* ========= PROSPECT DETAIL MODAL FUNCTIONS ========= */
+
+    // Global variable to track current prospect being viewed
+    let currentProspectDetail = null;
+
+    function openProspectDetailModal(prospectData, source = 'prospect') {
+      const modal = document.getElementById('prospectDetailModal');
+      if (!modal) return;
+
+      // Store current prospect data
+      currentProspectDetail = { ...prospectData, source };
+
+      // Set title and subtitle
+      document.getElementById('prospectDetailTitle').textContent = prospectData.businessName || 'Business Details';
+      document.getElementById('prospectDetailSubtitle').textContent = source === 'client' ? 'Client' : 'Prospect';
+
+      // Populate business info
+      document.getElementById('detailBusinessName').textContent = prospectData.businessName || '—';
+      document.getElementById('detailCategory').textContent = prospectData.category || '—';
+      document.getElementById('detailZipCode').textContent = prospectData.zipCode || prospectData.town || '—';
+
+      if (prospectData.rating) {
+        document.getElementById('detailRating').textContent = `⭐ ${prospectData.rating} (${prospectData.reviewsCount || 0} reviews)`;
+      } else {
+        document.getElementById('detailRating').textContent = '—';
+      }
+
+      // Populate contact info and enable/disable quick action buttons
+      const phone = prospectData.phone || '';
+      const email = prospectData.email || '';
+      const website = prospectData.website || '';
+      const facebook = prospectData.facebook || '';
+      const instagram = prospectData.instagram || '';
+
+      document.getElementById('detailPhone').textContent = phone || '—';
+      document.getElementById('btnCallAction').disabled = !phone;
+
+      document.getElementById('detailEmail').textContent = email || '—';
+      document.getElementById('btnEmailAction').disabled = !email;
+
+      document.getElementById('detailWebsite').textContent = website || '—';
+      document.getElementById('btnWebsiteAction').disabled = !website;
+
+      document.getElementById('detailFacebook').textContent = facebook || '—';
+      document.getElementById('btnFacebookAction').disabled = !facebook;
+
+      document.getElementById('detailInstagram').textContent = instagram || '—';
+      document.getElementById('btnInstagramAction').disabled = !instagram;
+
+      // Render interaction timeline
+      renderInteractionTimeline(prospectData.interactions || []);
+
+      // Set default date for new interaction
+      document.getElementById('newInteractionDate').valueAsDate = new Date();
+
+      // Clear form
+      document.getElementById('newInteractionNotes').value = '';
+      document.getElementById('newInteractionFollowUp').value = '';
+      document.getElementById('templatePreview').classList.add('hidden');
+
+      // Show modal
+      modal.style.display = 'flex';
+      modal.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeProspectDetailModal() {
+      const modal = document.getElementById('prospectDetailModal');
+      if (!modal) return;
+
+      modal.style.display = 'none';
+      modal.setAttribute('aria-hidden', 'true');
+      currentProspectDetail = null;
+    }
+
+    function renderInteractionTimeline(interactions) {
+      const timeline = document.getElementById('interactionTimeline');
+      if (!timeline) return;
+
+      if (!interactions || interactions.length === 0) {
+        timeline.innerHTML = '<div class="text-sm text-gray-400 italic text-center py-4">No interactions yet</div>';
+        return;
+      }
+
+      // Sort interactions by date (newest first)
+      const sorted = [...interactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      timeline.innerHTML = sorted.map(interaction => {
+        const date = new Date(interaction.date).toLocaleDateString('en-US', {
+          month: 'short', day: 'numeric', year: 'numeric'
+        });
+
+        const typeIcons = {
+          call: '📞',
+          email: '✉️',
+          messenger: '📘',
+          instagram: '📷',
+          'in-person': '🤝',
+          other: '📝'
+        };
+
+        const icon = typeIcons[interaction.type] || '📝';
+        const typeLabel = interaction.type.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+        let html = `
+          <div class="border-l-4 border-blue-400 pl-3 py-2">
+            <div class="flex justify-between items-start mb-1">
+              <div class="font-medium text-sm">${icon} ${esc(typeLabel)}</div>
+              <div class="text-xs text-gray-500">${date}</div>
+            </div>
+            <div class="text-sm text-gray-700">${esc(interaction.notes || 'No notes')}</div>
+        `;
+
+        if (interaction.nextFollowUp) {
+          const followUpDate = new Date(interaction.nextFollowUp).toLocaleDateString('en-US', {
+            month: 'short', day: 'numeric', year: 'numeric'
+          });
+          html += `<div class="text-xs text-purple-600 mt-1">📅 Follow-up: ${followUpDate}</div>`;
+        }
+
+        html += `</div>`;
+        return html;
+      }).join('');
+    }
+
+    function quickAction(type) {
+      if (!currentProspectDetail) return;
+
+      const prospect = currentProspectDetail;
+
+      switch (type) {
+        case 'call':
+          if (prospect.phone) {
+            window.location.href = `tel:${prospect.phone}`;
+          }
+          break;
+        case 'email':
+          if (prospect.email) {
+            const subject = encodeURIComponent(`Re: ${prospect.businessName}`);
+            window.location.href = `mailto:${prospect.email}?subject=${subject}`;
+          }
+          break;
+        case 'website':
+          if (prospect.website) {
+            window.open(prospect.website, '_blank');
+          }
+          break;
+        case 'facebook':
+          if (prospect.facebook) {
+            window.open(prospect.facebook, '_blank');
+          }
+          break;
+        case 'instagram':
+          if (prospect.instagram) {
+            window.open(prospect.instagram, '_blank');
+          }
+          break;
+      }
+    }
+
+    function addNewInteraction() {
+      if (!currentProspectDetail) return;
+
+      const type = document.getElementById('newInteractionType').value;
+      const date = document.getElementById('newInteractionDate').value;
+      const notes = document.getElementById('newInteractionNotes').value.trim();
+      const followUp = document.getElementById('newInteractionFollowUp').value;
+
+      if (!date) {
+        toast('⚠️ Please select a date', false);
+        return;
+      }
+
+      if (!notes) {
+        toast('⚠️ Please enter notes about the interaction', false);
+        return;
+      }
+
+      const newInteraction = {
+        type,
+        date,
+        notes,
+        nextFollowUp: followUp || null
+      };
+
+      // Find the prospect in the appropriate data source and update it
+      const prospectId = currentProspectDetail.id;
+      const source = currentProspectDetail.source;
+
+      if (source === 'prospect') {
+        // Update in prospect pool (searches cache)
+        Object.keys(placesCache.searches).forEach(cacheKey => {
+          const cached = placesCache.searches[cacheKey];
+          if (cached.cachedData) {
+            const prospect = cached.cachedData.find(p => p.placeId === prospectId || p.id === prospectId);
+            if (prospect) {
+              if (!prospect.interactions) prospect.interactions = [];
+              prospect.interactions.push(newInteraction);
+            }
+          }
+        });
+        localStorage.setItem('mailslot-places-cache', JSON.stringify(placesCache));
+      } else if (source === 'kanban') {
+        // Update in kanban
+        Object.keys(kanbanState.columns).forEach(columnKey => {
+          const item = kanbanState.columns[columnKey].find(i => i.id === prospectId);
+          if (item) {
+            if (!item.interactions) item.interactions = [];
+            item.interactions.push(newInteraction);
+          }
+        });
+        saveKanban();
+      } else if (source === 'client') {
+        // Update in clients
+        if (crmState.clients[prospectId]) {
+          if (!crmState.clients[prospectId].interactions) crmState.clients[prospectId].interactions = [];
+          crmState.clients[prospectId].interactions.push(newInteraction);
+          saveClients();
+        }
+      }
+
+      // Update the current prospect detail and re-render timeline
+      if (!currentProspectDetail.interactions) currentProspectDetail.interactions = [];
+      currentProspectDetail.interactions.push(newInteraction);
+      renderInteractionTimeline(currentProspectDetail.interactions);
+
+      // Clear form
+      document.getElementById('newInteractionNotes').value = '';
+      document.getElementById('newInteractionFollowUp').value = '';
+
+      toast('✅ Interaction logged!', true);
+    }
+
+    let currentTemplate = null;
+
+    function showMessageTemplate(templateType) {
+      if (!MESSAGE_TEMPLATES[templateType]) return;
+
+      const template = MESSAGE_TEMPLATES[templateType];
+      currentTemplate = template;
+
+      // Populate template with prospect data
+      let body = template.body;
+      if (currentProspectDetail) {
+        body = body.replace(/\[BUSINESS_NAME\]/g, currentProspectDetail.businessName || '[BUSINESS_NAME]');
+        body = body.replace(/\[TOWN\]/g, currentProspectDetail.zipCode || currentProspectDetail.town || '[TOWN]');
+        body = body.replace(/\[DATE\]/g, new Date().toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }));
+      }
+
+      // Show template preview
+      document.getElementById('templateTitle').textContent = template.name;
+      document.getElementById('templateSubject').textContent = template.subject ? `Subject: ${template.subject}` : '';
+      document.getElementById('templateBody').textContent = body;
+      document.getElementById('templatePreview').classList.remove('hidden');
+    }
+
+    function copyTemplate() {
+      const body = document.getElementById('templateBody').textContent;
+
+      navigator.clipboard.writeText(body).then(() => {
+        toast('✅ Template copied to clipboard!', true);
+      }).catch(err => {
+        console.error('Failed to copy:', err);
+        toast('⚠️ Failed to copy template', false);
+      });
+    }
+
+    function markNotInterested() {
+      if (!currentProspectDetail) return;
+
+      const businessName = currentProspectDetail.businessName;
+      const confirmed = confirm(`Are you sure you want to mark "${businessName}" as Not Interested?\n\nThis business will be permanently removed from your prospect pool and won't appear in future searches.`);
+
+      if (!confirmed) return;
+
+      const prospectId = currentProspectDetail.id;
+      const placeId = currentProspectDetail.placeId;
+
+      // Add to Not Interested list
+      if (!Array.isArray(window.notInterestedList)) {
+        window.notInterestedList = [];
+      }
+
+      window.notInterestedList.push({
+        businessName,
+        placeId: placeId || prospectId,
+        dateMarked: new Date().toISOString(),
+        reason: 'User marked as not interested'
+      });
+
+      localStorage.setItem('mailslot-not-interested', JSON.stringify(window.notInterestedList));
+
+      // Remove from prospect pool (searches cache)
+      Object.keys(placesCache.searches).forEach(cacheKey => {
+        const cached = placesCache.searches[cacheKey];
+        if (cached.cachedData) {
+          cached.cachedData = cached.cachedData.filter(p =>
+            (p.placeId !== placeId && p.placeId !== prospectId) &&
+            (p.id !== prospectId)
+          );
+        }
+      });
+      localStorage.setItem('mailslot-places-cache', JSON.stringify(placesCache));
+
+      // Remove from kanban
+      Object.keys(kanbanState.columns).forEach(columnKey => {
+        kanbanState.columns[columnKey] = kanbanState.columns[columnKey].filter(item =>
+          item.id !== prospectId && item.placeId !== placeId
+        );
+      });
+      saveKanban();
+
+      toast(`✅ "${businessName}" marked as Not Interested and removed`, true);
+      closeProspectDetailModal();
+
+      // Refresh displays
+      renderProspectPool();
+      renderKanban();
+    }
+
+    // Expose functions globally
+    window.openProspectDetailModal = openProspectDetailModal;
+    window.closeProspectDetailModal = closeProspectDetailModal;
+    window.quickAction = quickAction;
+    window.addNewInteraction = addNewInteraction;
+    window.showMessageTemplate = showMessageTemplate;
+    window.copyTemplate = copyTemplate;
+    window.markNotInterested = markNotInterested;
+
     /* ========= KANBAN FUNCTIONS ========= */
 
     async function loadKanban() {
@@ -5419,7 +5930,7 @@ Thanks!
                 if (item.instagram) contactIcons.push(`<a href="${esc(item.instagram)}" target="_blank" class="text-lg hover:text-blue-600" title="Instagram">📷</a>`);
 
                 return `
-                  <div class="kanban-item text-xs p-2 bg-white border rounded ${hasContact ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'} cursor-move" data-item-id="${leadId}" data-column="${col.key}">
+                  <div class="kanban-item text-xs p-2 bg-white border rounded ${hasContact ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'} cursor-move" data-item-id="${leadId}" data-column="${col.key}" ondblclick="openProspectDetailModal(${JSON.stringify(item).replace(/"/g, '&quot;')}, 'kanban')">
                     <div class="flex justify-between items-start gap-2 mb-2">
                       ${cloudSyncSelection.showSyncUI ? `
                         <input
@@ -5443,6 +5954,7 @@ Thanks!
                         ${item.zipCode ? `<div class="text-xs text-gray-500 font-medium mt-0.5">📍 ${esc(item.zipCode)}</div>` : ''}
                       </div>
                       <div class="flex gap-1 flex-shrink-0">
+                        <button onclick="event.stopPropagation(); openProspectDetailModal(${JSON.stringify(item).replace(/"/g, '&quot;')}, 'kanban')" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View Details">👁</button>
                         <button onclick="openContactLaterModal(${leadId}, event)" class="text-purple-600 hover:text-purple-800 text-sm cursor-pointer" title="Contact Later">📅</button>
                         <button onclick="editLead('${col.key}', ${leadId}, event)" class="text-blue-600 hover:text-blue-800 text-sm cursor-pointer" title="Edit">✎</button>
                         <button onclick="deleteLead('${col.key}', ${leadId}, event)" class="text-red-600 hover:text-red-800 text-sm cursor-pointer" title="Delete">🗑</button>
@@ -5461,7 +5973,7 @@ Thanks!
               const isCloudSyncSelected = cloudSyncSelection.selectedIds.has(leadId);
 
               return `
-                <div class="kanban-item text-xs p-2 bg-white border rounded cursor-move" data-item-id="${leadId}" data-column="${col.key}">
+                <div class="kanban-item text-xs p-2 bg-white border rounded cursor-move" data-item-id="${leadId}" data-column="${col.key}" ondblclick="openProspectDetailModal(${typeof item === 'object' ? JSON.stringify(item).replace(/"/g, '&quot;') : '{}'}, 'kanban')">
                   <div class="flex justify-between items-start gap-2">
                     ${cloudSyncSelection.showSyncUI && typeof item === 'object' ? `
                       <input
@@ -5477,6 +5989,7 @@ Thanks!
                       ${typeof item === 'object' && item.zipCode ? `<div class="text-xs text-gray-500 font-medium mt-0.5">📍 ${esc(item.zipCode)}</div>` : ''}
                     </div>
                     <div class="flex gap-1">
+                      ${typeof item === 'object' ? `<button onclick="event.stopPropagation(); openProspectDetailModal(${JSON.stringify(item).replace(/"/g, '&quot;')}, 'kanban')" class="text-indigo-600 hover:text-indigo-800 cursor-pointer" title="View Details">👁</button>` : ''}
                       <button onclick="editLead('${col.key}', ${leadId}, event)" class="text-blue-600 hover:text-blue-800 cursor-pointer" title="Edit">✎</button>
                       <button onclick="deleteLead('${col.key}', ${leadId}, event)" class="text-red-600 hover:text-red-800 cursor-pointer" title="Delete">🗑</button>
                     </div>
