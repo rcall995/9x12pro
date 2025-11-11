@@ -8928,16 +8928,15 @@ Thanks!
 
     function performAutoSave() {
       try {
-        // Auto-save disabled - using manual Supabase saves only
-        // The old Google Sheets auto-save has been removed
-        // Use the "Commit to Cloud" button to save changes
-        if (!state.dirty) return;
+        console.log('🔄 performAutoSave triggered');
+        if (!state.dirty) {
+          console.log('🔄 performAutoSave: nothing to save');
+          return;
+        }
 
-        // Just mark as clean since we're using manual saves now
-        state.dirty = false;
-        autoSaveState.saving = false;
-        updateAutoSaveStatus();
-        return;
+        // Call saveToSheet to save to Supabase
+        console.log('🔄 performAutoSave: calling saveToSheet');
+        saveToSheet();
 
       } catch(e) {
         console.error('Error in performAutoSave:', e);
@@ -9030,7 +9029,6 @@ Thanks!
     }
 
     async function saveToSheet(){
-      alert('SAVETOSHEET CALLED!'); // Emergency debug
       console.log('🚀 saveToSheet() CALLED!', {
         hasCurrent: !!state.current,
         isDirty: state.dirty,
