@@ -3573,21 +3573,84 @@ Thanks!
       }
     }
 
-    function loadPlacesCache() {
+    async function loadPlacesCache() {
       try {
-        // Prospect pool stays local-only (too large for cloud sync)
+        console.log('📦 Loading prospect cache from cloud...');
+
+        // Load from cloud first
+        const cloudData = await loadFromCloud('placesCache');
+
+        // Load from localStorage
+        const localSaved = safeGetItem('mailslot-places-cache');
+        const localData = localSaved ? JSON.parse(localSaved) : {};
+
+        // Merge cloud and local data (keep newer entries)
+        const merged = { ...cloudData };
+
+        Object.keys(localData).forEach(cacheKey => {
+          const local = localData[cacheKey];
+          const cloud = merged[cacheKey];
+
+          if (!cloud) {
+            // Only in local - add it
+            merged[cacheKey] = local;
+          } else if (local.lastFetched && cloud.lastFetched) {
+            // In both - keep the newer one
+            const localDate = new Date(local.lastFetched);
+            const cloudDate = new Date(cloud.lastFetched);
+            if (localDate > cloudDate) {
+              merged[cacheKey] = local;
+            }
+          }
+        });
+
+        placesCache.searches = merged;
+
+        const totalProspects = Object.values(merged).reduce((sum, cache) =>
+          sum + (cache.cachedData?.length || 0), 0
+        );
+
+        console.log(`📦 Loaded prospect cache: ${Object.keys(merged).length} searches, ${totalProspects} total prospects`);
+
+        // Save merged back to localStorage
+        safeSetItem('mailslot-places-cache', JSON.stringify(merged));
+
+      } catch(e) {
+        console.error('Error loading places cache:', e);
+        // Fall back to localStorage only
         const saved = safeGetItem('mailslot-places-cache');
         if (saved) {
           placesCache.searches = JSON.parse(saved);
         }
-      } catch(e) {
-        console.error('Error loading places cache:', e);
       }
     }
 
-    function savePlacesCache() {
-      // Prospect pool stays local-only (too large for cloud sync)
-      safeSetItem('mailslot-places-cache', JSON.stringify(placesCache.searches));
+    async function savePlacesCache() {
+      try {
+        // Save to localStorage first (always)
+        safeSetItem('mailslot-places-cache', JSON.stringify(placesCache.searches));
+
+        // Check size before saving to cloud
+        const dataStr = JSON.stringify(placesCache.searches);
+        const sizeKB = Math.round(dataStr.length / 1024);
+
+        console.log(`💾 Saving prospect cache to cloud (${sizeKB} KB)...`);
+
+        // Supabase has a reasonable size limit - if under 5MB we're good
+        if (dataStr.length > 5000000) {
+          console.warn('⚠️ Prospect cache too large for cloud sync, keeping local only');
+          toast('⚠️ Prospect data is large - saved locally only', false);
+          return;
+        }
+
+        // Save to cloud
+        await saveToCloud('placesCache', placesCache.searches);
+        console.log(`✅ Prospect cache saved to cloud (${sizeKB} KB)`);
+
+      } catch(e) {
+        console.error('Error saving places cache to cloud:', e);
+        // Data is already in localStorage, so no data loss
+      }
     }
 
     function trackApiCall(count = 1) {
@@ -7544,9 +7607,19 @@ Thanks!
         loadCampaigns();
       });
 
-      // Load local-only data (too large for cloud)
+      // Load API quota (local only)
       loadApiQuota();
-      loadPlacesCache();
+
+      // Load prospect cache from cloud with merge
+      loadPlacesCache().then(() => {
+        console.log('✅ Prospect cache loaded and ready');
+        renderProspectPool(); // Re-render to show loaded prospects
+
+        // Save to cloud to ensure computer's data is uploaded
+        savePlacesCache();
+      }).catch(e => {
+        console.error('Failed to load prospect cache:', e);
+      });
 
       // Load pricing (can stay local for now)
       try {
