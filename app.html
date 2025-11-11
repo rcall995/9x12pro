@@ -6841,8 +6841,8 @@
           const tabName = target.dataset.tab;
           switchTab(tabName);
       });
-      
-      switchTab('pipeline');
+
+      // Don't call switchTab here - it's already restored at line 6730
     }
     
     function switchTab(tabName) {
