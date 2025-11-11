@@ -47,18 +47,22 @@ export default async function handler(req, res) {
       });
     }
 
-    // Build search query
-    let query = businessName;
-    if (address) {
-      query += `, ${address}`;
+    // Prefer Place ID for more accurate results, fall back to name+address search
+    let outscraperUrl;
+
+    if (placeId) {
+      // Use Place ID for most accurate results
+      console.log('🔍 Enriching business by Place ID:', placeId, '(', businessName, ')');
+      outscraperUrl = `https://api.app.outscraper.com/maps/search-v3?query=${encodeURIComponent(placeId)}&limit=1&language=en&region=us`;
+    } else {
+      // Fall back to name+address search
+      let query = businessName;
+      if (address) {
+        query += `, ${address}`;
+      }
+      console.log('🔍 Enriching business by name:', query);
+      outscraperUrl = `https://api.app.outscraper.com/maps/search-v3?query=${encodeURIComponent(query)}&limit=1&language=en&region=us`;
     }
-
-    console.log('🔍 Enriching business:', query);
-
-    // Call Outscraper API
-    // Using Google Maps Scraper endpoint
-    // Request all available fields to maximize data collection
-    const outscraperUrl = `https://api.app.outscraper.com/maps/search-v3?query=${encodeURIComponent(query)}&limit=1&language=en&region=us`;
 
     const response = await fetch(outscraperUrl, {
       method: 'GET',

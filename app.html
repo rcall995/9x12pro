@@ -4191,7 +4191,7 @@
           btn.textContent = `⏳ Fetching contact details... (${i + 1}/${selectedBusinesses.length})`;
 
           // Try Outscraper first (if available), fall back to Google Places Details
-          let details = await fetchOutscraperDetails(business.name, business.address);
+          let details = await fetchOutscraperDetails(business.name, business.address, business.placeId);
 
           // If Outscraper failed (CORS or error), fall back to Google Places Details API
           if (!details.enriched && business.placeId) {
@@ -4904,7 +4904,7 @@
           btn.textContent = `⏳ Fetching contact details... (${i + 1}/${selectedBusinesses.length})`;
 
           // Try Outscraper first (if available), fall back to Google Places Details
-          let details = await fetchOutscraperDetails(business.name, business.address);
+          let details = await fetchOutscraperDetails(business.name, business.address, business.placeId);
 
           // If Outscraper failed (CORS or error), fall back to Google Places Details API
           if (!details.enriched && business.placeId) {
