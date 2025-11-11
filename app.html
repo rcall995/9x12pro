@@ -4742,9 +4742,8 @@ Thanks!
           return; // Skip searches from unselected ZIP codes
         }
 
-        // Check if cache is still valid
-        const cacheDate = new Date(cached.cachedUntil);
-        if (new Date() > cacheDate) return; // Skip expired cache
+        // NOTE: Don't check cache expiration - user should always see their prospect data
+        // even if it's older than 30 days. They worked hard to build this list!
 
         // Apply date filter
         if (cutoffDate && cached.lastFetched) {
