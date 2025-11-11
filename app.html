@@ -7720,6 +7720,8 @@ Thanks!
     /* ========= LOAD CAMPAIGNS ========= */
     async function loadCampaigns() {
       try {
+        console.log('📥 LOADING FROM SUPABASE for user:', ACTIVE_USER);
+
         const { data, error } = await supabaseClient
           .from('postcards')
           .select('*')
@@ -7727,6 +7729,11 @@ Thanks!
           .order('mail_date', { ascending: false });
 
         if (error) throw error;
+
+        console.log('📥 SUPABASE LOAD SUCCESS:', data?.length, 'postcards loaded');
+        if (data && data.length > 0) {
+          console.log('📥 First postcard sample:', data[0]);
+        }
 
         // Transform Supabase column names to match app expectations
         const mailers = (data || []).map(postcard => ({
@@ -8016,7 +8023,18 @@ Thanks!
       state.selected.clear();
       state.dirty = false;
       updateToolbar();
-      
+
+      console.log('📋 LOADING POSTCARD:', {
+        Mailer_ID: m.Mailer_ID,
+        Town: m.Town,
+        Mail_Date: m.Mail_Date,
+        spots_sample: {
+          Spot_1: m.Spot_1,
+          Spot_2: m.Spot_2,
+          Spot_3: m.Spot_3
+        }
+      });
+
       for (let s=1; s<=18; s++){
         // Get spot data directly from mailer object (comes from sheet columns Spot_1, Spot_2, etc.)
         const raw = m[`Spot_${s}`] || "Available";
@@ -9042,14 +9060,22 @@ Thanks!
         });
 
         // Update in Supabase
-        const { error } = await supabaseClient
+        console.log('💾 SAVING TO SUPABASE:', {
+          mailer_id: state.current.Mailer_ID,
+          user_email: ACTIVE_USER,
+          updateData: updateData
+        });
+
+        const { error, data: resultData } = await supabaseClient
           .from('postcards')
           .update(updateData)
           .eq('mailer_id', state.current.Mailer_ID)
-          .eq('user_email', ACTIVE_USER);
+          .eq('user_email', ACTIVE_USER)
+          .select();
 
         if (error) throw error;
 
+        console.log('✅ SUPABASE SAVE SUCCESS:', resultData);
         toast(`✅ Saved ${updates} change${updates===1?"":"s"} to cloud!`, true);
         state.dirty = false;
         autoSaveState.lastSaveTime = Date.now();
