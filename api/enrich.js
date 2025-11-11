@@ -57,7 +57,8 @@ export default async function handler(req, res) {
 
     // Call Outscraper API
     // Using Google Maps Scraper endpoint
-    const outscraperUrl = `https://api.app.outscraper.com/maps/search-v3?query=${encodeURIComponent(query)}&limit=1&language=en&region=us&fields=name,full_address,phone,site,emails,social_media,rating,reviews`;
+    // Request all available fields to maximize data collection
+    const outscraperUrl = `https://api.app.outscraper.com/maps/search-v3?query=${encodeURIComponent(query)}&limit=1&language=en&region=us`;
 
     const response = await fetch(outscraperUrl, {
       method: 'GET',
@@ -100,16 +101,42 @@ export default async function handler(req, res) {
 
     const business = data.data[0][0];
 
+    // Log the full response for debugging
+    console.log('📦 Full Outscraper response for', businessName, ':', JSON.stringify(business, null, 2));
+
     // Extract contact information
     const phone = business.phone || '';
     const website = business.site || '';
     const emails = business.emails || [];
     const email = Array.isArray(emails) && emails.length > 0 ? emails[0] : '';
 
-    // Extract social media links
-    const socialMedia = business.social_media || {};
-    const facebook = socialMedia.facebook || '';
-    const instagram = socialMedia.instagram || '';
+    // Extract social media links - try multiple possible formats
+    let facebook = '';
+    let instagram = '';
+
+    // Try parsing social_media object
+    if (business.social_media) {
+      console.log('🔍 social_media object:', JSON.stringify(business.social_media, null, 2));
+
+      if (typeof business.social_media === 'object') {
+        facebook = business.social_media.facebook || business.social_media.Facebook || '';
+        instagram = business.social_media.instagram || business.social_media.Instagram || '';
+      }
+    }
+
+    // Try parsing social links array (alternative format)
+    if (business.social_links && Array.isArray(business.social_links)) {
+      console.log('🔍 social_links array:', JSON.stringify(business.social_links, null, 2));
+
+      business.social_links.forEach(link => {
+        if (link.includes('facebook.com')) facebook = link;
+        if (link.includes('instagram.com')) instagram = link;
+      });
+    }
+
+    // Try parsing from raw fields
+    if (business.facebook) facebook = business.facebook;
+    if (business.instagram) instagram = business.instagram;
 
     const enrichedData = {
       phone,
