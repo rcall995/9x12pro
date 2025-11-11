@@ -2353,6 +2353,31 @@
           console.log('📦 Loaded clients from cloud:', cloudData);
           crmState.clients = cloudData.clients || {};
           crmState.nextClientId = cloudData.nextClientId || 1;
+
+          // Normalize client data to ensure all have required structure
+          Object.keys(crmState.clients).forEach(clientId => {
+            const client = crmState.clients[clientId];
+
+            // If client is missing expected properties, normalize it
+            if (!client.history || !client.lifetime || !client.contact || typeof client.contact === 'string') {
+              crmState.clients[clientId] = buildClientObject({
+                id: client.id || clientId,
+                businessName: client.businessName || client.business_name || "",
+                category: client.category || "",
+                contactName: client.contactName || client.contact_name || client.contact || "",
+                phone: client.phone || "",
+                email: client.email || "",
+                address: client.address || "",
+                notes: client.notes || "",
+                history: client.history || [],
+                tags: client.tags || [],
+                createdDate: client.createdDate || client.created_at || new Date().toISOString(),
+                lastContact: client.lastContact || null,
+                nextRenewal: client.nextRenewal || null,
+                contract: client.contract || undefined
+              });
+            }
+          });
         } else {
           // Fallback to localStorage
           const saved = localStorage.getItem('mailslot-clients');
