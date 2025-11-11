@@ -1,0 +1,19 @@
+{
+  "name": "9x12pro",
+  "version": "1.0.0",
+  "description": "9x12 PRO - Postcard Advertising Management SaaS",
+  "main": "index.html",
+  "scripts": {
+    "dev": "npx http-server -p 3000",
+    "deploy": "vercel --prod"
+  },
+  "keywords": ["postcard", "advertising", "saas", "crm"],
+  "author": "9x12 PRO",
+  "license": "MIT",
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0"
+  }
+}
