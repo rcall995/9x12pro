@@ -485,23 +485,35 @@
                     <div class="flex-1">
                         <h4 class="font-semibold text-blue-900 mb-1">How this works:</h4>
                         <ul class="text-sm text-blue-800 space-y-1">
-                            <li>• All businesses from your searches are stored here</li>
+                            <li>• All businesses from your searches are stored here and organized by category</li>
+                            <li>• Use the <strong>ZIP Code filter</strong> to view businesses from specific areas</li>
                             <li>• Select businesses by checking the boxes</li>
                             <li>• Click "Add Selected to Pipeline" to move them to your Prospecting column</li>
-                            <li>• Results stay cached for 30 days - searches won't use API quota</li>
+                            <li>• Results stay cached for 30 days - repeat searches won't use API quota</li>
                         </ul>
                     </div>
                 </div>
             </div>
 
-            <div class="flex justify-end items-center mb-4">
-                <label class="text-sm font-medium text-gray-700 mr-2">Show prospects from:</label>
-                <select id="prospectPoolDateFilter" onchange="filterProspectPoolByDate()" class="border rounded-md px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-indigo-500">
-                    <option value="all">All Time</option>
-                    <option value="7">Last 7 Days</option>
-                    <option value="30">Last 30 Days</option>
-                    <option value="90">Last 90 Days</option>
-                </select>
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 p-4 bg-gray-50 rounded-lg border">
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                    <label class="text-sm font-medium text-gray-700 whitespace-nowrap">Filter by ZIP Codes:</label>
+                    <select id="prospectPoolZipFilter" multiple onchange="renderProspectPool()" class="border rounded-md px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-indigo-500 w-full sm:w-64" style="min-height: 38px;">
+                        <option value="all">All ZIP Codes</option>
+                    </select>
+                    <button onclick="document.getElementById('prospectPoolZipFilter').value='all'; renderProspectPool()" class="px-3 py-2 text-xs bg-gray-200 hover:bg-gray-300 rounded-md font-medium whitespace-nowrap">
+                        Clear
+                    </button>
+                </div>
+                <div class="flex items-center gap-2">
+                    <label class="text-sm font-medium text-gray-700 whitespace-nowrap">Show from:</label>
+                    <select id="prospectPoolDateFilter" onchange="filterProspectPoolByDate()" class="border rounded-md px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-indigo-500">
+                        <option value="all">All Time</option>
+                        <option value="7">Last 7 Days</option>
+                        <option value="30">Last 30 Days</option>
+                        <option value="90">Last 90 Days</option>
+                    </select>
+                </div>
             </div>
 
             <div id="prospectPoolStats" class="grid grid-cols-4 gap-4 mb-6">
@@ -3023,11 +3035,12 @@
     }
 
     function syncClientsToSheets() {
-      if (!GAS_URL) {
-        toast('Google Sheets sync not configured', false);
-        return;
-      }
+      // Google Sheets sync deprecated - now using Supabase cloud storage
+      toast('Clients are now automatically synced to Supabase', true);
+      return;
+    }
 
+    function syncClientsToSheets_DEPRECATED() {
       const clients = Object.values(crmState.clients);
 
       if (clients.length === 0) {
@@ -3748,79 +3761,17 @@
     // Fetch enriched business details from Outscraper (phone, email, social media)
     // Now uses Google Apps Script backend as proxy to avoid CORS issues
     async function fetchOutscraperDetails(businessName, address) {
-      try {
-        // Call backend proxy instead of Outscraper directly (avoids CORS)
-        const url = `${GAS_URL}?action=enrich&businessName=${encodeURIComponent(businessName)}&address=${encodeURIComponent(address)}&apiKey=${encodeURIComponent(OUTSCRAPER_API_KEY)}`;
-
-        const response = await fetch(url);
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        if (data.error) {
-          console.error('❌ Outscraper API error:', data.error);
-          return {
-            phone: '',
-            website: '',
-            email: '',
-            facebook: '',
-            instagram: '',
-            enriched: false,
-            error: data.error
-          };
-        }
-
-        if (!data.enriched) {
-          console.warn('⚠️ Outscraper: No enrichment data found for', businessName);
-          return {
-            phone: data.phone || '',
-            website: data.website || '',
-            email: data.email || '',
-            facebook: data.facebook || '',
-            instagram: data.instagram || '',
-            enriched: false
-          };
-        }
-
-        return {
-          phone: data.phone || '',
-          website: data.website || '',
-          email: data.email || '',
-          facebook: data.facebook || '',
-          instagram: data.instagram || '',
-          googleMapsUrl: data.googleMapsUrl || '',
-          rating: data.rating || 0,
-          reviewsCount: data.reviewsCount || 0,
-          enriched: true,
-          cost: data.cost || OUTSCRAPER_COST_PER_BUSINESS
-        };
-
-      } catch(err) {
-        console.error('💥 Error fetching Outscraper details:', err);
-        console.error('💥 Error details:', {
-          message: err.message,
-          name: err.name,
-          stack: err.stack
-        });
-
-        // Backend proxy should handle CORS, but log if there's still an issue
-        if (err.message && err.message.includes('CORS')) {
-          console.error('🚫 Unexpected CORS error - backend proxy may not be configured correctly');
-        }
-
-        return {
-          phone: '',
-          website: '',
-          email: '',
-          facebook: '',
-          instagram: '',
-          enriched: false,
-          error: err.message
-        };
-      }
+      // Outscraper enrichment disabled - migrated away from Google Apps Script
+      // Return empty enrichment data (Google Places API provides enough info)
+      return {
+        phone: '',
+        website: '',
+        email: '',
+        facebook: '',
+        instagram: '',
+        enriched: false,
+        source: 'google-places'
+      };
     }
 
     async function runAutoPopulate() {
@@ -4491,12 +4442,13 @@
     function renderProspectPool() {
       const container = document.getElementById('prospectPoolContainer');
       const statsContainer = document.getElementById('prospectPoolStats');
+      const zipFilterSelect = document.getElementById('prospectPoolZipFilter');
 
       if (!container || !statsContainer) return;
 
-      // Get current town from dropdown (independent of loaded postcard)
-      const townSelect = document.getElementById("headerTownSelect");
-      const currentTown = townSelect?.value || state.current?.Town;
+      // Get selected ZIP codes for filtering
+      const selectedZips = zipFilterSelect ? Array.from(zipFilterSelect.selectedOptions).map(opt => opt.value) : ['all'];
+      const filterByZip = !selectedZips.includes('all') && selectedZips.length > 0;
 
       // Get date filter selection
       const filterDays = document.getElementById('prospectPoolDateFilter')?.value || 'all';
@@ -4526,6 +4478,9 @@
         }
       });
 
+      // Collect all available ZIP codes for the filter dropdown
+      const availableZips = new Set();
+
       // Process cached searches (with deduplication)
       const seenPlaceIds = new Set(); // Track placeIds to prevent duplicates
       Object.keys(placesCache.searches).forEach(cacheKey => {
@@ -4534,9 +4489,12 @@
 
         if (!cached.cachedData || cached.cachedData.length === 0) return;
 
-        // Filter by town - only show cached searches for the current town
-        if (currentTown && cached.town && cached.town !== currentTown) {
-          return; // Skip searches from other towns
+        // Track available ZIP codes
+        availableZips.add(zipCode);
+
+        // Filter by selected ZIP codes
+        if (filterByZip && !selectedZips.includes(zipCode)) {
+          return; // Skip searches from unselected ZIP codes
         }
 
         // Check if cache is still valid
@@ -4616,13 +4574,16 @@
       // Merge both manual prospects and search results into unified categories
       const unifiedByCategory = {};
 
-      // 1. Add manual prospects (enriched) to unified pool - filter by current town and date
+      // 1. Add manual prospects (enriched) to unified pool - filter by ZIP and date
       prospectPoolState.manualProspects
         .filter(prospect => {
-          // Show prospects that match the current town
-          // This is based on the town they were added for, not the specific postcard
-          if (!currentTown) return true; // Show all if no card selected
-          return !prospect.town || prospect.town === currentTown;
+          // Filter by selected ZIP codes
+          if (filterByZip && prospect.zipCode && !selectedZips.includes(prospect.zipCode)) {
+            return false; // Skip if ZIP doesn't match filter
+          }
+          // Track available ZIP code
+          if (prospect.zipCode) availableZips.add(prospect.zipCode);
+          return true;
         })
         .filter(prospect => {
           // Apply date filter
@@ -4738,6 +4699,15 @@
         `;
       }).join('')}
       `;
+
+      // Populate ZIP code filter dropdown with available ZIP codes
+      if (zipFilterSelect) {
+        const currentlySelected = Array.from(zipFilterSelect.selectedOptions).map(opt => opt.value);
+        const sortedZips = Array.from(availableZips).sort();
+
+        zipFilterSelect.innerHTML = '<option value="all">All ZIP Codes</option>' +
+          sortedZips.map(zip => `<option value="${esc(zip)}" ${currentlySelected.includes(zip) ? 'selected' : ''}>${esc(zip)}</option>`).join('');
+      }
 
       // Update selected count
       updatePoolSelectedCount();
