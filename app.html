@@ -4494,8 +4494,9 @@
 
       if (!container || !statsContainer) return;
 
-      // Get current town for filtering
-      const currentTown = state.current?.Town;
+      // Get current town from dropdown (independent of loaded postcard)
+      const townSelect = document.getElementById("headerTownSelect");
+      const currentTown = townSelect?.value || state.current?.Town;
 
       // Get date filter selection
       const filterDays = document.getElementById('prospectPoolDateFilter')?.value || 'all';
@@ -4912,6 +4913,7 @@
             instagram: details.instagram || '',
             category: business.category || 'other',
             mailerId: currentMailerId, // Link to current card
+            town: state.current?.Town, // Tag with town for organization
             addedDate: new Date().toISOString()
           };
 
@@ -7088,6 +7090,9 @@
       if (monthDates.length === 1) {
         monthSelect.value = monthDates[0];
         updatePostcardFromSelectors();
+      } else {
+        // Town changed but no month auto-selected - refresh prospect pool to show prospects for this town
+        renderProspectPool();
       }
     }
 
