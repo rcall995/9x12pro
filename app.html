@@ -3028,8 +3028,8 @@ Thanks!
     
     function updateFinancialDashboard() {
       if (!state.current) return;
-      
-      const financials = calculateFinancials(state.current.Mailer_ID);
+
+      const financials = calculateFinancials(state.current.Mailer_ID, state.current);
       if (!financials) return;
       
       const profitEl = document.getElementById('profitStatus');
