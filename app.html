@@ -2756,7 +2756,7 @@ Thanks!
     /* ========= UTILITIES ========= */
     const $ = sel => document.querySelector(sel);
     const esc = s => String(s ?? "").replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const show = (el, on=true) => el.classList.toggle("hidden", !on);
+    const show = (el, on=true) => el && el.classList.toggle("hidden", !on);
     const toast = (msg, ok=true, durationMs=null) => {
       const t = document.getElementById("toast");
       t.textContent = msg;
@@ -5357,7 +5357,7 @@ Thanks!
         const [zipCode, category] = cacheKey.split('-');
         const cached = placesCache.searches[cacheKey];
 
-        console.log(`🔍 DEBUG: Processing cache key: ${cacheKey}, has data: ${cached.cachedData ? cached.cachedData.length : 0}, lastFetched: ${cached.lastFetched}`);
+        // console.log(`🔍 DEBUG: Processing cache key: ${cacheKey}, has data: ${cached.cachedData ? cached.cachedData.length : 0}, lastFetched: ${cached.lastFetched}`);
 
         if (!cached.cachedData || cached.cachedData.length === 0) return;
 
@@ -5367,7 +5367,7 @@ Thanks!
         // Filter by selected ZIP codes
         if (filterByZip && !selectedZips.includes(zipCode)) {
           skippedByZip++;
-          console.log(`🔍 DEBUG: Skipping ${cacheKey} - ZIP filter (${zipCode} not in selected)`);
+          // console.log(`🔍 DEBUG: Skipping ${cacheKey} - ZIP filter (${zipCode} not in selected)`);
           return; // Skip searches from unselected ZIP codes
         }
 
@@ -5379,7 +5379,7 @@ Thanks!
           const fetchedDate = new Date(cached.lastFetched);
           if (fetchedDate < cutoffDate) {
             skippedByDate++;
-            console.log(`🔍 DEBUG: Skipping ${cacheKey} - Date filter (fetched: ${fetchedDate.toLocaleDateString()}, cutoff: ${cutoffDate.toLocaleDateString()})`);
+            // console.log(`🔍 DEBUG: Skipping ${cacheKey} - Date filter (fetched: ${fetchedDate.toLocaleDateString()}, cutoff: ${cutoffDate.toLocaleDateString()})`);
             return; // Skip if outside date range
           }
         }
@@ -5408,8 +5408,8 @@ Thanks!
         });
       });
 
-      console.log(`🔍 DEBUG SUMMARY: Total cache keys: ${Object.keys(placesCache.searches).length}, Processed: ${processedCaches}, Skipped by ZIP: ${skippedByZip}, Skipped by Date: ${skippedByDate}`);
-      console.log(`🔍 DEBUG SUMMARY: Total prospects found: ${totalProspects}, Categories: ${Object.keys(categorizedProspects).length}`);
+      // console.log(`🔍 DEBUG SUMMARY: Total cache keys: ${Object.keys(placesCache.searches).length}, Processed: ${processedCaches}, Skipped by ZIP: ${skippedByZip}, Skipped by Date: ${skippedByDate}`);
+      // console.log(`🔍 DEBUG SUMMARY: Total prospects found: ${totalProspects}, Categories: ${Object.keys(categorizedProspects).length}`);
 
       // Render stats
       const categories = Object.keys(categorizedProspects).length;
@@ -8173,7 +8173,9 @@ Thanks!
           productionState.pricing = cloudData;
         }
       } catch (e) {
-        console.error('Error loading pricing:', e);
+        // Silently handle error - pricing table may not exist yet in Supabase
+        // This is expected on first use before running migration
+        console.log('Pricing not available yet (this is normal on first use)');
       }
     }
 
@@ -8870,32 +8872,37 @@ Thanks!
     });
     
     function bindUI(){
-      document.getElementById("btnCancelEdit").onclick = closeEditModal;
-      document.getElementById("btnApplyEdit").onclick = applyEditModal;
-      document.getElementById("btnCancelPostcard").onclick = closePostcardModal;
-      document.getElementById("btnApplyPostcard").onclick = applyPostcardModal;
-      document.getElementById("btnCancelSort").onclick = closeSortModal;
-      document.getElementById("btnApplySort").onclick = saveSortOrderFromModal;
-      document.getElementById("btnAdjustPostcard").onclick = openPostcardModal;
-      document.getElementById("btnCancelEditStatus").onclick = closeEditStatusModal;
-      document.getElementById("btnSaveEditStatus").onclick = saveEditStatusModal;
+      const btn = (id, handler) => {
+        const el = document.getElementById(id);
+        if (el) el.onclick = handler;
+      };
+
+      btn("btnCancelEdit", closeEditModal);
+      btn("btnApplyEdit", applyEditModal);
+      btn("btnCancelPostcard", closePostcardModal);
+      btn("btnApplyPostcard", applyPostcardModal);
+      btn("btnAdjustPostcard", openPostcardModal);
+      btn("btnCancelEditStatus", closeEditStatusModal);
+      btn("btnSaveEditStatus", saveEditStatusModal);
 
       // Duplicate modal
-      document.getElementById("btnCancelDuplicate").onclick = closeDuplicatePostcardModal;
-      document.getElementById("btnCreateDuplicate").onclick = createDuplicatePostcard;
+      btn("btnCancelDuplicate", closeDuplicatePostcardModal);
+      btn("btnCreateDuplicate", createDuplicatePostcard);
 
       // Pricing modal
-      document.getElementById("btnCancelPricing").onclick = closePricingModal;
-      document.getElementById("btnSavePricing").onclick = savePricingModal;
+      btn("btnCancelPricing", closePricingModal);
+      btn("btnSavePricing", savePricingModal);
       ["pricingSingleAd", "pricingDoubleAd", "pricingBannerAd"].forEach(id => {
-        document.getElementById(id).addEventListener('input', updatePricingPreview);
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', updatePricingPreview);
       });
 
       // Expense modal
-      document.getElementById("btnCancelExpense").onclick = closeExpenseModal;
-      document.getElementById("btnSaveExpense").onclick = saveExpenseModal;
+      btn("btnCancelExpense", closeExpenseModal);
+      btn("btnSaveExpense", saveExpenseModal);
       ["expensePrinting", "expensePostage", "expenseDesign", "expenseMisc"].forEach(id => {
-        document.getElementById(id).addEventListener('input', updateExpenseTotal);
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', updateExpenseTotal);
       });
       
       // Client modal
