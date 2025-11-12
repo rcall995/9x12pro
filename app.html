@@ -5243,6 +5243,49 @@ Thanks!
       closeManageCategoriesModal();
     }
 
+    // Deduplicate manual prospects pool
+    function deduplicateManualProspects() {
+      const seenPlaceIds = new Set();
+      const seenBusinessNames = new Map();
+      const deduped = [];
+      let totalRemoved = 0;
+
+      prospectPoolState.manualProspects.forEach(prospect => {
+        if (typeof prospect !== 'object') {
+          deduped.push(prospect);
+          return;
+        }
+
+        // Skip if we've seen this placeId
+        if (prospect.placeId) {
+          if (seenPlaceIds.has(prospect.placeId)) {
+            totalRemoved++;
+            return; // Skip duplicate
+          }
+          seenPlaceIds.add(prospect.placeId);
+        }
+        // Fallback to businessName + mailerId
+        else if (prospect.businessName && prospect.mailerId) {
+          const key = `${prospect.businessName.toLowerCase()}|${prospect.mailerId}`;
+          if (seenBusinessNames.has(key)) {
+            totalRemoved++;
+            return; // Skip duplicate
+          }
+          seenBusinessNames.set(key, true);
+        }
+
+        deduped.push(prospect);
+      });
+
+      prospectPoolState.manualProspects = deduped;
+
+      if (totalRemoved > 0) {
+        console.log(`🧹 Removed ${totalRemoved} duplicate prospect(s) from manual prospects pool`);
+      }
+
+      return totalRemoved;
+    }
+
     // Load manual prospects from localStorage
     async function loadManualProspects() {
       try {
@@ -5260,6 +5303,13 @@ Thanks!
             saveToCloud('manualProspects', prospectPoolState.manualProspects).catch(e => console.warn('Failed to sync manual prospects to cloud:', e));
           }
         }
+
+        // Deduplicate after loading
+        const duplicatesRemoved = deduplicateManualProspects();
+        if (duplicatesRemoved > 0) {
+          // Save cleaned data back
+          await saveToCloud('manualProspects', prospectPoolState.manualProspects).catch(e => console.warn('Failed to save deduplicated manual prospects:', e));
+        }
       } catch(err) {
         console.error('Error loading manual prospects:', err);
       }
@@ -5268,6 +5318,9 @@ Thanks!
     // Save manual prospects to cloud and localStorage
     async function saveManualProspects() {
       try {
+        // Deduplicate before saving
+        deduplicateManualProspects();
+
         await saveToCloud('manualProspects', prospectPoolState.manualProspects);
       } catch(err) {
         console.warn('⚠️ Manual prospects saved to localStorage only (cloud sync failed):', err);
@@ -6775,14 +6828,73 @@ Thanks!
           }
         });
 
+        // Deduplicate data after loading (clean up any existing duplicates)
+        const duplicatesRemoved = deduplicateKanbanData();
+        if (duplicatesRemoved > 0) {
+          // Save cleaned data back to database
+          await saveToCloud('kanban', kanbanState.columns).catch(e => console.warn('Failed to save deduplicated kanban:', e));
+        }
+
       } catch(e) {
         console.error('Error loading kanban:', e);
       }
       renderKanban();
     }
 
+    // Remove all duplicate prospects from kanban data (not just rendering)
+    function deduplicateKanbanData() {
+      let totalRemoved = 0;
+
+      Object.keys(kanbanState.columns).forEach(columnKey => {
+        const items = kanbanState.columns[columnKey];
+        if (!Array.isArray(items)) return;
+
+        const seenPlaceIds = new Set();
+        const seenBusinessNames = new Map(); // Map to track businessName+mailerId combos
+        const deduped = [];
+
+        items.forEach(item => {
+          if (typeof item !== 'object') {
+            deduped.push(item);
+            return;
+          }
+
+          // Skip if we've seen this placeId (most reliable identifier)
+          if (item.placeId) {
+            if (seenPlaceIds.has(item.placeId)) {
+              totalRemoved++;
+              return; // Skip duplicate
+            }
+            seenPlaceIds.add(item.placeId);
+          }
+          // Fallback to businessName + mailerId for prospects without placeId
+          else if (item.businessName && item.mailerId) {
+            const key = `${item.businessName.toLowerCase()}|${item.mailerId}`;
+            if (seenBusinessNames.has(key)) {
+              totalRemoved++;
+              return; // Skip duplicate
+            }
+            seenBusinessNames.set(key, true);
+          }
+
+          deduped.push(item);
+        });
+
+        kanbanState.columns[columnKey] = deduped;
+      });
+
+      if (totalRemoved > 0) {
+        console.log(`🧹 Removed ${totalRemoved} duplicate prospect(s) from kanban data`);
+      }
+
+      return totalRemoved;
+    }
+
     async function saveKanban() {
       try {
+        // Deduplicate before saving
+        deduplicateKanbanData();
+
         // Save to cloud and localStorage
         await saveToCloud('kanban', kanbanState.columns);
       } catch(e) {
