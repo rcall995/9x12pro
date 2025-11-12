@@ -173,8 +173,8 @@
         display: flex;
         flex-direction: column;
         gap: 0.5rem;
-        flex-grow: 1;
-        min-width: 200px;
+        width: calc(25% - 0.75rem);  /* 4 equal columns */
+        min-width: 220px;
         flex-shrink: 0;
     }
     #salesActivityContainer {
@@ -185,13 +185,16 @@
         scrollbar-width: thin;
         -webkit-overflow-scrolling: touch;
     }
-    @media (min-width: 1024px) {
-        #salesActivityContainer {
-            flex-wrap: wrap;
-            overflow-x: visible;
-        }
+    @media (max-width: 1023px) {
         .kanban-column {
-            flex-shrink: 1;
+            width: calc(50% - 0.5rem);  /* 2 columns on tablets */
+            min-width: 200px;
+        }
+    }
+    @media (max-width: 640px) {
+        .kanban-column {
+            width: 100%;  /* 1 column on mobile */
+            min-width: unset;
         }
     }
     .control-btn {
@@ -2514,11 +2517,19 @@ Thanks!
     // KANBAN STATE
     const kanbanState = {
       columns: {
-        'new-lead': [],
-        'proposal-sent': [],
-        'negotiation': [],
-        'closed-won': []
+        'prospect-list': [],      // Renamed from 'prospect-list'
+        'to-contact': [],          // Renamed from 'to-contact'
+        'in-progress': [],         // Renamed from 'in-progress'
+        'committed': []            // Renamed from 'committed'
       }
+    };
+
+    // DAILY OUTREACH GOAL STATE
+    const dailyGoalState = {
+      dailyGoal: 10,               // Default goal: contact 10 businesses per day
+      todayCount: 0,               // How many contacted today
+      lastResetDate: new Date().toDateString(),  // Track when we last reset
+      history: []                  // Array of {date, goal, actual, businesses: []}
     };
 
     // CLOUD SYNC SELECTION STATE
@@ -4773,7 +4784,7 @@ Thanks!
       btn.disabled = true;
       btn.textContent = '⏳ Fetching details...';
 
-      const prospectingColumn = 'new-lead';
+      const prospectingColumn = 'prospect-list';
       let addedCount = 0;
       const selectedBusinesses = businesses.filter(b => selectedIds.has(b.placeId) && !b.alreadyExists);
 
@@ -4925,7 +4936,7 @@ Thanks!
         return;
       }
 
-      const prospectingColumn = 'new-lead';
+      const prospectingColumn = 'prospect-list';
       const items = kanbanState.columns[prospectingColumn] || [];
       const movedProspects = [];
 
@@ -4974,7 +4985,7 @@ Thanks!
         event.preventDefault();
       }
 
-      const prospectingColumn = 'new-lead';
+      const prospectingColumn = 'prospect-list';
       const items = kanbanState.columns[prospectingColumn] || [];
       const leadIndex = items.findIndex(item => typeof item === 'object' && item.id === leadId);
 
@@ -5025,7 +5036,7 @@ Thanks!
       const prospect = prospectPoolState.manualProspects[prospectIndex];
 
       // Check for duplicate by placeId if exists
-      const prospectingColumn = 'new-lead';
+      const prospectingColumn = 'prospect-list';
       const existingLeads = kanbanState.columns[prospectingColumn] || [];
 
       if (prospect.placeId) {
@@ -5537,7 +5548,7 @@ Thanks!
         });
 
         // Fetch details and add to kanban
-        const prospectingColumn = 'new-lead';
+        const prospectingColumn = 'prospect-list';
         const existingLeads = kanbanState.columns[prospectingColumn] || [];
 
         // Get existing placeIds for current mailer to prevent duplicates
@@ -5660,13 +5671,13 @@ Thanks!
       );
 
       // Clear prospecting column for this card only
-      const prospectingColumn = 'new-lead';
+      const prospectingColumn = 'prospect-list';
       kanbanState.columns[prospectingColumn] = (kanbanState.columns[prospectingColumn] || []).filter(
         lead => !lead.mailerId || lead.mailerId !== currentMailerId
       );
 
       // Clear all other kanban columns for this card
-      ['proposal-sent', 'negotiation', 'closed-won'].forEach(column => {
+      ['to-contact', 'in-progress', 'committed'].forEach(column => {
         kanbanState.columns[column] = (kanbanState.columns[column] || []).filter(
           lead => !lead.mailerId || lead.mailerId !== currentMailerId
         );
@@ -6304,7 +6315,7 @@ Thanks!
         }
 
         // Ensure all required columns exist
-        const requiredColumns = ['new-lead', 'proposal-sent', 'negotiation', 'closed-won'];
+        const requiredColumns = ['prospect-list', 'to-contact', 'in-progress', 'committed'];
         requiredColumns.forEach(col => {
           if (!kanbanState.columns[col]) {
             kanbanState.columns[col] = [];
@@ -6478,10 +6489,10 @@ Thanks!
       const currentMailerId = state.current?.Mailer_ID;
 
       const columnDefs = [
-        { key: 'new-lead', title: '1. Prospecting', color: 'blue' },
-        { key: 'proposal-sent', title: '2. Initial Contact', color: 'purple' },
-        { key: 'negotiation', title: '3. Follow-Up (Active)', color: 'green' },
-        { key: 'closed-won', title: '4. Committed / Sold', color: 'yellow' }
+        { key: 'prospect-list', title: '1. Prospect List', color: 'blue' },
+        { key: 'to-contact', title: '2. To Contact', color: 'purple' },
+        { key: 'in-progress', title: '3. In Progress', color: 'green' },
+        { key: 'committed', title: '4. Committed', color: 'yellow' }
       ];
 
       // Cloud Sync UI at top (HIDDEN temporarily - needs more testing)
@@ -6526,7 +6537,7 @@ Thanks!
         });
 
         // Sort Prospecting column: items with phone/website/email first
-        if (col.key === 'new-lead') {
+        if (col.key === 'prospect-list') {
           items = items.sort((a, b) => {
             const aHasContact = (a.phone || a.website || a.email) ? 1 : 0;
             const bHasContact = (b.phone || b.website || b.email) ? 1 : 0;
@@ -6535,7 +6546,7 @@ Thanks!
         }
 
         // Add buttons for Prospecting column
-        const buttons = col.key === 'new-lead'
+        const buttons = col.key === 'prospect-list'
           ? `
             <div class="flex gap-1">
               <button id="btnMoveSelectedToPool" onclick="moveSelectedToPool()" class="text-xs px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 hidden" title="Move selected to pool">
@@ -6567,7 +6578,7 @@ Thanks!
               const leadId = typeof item === 'string' ? idx : (item.id || idx);
 
               // Enhanced display for Prospecting column
-              if (col.key === 'new-lead' && typeof item === 'object') {
+              if (col.key === 'prospect-list' && typeof item === 'object') {
                 const hasContact = item.phone || item.website || item.email;
                 const isProspectingSelected = prospectingSelectionState.selectedIds.has(leadId);
                 const isCloudSyncSelected = cloudSyncSelection.selectedIds.has(leadId);
@@ -6639,12 +6650,23 @@ Thanks!
                       <div class="font-medium">${esc(leadName)}</div>
                       ${typeof item === 'object' && item.zipCode ? `<div class="text-xs text-gray-500 font-medium mt-0.5">📍 ${esc(item.zipCode)}</div>` : ''}
                     </div>
-                    <div class="flex gap-1">
-                      ${typeof item === 'object' ? `<button onclick="event.stopPropagation(); openProspectDetailModal(${JSON.stringify(item).replace(/"/g, '&quot;')}, 'kanban')" class="text-indigo-600 hover:text-indigo-800 cursor-pointer" title="View Details">👁</button>` : ''}
-                      <button onclick="editLead('${col.key}', ${leadId}, event)" class="text-blue-600 hover:text-blue-800 cursor-pointer" title="Edit">✎</button>
-                      <button onclick="deleteLead('${col.key}', ${leadId}, event)" class="text-red-600 hover:text-red-800 cursor-pointer" title="Delete">🗑</button>
+                    <div class="flex gap-1 flex-shrink-0">
+                      ${typeof item === 'object' ? `<button onclick="event.stopPropagation(); openProspectDetailModal(${JSON.stringify(item).replace(/"/g, '&quot;')}, 'kanban')" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View Details">👁</button>` : ''}
+                      <button onclick="openContactLaterModal(${leadId}, event)" class="text-purple-600 hover:text-purple-800 text-sm cursor-pointer" title="Contact Later">📅</button>
+                      <button onclick="editLead('${col.key}', ${leadId}, event)" class="text-blue-600 hover:text-blue-800 text-sm cursor-pointer" title="Edit">✎</button>
+                      <button onclick="deleteLead('${col.key}', ${leadId}, event)" class="text-red-600 hover:text-red-800 text-sm cursor-pointer" title="Delete">🗑</button>
                     </div>
                   </div>
+                  ${col.key === 'to-contact' ? `
+                    <div class="flex gap-2 mt-2 pt-2 border-t border-gray-200">
+                      <button onclick="handleCommunicating(${leadId}, event)" class="flex-1 px-3 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 font-medium">
+                        💬 Communicating
+                      </button>
+                      <button onclick="handleNotInterested(${leadId}, event)" class="flex-1 px-3 py-1.5 bg-red-600 text-white text-xs rounded hover:bg-red-700 font-medium">
+                        🚫 Not Interested
+                      </button>
+                    </div>
+                  ` : ''}
                 </div>
               `;
             }).join('')}
@@ -6652,8 +6674,45 @@ Thanks!
         `;
       }).join('');
 
-      // Set container HTML with cloud sync bar + columns
-      container.innerHTML = cloudSyncBar + columnsHTML;
+      // Daily Goal Tracker UI
+      const dailyGoalHTML = `
+        <div class="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-300 rounded-lg p-4 mb-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-4">
+              <div class="text-2xl">🎯</div>
+              <div>
+                <div class="text-sm text-gray-600 font-medium">Daily Outreach Goal</div>
+                <div class="text-2xl font-bold text-purple-700">
+                  ${dailyGoalState.todayCount} <span class="text-gray-400">/</span> ${dailyGoalState.dailyGoal}
+                  <span class="text-sm text-gray-500 font-normal">contacts today</span>
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="text-right">
+                <div class="text-xs text-gray-500 mb-1">Completion</div>
+                <div class="text-lg font-bold ${dailyGoalState.todayCount >= dailyGoalState.dailyGoal ? 'text-green-600' : 'text-purple-600'}">
+                  ${Math.round((dailyGoalState.todayCount / dailyGoalState.dailyGoal) * 100)}%
+                </div>
+              </div>
+              <button onclick="openDailyGoalSettings()" class="px-4 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 font-medium" title="Change daily goal">
+                ⚙️ Settings
+              </button>
+            </div>
+          </div>
+          <div class="mt-3 w-full h-3 bg-gray-200 rounded-full overflow-hidden">
+            <div class="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full transition-all duration-300" style="width: ${Math.min((dailyGoalState.todayCount / dailyGoalState.dailyGoal) * 100, 100)}%;"></div>
+          </div>
+          ${dailyGoalState.todayCount >= dailyGoalState.dailyGoal ? `
+            <div class="mt-2 text-center text-green-700 font-semibold text-sm">
+              🎉 Goal achieved! Great work today!
+            </div>
+          ` : ''}
+        </div>
+      `;
+
+      // Set container HTML with cloud sync bar + daily goal + columns
+      container.innerHTML = cloudSyncBar + dailyGoalHTML + columnsHTML;
 
       setupKanbanDrag();
       updateMoveToPoolButton();
@@ -6740,15 +6799,21 @@ Thanks!
               kanbanState.columns[toColumn].push(itemToMove);
             }
 
+            // Track daily goal if moving FROM "To Contact" column
+            if (fromColumn === 'to-contact' && fromColumn !== toColumn) {
+              const businessName = typeof itemToMove === 'string' ? itemToMove : (itemToMove.businessName || 'Unnamed Lead');
+              incrementDailyGoal(businessName);
+            }
+
             saveKanban();
             renderKanban();
 
             // Map column key to display title
             const columnTitles = {
-              'new-lead': '1. Prospecting',
-              'proposal-sent': '2. Initial Contact',
-              'negotiation': '3. Follow-Up (Active)',
-              'closed-won': '4. Committed / Sold'
+              'prospect-list': '1. Prospect List',
+              'to-contact': '2. To Contact',
+              'in-progress': '3. In Progress',
+              'committed': '4. Committed'
             };
             toast(`Moved to ${columnTitles[toColumn] || toColumn}`);
           }
@@ -7128,7 +7193,7 @@ Thanks!
         event.preventDefault();
       }
 
-      const prospectingColumn = 'new-lead';
+      const prospectingColumn = 'prospect-list';
       const items = kanbanState.columns[prospectingColumn] || [];
 
       // Convert leadId to number for comparison
@@ -7180,7 +7245,7 @@ Thanks!
         return;
       }
 
-      const prospectingColumn = 'new-lead';
+      const prospectingColumn = 'prospect-list';
       const items = kanbanState.columns[prospectingColumn] || [];
       const leadIndex = items.findIndex(item => typeof item === 'object' && item.id === leadId);
 
@@ -7287,7 +7352,7 @@ Thanks!
         // Clear activity log
         renderActivityLog([]);
 
-        columnInput.value = column || 'new-lead';
+        columnInput.value = column || 'prospect-list';
         idInput.value = '';
       }
 
@@ -7426,6 +7491,173 @@ Thanks!
         renderKanban();
         toast("Lead deleted successfully");
       }
+    }
+
+    /* ========= DAILY GOAL TRACKING FUNCTIONS ========= */
+
+    // Increment daily outreach count (called when: button clicks, manual moves)
+    function incrementDailyGoal(businessName = '') {
+      checkAndResetDailyGoal(); // Always check for date change first
+      dailyGoalState.todayCount++;
+
+      // Add to today's history
+      const today = new Date().toDateString();
+      let todayRecord = dailyGoalState.history.find(h => h.date === today);
+      if (!todayRecord) {
+        todayRecord = { date: today, goal: dailyGoalState.dailyGoal, actual: 0, businesses: [] };
+        dailyGoalState.history.push(todayRecord);
+      }
+      todayRecord.actual = dailyGoalState.todayCount;
+      if (businessName) {
+        todayRecord.businesses.push({ name: businessName, timestamp: new Date().toISOString() });
+      }
+
+      saveDailyGoalState();
+      renderKanban(); // Re-render to update UI
+    }
+
+    // Check if it's a new day and reset if needed
+    function checkAndResetDailyGoal() {
+      const today = new Date().toDateString();
+      if (dailyGoalState.lastResetDate !== today) {
+        // New day! Save yesterday's final count to history (if not already saved)
+        if (dailyGoalState.todayCount > 0) {
+          const yesterdayRecord = dailyGoalState.history.find(h => h.date === dailyGoalState.lastResetDate);
+          if (yesterdayRecord) {
+            yesterdayRecord.actual = dailyGoalState.todayCount;
+          }
+        }
+
+        // Reset for new day
+        dailyGoalState.todayCount = 0;
+        dailyGoalState.lastResetDate = today;
+        saveDailyGoalState();
+        console.log('Daily goal reset for new day:', today);
+      }
+    }
+
+    // Save daily goal state to localStorage
+    function saveDailyGoalState() {
+      try {
+        localStorage.setItem('dailyGoalState', JSON.stringify(dailyGoalState));
+      } catch (e) {
+        console.error('Failed to save daily goal state:', e);
+      }
+    }
+
+    // Load daily goal state from localStorage
+    function loadDailyGoalState() {
+      try {
+        const saved = localStorage.getItem('dailyGoalState');
+        if (saved) {
+          const loaded = JSON.parse(saved);
+          dailyGoalState.dailyGoal = loaded.dailyGoal || 10;
+          dailyGoalState.todayCount = loaded.todayCount || 0;
+          dailyGoalState.lastResetDate = loaded.lastResetDate || new Date().toDateString();
+          dailyGoalState.history = loaded.history || [];
+        }
+        checkAndResetDailyGoal(); // Check if we need to reset for new day
+      } catch (e) {
+        console.error('Failed to load daily goal state:', e);
+      }
+    }
+
+    // Handle "Communicating" button click
+    function handleCommunicating(leadId, event) {
+      if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+      }
+
+      // Find lead in to-contact column
+      const items = kanbanState.columns['to-contact'] || [];
+      const numericLeadId = typeof leadId === 'string' ? parseFloat(leadId) : leadId;
+      const index = items.findIndex(item => {
+        if (typeof item === 'string') return false;
+        const itemId = typeof item.id === 'string' ? parseFloat(item.id) : item.id;
+        return itemId === numericLeadId;
+      });
+
+      if (index === -1) {
+        toast("Lead not found", false);
+        return;
+      }
+
+      // Move to in-progress column
+      const lead = items[index];
+      items.splice(index, 1);
+      kanbanState.columns['in-progress'] = kanbanState.columns['in-progress'] || [];
+      kanbanState.columns['in-progress'].push(lead);
+
+      // Increment daily goal
+      const businessName = typeof lead === 'string' ? lead : (lead.businessName || 'Unnamed Lead');
+      incrementDailyGoal(businessName);
+
+      saveKanban();
+      renderKanban();
+      toast(`${businessName} moved to In Progress`);
+    }
+
+    // Handle "Not Interested" button click
+    function handleNotInterested(leadId, event) {
+      if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+      }
+
+      // Find lead in to-contact column
+      const items = kanbanState.columns['to-contact'] || [];
+      const numericLeadId = typeof leadId === 'string' ? parseFloat(leadId) : leadId;
+      const index = items.findIndex(item => {
+        if (typeof item === 'string') return false;
+        const itemId = typeof item.id === 'string' ? parseFloat(item.id) : item.id;
+        return itemId === numericLeadId;
+      });
+
+      if (index === -1) {
+        toast("Lead not found", false);
+        return;
+      }
+
+      const lead = items[index];
+      const businessName = typeof lead === 'string' ? lead : (lead.businessName || 'Unnamed Lead');
+
+      if (!confirm(`Mark "${businessName}" as Not Interested?\n\nThis will remove them from your pipeline.`)) {
+        return;
+      }
+
+      // Remove from kanban
+      items.splice(index, 1);
+
+      // Add to not interested list (if it's an object with placeId)
+      if (typeof lead === 'object' && lead.placeId) {
+        addToNotInterestedList(lead);
+      }
+
+      // Increment daily goal
+      incrementDailyGoal(businessName);
+
+      saveKanban();
+      renderKanban();
+      toast(`${businessName} marked as not interested`);
+    }
+
+    // Open daily goal settings modal
+    function openDailyGoalSettings() {
+      const newGoal = prompt(`Set your daily outreach goal:\n\nCurrent goal: ${dailyGoalState.dailyGoal} contacts per day`, dailyGoalState.dailyGoal);
+
+      if (newGoal === null) return; // User cancelled
+
+      const goalNumber = parseInt(newGoal);
+      if (isNaN(goalNumber) || goalNumber < 1) {
+        toast("Please enter a valid number (minimum 1)", false);
+        return;
+      }
+
+      dailyGoalState.dailyGoal = goalNumber;
+      saveDailyGoalState();
+      renderKanban();
+      toast(`Daily goal updated to ${goalNumber} contacts`);
     }
 
     /* ========= NEW POSTCARD CREATION WORKFLOW ========= */
@@ -7956,6 +8188,9 @@ Thanks!
       document.getElementById('pickerPostcard').value = stagedColors.Postcard_BG;
       document.getElementById('pickerBanner').value = stagedColors.Banner_BG;
       applyStagedColors();
+
+      // Load daily goal state from localStorage
+      loadDailyGoalState();
 
       // Load all state from cloud (with localStorage fallback)
       Promise.allSettled([
