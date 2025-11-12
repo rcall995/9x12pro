@@ -9592,8 +9592,16 @@ Thanks!
       }
 
       // Get filter values
-      const periodFilter = document.getElementById('financialPeriodFilter')?.value || 'current-year';
+      const periodFilterEl = document.getElementById('financialPeriodFilter');
+      const periodFilter = periodFilterEl?.value || 'current-year';
       const categoryFilter = document.getElementById('financialCategoryFilter')?.value || 'all';
+
+      console.log('🔍 Filter Debug:', {
+        periodFilterExists: !!periodFilterEl,
+        periodFilterValue: periodFilter,
+        categoryFilter: categoryFilter,
+        totalTransactions: financialState.transactions.length
+      });
 
       // Filter transactions
       const filteredTransactions = filterTransactions(financialState.transactions, periodFilter, categoryFilter);
