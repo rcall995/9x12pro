@@ -9488,13 +9488,25 @@ Thanks!
       let totalExpenses = 0;
       let currentBalance = 0;
 
+      let revenueCount = 0;
+      let expenseCount = 0;
+
       transactions.forEach(trans => {
         const amount = parseFloat(trans.amount) || 0;
 
         if (trans.type === 'revenue') {
           totalRevenue += amount;
+          revenueCount++;
         } else if (trans.type === 'cogs' || trans.type === 'operating' || trans.type === 'owner_draw') {
           totalExpenses += Math.abs(amount);
+          expenseCount++;
+          console.log('💸 Expense found:', {
+            desc: trans.description,
+            type: trans.type,
+            amount: amount,
+            absAmount: Math.abs(amount),
+            runningTotal: totalExpenses
+          });
         }
 
         // Balance is cumulative
@@ -9502,6 +9514,16 @@ Thanks!
       });
 
       const netIncome = totalRevenue - totalExpenses;
+
+      console.log('💰 Calculation Summary:', {
+        totalTransactions: transactions.length,
+        revenueCount: revenueCount,
+        expenseCount: expenseCount,
+        totalRevenue: totalRevenue,
+        totalExpenses: totalExpenses,
+        netIncome: netIncome,
+        currentBalance: currentBalance
+      });
 
       return { totalRevenue, totalExpenses, netIncome, currentBalance };
     }
@@ -9568,8 +9590,26 @@ Thanks!
       // Filter transactions
       const filteredTransactions = filterTransactions(financialState.transactions, periodFilter, categoryFilter);
 
+      // Sort by date descending (newest first)
+      const sortedTransactions = [...filteredTransactions].sort((a, b) => {
+        return new Date(b.date) - new Date(a.date);
+      });
+
       // Calculate summaries
-      const summaries = calculateFinancialSummaries(filteredTransactions);
+      const summaries = calculateFinancialSummaries(sortedTransactions);
+
+      console.log('💰 Financial Summary Debug:', {
+        totalTransactions: sortedTransactions.length,
+        totalRevenue: summaries.totalRevenue,
+        totalExpenses: summaries.totalExpenses,
+        netIncome: summaries.netIncome,
+        sampleTransactions: sortedTransactions.slice(0, 3).map(t => ({
+          desc: t.description,
+          type: t.type,
+          category: t.category,
+          amount: t.amount
+        }))
+      });
 
       // Update summary cards
       document.getElementById('totalRevenue').textContent = `$${summaries.totalRevenue.toFixed(2)}`;
@@ -9578,12 +9618,12 @@ Thanks!
       document.getElementById('currentBalance').textContent = `$${summaries.currentBalance.toFixed(2)}`;
 
       // Render transactions
-      if (filteredTransactions.length === 0) {
+      if (sortedTransactions.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">No transactions found</td></tr>';
         return;
       }
 
-      tbody.innerHTML = filteredTransactions.map(trans => {
+      tbody.innerHTML = sortedTransactions.map(trans => {
         const amount = parseFloat(trans.amount) || 0;
         const amountClass = amount >= 0 ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold';
         const amountDisplay = amount >= 0 ? `+$${amount.toFixed(2)}` : `-$${Math.abs(amount).toFixed(2)}`;
