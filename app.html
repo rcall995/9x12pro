@@ -5129,9 +5129,14 @@ Thanks!
       businessCategories.sort((a, b) => a.label.localeCompare(b.label));
       renderManageCategoriesList();
 
+      lastFocusedElementBeforeModal = document.activeElement;
+      modal.style.display = "flex";
       modal.setAttribute('aria-hidden', 'false');
-      modal.classList.add('show');
-      document.body.style.overflow = 'hidden';
+      trapModalFocus(modal);
+
+      // Focus on input field
+      const input = document.getElementById('newCategoryInput');
+      if (input) input.focus();
     }
 
     // Close Manage Categories Modal
@@ -5139,9 +5144,10 @@ Thanks!
       const modal = document.getElementById('manageCategoriesModal');
       if (!modal) return;
 
+      modal.style.display = "none";
       modal.setAttribute('aria-hidden', 'true');
-      modal.classList.remove('show');
-      document.body.style.overflow = '';
+      releaseModalFocus(modal);
+      if (lastFocusedElementBeforeModal) lastFocusedElementBeforeModal.focus();
 
       // Clear input field
       const input = document.getElementById('newCategoryInput');
