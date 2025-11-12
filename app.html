@@ -2730,7 +2730,6 @@ Thanks!
         const cloudData = await loadFromCloud('clients');
 
         if (cloudData) {
-          console.log('📦 Loaded clients from cloud:', cloudData);
           crmState.clients = cloudData.clients || {};
           crmState.nextClientId = cloudData.nextClientId || 1;
 
@@ -3655,8 +3654,6 @@ Thanks!
 
     async function loadPlacesCache() {
       try {
-        console.log('📦 Loading prospect cache from cloud...');
-
         // Load from cloud first
         const cloudData = await loadFromCloud('placesCache');
 
@@ -4618,13 +4615,11 @@ Thanks!
 
         if (cloudData && Array.isArray(cloudData)) {
           prospectPoolState.manualProspects = cloudData;
-          console.log('📦 Loaded', cloudData.length, 'manual prospects from cloud');
         } else {
           // Fallback to localStorage
           const saved = localStorage.getItem('9x12_manual_prospects');
           if (saved) {
             prospectPoolState.manualProspects = JSON.parse(saved);
-            console.log('📦 Loaded', prospectPoolState.manualProspects.length, 'manual prospects from localStorage (syncing to cloud...)');
             // Sync to cloud
             saveToCloud('manualProspects', prospectPoolState.manualProspects).catch(e => console.warn('Failed to sync manual prospects to cloud:', e));
           }
@@ -4637,9 +4632,7 @@ Thanks!
     // Save manual prospects to cloud and localStorage
     async function saveManualProspects() {
       try {
-        console.log('💾 Saving manual prospects to cloud:', prospectPoolState.manualProspects.length, 'prospects');
         await saveToCloud('manualProspects', prospectPoolState.manualProspects);
-        console.log('✅ Manual prospects saved to cloud successfully');
       } catch(err) {
         console.warn('⚠️ Manual prospects saved to localStorage only (cloud sync failed):', err);
       }
@@ -4862,11 +4855,6 @@ Thanks!
 
       if (!container || !statsContainer) return;
 
-      // DEBUG: Log what's in the cache
-      console.log('🔍 DEBUG: placesCache.searches keys:', Object.keys(placesCache.searches));
-      console.log('🔍 DEBUG: placesCache.searches:', placesCache.searches);
-      console.log('🔍 DEBUG: manualProspects count:', prospectPoolState.manualProspects.length);
-
       // Get selected ZIP codes from checkboxes
       const selectedZips = [];
       let allSelected = false;
@@ -4889,14 +4877,10 @@ Thanks!
       const showNoZips = !allSelected && selectedZips.length === 0;
       const filterByZip = !allSelected; // Always filter unless ALL is checked
 
-      console.log('🔍 DEBUG: allSelected:', allSelected, 'selectedZips:', selectedZips, 'showNoZips:', showNoZips, 'filterByZip:', filterByZip);
-
       // Get date filter selection
       const filterDays = document.getElementById('prospectPoolDateFilter')?.value || 'all';
       const now = new Date();
       const cutoffDate = filterDays === 'all' ? null : new Date(now.getTime() - (parseInt(filterDays) * 24 * 60 * 60 * 1000));
-
-      console.log('🔍 DEBUG: filterDays:', filterDays, 'cutoffDate:', cutoffDate);
 
       // Get all cached searches and organize by category
       const categorizedProspects = {};
@@ -7755,7 +7739,6 @@ Thanks!
 
       // Load prospect cache from cloud with merge
       loadPlacesCache().then(() => {
-        console.log('✅ Prospect cache loaded and ready');
         renderProspectPool(); // Re-render to show loaded prospects
 
         // Save to cloud to ensure computer's data is uploaded
@@ -7866,9 +7849,7 @@ Thanks!
      
       const commitBtn = document.getElementById("btnSaveCommit");
       if (commitBtn) {
-        console.log('✅ Wiring btnSaveCommit to saveToSheet');
         commitBtn.onclick = function() {
-          console.log('🔘 BUTTON CLICKED!');
           return saveToSheet();
         };
       } else {
@@ -9307,13 +9288,6 @@ Thanks!
           updateData[`spot_${spotNumber}`] = availabilityDiffs[spotKey];
         });
 
-        console.log('💾 ABOUT TO CALL SUPABASE UPDATE');
-        console.log('💾 SAVING TO SUPABASE:', {
-          mailer_id: state.current.Mailer_ID,
-          user_email: ACTIVE_USER,
-          updateData: updateData
-        });
-
         const { error, data: resultData } = await supabaseClient
           .from('postcards')
           .update(updateData)
@@ -9323,7 +9297,6 @@ Thanks!
 
         if (error) throw error;
 
-        console.log('✅ SUPABASE SAVE SUCCESS:', resultData);
         toast(`✅ Saved ${updates} change${updates===1?"":"s"} to cloud!`, true);
         state.dirty = false;
         autoSaveState.lastSaveTime = Date.now();
@@ -9420,8 +9393,6 @@ Thanks!
     // Load financial data from Supabase
     async function loadFinancialData() {
       try {
-        console.log('💰 Loading financial data from Supabase...');
-
         const { data, error } = await supabaseClient
           .from('app_data')
           .select('data')
@@ -9432,7 +9403,6 @@ Thanks!
         if (error) {
           if (error.code === 'PGRST116') {
             // No data yet - this is fine
-            console.log('💰 No financial data yet - starting fresh');
             financialState.transactions = [];
             financialState.loaded = true;
             return;
@@ -9442,7 +9412,6 @@ Thanks!
 
         financialState.transactions = data.data || [];
         financialState.loaded = true;
-        console.log(`💰 Loaded ${financialState.transactions.length} transactions`);
 
         // Render the register
         renderFinancialRegister();
@@ -9458,8 +9427,6 @@ Thanks!
     // Save financial data to Supabase
     async function saveFinancialData() {
       try {
-        console.log('💾 Saving financial data to Supabase...');
-
         // Upsert to app_data table
         const { error } = await supabaseClient
           .from('app_data')
@@ -9472,8 +9439,6 @@ Thanks!
           });
 
         if (error) throw error;
-
-        console.log('✅ Financial data saved successfully');
 
       } catch (err) {
         console.error('Error saving financial data:', err);
@@ -9500,13 +9465,6 @@ Thanks!
         } else if (trans.type === 'cogs' || trans.type === 'operating' || trans.type === 'owner_draw') {
           totalExpenses += Math.abs(amount);
           expenseCount++;
-          console.log('💸 Expense found:', {
-            desc: trans.description,
-            type: trans.type,
-            amount: amount,
-            absAmount: Math.abs(amount),
-            runningTotal: totalExpenses
-          });
         }
 
         // Track balance - we'll use the latest (most recent) transaction's balance
@@ -9522,16 +9480,6 @@ Thanks!
       }
 
       const netIncome = totalRevenue - totalExpenses;
-
-      console.log('💰 Calculation Summary:', {
-        totalTransactions: transactions.length,
-        revenueCount: revenueCount,
-        expenseCount: expenseCount,
-        totalRevenue: totalRevenue,
-        totalExpenses: totalExpenses,
-        netIncome: netIncome,
-        currentBalance: currentBalance
-      });
 
       return { totalRevenue, totalExpenses, netIncome, currentBalance };
     }
@@ -9596,13 +9544,6 @@ Thanks!
       const periodFilter = periodFilterEl?.value || 'current-year';
       const categoryFilter = document.getElementById('financialCategoryFilter')?.value || 'all';
 
-      console.log('🔍 Filter Debug:', {
-        periodFilterExists: !!periodFilterEl,
-        periodFilterValue: periodFilter,
-        categoryFilter: categoryFilter,
-        totalTransactions: financialState.transactions.length
-      });
-
       // Filter transactions
       const filteredTransactions = filterTransactions(financialState.transactions, periodFilter, categoryFilter);
 
@@ -9613,19 +9554,6 @@ Thanks!
 
       // Calculate summaries
       const summaries = calculateFinancialSummaries(sortedTransactions);
-
-      console.log('💰 Financial Summary Debug:', {
-        totalTransactions: sortedTransactions.length,
-        totalRevenue: summaries.totalRevenue,
-        totalExpenses: summaries.totalExpenses,
-        netIncome: summaries.netIncome,
-        sampleTransactions: sortedTransactions.slice(0, 3).map(t => ({
-          desc: t.description,
-          type: t.type,
-          category: t.category,
-          amount: t.amount
-        }))
-      });
 
       // Update summary cards
       document.getElementById('totalRevenue').textContent = `$${summaries.totalRevenue.toFixed(2)}`;
