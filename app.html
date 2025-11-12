@@ -5183,14 +5183,8 @@ Thanks!
       }).join('')}
       `;
 
-      // Populate ZIP code filter dropdown with available ZIP codes
-      if (zipFilterSelect) {
-        const currentlySelected = Array.from(zipFilterSelect.selectedOptions).map(opt => opt.value);
-        const sortedZips = Array.from(availableZips).sort();
-
-        zipFilterSelect.innerHTML = '<option value="all">All ZIP Codes</option>' +
-          sortedZips.map(zip => `<option value="${esc(zip)}" ${currentlySelected.includes(zip) ? 'selected' : ''}>${esc(zip)}</option>`).join('');
-      }
+      // ZIP code filter is now handled by checkboxes above
+      // No need to populate a dropdown anymore
 
       // Update selected count
       updatePoolSelectedCount();
