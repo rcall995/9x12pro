@@ -106,8 +106,28 @@
       box-shadow: 0 6px 18px rgba(0,0,0,.06);
       transition: background-color .15s ease, border-color .15s ease;
       position: relative;
+      max-width: 100%;
     }
     .postcard .card { border-radius: .5rem; }
+
+    /* Postcard Size Scaling - 6.5×12 is 72.2% of 9×12 height */
+    .postcard.size-6x12 {
+      transform: scaleY(0.722);
+      transform-origin: top center;
+    }
+
+    /* Mobile Responsiveness - Scale postcards to fit phone width */
+    @media (max-width: 768px) {
+      .postcard {
+        width: 100%;
+        max-width: calc(100vw - 2rem);
+        margin: 0 auto;
+      }
+      .side-wrap {
+        max-width: 100%;
+        overflow-x: auto;
+      }
+    }
     .placeholder {
         background: #fdfdfd;
         border: 1px dashed #d1d5db;
@@ -1869,6 +1889,19 @@
           <div class="mt-3">
             <label class="text-sm font-medium block mb-1">In-Homes Date</label>
             <input id="newPostcardInHomesDate" type="date" class="border rounded-md p-2 w-full" />
+          </div>
+        </div>
+
+        <!-- Step 2.5: Postcard Size -->
+        <div class="p-4 bg-orange-50 rounded-lg border border-orange-200">
+          <h4 class="font-semibold text-orange-900 mb-3">Postcard Size</h4>
+          <div class="space-y-2">
+            <label class="text-sm font-medium block mb-1">Format</label>
+            <select id="newPostcardSize" class="border rounded-md p-2 w-full bg-white">
+              <option value="9x12">9×12 (Standard - 12" wide × 9" tall)</option>
+              <option value="6.5x12">6.5×12 (Compact - 12" wide × 6.5" tall)</option>
+            </select>
+            <p class="text-xs text-gray-600 mt-2">💡 Both sizes use the same 18-slot layout. The 6.5×12 is shorter in height.</p>
           </div>
         </div>
 
@@ -7889,6 +7922,7 @@ Thanks!
       const month = document.getElementById("newPostcardMonth").value;
       const year = document.getElementById("newPostcardYear").value;
       const inHomesDate = document.getElementById("newPostcardInHomesDate").value;
+      const postcardSize = document.getElementById("newPostcardSize").value;
 
       // Validation
       if (!town) {
@@ -7938,6 +7972,7 @@ Thanks!
           Mail_Date: mailDate,  // Store as "12/1/2025" format
           In_Homes_Date: inHomesDate,
           Payment_Status: "Active",  // Set to Active by default
+          Postcard_Size: postcardSize,  // Store size (9x12 or 6.5x12)
           availability: {},
           Postcard_BG: "#000000",
           Banner_BG: "#000000"  // Black background (will display white text via useLightTextOn)
@@ -8021,7 +8056,9 @@ Thanks!
                                   "July", "August", "September", "October", "November", "December"];
               displayDate = `${monthNames[parseInt(month)]} ${year}`;
             }
-            return `<option value="${i}">${esc(m.Town)} — ${esc(displayDate)}</option>`;
+            // Add size indicator to label
+            const sizeLabel = m.Postcard_Size ? ` (${m.Postcard_Size})` : '';
+            return `<option value="${i}">${esc(m.Town)} — ${esc(displayDate)}${sizeLabel}</option>`;
           }).join("");
 
         if (selManager) {
@@ -8728,6 +8765,8 @@ Thanks!
       monthSelect.disabled = false;
       monthSelect.innerHTML = '<option value="">— Select Month —</option>' +
         monthDates.map(date => {
+          // Find the mailer for this date to get its size
+          const mailer = townMailers.find(m => m.Mail_Date === date);
           let displayDate = date;
           if (/^\d{4}-\d{2}-\d{2}/.test(date)) {
             const [year, month] = date.split('-');
@@ -8735,7 +8774,9 @@ Thanks!
                                 "July", "August", "September", "October", "November", "December"];
             displayDate = `${monthNames[parseInt(month)]} ${year}`;
           }
-          return `<option value="${esc(date)}">${esc(displayDate)}</option>`;
+          // Add size indicator to label
+          const sizeLabel = mailer?.Postcard_Size ? ` (${mailer.Postcard_Size})` : '';
+          return `<option value="${esc(date)}">${esc(displayDate)}${sizeLabel}</option>`;
         }).join('');
 
       // If there's only one month for this town, auto-select it
@@ -8936,6 +8977,8 @@ Thanks!
       monthSelect.disabled = false;
       monthSelect.innerHTML = '<option value="">— Select Month —</option>' +
         monthDates.map(date => {
+          // Find the mailer for this date to get its size
+          const mailer = townMailers.find(m => m.Mail_Date === date);
           let displayDate = date;
           if (/^\d{4}-\d{2}-\d{2}/.test(date)) {
             const [year, month] = date.split('-');
@@ -8943,7 +8986,9 @@ Thanks!
                                 "July", "August", "September", "October", "November", "December"];
             displayDate = `${monthNames[parseInt(month)]} ${year}`;
           }
-          return `<option value="${esc(date)}">${esc(displayDate)}</option>`;
+          // Add size indicator to label
+          const sizeLabel = mailer?.Postcard_Size ? ` (${mailer.Postcard_Size})` : '';
+          return `<option value="${esc(date)}">${esc(displayDate)}${sizeLabel}</option>`;
         }).join('');
     }
     
@@ -8952,6 +8997,23 @@ Thanks!
       renderFront();
       renderBack();
       updateToolbar();
+
+      // Apply size-specific CSS class to postcard containers
+      const frontPostcard = document.getElementById("frontPostcard");
+      const backPostcard = document.getElementById("backPostcard");
+
+      if (frontPostcard && backPostcard) {
+        // Remove existing size classes
+        frontPostcard.classList.remove('size-9x12', 'size-6x12');
+        backPostcard.classList.remove('size-9x12', 'size-6x12');
+
+        // Apply appropriate size class based on Postcard_Size
+        const size = state.current?.Postcard_Size || '9x12';
+        const sizeClass = size === '6.5x12' ? 'size-6x12' : 'size-9x12';
+
+        frontPostcard.classList.add(sizeClass);
+        backPostcard.classList.add(sizeClass);
+      }
     }
 
     function renderCardsInProgress() {
