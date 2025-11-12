@@ -2647,12 +2647,21 @@ Thanks!
             return { name: "", status: "Available" };
           }
 
-          // Handle JSON string
+          // Handle string format "Status: Business Name"
           if (typeof spotValue === 'string') {
+            // Check if it's "Status: Name" format
+            if (spotValue.includes(':')) {
+              const colonIndex = spotValue.indexOf(':');
+              const status = spotValue.substring(0, colonIndex).trim();
+              const name = spotValue.substring(colonIndex + 1).trim();
+              return { name, status };
+            }
+
+            // Try JSON parse as fallback
             try {
               return JSON.parse(spotValue);
             } catch (e) {
-              console.warn(`Failed to parse Spot_${i}:`, spotValue);
+              // If not JSON and no colon, treat as Available
               return { name: "", status: "Available" };
             }
           }
