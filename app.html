@@ -8315,22 +8315,36 @@ Thanks!
       const doubleAd = parseFloat(document.getElementById("pricingDoubleAd").value) || 0;
       const bannerAd = parseFloat(document.getElementById("pricingBannerAd").value) || 0;
 
-      // Count ads: singles (1 spot), doubles (2 spots), banner (4 spots in center)
+      // Count ads: singles (1 spot), doubles (2 spots), banner (spots 13-14 merged)
       let singleCount = 0, doubleCount = 0, bannerCount = 0;
 
       for (let i = 1; i <= 18; i++) {
         const spotKey = `Spot_${i}`;
-        const raw = (state.current.availability || {})[spotKey] || "Available";
-        if (!/^available$/i.test(raw)) {
-          // Occupied spot
-          if (i === 13 || i === 14) {
-            // Check if merged banner
-            if (state.merged.has(keyPair(13, 14))) {
-              if (i === 13) bannerCount++;
-              continue;
-            }
+        const spot = state.availability[spotKey];
+
+        // Skip if spot is available
+        if (!spot || !spot.name || spot.name.trim() === "" || spot.status === "Available") {
+          continue;
+        }
+
+        // Check if this is the second spot in a merged pair (skip to avoid double counting)
+        const mate = mateOf(i);
+        if (mate && mate < i && state.merged.has(keyPair(i, mate))) {
+          continue; // Already counted with first spot
+        }
+
+        // Check if this spot is merged with its mate
+        if (mate && mate > i && state.merged.has(keyPair(i, mate))) {
+          // This is a merged pair
+          if (i === 13 && mate === 14) {
+            // Banner ad (spots 13-14 merged)
+            bannerCount++;
+          } else {
+            // Regular double ad
+            doubleCount++;
           }
-          // For now, count all as singles (improve logic later if needed)
+        } else {
+          // Single ad
           singleCount++;
         }
       }
