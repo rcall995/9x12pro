@@ -2929,17 +2929,16 @@ Thanks!
           spotsSold++;
           projectedRevenue += price;
 
-          // Count toward current revenue for ANY spot with a business name
+          // Count toward current revenue ONLY for spots that have been paid
           if (spot.status === "Paid in Full") {
             paidRevenue += price;
             spotsPaid++;
           } else if (spot.status === "Deposit Paid") {
             const depositAmount = price * 0.5;
             depositRevenue += depositAmount;
-          } else {
-            // For any other status (Reserved, Invoice Sent, etc.), count full price as current revenue
-            paidRevenue += price;
           }
+          // For any other status (Reserved, Invoice Sent, Ad Approved, etc.),
+          // DO NOT count as current revenue - only count toward projected revenue
         }
       }
       
