@@ -8549,21 +8549,39 @@ Thanks!
 
     function renderCardsInProgress() {
       const container = document.getElementById('cardsInProgressSection');
-      if (!container) return;
+      if (!container) {
+        console.warn('cardsInProgressSection container not found');
+        return;
+      }
+
+      console.log('Rendering cards in progress. Total mailers:', state.mailers.length);
 
       // Filter postcards that are "in progress" (have at least 1 slot sold but not all)
       const inProgressCards = state.mailers.filter(campaign => {
         const financials = calculateFinancials(campaign.Mailer_ID);
-        if (!financials) return false;
+        if (!financials) {
+          console.log('No financials for', campaign.Town, campaign.Mail_Date);
+          return false;
+        }
         const spotsSold = financials.metrics.spotsSold;
         const totalSpots = financials.metrics.effectiveTotalSpots;
+        console.log(`${campaign.Town}: ${spotsSold}/${totalSpots} spots`);
         return spotsSold > 0 && spotsSold < totalSpots;
       });
+
+      console.log('Cards in progress:', inProgressCards.length);
 
       if (inProgressCards.length === 0) {
         container.innerHTML = '';
         return;
       }
+
+      // Sort by date (soonest/earliest date first)
+      inProgressCards.sort((a, b) => {
+        const dateA = a.Mail_Date || '';
+        const dateB = b.Mail_Date || '';
+        return dateA.localeCompare(dateB); // Ascending order (earliest first)
+      });
 
       // Build HTML
       let html = `
