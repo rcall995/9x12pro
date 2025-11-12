@@ -8599,6 +8599,22 @@ Thanks!
 
       console.log('Rendering cards in progress. Total mailers:', state.mailers.length);
 
+      // Debug: Check first campaign's spot data
+      if (state.mailers.length > 0) {
+        const firstCampaign = state.mailers[0];
+        console.log('First campaign sample:', firstCampaign.Town);
+        console.log('Spot_1 type:', typeof firstCampaign.Spot_1);
+        console.log('Spot_1 value:', firstCampaign.Spot_1);
+        if (firstCampaign.Spot_1) {
+          try {
+            const parsed = typeof firstCampaign.Spot_1 === 'string' ? JSON.parse(firstCampaign.Spot_1) : firstCampaign.Spot_1;
+            console.log('Spot_1 parsed:', parsed);
+          } catch (e) {
+            console.log('Spot_1 parse error:', e.message);
+          }
+        }
+      }
+
       // Filter postcards that are "in progress" (have at least 1 slot sold but not all)
       const inProgressCards = state.mailers.filter(campaign => {
         const financials = calculateFinancials(campaign.Mailer_ID, campaign);
