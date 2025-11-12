@@ -6309,6 +6309,41 @@ Thanks!
           saveToCloud('kanban', kanbanState.columns).catch(e => console.warn('Failed to sync kanban to cloud:', e));
         }
 
+        // MIGRATION: Move data from old column keys to new keys
+        const columnMigrations = {
+          'new-lead': 'prospect-list',
+          'proposal-sent': 'to-contact',
+          'negotiation': 'in-progress',
+          'closed-won': 'committed'
+        };
+
+        let migrationNeeded = false;
+        Object.keys(columnMigrations).forEach(oldKey => {
+          if (kanbanState.columns[oldKey] && Array.isArray(kanbanState.columns[oldKey]) && kanbanState.columns[oldKey].length > 0) {
+            const newKey = columnMigrations[oldKey];
+            console.log(`🔄 Migrating ${kanbanState.columns[oldKey].length} items from '${oldKey}' to '${newKey}'`);
+
+            // Initialize new column if it doesn't exist
+            if (!kanbanState.columns[newKey]) {
+              kanbanState.columns[newKey] = [];
+            }
+
+            // Move all items from old key to new key
+            kanbanState.columns[newKey].push(...kanbanState.columns[oldKey]);
+
+            // Delete old key
+            delete kanbanState.columns[oldKey];
+            migrationNeeded = true;
+          }
+        });
+
+        // Save if migration occurred
+        if (migrationNeeded) {
+          console.log('✅ Column migration complete, saving to cloud...');
+          await saveToCloud('kanban', kanbanState.columns).catch(e => console.warn('Failed to save migrated kanban:', e));
+          localStorage.setItem('mailslot-kanban', JSON.stringify(kanbanState.columns));
+        }
+
         // Ensure all required columns exist
         const requiredColumns = ['prospect-list', 'to-contact', 'in-progress', 'committed'];
         requiredColumns.forEach(col => {
