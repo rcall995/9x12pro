@@ -2625,26 +2625,52 @@ Thanks!
     }
     
     /* ========= FINANCIAL CALCULATIONS ========= */
-    function calculateFinancials(mailerId) {
+    function calculateFinancials(mailerId, campaign = null) {
       if (!mailerId) return null;
-      
+
       const expenses = productionState.expenses[mailerId] || { ...DEFAULT_EXPENSES };
       const totalExpenses = Object.values(expenses).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
-      
+
       let paidRevenue = 0;
       let depositRevenue = 0;
       let projectedRevenue = 0;
       let spotsSold = 0;
       let spotsPaid = 0;
 
+      // Use campaign data if provided, otherwise use state.availability (for current postcard)
+      const getSpotData = (i) => {
+        if (campaign && campaign[`Spot_${i}`]) {
+          try {
+            return typeof campaign[`Spot_${i}`] === 'string'
+              ? JSON.parse(campaign[`Spot_${i}`])
+              : campaign[`Spot_${i}`];
+          } catch (e) {
+            return null;
+          }
+        }
+        return state.availability[`Spot_${i}`];
+      };
+
       for (let i = 1; i <= TOTAL_SPOTS_PER_POSTCARD; i++) {
-        const spot = state.availability[`Spot_${i}`];
+        const spot = getSpotData(i);
         const priceKey = `${mailerId}-Spot_${i}`;
         const price = productionState.spotPricing[priceKey] || DEFAULT_SPOT_PRICE;
 
         // Check if this spot is the SECOND spot in a merged pair
         const mate = mateOf(i);
-        const isMergedSecond = mate && mate < i && state.merged.has(keyPair(i, mate));
+        let isMergedSecond = false;
+        if (mate && mate < i) {
+          if (campaign) {
+            // When using campaign data, check if spot names match (indicates merge)
+            const mateSpot = getSpotData(mate);
+            const spotName = spot?.name?.trim() || '';
+            const mateName = mateSpot?.name?.trim() || '';
+            isMergedSecond = spotName && mateName && spotName === mateName;
+          } else {
+            // When using state.availability, use state.merged
+            isMergedSecond = state.merged.has(keyPair(i, mate));
+          }
+        }
 
         // Skip if this is the second spot in a merged pair (already counted with first spot)
         if (isMergedSecond) {
@@ -2681,7 +2707,24 @@ Thanks!
 
       // Calculate effective total spots (18 minus number of merged pairs)
       // Each merged pair reduces total by 1 (4 singles become 2 doubles = -2 spots)
-      const mergedPairsCount = state.merged.size;
+      let mergedPairsCount = 0;
+      if (campaign) {
+        // Count merged pairs by checking if adjacent spots have matching names
+        for (let i = 1; i <= TOTAL_SPOTS_PER_POSTCARD; i++) {
+          const mate = mateOf(i);
+          if (mate && mate > i) { // Only count each pair once
+            const spot = getSpotData(i);
+            const mateSpot = getSpotData(mate);
+            const spotName = spot?.name?.trim() || '';
+            const mateName = mateSpot?.name?.trim() || '';
+            if (spotName && mateName && spotName === mateName) {
+              mergedPairsCount++;
+            }
+          }
+        }
+      } else {
+        mergedPairsCount = state.merged.size;
+      }
       const effectiveTotalSpots = TOTAL_SPOTS_PER_POSTCARD - mergedPairsCount;
 
       return {
@@ -3695,9 +3738,9 @@ Thanks!
       report += '<h3 class="font-bold text-lg">Profit & Loss Report</h3>';
       
       state.mailers.forEach(campaign => {
-        const financials = calculateFinancials(campaign.Mailer_ID);
+        const financials = calculateFinancials(campaign.Mailer_ID, campaign);
         if (!financials) return;
-        
+
         report += `
           <div class="border-b pb-3">
             <div class="font-semibold">${esc(campaign.Town)} — ${esc(campaign.Mail_Date)}</div>
@@ -8558,7 +8601,7 @@ Thanks!
 
       // Filter postcards that are "in progress" (have at least 1 slot sold but not all)
       const inProgressCards = state.mailers.filter(campaign => {
-        const financials = calculateFinancials(campaign.Mailer_ID);
+        const financials = calculateFinancials(campaign.Mailer_ID, campaign);
         if (!financials) {
           console.log('No financials for', campaign.Town, campaign.Mail_Date);
           return false;
@@ -8592,7 +8635,7 @@ Thanks!
       `;
 
       inProgressCards.forEach(campaign => {
-        const financials = calculateFinancials(campaign.Mailer_ID);
+        const financials = calculateFinancials(campaign.Mailer_ID, campaign);
         if (!financials) return;
 
         const spotsSold = financials.metrics.spotsSold;
