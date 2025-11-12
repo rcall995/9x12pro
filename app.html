@@ -594,108 +594,18 @@
                             <h4 class="font-semibold flex items-center gap-2">
                                 <span class="text-2xl">🏢</span> Business Categories (Select Multiple)
                             </h4>
-                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/20 px-3 py-1.5 rounded transition font-semibold">
-                                <input type="checkbox" id="selectAllCategories" class="rounded text-purple-600 focus:ring-purple-500" onchange="toggleAllCategories()" />
-                                <span>Select All</span>
-                            </label>
+                            <div class="flex gap-2">
+                                <button onclick="openManageCategoriesModal()" class="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-700 rounded transition font-semibold">
+                                    ⚙️ Manage
+                                </button>
+                                <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/20 px-3 py-1.5 rounded transition font-semibold">
+                                    <input type="checkbox" id="selectAllCategories" class="rounded text-purple-600 focus:ring-purple-500" onchange="toggleAllCategories()" />
+                                    <span>Select All</span>
+                                </label>
+                            </div>
                         </div>
-                        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 max-h-64 overflow-y-auto pr-2" style="scrollbar-width: thin;">
-                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
-                                <input type="checkbox" value="restaurant" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
-                                <span>Restaurant</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
-                                <input type="checkbox" value="cafe" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
-                                <span>Cafe</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
-                                <input type="checkbox" value="bar" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
-                                <span>Bar/Pub</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
-                                <input type="checkbox" value="store" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
-                                <span>Retail Store</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
-                                <input type="checkbox" value="grocery_or_supermarket" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
-                                <span>Grocery</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
-                                <input type="checkbox" value="pharmacy" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
-                                <span>Pharmacy</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
-                                <input type="checkbox" value="gym" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
-                                <span>Gym</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
-                                <input type="checkbox" value="hair_care" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
-                                <span>Hair Salon</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
-                                <input type="checkbox" value="beauty_salon" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
-                                <span>Beauty/Spa</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
-                                <input type="checkbox" value="dentist" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
-                                <span>Dentist</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
-                                <input type="checkbox" value="doctor" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
-                                <span>Doctor</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
-                                <input type="checkbox" value="lawyer" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
-                                <span>Law Firm</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
-                                <input type="checkbox" value="real_estate_agency" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
-                                <span>Real Estate</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
-                                <input type="checkbox" value="car_dealer" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
-                                <span>Car Dealer</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
-                                <input type="checkbox" value="car_repair" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
-                                <span>Auto Repair</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
-                                <input type="checkbox" value="plumber" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
-                                <span>Plumber</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
-                                <input type="checkbox" value="electrician" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
-                                <span>Electrician</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
-                                <input type="checkbox" value="roofing_contractor" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
-                                <span>Roofer</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
-                                <input type="checkbox" value="general_contractor" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
-                                <span>Contractor</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
-                                <input type="checkbox" value="painter" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
-                                <span>Painter</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
-                                <input type="checkbox" value="florist" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
-                                <span>Florist</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
-                                <input type="checkbox" value="pet_store" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
-                                <span>Pet Store</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
-                                <input type="checkbox" value="accounting" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
-                                <span>Accountant</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
-                                <input type="checkbox" value="insurance_agency" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
-                                <span>Insurance</span>
-                            </label>
+                        <div id="categoryCheckboxContainer" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 max-h-64 overflow-y-auto pr-2" style="scrollbar-width: thin;">
+                            <!-- Categories will be dynamically rendered here -->
                         </div>
 
                         <!-- Custom Category Input -->
@@ -1317,7 +1227,46 @@
       </div>
     </div>
   </div>
-  
+
+  <!-- Manage Business Categories Modal -->
+  <div id="manageCategoriesModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">
+      <h3 class="text-lg font-bold mb-4">⚙️ Manage Business Categories</h3>
+
+      <div class="space-y-4">
+        <!-- Add New Category Section -->
+        <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
+          <label class="text-sm font-medium text-gray-700 block mb-2">Add New Category</label>
+          <div class="flex gap-2">
+            <input
+              id="newCategoryInput"
+              type="text"
+              class="border rounded-md flex-1 p-2"
+              placeholder="e.g., Coffee Shop"
+              onkeypress="if(event.key==='Enter') addNewCategory()"
+            />
+            <button onclick="addNewCategory()" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-semibold">
+              ➕ Add
+            </button>
+          </div>
+        </div>
+
+        <!-- Current Categories List -->
+        <div>
+          <label class="text-sm font-medium text-gray-700 block mb-2">Current Categories</label>
+          <div id="manageCategoriesList" class="space-y-2 max-h-96 overflow-y-auto pr-2" style="scrollbar-width: thin;">
+            <!-- Categories will be rendered here -->
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 mt-6">
+        <button onclick="closeManageCategoriesModal()" class="px-4 py-2 border rounded-md bg-gray-100 hover:bg-gray-200">Close</button>
+        <button onclick="saveManageCategories()" class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700">💾 Save Categories</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Client Management Modal -->
   <div id="clientModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
     <div class="modal" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
@@ -5099,6 +5048,195 @@ Thanks!
       selectedIds: new Set()
     };
 
+    // Business Categories State
+    let businessCategories = [
+      { value: "restaurant", label: "Restaurant" },
+      { value: "cafe", label: "Cafe" },
+      { value: "bar", label: "Bar/Pub" },
+      { value: "store", label: "Retail Store" },
+      { value: "grocery_or_supermarket", label: "Grocery" },
+      { value: "pharmacy", label: "Pharmacy" },
+      { value: "gym", label: "Gym" },
+      { value: "hair_care", label: "Hair Salon" },
+      { value: "beauty_salon", label: "Beauty/Spa" },
+      { value: "dentist", label: "Dentist" },
+      { value: "doctor", label: "Doctor" },
+      { value: "lawyer", label: "Law Firm" },
+      { value: "real_estate_agency", label: "Real Estate" },
+      { value: "car_dealer", label: "Car Dealer" },
+      { value: "car_repair", label: "Auto Repair" },
+      { value: "plumber", label: "Plumber" },
+      { value: "electrician", label: "Electrician" },
+      { value: "roofing_contractor", label: "Roofer" },
+      { value: "general_contractor", label: "Contractor" },
+      { value: "painter", label: "Painter" },
+      { value: "florist", label: "Florist" },
+      { value: "pet_store", label: "Pet Store" },
+      { value: "accounting", label: "Accountant" },
+      { value: "insurance_agency", label: "Insurance" },
+      { value: "bank", label: "Bank" }
+    ];
+
+    // Load business categories from cloud/localStorage
+    async function loadBusinessCategories() {
+      try {
+        const cloudData = await loadFromCloud('businessCategories');
+        if (cloudData && Array.isArray(cloudData) && cloudData.length > 0) {
+          businessCategories = cloudData;
+        }
+        // Sort alphabetically by label
+        businessCategories.sort((a, b) => a.label.localeCompare(b.label));
+        renderBusinessCategories();
+      } catch(err) {
+        console.warn('Using default business categories:', err);
+        businessCategories.sort((a, b) => a.label.localeCompare(b.label));
+        renderBusinessCategories();
+      }
+    }
+
+    // Save business categories to cloud
+    async function saveBusinessCategories() {
+      try {
+        // Sort alphabetically before saving
+        businessCategories.sort((a, b) => a.label.localeCompare(b.label));
+        await saveToCloud('businessCategories', businessCategories);
+        toast('Categories saved', true);
+      } catch(err) {
+        console.warn('Failed to save categories:', err);
+        toast('Categories saved locally only', false);
+      }
+    }
+
+    // Render business categories dynamically
+    function renderBusinessCategories() {
+      const container = document.getElementById('categoryCheckboxContainer');
+      if (!container) return;
+
+      container.innerHTML = businessCategories.map(cat => `
+        <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
+          <input type="checkbox" value="${cat.value}" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
+          <span>${cat.label}</span>
+        </label>
+      `).join('');
+    }
+
+    // Open Manage Categories Modal
+    function openManageCategoriesModal() {
+      const modal = document.getElementById('manageCategoriesModal');
+      if (!modal) return;
+
+      // Sort categories alphabetically before displaying
+      businessCategories.sort((a, b) => a.label.localeCompare(b.label));
+      renderManageCategoriesList();
+
+      modal.setAttribute('aria-hidden', 'false');
+      modal.classList.add('show');
+      document.body.style.overflow = 'hidden';
+    }
+
+    // Close Manage Categories Modal
+    function closeManageCategoriesModal() {
+      const modal = document.getElementById('manageCategoriesModal');
+      if (!modal) return;
+
+      modal.setAttribute('aria-hidden', 'true');
+      modal.classList.remove('show');
+      document.body.style.overflow = '';
+
+      // Clear input field
+      const input = document.getElementById('newCategoryInput');
+      if (input) input.value = '';
+    }
+
+    // Render the categories list in the manage modal
+    function renderManageCategoriesList() {
+      const container = document.getElementById('manageCategoriesList');
+      if (!container) return;
+
+      if (businessCategories.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-sm italic">No categories yet. Add one above!</p>';
+        return;
+      }
+
+      container.innerHTML = businessCategories.map((cat, index) => `
+        <div class="flex items-center justify-between p-3 bg-white/10 border border-white/20 rounded-lg hover:bg-white/20 transition">
+          <span class="font-medium">${cat.label}</span>
+          <button
+            onclick="removeCategory(${index})"
+            class="px-3 py-1 text-sm bg-red-500 hover:bg-red-600 text-white rounded transition font-semibold"
+            title="Remove ${cat.label}"
+          >
+            ❌ Remove
+          </button>
+        </div>
+      `).join('');
+    }
+
+    // Add a new category
+    function addNewCategory() {
+      const input = document.getElementById('newCategoryInput');
+      if (!input) return;
+
+      const newLabel = input.value.trim();
+      if (!newLabel) {
+        toast('Please enter a category name', false);
+        return;
+      }
+
+      // Check for duplicates (case-insensitive)
+      const exists = businessCategories.some(cat =>
+        cat.label.toLowerCase() === newLabel.toLowerCase()
+      );
+
+      if (exists) {
+        toast('Category already exists', false);
+        return;
+      }
+
+      // Create a value from the label (lowercase, replace spaces with hyphens)
+      const newValue = newLabel.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+
+      // Add the new category
+      businessCategories.push({
+        value: newValue,
+        label: newLabel
+      });
+
+      // Sort alphabetically
+      businessCategories.sort((a, b) => a.label.localeCompare(b.label));
+
+      // Re-render the list
+      renderManageCategoriesList();
+
+      // Clear input
+      input.value = '';
+      input.focus();
+
+      toast(`Added "${newLabel}"`, true);
+    }
+
+    // Remove a category
+    function removeCategory(index) {
+      if (index < 0 || index >= businessCategories.length) return;
+
+      const category = businessCategories[index];
+
+      if (!confirm(`Remove "${category.label}" from categories?`)) {
+        return;
+      }
+
+      businessCategories.splice(index, 1);
+      renderManageCategoriesList();
+      toast(`Removed "${category.label}"`, true);
+    }
+
+    // Save categories and close modal
+    async function saveManageCategories() {
+      await saveBusinessCategories();
+      renderBusinessCategories();
+      closeManageCategoriesModal();
+    }
+
     // Load manual prospects from localStorage
     async function loadManualProspects() {
       try {
@@ -5187,13 +5325,31 @@ Thanks!
 
       // Move each prospect
       movedProspects.forEach(({ lead, index }) => {
-        // Add to manual prospects pool with current postcard association
-        prospectPoolState.manualProspects.push({
-          ...lead,
-          movedToPoolDate: new Date().toISOString(),
-          mailerId: state.current?.Mailer_ID || null, // Tag with current postcard
-          town: state.current?.Town || null // Tag with current town
-        });
+        // Check if prospect already exists in pool (prevent duplicates)
+        const existingIndex = prospectPoolState.manualProspects.findIndex(p =>
+          p.id === lead.id ||
+          (p.placeId && p.placeId === lead.placeId) ||
+          (p.businessName && p.businessName.toLowerCase() === lead.businessName.toLowerCase() && p.mailerId === lead.mailerId)
+        );
+
+        if (existingIndex !== -1) {
+          // Update existing prospect instead of creating duplicate
+          prospectPoolState.manualProspects[existingIndex] = {
+            ...prospectPoolState.manualProspects[existingIndex],
+            ...lead,
+            movedToPoolDate: new Date().toISOString(),
+            mailerId: state.current?.Mailer_ID || null,
+            town: state.current?.Town || null
+          };
+        } else {
+          // Add new prospect to pool
+          prospectPoolState.manualProspects.push({
+            ...lead,
+            movedToPoolDate: new Date().toISOString(),
+            mailerId: state.current?.Mailer_ID || null, // Tag with current postcard
+            town: state.current?.Town || null // Tag with current town
+          });
+        }
 
         // Remove from prospecting
         kanbanState.columns[prospectingColumn].splice(index, 1);
@@ -5227,13 +5383,31 @@ Thanks!
 
       const lead = items[leadIndex];
 
-      // Add to manual prospects pool with current postcard association
-      prospectPoolState.manualProspects.push({
-        ...lead,
-        movedToPoolDate: new Date().toISOString(),
-        mailerId: state.current?.Mailer_ID || null, // Tag with current postcard
-        town: state.current?.Town || null // Tag with current town
-      });
+      // Check if prospect already exists in pool (prevent duplicates)
+      const existingIndex = prospectPoolState.manualProspects.findIndex(p =>
+        p.id === lead.id ||
+        (p.placeId && p.placeId === lead.placeId) ||
+        (p.businessName && p.businessName.toLowerCase() === lead.businessName.toLowerCase() && p.mailerId === lead.mailerId)
+      );
+
+      if (existingIndex !== -1) {
+        // Update existing prospect instead of creating duplicate
+        prospectPoolState.manualProspects[existingIndex] = {
+          ...prospectPoolState.manualProspects[existingIndex],
+          ...lead,
+          movedToPoolDate: new Date().toISOString(),
+          mailerId: state.current?.Mailer_ID || null,
+          town: state.current?.Town || null
+        };
+      } else {
+        // Add new prospect to pool
+        prospectPoolState.manualProspects.push({
+          ...lead,
+          movedToPoolDate: new Date().toISOString(),
+          mailerId: state.current?.Mailer_ID || null, // Tag with current postcard
+          town: state.current?.Town || null // Tag with current town
+        });
+      }
 
       // Remove from prospecting
       kanbanState.columns[prospectingColumn].splice(leadIndex, 1);
@@ -8897,7 +9071,8 @@ Thanks!
         loadKanban(),
         loadTasks(),
         loadNotInterestedList(),
-        loadManualProspects()
+        loadManualProspects(),
+        loadBusinessCategories()
       ]).then(results => {
         const succeeded = results.filter(r => r.status === 'fulfilled').length;
         const failed = results.filter(r => r.status === 'rejected').length;
@@ -8905,7 +9080,7 @@ Thanks!
         if (failed > 0) {
           console.warn(`⚠️ ${succeeded} data types loaded, ${failed} failed (using localStorage cache)`);
           const failedTypes = results
-            .map((r, i) => r.status === 'rejected' ? ['expenses', 'clients', 'kanban', 'tasks', 'notInterested', 'manualProspects'][i] : null)
+            .map((r, i) => r.status === 'rejected' ? ['expenses', 'pricing', 'clients', 'kanban', 'tasks', 'notInterested', 'manualProspects', 'businessCategories'][i] : null)
             .filter(t => t !== null);
           console.warn('Failed types:', failedTypes.join(', '));
 
