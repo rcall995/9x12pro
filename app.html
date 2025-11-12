@@ -7550,7 +7550,8 @@ Thanks!
       }
 
       saveDailyGoalState();
-      renderKanban(); // Re-render to update UI
+      // NOTE: Don't call renderKanban() here - let the calling function handle it
+      // This prevents double-render issues and race conditions
     }
 
     // Check if it's a new day and reset if needed
