@@ -6837,17 +6837,21 @@ Thanks!
             }
 
             // Track daily goal:
-            // INCREMENT when moving FROM "To Contact" to any other column
-            // DECREMENT when moving back TO "To Contact" from any other column
+            // INCREMENT only when moving FORWARD from "To Contact" (to In Progress or Committed)
+            // DECREMENT when moving back TO "To Contact" from forward columns
             const businessName = typeof itemToMove === 'string' ? itemToMove : (itemToMove.businessName || 'Unnamed Lead');
 
-            if (fromColumn === 'to-contact' && toColumn !== 'to-contact') {
-              // Moving OUT of "To Contact" - increment
+            // Define forward columns (after "To Contact")
+            const forwardColumns = ['in-progress', 'committed'];
+
+            if (fromColumn === 'to-contact' && forwardColumns.includes(toColumn)) {
+              // Moving FORWARD from "To Contact" to "In Progress" or "Committed" - increment
               incrementDailyGoal(businessName);
-            } else if (fromColumn !== 'to-contact' && toColumn === 'to-contact') {
-              // Moving back TO "To Contact" - decrement
+            } else if (forwardColumns.includes(fromColumn) && toColumn === 'to-contact') {
+              // Moving back TO "To Contact" from forward columns - decrement
               decrementDailyGoal(businessName);
             }
+            // Moving from "To Contact" to "Prospect List" (backwards) - don't count
 
             // IMPORTANT: await saveKanban before rendering to prevent race condition
             await saveKanban();
