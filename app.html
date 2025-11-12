@@ -2305,8 +2305,8 @@ Thanks!
       updateInterval: null
     };
 
-    // FINANCIAL STATE
-    const financialState = {
+    // PRODUCTION STATE (OLD - for expenses and spot pricing)
+    const productionState = {
       expenses: {},
       spotPricing: {}
     };
@@ -2442,7 +2442,7 @@ Thanks!
     function calculateFinancials(mailerId) {
       if (!mailerId) return null;
       
-      const expenses = financialState.expenses[mailerId] || { ...DEFAULT_EXPENSES };
+      const expenses = productionState.expenses[mailerId] || { ...DEFAULT_EXPENSES };
       const totalExpenses = Object.values(expenses).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
       
       let paidRevenue = 0;
@@ -2454,7 +2454,7 @@ Thanks!
       for (let i = 1; i <= TOTAL_SPOTS_PER_POSTCARD; i++) {
         const spot = state.availability[`Spot_${i}`];
         const priceKey = `${mailerId}-Spot_${i}`;
-        const price = financialState.spotPricing[priceKey] || DEFAULT_SPOT_PRICE;
+        const price = productionState.spotPricing[priceKey] || DEFAULT_SPOT_PRICE;
 
         // Check if this spot is the SECOND spot in a merged pair
         const mate = mateOf(i);
@@ -2601,7 +2601,7 @@ Thanks!
       
       const modal = document.getElementById("expenseModal");
       const mailerId = state.current.Mailer_ID;
-      const expenses = financialState.expenses[mailerId] || { ...DEFAULT_EXPENSES };
+      const expenses = productionState.expenses[mailerId] || { ...DEFAULT_EXPENSES };
       
       document.getElementById("expensePrinting").value = expenses.printing || DEFAULT_EXPENSES.printing;
       document.getElementById("expensePostage").value = expenses.postage || DEFAULT_EXPENSES.postage;
@@ -2641,14 +2641,14 @@ Thanks!
         const cloudData = await loadFromCloud('expenses');
 
         if (cloudData) {
-          financialState.expenses = cloudData;
+          productionState.expenses = cloudData;
         } else {
           // Fallback to localStorage
           const saved = localStorage.getItem('mailslot-expenses');
           if (saved) {
-            financialState.expenses = JSON.parse(saved);
+            productionState.expenses = JSON.parse(saved);
             // Sync to cloud
-            saveToCloud('expenses', financialState.expenses).catch(e => console.warn('Failed to sync expenses to cloud:', e));
+            saveToCloud('expenses', productionState.expenses).catch(e => console.warn('Failed to sync expenses to cloud:', e));
           }
         }
       } catch(e) {
@@ -2659,7 +2659,7 @@ Thanks!
     async function saveExpenses() {
       try {
         // Save to cloud and localStorage
-        await saveToCloud('expenses', financialState.expenses);
+        await saveToCloud('expenses', productionState.expenses);
       } catch(e) {
         console.warn('Expenses saved to localStorage only (cloud sync failed):', e);
       }
@@ -2669,7 +2669,7 @@ Thanks!
       if (!state.current) return;
 
       const mailerId = state.current.Mailer_ID;
-      financialState.expenses[mailerId] = {
+      productionState.expenses[mailerId] = {
         printing: parseFloat(document.getElementById("expensePrinting").value) || 0,
         postage: parseFloat(document.getElementById("expensePostage").value) || 0,
         design: parseFloat(document.getElementById("expenseDesign").value) || 0,
@@ -7773,7 +7773,7 @@ Thanks!
       // Load pricing (can stay local for now)
       try {
         const savedPricing = safeGetItem('mailslot-pricing');
-        if (savedPricing) financialState.spotPricing = JSON.parse(savedPricing);
+        if (savedPricing) productionState.spotPricing = JSON.parse(savedPricing);
       } catch(e) {}
       updateAutoSaveStatus(); // Initialize auto-save status indicator
       updateQuickApiUsage(); // Initialize API usage display in prospecting section
@@ -8510,7 +8510,7 @@ Thanks!
       if (state.current && spots.length > 0 && longStatus !== "Available") {
         const spotNum = spots[0];
         const priceKey = `${state.current.Mailer_ID}-Spot_${spotNum}`;
-        const price = financialState.spotPricing[priceKey] || DEFAULT_SPOT_PRICE;
+        const price = productionState.spotPricing[priceKey] || DEFAULT_SPOT_PRICE;
         
         const priceBadge = createTextNodeTag('div', formatCurrency(price), 'price-badge');
         el.appendChild(priceBadge);
@@ -8668,7 +8668,7 @@ Thanks!
         nameEl.value = s.name || "";
         statusEl.value = toShortKey(s.status);
         const priceKey = `${state.current.Mailer_ID}-Spot_${sel[0]}`;
-        priceEl.value = financialState.spotPricing[priceKey] || DEFAULT_SPOT_PRICE;
+        priceEl.value = productionState.spotPricing[priceKey] || DEFAULT_SPOT_PRICE;
       } else {
         const [a,b] = sel;
         const A = state.availability[`Spot_${a}`] || {name:"", status:"Available"}, B = state.availability[`Spot_${b}`] || {name:"", status:"Available"};
@@ -8677,7 +8677,7 @@ Thanks!
         nameEl.value = nm;
         statusEl.value = toShortKey(st);
         const priceKey = `${state.current.Mailer_ID}-Spot_${a}`;
-        priceEl.value = financialState.spotPricing[priceKey] || DEFAULT_SPOT_PRICE;
+        priceEl.value = productionState.spotPricing[priceKey] || DEFAULT_SPOT_PRICE;
       }
       
       populateClientDropdown();
@@ -8747,10 +8747,10 @@ Thanks!
       
       sel.forEach(spotNum => {
         const priceKey = `${state.current.Mailer_ID}-Spot_${spotNum}`;
-        financialState.spotPricing[priceKey] = price;
+        productionState.spotPricing[priceKey] = price;
       });
 
-      safeSetItem('mailslot-pricing', JSON.stringify(financialState.spotPricing));
+      safeSetItem('mailslot-pricing', JSON.stringify(productionState.spotPricing));
       
       if (sel.length === 2){
         const [a,b] = sel;
