@@ -2861,14 +2861,16 @@ Thanks!
         return state.availability[`Spot_${i}`];
       };
 
+      // Get pricing for this postcard (new system)
+      const pricing = productionState.pricing[mailerId] || null;
+
       for (let i = 1; i <= TOTAL_SPOTS_PER_POSTCARD; i++) {
         const spot = getSpotData(i);
-        const priceKey = `${mailerId}-Spot_${i}`;
-        const price = productionState.spotPricing[priceKey] || DEFAULT_SPOT_PRICE;
 
         // Check if this spot is the SECOND spot in a merged pair
         const mate = mateOf(i);
         let isMergedSecond = false;
+        let isMerged = false;
         if (mate && mate < i) {
           if (campaign) {
             // When using campaign data, check if spot names match (indicates merge)
@@ -2882,9 +2884,43 @@ Thanks!
           }
         }
 
+        // Check if this spot is the FIRST in a merged pair
+        if (mate && mate > i) {
+          if (campaign) {
+            const mateSpot = getSpotData(mate);
+            const spotName = spot?.name?.trim() || '';
+            const mateName = mateSpot?.name?.trim() || '';
+            isMerged = spotName && mateName && spotName === mateName;
+          } else {
+            isMerged = state.merged.has(keyPair(i, mate));
+          }
+        }
+
         // Skip if this is the second spot in a merged pair (already counted with first spot)
         if (isMergedSecond) {
           continue;
+        }
+
+        // Determine price based on new pricing system or fall back to old
+        let price;
+        if (pricing) {
+          // New pricing system
+          if (isMerged) {
+            // Check if it's a banner (spots 13-14 merged)
+            if ((i === 13 || i === 14) && mate && (mate === 13 || mate === 14)) {
+              price = pricing.bannerAd || DEFAULT_SPOT_PRICE;
+            } else {
+              // Regular double ad
+              price = pricing.doubleAd || DEFAULT_SPOT_PRICE;
+            }
+          } else {
+            // Single ad
+            price = pricing.singleAd || DEFAULT_SPOT_PRICE;
+          }
+        } else {
+          // Fall back to old per-spot pricing system
+          const priceKey = `${mailerId}-Spot_${i}`;
+          price = productionState.spotPricing[priceKey] || DEFAULT_SPOT_PRICE;
         }
 
         // Only count revenue if spot has a business name entered
@@ -9666,7 +9702,9 @@ Thanks!
         return;
       }
       renderRow(grid,9,12);
-      if (state.merged.has(keyPair(13,14))) {
+      // Check if spots 13-14 are merged OR both selected
+      const bothSelected = state.selected.has(13) && state.selected.has(14);
+      if (state.merged.has(keyPair(13,14)) || bothSelected) {
         const A = state.availability["Spot_13"], B = state.availability["Spot_14"];
         const name = A.name || B.name || "Merged Banner";
         const st = A.name ? A.status : (B.name ? B.status : "Available");
@@ -9686,7 +9724,9 @@ Thanks!
     
     function renderRow(grid, a, b, side="front"){
       for (let i=a; i<=b; i+=2){
-        if (state.merged.has(keyPair(i,i+1))){
+        // Check if spots are merged OR both selected
+        const bothSelected = state.selected.has(i) && state.selected.has(i+1);
+        if (state.merged.has(keyPair(i,i+1)) || bothSelected){
           const A = state.availability[`Spot_${i}`], B = state.availability[`Spot_${i+1}`];
           const name = A.name || B.name || "Merged Ad";
           const st = A.name ? A.status : (B.name ? B.status : "Available");
@@ -9891,15 +9931,29 @@ Thanks!
       const nameEl = document.getElementById("editName");
       const statusEl = document.getElementById("editStatus");
       const priceEl = document.getElementById("editPrice");
-      
+
       lastFocusedElementBeforeModal = document.activeElement;
       const sel = [...state.selected].sort((a,b)=>a-b);
+
+      // Get pricing for this postcard (new system)
+      const mailerId = state.current.Mailer_ID;
+      const pricing = productionState.pricing[mailerId] || null;
+
       if (sel.length === 1){
         const s = state.availability[`Spot_${sel[0]}`] || {name:"", status:"Available"};
         nameEl.value = s.name || "";
         statusEl.value = toShortKey(s.status);
-        const priceKey = `${state.current.Mailer_ID}-Spot_${sel[0]}`;
-        priceEl.value = productionState.spotPricing[priceKey] || DEFAULT_SPOT_PRICE;
+
+        // Use new pricing system or fall back to old spot pricing
+        const priceKey = `${mailerId}-Spot_${sel[0]}`;
+        const oldPrice = productionState.spotPricing[priceKey];
+        if (oldPrice) {
+          priceEl.value = oldPrice;
+        } else if (pricing && pricing.singleAd) {
+          priceEl.value = pricing.singleAd;
+        } else {
+          priceEl.value = ""; // Empty instead of $500 default
+        }
       } else {
         const [a,b] = sel;
         const A = state.availability[`Spot_${a}`] || {name:"", status:"Available"}, B = state.availability[`Spot_${b}`] || {name:"", status:"Available"};
@@ -9907,12 +9961,21 @@ Thanks!
         const st = nm ? (A.status!=="Available" ? A.status : (B.status!=="Available"?B.status:"Proof In Progress")) : "Available";
         nameEl.value = nm;
         statusEl.value = toShortKey(st);
-        const priceKey = `${state.current.Mailer_ID}-Spot_${a}`;
-        priceEl.value = productionState.spotPricing[priceKey] || DEFAULT_SPOT_PRICE;
+
+        // Use new pricing system for double ad or fall back to old spot pricing
+        const priceKey = `${mailerId}-Spot_${a}`;
+        const oldPrice = productionState.spotPricing[priceKey];
+        if (oldPrice) {
+          priceEl.value = oldPrice;
+        } else if (pricing && pricing.doubleAd) {
+          priceEl.value = pricing.doubleAd;
+        } else {
+          priceEl.value = ""; // Empty instead of $500 default
+        }
       }
-      
+
       populateClientDropdown();
-      
+
       modal.style.display = "flex";
       modal.setAttribute('aria-hidden', 'false');
       trapModalFocus(modal);
