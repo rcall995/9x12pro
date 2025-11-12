@@ -2640,13 +2640,25 @@ Thanks!
       // Use campaign data if provided, otherwise use state.availability (for current postcard)
       const getSpotData = (i) => {
         if (campaign && campaign[`Spot_${i}`]) {
-          try {
-            return typeof campaign[`Spot_${i}`] === 'string'
-              ? JSON.parse(campaign[`Spot_${i}`])
-              : campaign[`Spot_${i}`];
-          } catch (e) {
-            return null;
+          const spotValue = campaign[`Spot_${i}`];
+
+          // Handle plain "Available" string (empty spot)
+          if (spotValue === "Available") {
+            return { name: "", status: "Available" };
           }
+
+          // Handle JSON string
+          if (typeof spotValue === 'string') {
+            try {
+              return JSON.parse(spotValue);
+            } catch (e) {
+              console.warn(`Failed to parse Spot_${i}:`, spotValue);
+              return { name: "", status: "Available" };
+            }
+          }
+
+          // Handle object
+          return spotValue;
         }
         return state.availability[`Spot_${i}`];
       };
