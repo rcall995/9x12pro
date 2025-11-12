@@ -810,28 +810,20 @@
                     <p class="text-xs text-gray-600 mt-2">Start a new mailing campaign</p>
                 </div>
 
-                <!-- MIDDLE: Postcard Actions (with Status Colors inside) -->
+                <!-- MIDDLE: Postcard Actions -->
                 <div class="border-2 border-blue-500 p-4 rounded-lg bg-blue-50 shadow-sm">
                     <div class="font-semibold mb-3 text-blue-800 text-sm">Postcard Actions</div>
 
-                    <!-- Status Colors Legend -->
-                    <div class="bg-white rounded p-2 mb-3 border border-blue-200">
-                        <div class="font-medium text-gray-700 text-xs mb-1">Status Colors:</div>
-                        <div id="legendArea" class="text-xs">
-                            <div id="legendGrid"></div>
-                        </div>
-                    </div>
-
-                    <!-- Action Buttons -->
-                    <div class="space-y-2">
-                        <button id="btnSortOpen" class="w-full px-3 py-1.5 rounded bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-medium transition-all">
-                            ↕️ Edit Status Order
+                    <!-- Action Buttons in One Row -->
+                    <div class="flex flex-wrap gap-2">
+                        <button id="btnEditStatusModal" onclick="openEditStatusModal()" class="flex-1 min-w-[120px] px-3 py-2 rounded bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-medium transition-all">
+                            📝 Edit Status
                         </button>
-                        <button id="btnAdjustPostcard" class="w-full px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 text-xs font-medium transition-all">
-                            🎨 Edit Postcard Colors
+                        <button id="btnAdjustPostcard" class="flex-1 min-w-[120px] px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 text-xs font-medium transition-all">
+                            🎨 Edit Colors
                         </button>
-                        <button onclick="deleteCurrentPostcard()" class="w-full px-3 py-1.5 rounded bg-red-600 text-white hover:bg-red-700 text-xs font-medium transition-all">
-                            🗑️ Delete This Postcard
+                        <button onclick="deleteCurrentPostcard()" class="flex-1 min-w-[120px] px-3 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-xs font-medium transition-all">
+                            🗑️ Delete Card
                         </button>
                     </div>
                 </div>
@@ -1089,22 +1081,36 @@
     </div>
   </div>
   
-  <!-- Sort Modal -->
-  <div id="sortModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
-    <div class="modal" id="sortDialog">
-      <h3>Sort Statuses</h3>
-      <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:12px">
-        <div style="flex:1">
-          <div id="sortListContainer" style="background:#fafafa;border:1px solid #e6eef4;border-radius:8px;padding:8px;min-height:200px"></div>
-        </div>
-        <div style="width:240px">
-          <div style="font-size:.9rem;color:#374151;margin-bottom:8px">Preview (left → right)</div>
-          <div id="sortPreview" style="height:48px;border-radius:6px;border:1px solid #e6eef4"></div>
+  <!-- Edit Status Modal (Legend + Sort) -->
+  <div id="editStatusModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal" style="max-width: 700px;">
+      <h3 class="text-lg font-bold mb-4">Edit Status Colors & Order</h3>
+
+      <!-- Current Status Colors Legend -->
+      <div class="bg-blue-50 rounded-lg p-4 mb-4 border border-blue-200">
+        <div class="font-medium text-blue-900 text-sm mb-2">Current Status Colors:</div>
+        <div id="editStatusLegendGrid" class="flex gap-3 flex-wrap text-xs">
+          <!-- Populated dynamically -->
         </div>
       </div>
-      <div style="display:flex;justify-content:flex-end;gap:8px">
-        <button id="btnCancelSort" class="px-3 py-1.5 border rounded-md bg-gray-100 hover:bg-gray-200">Cancel</button>
-        <button id="btnApplySort" class="px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700">Save Order</button>
+
+      <!-- Sort Interface -->
+      <div class="mb-4">
+        <div class="font-medium text-gray-700 text-sm mb-2">Drag to Reorder:</div>
+        <div class="flex gap-3 items-start">
+          <div class="flex-1">
+            <div id="sortListContainer" style="background:#fafafa;border:1px solid #e6eef4;border-radius:8px;padding:8px;min-height:200px"></div>
+          </div>
+          <div style="width:240px">
+            <div style="font-size:.9rem;color:#374151;margin-bottom:8px">Preview (left → right)</div>
+            <div id="sortPreview" style="height:48px;border-radius:6px;border:1px solid #e6eef4"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2">
+        <button id="btnCancelEditStatus" class="px-4 py-2 border rounded-md bg-gray-100 hover:bg-gray-200">Cancel</button>
+        <button id="btnSaveEditStatus" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Save Changes</button>
       </div>
     </div>
   </div>
@@ -1911,6 +1917,10 @@
           <label class="flex items-center gap-2 mb-3">
             <input type="checkbox" id="copyFromPrevious" onchange="toggleCopyOptions()" />
             <span class="text-sm font-medium">Copy advertisers from a previous postcard</span>
+          </label>
+          <label class="flex items-center gap-2 mb-3">
+            <input type="checkbox" id="copyExpensesFromPrevious" />
+            <span class="text-sm font-medium">Copy expenses (printing, postage, design, misc) from selected postcard</span>
           </label>
 
           <div id="copyOptions" class="hidden space-y-3">
@@ -8025,6 +8035,33 @@ Thanks!
           }
         }
 
+        // Handle copy expenses from previous
+        if (document.getElementById("copyExpensesFromPrevious").checked) {
+          const sourceIndex = document.getElementById("copySourcePostcard").value;
+          if (sourceIndex) {
+            const sourcePostcard = state.mailers[sourceIndex];
+            const sourceMailerId = sourcePostcard.Mailer_ID;
+
+            // Check if source postcard has expenses
+            if (productionState.expenses[sourceMailerId]) {
+              const sourceExpenses = productionState.expenses[sourceMailerId];
+
+              // Copy expenses to new postcard
+              productionState.expenses[newPostcard.Mailer_ID] = {
+                printing: sourceExpenses.printing || 0,
+                postage: sourceExpenses.postage || 0,
+                design: sourceExpenses.design || 0,
+                misc: sourceExpenses.misc || 0
+              };
+
+              // Save expenses to cloud
+              await saveExpenses();
+
+              console.log(`✅ Copied expenses from ${sourceMailerId} to ${newPostcard.Mailer_ID}`);
+            }
+          }
+        }
+
         // Add the new postcard to state.mailers
         state.mailers.push(newPostcard);
 
@@ -8423,7 +8460,8 @@ Thanks!
       document.getElementById("btnCancelSort").onclick = closeSortModal;
       document.getElementById("btnApplySort").onclick = saveSortOrderFromModal;
       document.getElementById("btnAdjustPostcard").onclick = openPostcardModal;
-      document.getElementById("btnSortOpen").onclick = openSortModal;
+      document.getElementById("btnCancelEditStatus").onclick = closeEditStatusModal;
+      document.getElementById("btnSaveEditStatus").onclick = saveEditStatusModal;
       
       // Expense modal
       document.getElementById("btnCancelExpense").onclick = closeExpenseModal;
@@ -9640,21 +9678,61 @@ Thanks!
     }
     
     /* ========= SORT MODAL ========= */
-    function openSortModal(){ 
-      const modal = document.getElementById("sortModal");
-      modal.style.display='flex'; 
-      modal.setAttribute('aria-hidden','false'); 
-      trapModalFocus(modal); 
-      buildSortList(); 
+    function openEditStatusModal() {
+      const modal = document.getElementById("editStatusModal");
+      modal.style.display = 'flex';
+      modal.setAttribute('aria-hidden', 'false');
+      trapModalFocus(modal);
+
+      // Populate legend in modal
+      const legendGrid = document.getElementById("editStatusLegendGrid");
+      legendGrid.innerHTML = "";
+      const visibleSorted = sortOrder.filter(st => visibleStatuses.includes(st));
+      visibleSorted.forEach(st => {
+        const item = document.createElement("div");
+        item.className = "flex items-center gap-2";
+        const dot = document.createElement("span");
+        dot.className = "w-3 h-3 rounded-full";
+        dot.style.backgroundColor = STATUS_HEX[st] || GRADIENT_HEX[0];
+        const txt = document.createElement("span");
+        txt.textContent = st;
+        item.appendChild(dot);
+        item.appendChild(txt);
+        legendGrid.appendChild(item);
+      });
+
+      // Build sort list
+      buildSortList();
       updateSortPreview();
     }
-    
-    function closeSortModal(){ 
+
+    function closeEditStatusModal() {
+      const modal = document.getElementById("editStatusModal");
+      modal.style.display = 'none';
+      modal.setAttribute('aria-hidden', 'true');
+      releaseModalFocus(modal);
+    }
+
+    function saveEditStatusModal() {
+      saveSortOrderFromModal();
+      closeEditStatusModal();
+    }
+
+    function openSortModal(){
       const modal = document.getElementById("sortModal");
-      modal.style.display = 'none'; 
-      modal.setAttribute('aria-hidden','true'); 
-      releaseModalFocus(modal); 
-      renderLegend(); 
+      modal.style.display='flex';
+      modal.setAttribute('aria-hidden','false');
+      trapModalFocus(modal);
+      buildSortList();
+      updateSortPreview();
+    }
+
+    function closeSortModal(){
+      const modal = document.getElementById("sortModal");
+      modal.style.display = 'none';
+      modal.setAttribute('aria-hidden','true');
+      releaseModalFocus(modal);
+      renderLegend();
     }
     
     function buildSortList(){
