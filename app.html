@@ -9810,11 +9810,18 @@ Thanks!
           return;
         }
 
-        // Auto-categorize based on type
-        const categorization = autoCategorizeTransaction(description, type);
-
         // Adjust amount for expenses (make negative)
         const adjustedAmount = (type === 'revenue') ? Math.abs(amount) : -Math.abs(amount);
+
+        // Convert type to activityType for categorization
+        let activityType = 'Manual Entry';
+        if (type === 'revenue') activityType = 'Sales';
+        else if (type === 'cogs') activityType = 'Card spend';
+        else if (type === 'operating') activityType = 'Card spend';
+        else if (type === 'owner_draw') activityType = 'Transfer out';
+
+        // Auto-categorize based on description, activityType, and amount
+        const categorization = autoCategorizeTransaction(description, activityType, adjustedAmount);
 
         // Calculate new balance (last transaction balance + this amount)
         const lastBalance = financialState.transactions.length > 0
@@ -9827,10 +9834,10 @@ Thanks!
           id: `manual-${Date.now()}`,
           date: date,
           description: description,
-          activityType: categorization.subcategory,
+          activityType: activityType,
           amount: adjustedAmount,
           balance: newBalance,
-          type: type,
+          type: categorization.type,
           category: categorization.category,
           subcategory: categorization.subcategory,
           notes: notes
@@ -9856,20 +9863,6 @@ Thanks!
         console.error('Error adding transaction:', err);
         toast('⚠️ Failed to add transaction', false);
       }
-    }
-
-    // Auto-categorize transaction based on type
-    function autoCategorizeTransaction(description, type) {
-      if (type === 'revenue') {
-        return { category: 'Revenue', subcategory: 'Sales' };
-      } else if (type === 'cogs') {
-        return { category: 'Cost of Goods Sold', subcategory: 'COGS' };
-      } else if (type === 'operating') {
-        return { category: 'Operating Expenses', subcategory: 'General Expenses' };
-      } else if (type === 'owner_draw') {
-        return { category: 'Owner Draw', subcategory: 'Distribution' };
-      }
-      return { category: 'Uncategorized', subcategory: '' };
     }
 
     // Recalculate balances for all transactions
@@ -9943,16 +9936,24 @@ Thanks!
           return;
         }
 
-        // Auto-categorize based on type
-        const categorization = autoCategorizeTransaction(description, type);
-
         // Adjust amount for expenses (make negative)
         const adjustedAmount = (type === 'revenue') ? Math.abs(amount) : -Math.abs(amount);
+
+        // Convert type to activityType for categorization
+        let activityType = 'Manual Entry';
+        if (type === 'revenue') activityType = 'Sales';
+        else if (type === 'cogs') activityType = 'Card spend';
+        else if (type === 'operating') activityType = 'Card spend';
+        else if (type === 'owner_draw') activityType = 'Transfer out';
+
+        // Auto-categorize based on description, activityType, and amount
+        const categorization = autoCategorizeTransaction(description, activityType, adjustedAmount);
 
         // Update transaction
         transaction.date = date;
         transaction.description = description;
-        transaction.type = type;
+        transaction.activityType = activityType;
+        transaction.type = categorization.type;
         transaction.amount = adjustedAmount;
         transaction.category = categorization.category;
         transaction.subcategory = categorization.subcategory;
