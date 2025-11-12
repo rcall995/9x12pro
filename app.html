@@ -2973,13 +2973,27 @@ Thanks!
       }
       const effectiveTotalSpots = TOTAL_SPOTS_PER_POSTCARD - mergedPairsCount;
 
+      // Calculate maximum potential revenue based on pricing system
+      let maxPotentialRevenue = 0;
+      if (pricing) {
+        // New pricing system - calculate based on actual spot configuration
+        // Start with all spots as singles
+        maxPotentialRevenue = TOTAL_SPOTS_PER_POSTCARD * (pricing.singleAd || DEFAULT_SPOT_PRICE);
+
+        // Could be merged into doubles or banner - but for max potential, use singles
+        // (User can merge spots later if they want)
+      } else {
+        // Old system - use default
+        maxPotentialRevenue = TOTAL_SPOTS_PER_POSTCARD * DEFAULT_SPOT_PRICE;
+      }
+
       return {
         revenue: {
           paid: paidRevenue,
           deposit: depositRevenue,
           current: currentRevenue,
           projected: projectedRevenue,
-          target: TOTAL_SPOTS_PER_POSTCARD * DEFAULT_SPOT_PRICE
+          target: maxPotentialRevenue
         },
         expenses: {
           ...expenses,
@@ -3034,10 +3048,13 @@ Thanks!
       if (expensesEl) expensesEl.textContent = formatCurrency(financials.expenses.total);
       
       if (spotsToBreakevenEl) {
+        const potentialProfit = financials.revenue.target - financials.expenses.total;
+        const potentialProfitText = `<div class="text-xs text-gray-400 mt-1">Potential profit once filled: ${formatCurrency(potentialProfit)}</div>`;
+
         if (financials.metrics.breakeven) {
-          spotsToBreakevenEl.innerHTML = '✓ <span class="text-green-600 font-bold">Profitable!</span>';
+          spotsToBreakevenEl.innerHTML = '✓ <span class="text-green-600 font-bold">Profitable!</span>' + potentialProfitText;
         } else {
-          spotsToBreakevenEl.innerHTML = `Need <span class="font-bold text-indigo-600">${financials.metrics.spotsNeeded} more spot${financials.metrics.spotsNeeded === 1 ? '' : 's'}</span> to break even`;
+          spotsToBreakevenEl.innerHTML = `Need <span class="font-bold text-indigo-600">${financials.metrics.spotsNeeded} more spot${financials.metrics.spotsNeeded === 1 ? '' : 's'}</span> to break even` + potentialProfitText;
         }
       }
       
