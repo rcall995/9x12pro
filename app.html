@@ -9783,14 +9783,16 @@ Thanks!
       document.getElementById('txnNotes').value = '';
 
       // Show modal
-      document.getElementById('addTransactionModal').classList.remove('hidden');
-      document.getElementById('addTransactionModal').setAttribute('aria-hidden', 'false');
+      const modal = document.getElementById('addTransactionModal');
+      modal.style.display = 'flex';
+      modal.setAttribute('aria-hidden', 'false');
     }
 
     // Close add transaction modal
     function closeAddTransactionModal() {
-      document.getElementById('addTransactionModal').classList.add('hidden');
-      document.getElementById('addTransactionModal').setAttribute('aria-hidden', 'true');
+      const modal = document.getElementById('addTransactionModal');
+      modal.style.display = 'none';
+      modal.setAttribute('aria-hidden', 'true');
     }
 
     // Save add transaction
@@ -9906,14 +9908,16 @@ Thanks!
       document.getElementById('editTxnId').value = id;
 
       // Show modal
-      document.getElementById('editTransactionModal').classList.remove('hidden');
-      document.getElementById('editTransactionModal').setAttribute('aria-hidden', 'false');
+      const modal = document.getElementById('editTransactionModal');
+      modal.style.display = 'flex';
+      modal.setAttribute('aria-hidden', 'false');
     }
 
     // Close edit transaction modal
     function closeEditTransactionModal() {
-      document.getElementById('editTransactionModal').classList.add('hidden');
-      document.getElementById('editTransactionModal').setAttribute('aria-hidden', 'true');
+      const modal = document.getElementById('editTransactionModal');
+      modal.style.display = 'none';
+      modal.setAttribute('aria-hidden', 'true');
     }
 
     // Save edit transaction
@@ -10045,14 +10049,16 @@ Thanks!
       generatePLReport();
 
       // Show modal
-      document.getElementById('plReportModal').classList.remove('hidden');
-      document.getElementById('plReportModal').setAttribute('aria-hidden', 'false');
+      const modal = document.getElementById('plReportModal');
+      modal.style.display = 'flex';
+      modal.setAttribute('aria-hidden', 'false');
     }
 
     // Close P&L Report modal
     function closePLReportModal() {
-      document.getElementById('plReportModal').classList.add('hidden');
-      document.getElementById('plReportModal').setAttribute('aria-hidden', 'true');
+      const modal = document.getElementById('plReportModal');
+      modal.style.display = 'none';
+      modal.setAttribute('aria-hidden', 'true');
     }
 
     // Generate P&L Report
