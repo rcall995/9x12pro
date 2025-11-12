@@ -1273,6 +1273,46 @@
     </div>
   </div>
 
+  <!-- Daily Goal Settings Modal -->
+  <div id="dailyGoalSettingsModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal" style="max-width: 500px;">
+      <h3 class="text-lg font-bold mb-4">⚙️ Daily Outreach Goal Settings</h3>
+
+      <div class="space-y-4">
+        <!-- Set Daily Goal -->
+        <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
+          <label class="text-sm font-medium text-gray-700 block mb-2">Daily Outreach Goal</label>
+          <div class="flex gap-2 items-center">
+            <input
+              id="dailyGoalInput"
+              type="number"
+              min="1"
+              class="border rounded-md flex-1 p-2"
+              placeholder="Enter number of contacts per day"
+              onkeypress="if(event.key==='Enter') saveDailyGoalFromModal()"
+            />
+            <span class="text-sm text-gray-600">contacts/day</span>
+          </div>
+          <p class="text-xs text-gray-500 mt-2">Set how many prospects you want to contact each day.</p>
+        </div>
+
+        <!-- Reset Count Button -->
+        <div class="bg-red-50 p-4 rounded-lg border border-red-200">
+          <label class="text-sm font-medium text-gray-700 block mb-2">Reset Today's Count</label>
+          <button onclick="resetDailyGoalFromModal()" class="w-full px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 font-medium">
+            🔄 Reset Count to 0
+          </button>
+          <p class="text-xs text-gray-500 mt-2">Reset today's outreach count back to zero.</p>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 mt-6">
+        <button onclick="closeDailyGoalSettings()" class="px-4 py-2 border rounded-md bg-gray-100 hover:bg-gray-200">Cancel</button>
+        <button onclick="saveDailyGoalFromModal()" class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700">💾 Save Goal</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Client Management Modal -->
   <div id="clientModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
     <div class="modal" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
@@ -6224,6 +6264,86 @@ Thanks!
 
     /* ========= PROSPECT POOL CSV EXPORT/IMPORT ========= */
 
+    function exportProspectListCSV() {
+      // Export ONLY prospects from the "Prospect List" kanban column
+      const prospectList = kanbanState.columns['prospect-list'] || [];
+
+      if (prospectList.length === 0) {
+        toast('⚠️ No prospects in Prospect List to export', false);
+        return;
+      }
+
+      const allProspects = prospectList
+        .filter(item => item && typeof item === 'object')
+        .map(item => ({
+          businessName: item.businessName || item.name || '',
+          phone: item.phone || '',
+          website: item.website || '',
+          email: item.email || '',
+          facebook: item.facebook || '',
+          instagram: item.instagram || '',
+          category: item.category || '',
+          zipCode: item.zipCode || '',
+          address: item.address || '',
+          rating: item.rating || '',
+          reviewsCount: item.reviewsCount || item.userRatingsTotal || '',
+          placeId: item.placeId || '',
+          notes: item.notes || '',
+          dateAdded: item.dateAdded || new Date().toISOString().split('T')[0]
+        }));
+
+      // Create CSV
+      const headers = [
+        'Business Name',
+        'Phone',
+        'Website',
+        'Email',
+        'Facebook',
+        'Instagram',
+        'Category',
+        'ZIP Code',
+        'Address',
+        'Rating',
+        'Review Count',
+        'Place ID',
+        'Notes',
+        'Date Added'
+      ];
+
+      const csvContent = [
+        headers.join(','),
+        ...allProspects.map(p => [
+          `"${(p.businessName || '').replace(/"/g, '""')}"`,
+          `"${(p.phone || '').replace(/"/g, '""')}"`,
+          `"${(p.website || '').replace(/"/g, '""')}"`,
+          `"${(p.email || '').replace(/"/g, '""')}"`,
+          `"${(p.facebook || '').replace(/"/g, '""')}"`,
+          `"${(p.instagram || '').replace(/"/g, '""')}"`,
+          `"${(p.category || '').replace(/"/g, '""')}"`,
+          `"${(p.zipCode || '').replace(/"/g, '""')}"`,
+          `"${(p.address || '').replace(/"/g, '""')}"`,
+          `"${(p.rating || '').toString().replace(/"/g, '""')}"`,
+          `"${(p.reviewsCount || '').toString().replace(/"/g, '""')}"`,
+          `"${(p.placeId || '').replace(/"/g, '""')}"`,
+          `"${(p.notes || '').replace(/"/g, '""')}"`,
+          `"${(p.dateAdded || '').replace(/"/g, '""')}"`
+        ].join(','))
+      ].join('\n');
+
+      // Trigger download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `prospect-list-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast(`✅ Exported ${allProspects.length} prospects from Prospect List`, true);
+    }
+
     function exportProspectPoolCSV() {
       // Collect all prospects from searches cache
       const allProspects = [];
@@ -6406,26 +6526,55 @@ Thanks!
 
             // Try to find existing prospect by Place ID or business name
             let found = false;
-            Object.keys(placesCache.searches).forEach(cacheKey => {
-              const cached = placesCache.searches[cacheKey];
-              if (cached.cachedData) {
-                const existingIndex = cached.cachedData.findIndex(p =>
-                  p.placeId === prospectData.placeId ||
-                  (p.name && p.name.toLowerCase() === businessName.toLowerCase())
-                );
 
-                if (existingIndex !== -1) {
-                  // Update existing prospect with enriched data
-                  cached.cachedData[existingIndex] = {
-                    ...cached.cachedData[existingIndex],
-                    ...prospectData,
-                    interactions: cached.cachedData[existingIndex].interactions || []
-                  };
-                  found = true;
-                  updated++;
-                }
+            // FIRST: Check kanban columns (Prospect List, To Contact, In Progress, Committed)
+            Object.keys(kanbanState.columns).forEach(columnKey => {
+              const column = kanbanState.columns[columnKey];
+              if (!Array.isArray(column)) return;
+
+              const existingIndex = column.findIndex(item =>
+                item && typeof item === 'object' && (
+                  item.placeId === prospectData.placeId ||
+                  item.id === prospectData.placeId ||
+                  (item.businessName && item.businessName.toLowerCase() === businessName.toLowerCase())
+                )
+              );
+
+              if (existingIndex !== -1) {
+                // Update existing prospect in kanban with enriched data
+                kanbanState.columns[columnKey][existingIndex] = {
+                  ...kanbanState.columns[columnKey][existingIndex],
+                  ...prospectData,
+                  id: kanbanState.columns[columnKey][existingIndex].id || prospectData.placeId
+                };
+                found = true;
+                updated++;
               }
             });
+
+            // SECOND: Check places cache
+            if (!found) {
+              Object.keys(placesCache.searches).forEach(cacheKey => {
+                const cached = placesCache.searches[cacheKey];
+                if (cached.cachedData) {
+                  const existingIndex = cached.cachedData.findIndex(p =>
+                    p.placeId === prospectData.placeId ||
+                    (p.name && p.name.toLowerCase() === businessName.toLowerCase())
+                  );
+
+                  if (existingIndex !== -1) {
+                    // Update existing prospect with enriched data
+                    cached.cachedData[existingIndex] = {
+                      ...cached.cachedData[existingIndex],
+                      ...prospectData,
+                      interactions: cached.cachedData[existingIndex].interactions || []
+                    };
+                    found = true;
+                    updated++;
+                  }
+                }
+              });
+            }
 
             // If not found, add to appropriate category in cache
             if (!found) {
@@ -6452,8 +6601,12 @@ Thanks!
           // Save to localStorage
           localStorage.setItem('mailslot-places-cache', JSON.stringify(placesCache));
 
-          // Re-render prospect pool
+          // Save kanban changes to cloud
+          saveKanban();
+
+          // Re-render both prospect pool and kanban
           renderProspectPool();
+          renderKanban();
 
           toast(`✅ CSV Import Complete: ${updated} updated, ${added} added`, true);
 
@@ -6470,6 +6623,7 @@ Thanks!
     }
 
     // Expose globally
+    window.exportProspectListCSV = exportProspectListCSV;
     window.exportProspectPoolCSV = exportProspectPoolCSV;
     window.importProspectPoolCSV = importProspectPoolCSV;
 
@@ -7168,6 +7322,9 @@ Thanks!
         const buttons = col.key === 'prospect-list'
           ? `
             <div class="flex gap-1">
+              <button onclick="exportProspectListCSV()" class="text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700" title="Export Prospect List to CSV">
+                📥
+              </button>
               <button id="btnMoveSelectedToPool" onclick="moveSelectedToPool()" class="text-xs px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 hidden" title="Move selected to pool">
                 ⬅ Move to Pool
               </button>
@@ -7314,10 +7471,7 @@ Thanks!
                   ${Math.round((dailyGoalState.todayCount / dailyGoalState.dailyGoal) * 100)}%
                 </div>
               </div>
-              <button onclick="resetDailyGoal()" class="px-4 py-2 bg-gray-500 text-white text-sm rounded hover:bg-gray-600 font-medium" title="Reset today's count to 0">
-                🔄 Reset
-              </button>
-              <button onclick="openDailyGoalSettings()" class="px-4 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 font-medium" title="Change daily goal">
+              <button onclick="openDailyGoalSettings()" class="px-4 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 font-medium" title="Change daily goal and reset count">
                 ⚙️ Settings
               </button>
             </div>
@@ -8330,11 +8484,42 @@ Thanks!
 
     // Open daily goal settings modal
     function openDailyGoalSettings() {
-      const newGoal = prompt(`Set your daily outreach goal:\n\nCurrent goal: ${dailyGoalState.dailyGoal} contacts per day`, dailyGoalState.dailyGoal);
+      const modal = document.getElementById('dailyGoalSettingsModal');
+      if (!modal) return;
 
-      if (newGoal === null) return; // User cancelled
+      // Pre-fill current goal
+      const input = document.getElementById('dailyGoalInput');
+      if (input) {
+        input.value = dailyGoalState.dailyGoal;
+      }
 
-      const goalNumber = parseInt(newGoal);
+      lastFocusedElementBeforeModal = document.activeElement;
+      modal.style.display = "flex";
+      modal.setAttribute('aria-hidden', 'false');
+      trapModalFocus(modal);
+
+      // Focus on input
+      if (input) input.focus();
+    }
+
+    function closeDailyGoalSettings() {
+      const modal = document.getElementById('dailyGoalSettingsModal');
+      if (!modal) return;
+
+      modal.style.display = "none";
+      modal.setAttribute('aria-hidden', 'true');
+      releaseModalFocus();
+
+      if (lastFocusedElementBeforeModal) {
+        lastFocusedElementBeforeModal.focus();
+      }
+    }
+
+    function saveDailyGoalFromModal() {
+      const input = document.getElementById('dailyGoalInput');
+      if (!input) return;
+
+      const goalNumber = parseInt(input.value);
       if (isNaN(goalNumber) || goalNumber < 1) {
         toast("Please enter a valid number (minimum 1)", false);
         return;
@@ -8343,7 +8528,21 @@ Thanks!
       dailyGoalState.dailyGoal = goalNumber;
       saveDailyGoalState();
       renderKanban();
-      toast(`Daily goal updated to ${goalNumber} contacts`);
+      closeDailyGoalSettings();
+      toast(`Daily goal updated to ${goalNumber} contacts`, true);
+    }
+
+    function resetDailyGoalFromModal() {
+      if (!confirm("Are you sure you want to reset today's count to 0?")) {
+        return;
+      }
+
+      dailyGoalState.todayCount = 0;
+      dailyGoalState.todayDate = new Date().toISOString().split('T')[0];
+      saveDailyGoalState();
+      renderKanban();
+      toast('Daily count reset to 0', true);
+      // Don't close modal - user might want to adjust goal too
     }
 
     /* ========= NEW POSTCARD CREATION WORKFLOW ========= */
