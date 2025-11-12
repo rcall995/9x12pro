@@ -627,9 +627,15 @@
 
                 <!-- Search Button & Stats -->
                 <div class="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div class="flex items-center gap-2 text-sm text-purple-100">
-                        <span class="inline-block w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
-                        <span>Results cached for 30 days • Repeat searches are FREE</span>
+                    <div class="flex flex-col gap-2">
+                        <div class="flex items-center gap-2 text-sm text-purple-100">
+                            <span class="inline-block w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
+                            <span>Results cached for 30 days • Repeat searches are FREE</span>
+                        </div>
+                        <label class="flex items-center gap-2 text-sm text-purple-100 cursor-pointer hover:text-white transition">
+                            <input type="checkbox" id="clearBeforeSearch" checked class="rounded text-purple-600 focus:ring-purple-500" />
+                            <span>🗑️ Clear previous searches before searching (recommended)</span>
+                        </label>
                     </div>
                     <button
                         id="btnRunBulkPopulate"
@@ -4743,6 +4749,16 @@ Thanks!
 
     // Run bulk auto-populate with multiple categories - shows results in modal
     async function runBulkAutoPopulate() {
+      // Check if user wants to clear previous searches first
+      const clearBeforeSearch = document.getElementById('clearBeforeSearch')?.checked;
+      if (clearBeforeSearch) {
+        console.log('🗑️ Clearing previous searches before new search...');
+        placesCache.searches = {};
+        prospectPoolState.selectedIds.clear();
+        savePlacesCache();
+        toast('Cleared previous searches', true);
+      }
+
       const zipCode = document.getElementById('bulkPopZipCode').value.trim();
       const radius = parseInt(document.getElementById('bulkPopRadius').value);
 
