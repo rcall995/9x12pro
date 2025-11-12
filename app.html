@@ -4350,6 +4350,15 @@ Thanks!
       });
     }
 
+    // Extract ZIP code from an address string
+    function extractZipFromAddress(address) {
+      if (!address) return null;
+
+      // Match 5-digit ZIP codes (with optional +4 extension)
+      const zipMatch = address.match(/\b(\d{5})(?:-\d{4})?\b/);
+      return zipMatch ? zipMatch[1] : null;
+    }
+
     async function convertZipToLatLng(zipCode) {
       try {
         // Ensure Google Maps API is loaded
@@ -4470,18 +4479,31 @@ Thanks!
               if (status === google.maps.places.PlacesServiceStatus.OK ||
                   status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
 
-                const businesses = (results || [])
+                // First, map all operational businesses
+                const allBusinesses = (results || [])
                   .filter(place => place.business_status === 'OPERATIONAL') // Only active businesses
-                  .map(place => ({
-                    placeId: place.place_id,
-                    name: place.name,
-                    address: place.vicinity || place.formatted_address || '',
-                    rating: place.rating || 0,
-                    userRatingsTotal: place.user_ratings_total || 0,
-                    types: place.types || [],
-                    category: category, // Track which category this came from
-                    zipCode: zipCode // Track which ZIP code was used for the search
-                  }));
+                  .map(place => {
+                    const address = place.vicinity || place.formatted_address || '';
+                    return {
+                      placeId: place.place_id,
+                      name: place.name,
+                      address: address,
+                      rating: place.rating || 0,
+                      userRatingsTotal: place.user_ratings_total || 0,
+                      types: place.types || [],
+                      category: category, // Track which category this came from
+                      zipCode: zipCode, // Track which ZIP code was used for the search
+                      actualZip: extractZipFromAddress(address) // Extract actual ZIP from address
+                    };
+                  });
+
+                // Filter to only businesses actually in the searched ZIP code
+                const businesses = allBusinesses.filter(b => b.actualZip === zipCode);
+
+                const filteredOutCount = allBusinesses.length - businesses.length;
+                if (filteredOutCount > 0) {
+                  console.log(`🔍 Filtered out ${filteredOutCount} business(es) from other ZIP codes (searched: ${zipCode})`);
+                }
 
                 // Cache results for 30 days
                 const cacheExpiry = new Date();
@@ -4517,18 +4539,31 @@ Thanks!
               if (status === google.maps.places.PlacesServiceStatus.OK ||
                   status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
 
-                const businesses = (results || [])
+                // First, map all operational businesses
+                const allBusinesses = (results || [])
                   .filter(place => place.business_status === 'OPERATIONAL') // Only active businesses
-                  .map(place => ({
-                    placeId: place.place_id,
-                    name: place.name,
-                    address: place.vicinity || place.formatted_address || '',
-                    rating: place.rating || 0,
-                    userRatingsTotal: place.user_ratings_total || 0,
-                    types: place.types || [],
-                    category: category, // Track which category this came from
-                    zipCode: zipCode // Track which ZIP code was used for the search
-                  }));
+                  .map(place => {
+                    const address = place.vicinity || place.formatted_address || '';
+                    return {
+                      placeId: place.place_id,
+                      name: place.name,
+                      address: address,
+                      rating: place.rating || 0,
+                      userRatingsTotal: place.user_ratings_total || 0,
+                      types: place.types || [],
+                      category: category, // Track which category this came from
+                      zipCode: zipCode, // Track which ZIP code was used for the search
+                      actualZip: extractZipFromAddress(address) // Extract actual ZIP from address
+                    };
+                  });
+
+                // Filter to only businesses actually in the searched ZIP code
+                const businesses = allBusinesses.filter(b => b.actualZip === zipCode);
+
+                const filteredOutCount = allBusinesses.length - businesses.length;
+                if (filteredOutCount > 0) {
+                  console.log(`🔍 Filtered out ${filteredOutCount} business(es) from other ZIP codes (searched: ${zipCode})`);
+                }
 
                 // Cache results for 30 days
                 const cacheExpiry = new Date();
