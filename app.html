@@ -10261,8 +10261,14 @@ Thanks!
 
     // Import Square statement data
     async function importSquareStatements() {
+      // Confirm with user - this will replace ALL existing transactions
+      if (!confirm('⚠️ This will REPLACE all existing financial data with 96 transactions from Square statements (April-October 2025).\n\nThis action cannot be undone.\n\nContinue?')) {
+        return;
+      }
+
       try {
         console.log('📥 Importing Square statement data...');
+        toast('📥 Importing Square data...', true);
 
         // All transactions from April-October 2025
         const rawTransactions = [
