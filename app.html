@@ -178,12 +178,7 @@
         flex-shrink: 0;
     }
     #salesActivityContainer {
-        display: flex;
-        gap: 1rem;
-        padding-bottom: 0.5rem;
-        overflow-x: auto;
-        scrollbar-width: thin;
-        -webkit-overflow-scrolling: touch;
+        /* Flex styles moved to inner wrapper div in renderKanban() */
     }
     @media (max-width: 1023px) {
         .kanban-column {
@@ -6711,8 +6706,15 @@ Thanks!
         </div>
       `;
 
-      // Set container HTML with cloud sync bar + daily goal + columns
-      container.innerHTML = cloudSyncBar + dailyGoalHTML + columnsHTML;
+      // Wrap columns in flex container
+      const columnsWrapperHTML = `
+        <div style="display: flex; gap: 1rem; padding-bottom: 0.5rem; overflow-x: auto; scrollbar-width: thin; -webkit-overflow-scrolling: touch;">
+          ${columnsHTML}
+        </div>
+      `;
+
+      // Set container HTML with cloud sync bar + daily goal + columns wrapper
+      container.innerHTML = cloudSyncBar + dailyGoalHTML + columnsWrapperHTML;
 
       setupKanbanDrag();
       updateMoveToPoolButton();
