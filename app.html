@@ -4504,11 +4504,16 @@ Thanks!
                   });
 
                 // Filter to only businesses actually in the searched ZIP code
-                const businesses = allBusinesses.filter(b => b.actualZip === zipCode);
+                // IMPORTANT: Only filter OUT if we can confirm it's a DIFFERENT ZIP
+                // If no ZIP in address (actualZip is null), KEEP IT (Google often doesn't include ZIP in vicinity)
+                const businesses = allBusinesses.filter(b => {
+                  if (!b.actualZip) return true; // No ZIP in address, keep it (can't confirm it's wrong)
+                  return b.actualZip === zipCode; // Has ZIP, only keep if it matches
+                });
 
                 const filteredOutCount = allBusinesses.length - businesses.length;
                 if (filteredOutCount > 0) {
-                  console.log(`🔍 Filtered out ${filteredOutCount} business(es) from other ZIP codes (searched: ${zipCode})`);
+                  console.log(`🔍 Filtered out ${filteredOutCount} business(es) with confirmed different ZIP codes (searched: ${zipCode})`);
                 }
 
                 // Cache results for 30 days
@@ -4564,11 +4569,16 @@ Thanks!
                   });
 
                 // Filter to only businesses actually in the searched ZIP code
-                const businesses = allBusinesses.filter(b => b.actualZip === zipCode);
+                // IMPORTANT: Only filter OUT if we can confirm it's a DIFFERENT ZIP
+                // If no ZIP in address (actualZip is null), KEEP IT (Google often doesn't include ZIP in vicinity)
+                const businesses = allBusinesses.filter(b => {
+                  if (!b.actualZip) return true; // No ZIP in address, keep it (can't confirm it's wrong)
+                  return b.actualZip === zipCode; // Has ZIP, only keep if it matches
+                });
 
                 const filteredOutCount = allBusinesses.length - businesses.length;
                 if (filteredOutCount > 0) {
-                  console.log(`🔍 Filtered out ${filteredOutCount} business(es) from other ZIP codes (searched: ${zipCode})`);
+                  console.log(`🔍 Filtered out ${filteredOutCount} business(es) with confirmed different ZIP codes (searched: ${zipCode})`);
                 }
 
                 // Cache results for 30 days
