@@ -404,6 +404,11 @@
                 <h3 class="text-lg md:text-xl font-bold">Sales & Performance Dashboard</h3>
             </div>
 
+            <!-- CARDS IN PROGRESS SECTION -->
+            <div id="cardsInProgressSection" class="mb-8">
+                <!-- Dynamically populated by renderCardsInProgress() -->
+            </div>
+
             <!-- Campaign stats moved to Postcards & Activation tab -->
             <div class="grid grid-cols-1 gap-6">
                
@@ -8097,9 +8102,11 @@ Thanks!
 
         const legendArea = document.getElementById("legendArea");
         if (legendArea) show(legendArea, tabName === 'manager');
-        
+
         if (tabName === 'manager') {
             renderAll();
+        } else if (tabName === 'pipeline') {
+            renderCardsInProgress();
         } else if (tabName === 'clients') {
             renderClientList();
         } else if (tabName === 'admin') {
@@ -8256,6 +8263,9 @@ Thanks!
 
         pickCampaign({ target: { value: mostRecentIndex.toString() } });
       }
+
+      // Render cards in progress on dashboard
+      renderCardsInProgress();
     }
 
     // Populate town selector from available mailers
@@ -8536,7 +8546,89 @@ Thanks!
       renderBack();
       updateToolbar();
     }
-    
+
+    function renderCardsInProgress() {
+      const container = document.getElementById('cardsInProgressSection');
+      if (!container) return;
+
+      // Filter postcards that are "in progress" (have at least 1 slot sold but not all)
+      const inProgressCards = state.mailers.filter(campaign => {
+        const financials = calculateFinancials(campaign.Mailer_ID);
+        if (!financials) return false;
+        const spotsSold = financials.metrics.spotsSold;
+        const totalSpots = financials.metrics.effectiveTotalSpots;
+        return spotsSold > 0 && spotsSold < totalSpots;
+      });
+
+      if (inProgressCards.length === 0) {
+        container.innerHTML = '';
+        return;
+      }
+
+      // Build HTML
+      let html = `
+        <div class="mb-4">
+          <h4 class="text-lg font-bold text-gray-800">You have ${inProgressCards.length} Card${inProgressCards.length !== 1 ? 's' : ''} in Progress</h4>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      `;
+
+      inProgressCards.forEach(campaign => {
+        const financials = calculateFinancials(campaign.Mailer_ID);
+        if (!financials) return;
+
+        const spotsSold = financials.metrics.spotsSold;
+        const totalSpots = financials.metrics.effectiveTotalSpots;
+        const percent = Math.round(financials.metrics.progressPercent);
+
+        // Extract month name from Mail_Date
+        let monthName = campaign.Mail_Date;
+        try {
+          if (/^\d{4}-\d{2}-\d{2}/.test(campaign.Mail_Date)) {
+            const month = parseInt(campaign.Mail_Date.split('-')[1]);
+            const monthNames = ["", "January", "February", "March", "April", "May", "June",
+                                "July", "August", "September", "October", "November", "December"];
+            monthName = monthNames[month] || campaign.Mail_Date;
+          }
+        } catch (e) {
+          // Keep original if parsing fails
+        }
+
+        html += `
+          <div class="dashboard-widget cursor-pointer hover:shadow-xl hover:scale-105 transition-all duration-200 border-2 border-indigo-200"
+               onclick="openPostcardCard('${campaign.Town.replace(/'/g, "\\'")}', '${campaign.Mail_Date}')">
+            <div class="metric-label text-indigo-800 font-bold">${campaign.Town.toUpperCase()}</div>
+            <div class="text-sm text-gray-600 mb-2">${monthName}</div>
+            <div class="metric-value text-indigo-600 text-lg">${spotsSold}/${totalSpots}</div>
+            <div class="text-sm text-gray-500">${percent}% complete</div>
+            <div class="w-full h-2 bg-gray-200 rounded-full mt-2">
+              <div class="h-2 bg-indigo-500 rounded-full transition-all duration-300" style="width: ${percent}%;"></div>
+            </div>
+          </div>
+        `;
+      });
+
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    function openPostcardCard(town, mailDate) {
+      // Set the selectors to the correct town and month
+      const townSelect = document.getElementById("headerTownSelect");
+      const monthSelect = document.getElementById("headerMonthSelect");
+
+      if (townSelect && monthSelect) {
+        townSelect.value = town;
+        monthSelect.value = mailDate;
+      }
+
+      // Switch to the manager (Postcards & Activation) tab
+      switchTab('manager');
+
+      // Update the postcard view
+      updatePostcardFromSelectors();
+    }
+
     function renderFront(){
       const grid = document.getElementById("frontGrid");
       grid.innerHTML = "";
