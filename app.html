@@ -8187,8 +8187,46 @@ Thanks!
         selectPostcard(newIndex);
         switchTab('manager');
 
-        // Save to cloud
-        await saveAllToCloud();
+        // Save to Supabase
+        try {
+          const { error } = await supabaseClient
+            .from('postcards')
+            .insert({
+              user_email: ACTIVE_USER,
+              mailer_id: newPostcard.Mailer_ID,
+              town: newPostcard.Town,
+              mail_date: newPostcard.Mail_Date,
+              in_homes_date: newPostcard.In_Homes_Date,
+              payment_status: newPostcard.Payment_Status,
+              postcard_size: newPostcard.Postcard_Size || '9x12',
+              postcard_bg: newPostcard.Postcard_BG,
+              banner_bg: newPostcard.Banner_BG,
+              spot_1: newPostcard.availability.Spot_1 || 'Available',
+              spot_2: newPostcard.availability.Spot_2 || 'Available',
+              spot_3: newPostcard.availability.Spot_3 || 'Available',
+              spot_4: newPostcard.availability.Spot_4 || 'Available',
+              spot_5: newPostcard.availability.Spot_5 || 'Available',
+              spot_6: newPostcard.availability.Spot_6 || 'Available',
+              spot_7: newPostcard.availability.Spot_7 || 'Available',
+              spot_8: newPostcard.availability.Spot_8 || 'Available',
+              spot_9: newPostcard.availability.Spot_9 || 'Available',
+              spot_10: newPostcard.availability.Spot_10 || 'Available',
+              spot_11: newPostcard.availability.Spot_11 || 'Available',
+              spot_12: newPostcard.availability.Spot_12 || 'Available',
+              spot_13: newPostcard.availability.Spot_13 || 'Available',
+              spot_14: newPostcard.availability.Spot_14 || 'Available',
+              spot_15: newPostcard.availability.Spot_15 || 'Available',
+              spot_16: newPostcard.availability.Spot_16 || 'Available',
+              spot_17: newPostcard.availability.Spot_17 || 'Available',
+              spot_18: newPostcard.availability.Spot_18 || 'Available'
+            });
+
+          if (error) throw error;
+
+        } catch (cloudErr) {
+          console.error("Failed to save duplicated postcard to cloud:", cloudErr);
+          toast("⚠️ Postcard duplicated locally. Will sync on next spot edit.", false);
+        }
 
         closeDuplicatePostcardModal();
         toast(`✅ Duplicated postcard: ${finalTown} — ${finalMonth}/${finalYear}`);
@@ -8581,6 +8619,7 @@ Thanks!
               mail_date: newPostcard.Mail_Date,
               in_homes_date: newPostcard.In_Homes_Date,
               payment_status: newPostcard.Payment_Status,
+              postcard_size: newPostcard.Postcard_Size || '9x12',
               postcard_bg: newPostcard.Postcard_BG,
               banner_bg: newPostcard.Banner_BG,
               spot_1: newPostcard.availability.Spot_1 || 'Available',
@@ -9099,6 +9138,7 @@ Thanks!
           Mail_Date: postcard.mail_date,
           In_Homes_Date: postcard.in_homes_date,
           Payment_Status: postcard.payment_status,
+          Postcard_Size: postcard.postcard_size || '9x12',
           Postcard_BG: postcard.postcard_bg,
           Banner_BG: postcard.banner_bg,
           Spot_1: postcard.spot_1,
@@ -9185,7 +9225,8 @@ Thanks!
             }
           }
 
-          return `<option value="${i}">${esc(m.Town)} — ${displayDate}</option>`;
+          const sizeLabel = m.Postcard_Size ? ` (${m.Postcard_Size})` : '';
+          return `<option value="${i}">${esc(m.Town)} — ${displayDate}${sizeLabel}</option>`;
         }).join("");
       const selManager = document.getElementById("postcardSelect");
 
