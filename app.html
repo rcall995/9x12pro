@@ -2864,6 +2864,7 @@ Thanks!
 
       // Get pricing for this postcard (new system)
       const pricing = productionState.pricing[mailerId] || null;
+      console.log(`💰 Pricing for ${mailerId}:`, pricing);
 
       for (let i = 1; i <= TOTAL_SPOTS_PER_POSTCARD; i++) {
         const spot = getSpotData(i);
@@ -2918,10 +2919,12 @@ Thanks!
             // Single ad
             price = pricing.singleAd || DEFAULT_SPOT_PRICE;
           }
+          // Ensure price is a number
+          price = parseFloat(price) || DEFAULT_SPOT_PRICE;
         } else {
           // Fall back to old per-spot pricing system
           const priceKey = `${mailerId}-Spot_${i}`;
-          price = productionState.spotPricing[priceKey] || DEFAULT_SPOT_PRICE;
+          price = parseFloat(productionState.spotPricing[priceKey]) || DEFAULT_SPOT_PRICE;
         }
 
         // Only count revenue if spot has a business name entered
@@ -2931,11 +2934,15 @@ Thanks!
 
           // Count toward current revenue ONLY for spots that have been paid
           if (spot.status === "Paid in Full") {
+            console.log(`  Spot ${i} (${spot.name}): +$${price} [Paid in Full] - paidRevenue was ${paidRevenue}`);
             paidRevenue += price;
+            console.log(`    paidRevenue is now ${paidRevenue} (type: ${typeof paidRevenue})`);
             spotsPaid++;
           } else if (spot.status === "Deposit Paid") {
             const depositAmount = price * 0.5;
+            console.log(`  Spot ${i} (${spot.name}): +$${depositAmount} [Deposit] - depositRevenue was ${depositRevenue}`);
             depositRevenue += depositAmount;
+            console.log(`    depositRevenue is now ${depositRevenue} (type: ${typeof depositRevenue})`);
           }
           // For any other status (Reserved, Invoice Sent, Ad Approved, etc.),
           // DO NOT count as current revenue - only count toward projected revenue
@@ -2943,6 +2950,7 @@ Thanks!
       }
       
       const currentRevenue = paidRevenue + depositRevenue;
+      console.log(`📊 Final totals: paidRevenue=${paidRevenue} (${typeof paidRevenue}), depositRevenue=${depositRevenue} (${typeof depositRevenue}), currentRevenue=${currentRevenue} (${typeof currentRevenue})`);
       const currentProfit = currentRevenue - totalExpenses;
       const projectedProfit = projectedRevenue - totalExpenses;
       const breakeven = currentRevenue >= totalExpenses;
@@ -8818,7 +8826,17 @@ Thanks!
       try {
         const cloudData = await loadFromCloud('pricing');
         if (cloudData) {
-          productionState.pricing = cloudData;
+          // Ensure all pricing values are numbers, not strings
+          productionState.pricing = {};
+          Object.keys(cloudData).forEach(mailerId => {
+            const pricing = cloudData[mailerId];
+            productionState.pricing[mailerId] = {
+              singleAd: parseFloat(pricing.singleAd) || 0,
+              doubleAd: parseFloat(pricing.doubleAd) || 0,
+              bannerAd: parseFloat(pricing.bannerAd) || 0
+            };
+          });
+          console.log('✅ Loaded pricing:', productionState.pricing);
         }
       } catch (e) {
         // Silently handle error - pricing table may not exist yet in Supabase
