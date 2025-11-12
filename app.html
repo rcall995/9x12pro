@@ -409,7 +409,16 @@
 
             <!-- Campaign stats moved to Postcards & Activation tab -->
             <div class="grid grid-cols-1 gap-6">
-               
+
+                <!-- AUTO-POPULATE PROSPECTS SECTION (Kanban - moved above Tasks) -->
+                <div class="dashboard-widget">
+                    <h4 class="font-semibold mb-4 text-gray-800">Weekly Sales Activity (Kanban View)</h4>
+
+                    <div id="salesActivityContainer">
+                        <!-- Kanban columns dynamically populated -->
+                    </div>
+                </div>
+
                 <div class="dashboard-widget">
                     <div class="flex justify-between items-center mb-4">
                         <h4 class="font-semibold text-gray-800">Tasks Due & Renewal Nudges</h4>
@@ -420,15 +429,6 @@
                     <p id="overdueText" class="text-sm text-gray-500 mb-2">Loading...</p>
                     <div id="taskList" class="space-y-2 text-sm text-gray-700">
                         <!-- Tasks dynamically populated -->
-                    </div>
-                </div>
-
-                <!-- AUTO-POPULATE PROSPECTS SECTION -->
-                <div class="dashboard-widget">
-                    <h4 class="font-semibold mb-4 text-gray-800">Weekly Sales Activity (Kanban View)</h4>
-                   
-                    <div id="salesActivityContainer">
-                        <!-- Kanban columns dynamically populated -->
                     </div>
                 </div>
             </div>
@@ -6799,7 +6799,7 @@ Thanks!
           e.dataTransfer.dropEffect = 'move';
         };
 
-        col.ondrop = function(e) {
+        col.ondrop = async function(e) {
           e.preventDefault();
 
           if (!draggedItem) {
@@ -6836,13 +6836,21 @@ Thanks!
               kanbanState.columns[toColumn].push(itemToMove);
             }
 
-            // Track daily goal if moving FROM "To Contact" column
-            if (fromColumn === 'to-contact' && fromColumn !== toColumn) {
-              const businessName = typeof itemToMove === 'string' ? itemToMove : (itemToMove.businessName || 'Unnamed Lead');
+            // Track daily goal:
+            // INCREMENT when moving FROM "To Contact" to any other column
+            // DECREMENT when moving back TO "To Contact" from any other column
+            const businessName = typeof itemToMove === 'string' ? itemToMove : (itemToMove.businessName || 'Unnamed Lead');
+
+            if (fromColumn === 'to-contact' && toColumn !== 'to-contact') {
+              // Moving OUT of "To Contact" - increment
               incrementDailyGoal(businessName);
+            } else if (fromColumn !== 'to-contact' && toColumn === 'to-contact') {
+              // Moving back TO "To Contact" - decrement
+              decrementDailyGoal(businessName);
             }
 
-            saveKanban();
+            // IMPORTANT: await saveKanban before rendering to prevent race condition
+            await saveKanban();
             renderKanban();
 
             // Map column key to display title
@@ -7552,6 +7560,29 @@ Thanks!
       saveDailyGoalState();
       // NOTE: Don't call renderKanban() here - let the calling function handle it
       // This prevents double-render issues and race conditions
+    }
+
+    // Decrement daily outreach count (called when moving back TO "To Contact")
+    function decrementDailyGoal(businessName = '') {
+      checkAndResetDailyGoal(); // Always check for date change first
+
+      // Don't go below 0
+      if (dailyGoalState.todayCount > 0) {
+        dailyGoalState.todayCount--;
+      }
+
+      // Update today's history
+      const today = new Date().toDateString();
+      let todayRecord = dailyGoalState.history.find(h => h.date === today);
+      if (todayRecord) {
+        todayRecord.actual = dailyGoalState.todayCount;
+        // Remove last business entry if it exists
+        if (businessName && todayRecord.businesses.length > 0) {
+          todayRecord.businesses.pop();
+        }
+      }
+
+      saveDailyGoalState();
     }
 
     // Check if it's a new day and reset if needed
