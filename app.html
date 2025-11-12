@@ -9509,9 +9509,17 @@ Thanks!
           });
         }
 
-        // Balance is cumulative
-        currentBalance = parseFloat(trans.balance) || 0;
+        // Track balance - we'll use the latest (most recent) transaction's balance
+        const transBalance = parseFloat(trans.balance) || 0;
+        if (!currentBalance || transBalance > 0) {
+          currentBalance = transBalance;
+        }
       });
+
+      // Since transactions are sorted newest first, get the balance from the first transaction (most recent)
+      if (transactions.length > 0) {
+        currentBalance = parseFloat(transactions[0].balance) || 0;
+      }
 
       const netIncome = totalRevenue - totalExpenses;
 
