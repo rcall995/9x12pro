@@ -6725,6 +6725,9 @@ Thanks!
                   ${Math.round((dailyGoalState.todayCount / dailyGoalState.dailyGoal) * 100)}%
                 </div>
               </div>
+              <button onclick="resetDailyGoal()" class="px-4 py-2 bg-gray-500 text-white text-sm rounded hover:bg-gray-600 font-medium" title="Reset today's count to 0">
+                🔄 Reset
+              </button>
               <button onclick="openDailyGoalSettings()" class="px-4 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 font-medium" title="Change daily goal">
                 ⚙️ Settings
               </button>
@@ -7713,6 +7716,27 @@ Thanks!
       saveKanban();
       renderKanban();
       toast(`${businessName} marked as not interested`);
+    }
+
+    // Reset daily goal count to 0
+    function resetDailyGoal() {
+      if (!confirm('Reset today\'s outreach count to 0?\n\nThis will clear your progress for today but keep your goal and history.')) {
+        return;
+      }
+
+      dailyGoalState.todayCount = 0;
+
+      // Update today's history record if it exists
+      const today = new Date().toDateString();
+      let todayRecord = dailyGoalState.history.find(h => h.date === today);
+      if (todayRecord) {
+        todayRecord.actual = 0;
+        todayRecord.businesses = [];
+      }
+
+      saveDailyGoalState();
+      renderKanban();
+      toast('Daily count reset to 0');
     }
 
     // Open daily goal settings modal
