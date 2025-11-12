@@ -804,10 +804,15 @@
                 <!-- LEFT: New Campaign -->
                 <div class="border-2 border-green-500 p-4 rounded-lg bg-green-50 shadow-sm">
                     <div class="font-semibold mb-3 text-green-800 text-sm">New Campaign</div>
-                    <button onclick="openNewPostcardModal()" class="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-semibold text-sm shadow transition-all">
-                        + Create Postcard
-                    </button>
-                    <p class="text-xs text-gray-600 mt-2">Start a new mailing campaign</p>
+                    <div class="space-y-2">
+                        <button onclick="openNewPostcardModal()" class="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-semibold text-sm shadow transition-all">
+                            + Create Postcard
+                        </button>
+                        <button onclick="openDuplicatePostcardModal()" class="w-full px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 font-semibold text-sm shadow transition-all">
+                            📋 Duplicate Card
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-600 mt-2">Start or copy a campaign</p>
                 </div>
 
                 <!-- MIDDLE: Postcard Actions -->
@@ -816,13 +821,16 @@
 
                     <!-- Action Buttons in One Row -->
                     <div class="flex flex-wrap gap-2">
-                        <button id="btnEditStatusModal" onclick="openEditStatusModal()" class="flex-1 min-w-[120px] px-3 py-2 rounded bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-medium transition-all">
+                        <button id="btnEditStatusModal" onclick="openEditStatusModal()" class="flex-1 min-w-[100px] px-2 py-2 rounded bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-medium transition-all">
                             📝 Edit Status
                         </button>
-                        <button id="btnAdjustPostcard" class="flex-1 min-w-[120px] px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 text-xs font-medium transition-all">
+                        <button onclick="openPricingModal()" class="flex-1 min-w-[100px] px-2 py-2 rounded bg-purple-600 text-white hover:bg-purple-700 text-xs font-medium transition-all">
+                            💰 Set Pricing
+                        </button>
+                        <button id="btnAdjustPostcard" class="flex-1 min-w-[100px] px-2 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 text-xs font-medium transition-all">
                             🎨 Edit Colors
                         </button>
-                        <button onclick="deleteCurrentPostcard()" class="flex-1 min-w-[120px] px-3 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-xs font-medium transition-all">
+                        <button onclick="deleteCurrentPostcard()" class="flex-1 min-w-[100px] px-2 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-xs font-medium transition-all">
                             🗑️ Delete Card
                         </button>
                     </div>
@@ -1081,6 +1089,136 @@
     </div>
   </div>
   
+  <!-- Duplicate Postcard Modal -->
+  <div id="duplicatePostcardModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal" style="max-width: 600px;">
+      <h3 class="text-lg font-bold mb-4">Duplicate Postcard</h3>
+
+      <div class="space-y-4">
+        <!-- Select Source Postcard -->
+        <div class="p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <h4 class="font-semibold text-blue-900 mb-2">Select Postcard to Duplicate</h4>
+          <select id="duplicateSourcePostcard" class="border rounded-md p-2 w-full bg-white">
+            <option value="">— Select postcard —</option>
+          </select>
+        </div>
+
+        <!-- New Details -->
+        <div class="p-4 bg-orange-50 rounded-lg border border-orange-200">
+          <h4 class="font-semibold text-orange-900 mb-3">New Details (must change at least one)</h4>
+          <div class="space-y-3">
+            <div>
+              <label class="text-sm font-medium block mb-1">New Town (optional)</label>
+              <input id="duplicateTown" type="text" class="border rounded-md p-2 w-full" placeholder="Leave empty to keep same town" />
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-sm font-medium block mb-1">New Month (optional)</label>
+                <select id="duplicateMonth" class="border rounded-md p-2 w-full bg-white">
+                  <option value="">Keep same</option>
+                  <option value="01">January</option>
+                  <option value="02">February</option>
+                  <option value="03">March</option>
+                  <option value="04">April</option>
+                  <option value="05">May</option>
+                  <option value="06">June</option>
+                  <option value="07">July</option>
+                  <option value="08">August</option>
+                  <option value="09">September</option>
+                  <option value="10">October</option>
+                  <option value="11">November</option>
+                  <option value="12">December</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-sm font-medium block mb-1">New Year (optional)</label>
+                <input id="duplicateYear" type="number" class="border rounded-md p-2 w-full" placeholder="Keep same" />
+              </div>
+            </div>
+            <div>
+              <label class="text-sm font-medium block mb-1">New Size (optional)</label>
+              <select id="duplicateSize" class="border rounded-md p-2 w-full bg-white">
+                <option value="">Keep same</option>
+                <option value="9x12">9×12 (Standard)</option>
+                <option value="6.5x12">6.5×12 (Compact)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- What to Copy -->
+        <div class="p-4 bg-purple-50 rounded-lg border border-purple-200">
+          <h4 class="font-semibold text-purple-900 mb-2">What to Copy</h4>
+          <div class="space-y-2">
+            <label class="flex items-center gap-2">
+              <input type="checkbox" id="duplicateCopyAdvertisers" checked />
+              <span class="text-sm">Copy all advertisers (as "Reserved")</span>
+            </label>
+            <label class="flex items-center gap-2">
+              <input type="checkbox" id="duplicateCopyExpenses" checked />
+              <span class="text-sm">Copy expenses</span>
+            </label>
+            <label class="flex items-center gap-2">
+              <input type="checkbox" id="duplicateCopyPricing" checked />
+              <span class="text-sm">Copy pricing (single/double/banner costs)</span>
+            </label>
+            <label class="flex items-center gap-2">
+              <input type="checkbox" id="duplicateCopyColors" checked />
+              <span class="text-sm">Copy postcard & banner colors</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 mt-6">
+        <button id="btnCancelDuplicate" class="px-4 py-2 border rounded-md bg-gray-100 hover:bg-gray-200">Cancel</button>
+        <button id="btnCreateDuplicate" class="px-6 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 font-semibold">
+          Create Duplicate
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Set Pricing Modal -->
+  <div id="pricingModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal" style="max-width: 500px;">
+      <h3 class="text-lg font-bold mb-4">Set Ad Pricing</h3>
+
+      <div class="space-y-4">
+        <div class="bg-purple-50 rounded-lg p-4 border border-purple-200">
+          <p class="text-sm text-gray-700 mb-3">Set the price you charge clients for each ad type. This will auto-calculate revenue in your profit/loss card.</p>
+
+          <div class="space-y-3">
+            <div>
+              <label class="text-sm font-medium block mb-1">Single Ad Cost ($)</label>
+              <input id="pricingSingleAd" type="number" step="0.01" class="border rounded-md p-2 w-full" placeholder="e.g., 199.00" />
+            </div>
+            <div>
+              <label class="text-sm font-medium block mb-1">Double Ad Cost ($)</label>
+              <input id="pricingDoubleAd" type="number" step="0.01" class="border rounded-md p-2 w-full" placeholder="e.g., 349.00" />
+            </div>
+            <div>
+              <label class="text-sm font-medium block mb-1">Banner Ad Cost ($)</label>
+              <input id="pricingBannerAd" type="number" step="0.01" class="border rounded-md p-2 w-full" placeholder="e.g., 699.00" />
+            </div>
+          </div>
+        </div>
+
+        <div id="pricingPreview" class="bg-blue-50 rounded-lg p-3 border border-blue-200">
+          <div class="text-xs font-medium text-blue-900 mb-1">Current Postcard Revenue Preview:</div>
+          <div id="pricingPreviewText" class="text-sm text-gray-700">Select a postcard to see revenue</div>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 mt-6">
+        <button id="btnCancelPricing" class="px-4 py-2 border rounded-md bg-gray-100 hover:bg-gray-200">Cancel</button>
+        <button id="btnSavePricing" class="px-6 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 font-semibold">
+          Save Pricing
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Edit Status Modal (Legend + Sort) -->
   <div id="editStatusModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
     <div class="modal" style="max-width: 700px;">
@@ -2536,7 +2674,8 @@ Thanks!
     // PRODUCTION STATE (OLD - for expenses and spot pricing)
     const productionState = {
       expenses: {},
-      spotPricing: {}
+      spotPricing: {},
+      pricing: {} // Per-postcard pricing: { mailerId: { singleAd, doubleAd, bannerAd } }
     };
     
     const DEFAULT_SPOT_PRICE = 500;
@@ -7851,6 +7990,283 @@ Thanks!
       }
     }
 
+    /* ========= DUPLICATE POSTCARD MODAL ========= */
+    function openDuplicatePostcardModal() {
+      const modal = document.getElementById("duplicatePostcardModal");
+
+      // Populate source postcard dropdown
+      const sourceSelect = document.getElementById("duplicateSourcePostcard");
+      sourceSelect.innerHTML = '<option value="">— Select postcard —</option>' +
+        state.mailers.map((m, i) => {
+          let displayDate = m.Mail_Date || "";
+          if (/^\d{4}-\d{2}-\d{2}/.test(displayDate)) {
+            const [year, month] = displayDate.split('-');
+            const monthNames = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            displayDate = `${monthNames[parseInt(month)]} ${year}`;
+          }
+          const sizeLabel = m.Postcard_Size ? ` (${m.Postcard_Size})` : '';
+          return `<option value="${i}">${esc(m.Town)} — ${esc(displayDate)}${sizeLabel}</option>`;
+        }).join('');
+
+      modal.style.display = "flex";
+      modal.setAttribute('aria-hidden', 'false');
+      trapModalFocus(modal);
+    }
+
+    function closeDuplicatePostcardModal() {
+      const modal = document.getElementById("duplicatePostcardModal");
+      modal.style.display = "none";
+      modal.setAttribute('aria-hidden', 'true');
+      releaseModalFocus(modal);
+    }
+
+    async function createDuplicatePostcard() {
+      const sourceIndex = document.getElementById("duplicateSourcePostcard").value;
+      if (!sourceIndex) {
+        toast("Please select a postcard to duplicate", false);
+        return;
+      }
+
+      const sourcePostcard = state.mailers[parseInt(sourceIndex)];
+      const newTown = document.getElementById("duplicateTown").value.trim();
+      const newMonth = document.getElementById("duplicateMonth").value;
+      const newYear = document.getElementById("duplicateYear").value;
+      const newSize = document.getElementById("duplicateSize").value;
+
+      // Must change at least one thing
+      const isSameTown = !newTown || newTown === sourcePostcard.Town;
+      const isSameMonth = !newMonth || !newYear;
+      const isSameSize = !newSize || newSize === sourcePostcard.Postcard_Size;
+
+      if (isSameTown && isSameMonth && isSameSize) {
+        toast("You must change at least one: town, month/year, or size", false);
+        return;
+      }
+
+      const btn = document.getElementById('btnCreateDuplicate');
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Duplicating...';
+
+      try {
+        // Determine new values
+        const finalTown = newTown || sourcePostcard.Town;
+        const sourceDate = new Date(sourcePostcard.Mail_Date);
+        const finalMonth = newMonth ? newMonth.padStart(2, '0') : String(sourceDate.getMonth() + 1).padStart(2, '0');
+        const finalYear = newYear || sourceDate.getFullYear();
+        const finalSize = newSize || sourcePostcard.Postcard_Size || '9x12';
+
+        const mailDate = `${finalYear}-${finalMonth}-01`;
+        const mailerId = `${finalTown.replace(/\s+/g, '-')}-${finalMonth}-${finalYear}`;
+
+        // Check for duplicates
+        const duplicate = state.mailers.find(m => m.Mailer_ID === mailerId);
+        if (duplicate) {
+          toast("A postcard with this combination already exists!", false);
+          btn.disabled = false;
+          btn.innerHTML = originalText;
+          return;
+        }
+
+        // Create new postcard object
+        const newPostcard = {
+          Mailer_ID: mailerId,
+          Town: finalTown,
+          Mail_Date: mailDate,
+          In_Homes_Date: sourcePostcard.In_Homes_Date, // Can be edited later
+          Payment_Status: "Active",
+          Postcard_Size: finalSize,
+          availability: {},
+          Postcard_BG: document.getElementById("duplicateCopyColors").checked ? sourcePostcard.Postcard_BG : "#000000",
+          Banner_BG: document.getElementById("duplicateCopyColors").checked ? sourcePostcard.Banner_BG : "#000000"
+        };
+
+        // Initialize all spots as available
+        for (let i = 1; i <= 18; i++) {
+          newPostcard.availability[`Spot_${i}`] = "Available";
+        }
+
+        // Copy advertisers if checked
+        if (document.getElementById("duplicateCopyAdvertisers").checked) {
+          for (let i = 1; i <= 18; i++) {
+            const spotKey = `Spot_${i}`;
+            const raw = (sourcePostcard.availability || {})[spotKey] || "Available";
+            if (!/^available$/i.test(raw)) {
+              // Has an advertiser - copy as Reserved
+              const match = String(raw).match(/^(.+?)\s*:\s*(.*)$/);
+              if (match) {
+                const name = match[2].trim();
+                if (name) {
+                  newPostcard.availability[spotKey] = `Reserved:${name}`;
+                }
+              }
+            }
+          }
+        }
+
+        // Copy expenses if checked
+        if (document.getElementById("duplicateCopyExpenses").checked && productionState.expenses[sourcePostcard.Mailer_ID]) {
+          const sourceExpenses = productionState.expenses[sourcePostcard.Mailer_ID];
+          productionState.expenses[mailerId] = {
+            printing: sourceExpenses.printing || 0,
+            postage: sourceExpenses.postage || 0,
+            design: sourceExpenses.design || 0,
+            misc: sourceExpenses.misc || 0
+          };
+          await saveExpenses();
+        }
+
+        // Copy pricing if checked
+        if (document.getElementById("duplicateCopyPricing").checked && productionState.pricing[sourcePostcard.Mailer_ID]) {
+          const sourcePricing = productionState.pricing[sourcePostcard.Mailer_ID];
+          productionState.pricing[mailerId] = {
+            singleAd: sourcePricing.singleAd || 0,
+            doubleAd: sourcePricing.doubleAd || 0,
+            bannerAd: sourcePricing.bannerAd || 0
+          };
+          await savePricing();
+        }
+
+        // Add to state
+        state.mailers.push(newPostcard);
+
+        // Sort mailers
+        state.mailers = state.mailers.sort((a, b) => {
+          const dateA = a.Mail_Date || '';
+          const dateB = b.Mail_Date || '';
+          if (dateA !== dateB) {
+            return dateB.localeCompare(dateA);
+          }
+          const townA = (a.Town || '').toLowerCase();
+          const townB = (b.Town || '').toLowerCase();
+          return townA.localeCompare(townB);
+        });
+
+        // Repopulate selectors
+        rebuildPostcardSelectors();
+        populateTownAndMonthSelectors();
+
+        // Select new postcard
+        const newIndex = state.mailers.findIndex(m => m.Mailer_ID === mailerId);
+        selectPostcard(newIndex);
+        switchTab('manager');
+
+        // Save to cloud
+        await saveAllToCloud();
+
+        closeDuplicatePostcardModal();
+        toast(`✅ Duplicated postcard: ${finalTown} — ${finalMonth}/${finalYear}`);
+
+      } catch (error) {
+        console.error('Error duplicating postcard:', error);
+        toast('Failed to duplicate postcard', false);
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      }
+    }
+
+    /* ========= PRICING MODAL ========= */
+    async function loadPricing() {
+      try {
+        const cloudData = await loadFromCloud('pricing');
+        if (cloudData) {
+          productionState.pricing = cloudData;
+        }
+      } catch (e) {
+        console.error('Error loading pricing:', e);
+      }
+    }
+
+    async function savePricing() {
+      try {
+        await saveToCloud('pricing', productionState.pricing);
+      } catch (e) {
+        console.warn('Pricing saved locally only (cloud sync failed):', e);
+      }
+    }
+
+    function openPricingModal() {
+      if (!state.current) {
+        toast('Please select a postcard first', false);
+        return;
+      }
+
+      const modal = document.getElementById("pricingModal");
+      const mailerId = state.current.Mailer_ID;
+
+      // Load existing pricing for this postcard
+      const pricing = productionState.pricing[mailerId] || { singleAd: 0, doubleAd: 0, bannerAd: 0 };
+
+      document.getElementById("pricingSingleAd").value = pricing.singleAd || '';
+      document.getElementById("pricingDoubleAd").value = pricing.doubleAd || '';
+      document.getElementById("pricingBannerAd").value = pricing.bannerAd || '';
+
+      updatePricingPreview();
+
+      modal.style.display = "flex";
+      modal.setAttribute('aria-hidden', 'false');
+      trapModalFocus(modal);
+    }
+
+    function closePricingModal() {
+      const modal = document.getElementById("pricingModal");
+      modal.style.display = "none";
+      modal.setAttribute('aria-hidden', 'true');
+      releaseModalFocus(modal);
+    }
+
+    function updatePricingPreview() {
+      if (!state.current) return;
+
+      const singleAd = parseFloat(document.getElementById("pricingSingleAd").value) || 0;
+      const doubleAd = parseFloat(document.getElementById("pricingDoubleAd").value) || 0;
+      const bannerAd = parseFloat(document.getElementById("pricingBannerAd").value) || 0;
+
+      // Count ads: singles (1 spot), doubles (2 spots), banner (4 spots in center)
+      let singleCount = 0, doubleCount = 0, bannerCount = 0;
+
+      for (let i = 1; i <= 18; i++) {
+        const spotKey = `Spot_${i}`;
+        const raw = (state.current.availability || {})[spotKey] || "Available";
+        if (!/^available$/i.test(raw)) {
+          // Occupied spot
+          if (i === 13 || i === 14) {
+            // Check if merged banner
+            if (state.merged.has(keyPair(13, 14))) {
+              if (i === 13) bannerCount++;
+              continue;
+            }
+          }
+          // For now, count all as singles (improve logic later if needed)
+          singleCount++;
+        }
+      }
+
+      const revenue = (singleCount * singleAd) + (doubleCount * doubleAd) + (bannerCount * bannerAd);
+
+      document.getElementById("pricingPreviewText").textContent =
+        `${singleCount} singles + ${doubleCount} doubles + ${bannerCount} banners = $${revenue.toFixed(2)} revenue`;
+    }
+
+    async function savePricingModal() {
+      if (!state.current) return;
+
+      const mailerId = state.current.Mailer_ID;
+      const singleAd = parseFloat(document.getElementById("pricingSingleAd").value) || 0;
+      const doubleAd = parseFloat(document.getElementById("pricingDoubleAd").value) || 0;
+      const bannerAd = parseFloat(document.getElementById("pricingBannerAd").value) || 0;
+
+      productionState.pricing[mailerId] = { singleAd, doubleAd, bannerAd };
+
+      await savePricing();
+
+      closePricingModal();
+      toast('Pricing saved');
+
+      // Refresh financials display
+      renderCardsInProgress();
+    }
+
     function toggleTownInput() {
       const isNew = document.querySelector('input[name="townOption"][value="new"]').checked;
       document.getElementById("newPostcardTownSelect").disabled = isNew;
@@ -8367,6 +8783,7 @@ Thanks!
       // Load all state from cloud (with localStorage fallback)
       Promise.allSettled([
         loadExpenses(),
+        loadPricing(),
         loadClients(),
         loadKanban(),
         loadTasks(),
@@ -8462,7 +8879,18 @@ Thanks!
       document.getElementById("btnAdjustPostcard").onclick = openPostcardModal;
       document.getElementById("btnCancelEditStatus").onclick = closeEditStatusModal;
       document.getElementById("btnSaveEditStatus").onclick = saveEditStatusModal;
-      
+
+      // Duplicate modal
+      document.getElementById("btnCancelDuplicate").onclick = closeDuplicatePostcardModal;
+      document.getElementById("btnCreateDuplicate").onclick = createDuplicatePostcard;
+
+      // Pricing modal
+      document.getElementById("btnCancelPricing").onclick = closePricingModal;
+      document.getElementById("btnSavePricing").onclick = savePricingModal;
+      ["pricingSingleAd", "pricingDoubleAd", "pricingBannerAd"].forEach(id => {
+        document.getElementById(id).addEventListener('input', updatePricingPreview);
+      });
+
       // Expense modal
       document.getElementById("btnCancelExpense").onclick = closeExpenseModal;
       document.getElementById("btnSaveExpense").onclick = saveExpenseModal;
@@ -8862,6 +9290,7 @@ Thanks!
     /* ========= LEGEND & SORT ========= */
     function renderLegend(){
       const grid = document.getElementById("legendGrid");
+      if (!grid) return; // Legend moved to Edit Status modal
       grid.innerHTML = "";
       const visibleSorted = sortOrder.filter(st => visibleStatuses.includes(st));
       visibleSorted.forEach(st => {
