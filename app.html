@@ -4,6 +4,10 @@
   <meta charset="UTF-8" />
   <title>9x12 Pro - Community Card Management</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- VERSION: 2025-01-13-v2 CACHE BUSTER -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Google Maps API callback must be defined BEFORE script loads -->
   <script>
@@ -2638,7 +2642,10 @@ Thanks!
     const keyPair = (a,b)=>[Math.min(a,b),Math.max(a,b)].join("-");
     const isValidPair=(a,b)=>PAIRS.some(([x,y])=>x===Math.min(a,b)&&y===Math.max(a,b));
     const mateOf = n => { for (const [a,b] of PAIRS) { if (a===n) return b; if (b===n) return a; } return null; };
-    
+
+    // VERSION CHECK - If you don't see this in console, you're viewing cached HTML
+    console.log('🔥 APP VERSION: 2025-01-13-v2 - Campaign Selection Fix + Pricing Debug');
+
     const state = {
       mailers: [],
       current: null,
@@ -2912,9 +2919,19 @@ Thanks!
         const priceKey = `${mailerId}-Spot_${i}`;
         const customSpotPrice = productionState.spotPricing[priceKey];
 
+        // Debug pricing lookup for first spot only
+        if (i === 1) {
+          console.log('🔍 PRICING DEBUG for Spot 1:');
+          console.log('  priceKey:', priceKey);
+          console.log('  customSpotPrice:', customSpotPrice);
+          console.log('  pricing object:', pricing);
+          console.log('  spotPricing keys:', Object.keys(productionState.spotPricing).slice(0, 5));
+        }
+
         if (customSpotPrice !== undefined && customSpotPrice !== null && customSpotPrice > 0) {
           // Use manually set price
           price = parseFloat(customSpotPrice);
+          if (i === 1) console.log('  ✅ Using custom spot price:', price);
         } else if (pricing) {
           // Use Set Pricing defaults
           if (isMerged) {
@@ -2926,9 +2943,11 @@ Thanks!
           } else {
             price = parseFloat(pricing.singleAd) || DEFAULT_SPOT_PRICE;
           }
+          if (i === 1) console.log('  ✅ Using Set Pricing:', price, '(isMerged:', isMerged, ')');
         } else {
           // Fallback if nothing is set
           price = DEFAULT_SPOT_PRICE;
+          if (i === 1) console.log('  ⚠️ Using default price:', price);
         }
 
         // Only count revenue if spot has a business name entered
@@ -9770,9 +9789,9 @@ Thanks!
     }
     
     /* ========= LOAD CAMPAIGNS ========= */
-    async function loadCampaigns() {
+    async function loadCampaigns(restoreMailerId = null) {
       try {
-        console.log('📥 LOADING FROM SUPABASE for user:', ACTIVE_USER);
+        console.log('📥 LOADING FROM SUPABASE for user:', ACTIVE_USER, 'restoreMailerId:', restoreMailerId);
 
         const { data, error } = await supabaseClient
           .from('postcards')
@@ -9817,7 +9836,7 @@ Thanks!
           Spot_18: postcard.spot_18
         }));
 
-        onCampaignsLoaded(mailers);
+        onCampaignsLoaded(mailers, restoreMailerId);
       } catch (err) {
         console.error('Failed to load campaigns from Supabase:', err);
         toast("⚠️ Failed to load campaigns. Please refresh.", false);
@@ -9834,7 +9853,7 @@ Thanks!
       document.head.appendChild(s);
     }
     
-    function onCampaignsLoaded(res){
+    function onCampaignsLoaded(res, restoreMailerId = null){
       // Backend returns array directly, not wrapped in {mailers: []}
       let mailers = Array.isArray(res) ? res : (res && res.mailers) ? res.mailers : [];
 
@@ -9896,22 +9915,54 @@ Thanks!
 
       renderAll();
 
-      // Auto-select the most recent postcard (last in array)
-      if (mailers.length > 0) {
-        const mostRecentIndex = mailers.length - 1;
-        if (selManager) selManager.value = mostRecentIndex.toString();
+      // Determine which postcard to select
+      let selectedIndex = -1;
 
-        // Set town and month selectors to match the most recent postcard
-        const mostRecent = mailers[mostRecentIndex];
+      // If restoring a specific campaign, find it by Mailer_ID
+      let mailerIdToRestore = restoreMailerId;
+
+      // If no restoreMailerId provided, check localStorage (for page refresh)
+      if (!mailerIdToRestore) {
+        const savedMailerId = safeGetItem('mailslot-selectedMailerId');
+        if (savedMailerId) {
+          mailerIdToRestore = savedMailerId;
+          console.log('📂 Found saved campaign in localStorage:', savedMailerId);
+        }
+      }
+
+      if (mailerIdToRestore) {
+        console.log('🔍 Looking for mailer_id:', mailerIdToRestore, 'type:', typeof mailerIdToRestore);
+        console.log('🔍 Available mailer_ids:', mailers.map(m => ({id: m.Mailer_ID, type: typeof m.Mailer_ID, town: m.Town})));
+
+        // Try both strict and loose comparison in case of type mismatch
+        selectedIndex = mailers.findIndex(m => m.Mailer_ID === mailerIdToRestore || m.Mailer_ID == mailerIdToRestore);
+
+        if (selectedIndex !== -1) {
+          console.log('📌 Restoring campaign:', mailers[selectedIndex].Town, mailers[selectedIndex].Mail_Date);
+        } else {
+          console.warn('⚠️ Could not find campaign with mailer_id:', mailerIdToRestore);
+        }
+      }
+
+      // If not found or no restore ID, auto-select the most recent postcard (last in array)
+      if (selectedIndex === -1 && mailers.length > 0) {
+        selectedIndex = mailers.length - 1;
+      }
+
+      if (selectedIndex !== -1) {
+        if (selManager) selManager.value = selectedIndex.toString();
+
+        // Set town and month selectors to match the selected postcard
+        const selected = mailers[selectedIndex];
         const townSelect = document.getElementById("headerTownSelect");
         const monthSelect = document.getElementById("headerMonthSelect");
-        if (townSelect && mostRecent.Town) {
-          townSelect.value = mostRecent.Town;
-          populateMonthsForTown(mostRecent.Town); // Populate month dropdown without triggering events
-          if (monthSelect && mostRecent.Mail_Date) monthSelect.value = mostRecent.Mail_Date;
+        if (townSelect && selected.Town) {
+          townSelect.value = selected.Town;
+          populateMonthsForTown(selected.Town); // Populate month dropdown without triggering events
+          if (monthSelect && selected.Mail_Date) monthSelect.value = selected.Mail_Date;
         }
 
-        pickCampaign({ target: { value: mostRecentIndex.toString() } });
+        pickCampaign({ target: { value: selectedIndex.toString() } });
       }
 
       // Render cards in progress on dashboard
@@ -10081,10 +10132,17 @@ Thanks!
         state.dirty = false;
         renderAll();
         updateFinancialDashboard();
+        // Clear localStorage selection
+        safeRemoveItem('mailslot-selectedMailerId');
         return;
       }
       const m = state.mailers[i];
       state.current = m;
+
+      // Save selected campaign to localStorage for page refresh persistence
+      if (m.Mailer_ID) {
+        safeSetItem('mailslot-selectedMailerId', m.Mailer_ID);
+      }
       state.availability = {};
       state.initial = {};
       state.merged.clear();
@@ -11381,8 +11439,10 @@ Thanks!
         updateToolbar();
         updateAutoSaveStatus();
 
-        // Reload campaigns to get fresh data
-        setTimeout(() => loadCampaigns(), 500);
+        // Reload campaigns to get fresh data, preserving current selection
+        const currentMailerId = state.current?.Mailer_ID;
+        console.log('💾 Saving complete. Will restore mailer_id:', currentMailerId, 'type:', typeof currentMailerId);
+        setTimeout(() => loadCampaigns(currentMailerId), 500);
 
       } catch (err) {
         console.error("Failed to save to cloud:", err);
