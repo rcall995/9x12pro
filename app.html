@@ -10452,8 +10452,27 @@ Thanks!
       if (state.current && spots.length > 0 && longStatus !== "Available") {
         const spotNum = spots[0];
         const priceKey = `${state.current.Mailer_ID}-Spot_${spotNum}`;
-        const price = productionState.spotPricing[priceKey] || DEFAULT_SPOT_PRICE;
-        
+        const customSpotPrice = productionState.spotPricing[priceKey];
+        const pricing = productionState.pricing[state.current.Mailer_ID];
+
+        // Use same 3-step pricing logic as calculateFinancials
+        let price;
+        if (customSpotPrice !== undefined && customSpotPrice !== null && customSpotPrice > 0) {
+          // 1. Custom spot price (manually set)
+          price = parseFloat(customSpotPrice);
+        } else if (pricing) {
+          // 2. Set Pricing (singleAd/doubleAd/bannerAd)
+          const isMerged = spots.length > 1;
+          if (isMerged) {
+            price = parseFloat(pricing.doubleAd) || DEFAULT_SPOT_PRICE;
+          } else {
+            price = parseFloat(pricing.singleAd) || DEFAULT_SPOT_PRICE;
+          }
+        } else {
+          // 3. Fallback default
+          price = DEFAULT_SPOT_PRICE;
+        }
+
         const priceBadge = createTextNodeTag('div', formatCurrency(price), 'price-badge');
         el.appendChild(priceBadge);
       }
