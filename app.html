@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <title>9x12 Pro - Community Card Management</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- VERSION: 2025-01-13-v10 CACHE BUSTER -->
+  <!-- VERSION: 2025-01-13-v11 CACHE BUSTER -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
@@ -437,9 +437,16 @@
 
                 <!-- AUTO-POPULATE PROSPECTS SECTION (Kanban - moved above Tasks) -->
                 <div class="dashboard-widget">
-                    <h4 class="font-semibold mb-4 text-gray-800">Weekly Sales Activity (Kanban View)</h4>
+                    <div class="flex justify-between items-center mb-4 cursor-pointer" onclick="toggleSalesActivity()">
+                        <h4 class="font-semibold text-gray-800">Weekly Sales Activity (Kanban View)</h4>
+                        <button class="text-gray-600 hover:text-gray-900 transition-colors">
+                            <svg id="salesActivityToggleIcon" class="w-5 h-5 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </button>
+                    </div>
 
-                    <div id="salesActivityContainer">
+                    <div id="salesActivityContainer" class="transition-all duration-300 ease-in-out overflow-hidden">
                         <!-- Kanban columns dynamically populated -->
                     </div>
                 </div>
@@ -2644,7 +2651,7 @@ Thanks!
     const mateOf = n => { for (const [a,b] of PAIRS) { if (a===n) return b; if (b===n) return a; } return null; };
 
     // VERSION CHECK - If you don't see this in console, you're viewing cached HTML
-    console.log('🔥 APP VERSION: 2025-01-13-v10 - Clean Invalid Spot Pricing Data');
+    console.log('🔥 APP VERSION: 2025-01-13-v11 - Add Weekly Sales Activity Collapse');
 
     const state = {
       mailers: [],
@@ -7843,6 +7850,48 @@ Thanks!
       }
     }
 
+    /* ========= SALES ACTIVITY TOGGLE ========= */
+    function toggleSalesActivity() {
+      const container = document.getElementById('salesActivityContainer');
+      const icon = document.getElementById('salesActivityToggleIcon');
+
+      if (container.style.maxHeight && container.style.maxHeight !== '0px') {
+        // Collapse
+        container.style.maxHeight = '0px';
+        container.style.marginBottom = '0px';
+        icon.style.transform = 'rotate(-90deg)';
+        safeSetItem('salesActivityCollapsed', 'true');
+      } else {
+        // Expand
+        container.style.maxHeight = container.scrollHeight + 'px';
+        container.style.marginBottom = '';
+        icon.style.transform = 'rotate(0deg)';
+        safeSetItem('salesActivityCollapsed', 'false');
+
+        // Remove max-height after transition so content can grow dynamically
+        setTimeout(() => {
+          if (container.style.maxHeight !== '0px') {
+            container.style.maxHeight = 'none';
+          }
+        }, 300);
+      }
+    }
+
+    // Initialize sales activity state on page load
+    function initSalesActivityState() {
+      const container = document.getElementById('salesActivityContainer');
+      const icon = document.getElementById('salesActivityToggleIcon');
+      const isCollapsed = safeGetItem('salesActivityCollapsed') === 'true';
+
+      if (isCollapsed) {
+        container.style.maxHeight = '0px';
+        container.style.marginBottom = '0px';
+        icon.style.transform = 'rotate(-90deg)';
+      } else {
+        container.style.maxHeight = 'none';
+      }
+    }
+
     /* ========= TASK MANAGEMENT CRUD ========= */
     function openTaskModal(taskId = null) {
       const modal = document.getElementById("taskModal");
@@ -9649,6 +9698,9 @@ Thanks!
       } catch(e) {}
       updateAutoSaveStatus(); // Initialize auto-save status indicator
       updateQuickApiUsage(); // Initialize API usage display in prospecting section
+
+      // Initialize sales activity collapse state
+      initSalesActivityState();
 
       // Restore last active tab, or default to pipeline
       const lastTab = localStorage.getItem('9x12_active_tab') || 'pipeline';
