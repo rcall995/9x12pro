@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <title>9x12 Pro - Community Card Management</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- VERSION: 2025-01-13-v9 CACHE BUSTER -->
+  <!-- VERSION: 2025-01-13-v10 CACHE BUSTER -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
@@ -2644,7 +2644,7 @@ Thanks!
     const mateOf = n => { for (const [a,b] of PAIRS) { if (a===n) return b; if (b===n) return a; } return null; };
 
     // VERSION CHECK - If you don't see this in console, you're viewing cached HTML
-    console.log('🔥 APP VERSION: 2025-01-13-v9 - Fix Spot Pricing Case Consistency');
+    console.log('🔥 APP VERSION: 2025-01-13-v10 - Clean Invalid Spot Pricing Data');
 
     const state = {
       mailers: [],
@@ -8912,22 +8912,49 @@ Thanks!
         console.log('💰 [LOAD SPOT PRICING] Cloud data received:', cloudData ? 'YES' : 'NO');
         if (cloudData) {
           const keys = Object.keys(cloudData);
-          console.log('💰 [LOAD SPOT PRICING] Found', keys.length, 'spot prices');
+          console.log('💰 [LOAD SPOT PRICING] Found', keys.length, 'entries in cloud data');
           console.log('💰 [LOAD SPOT PRICING] Sample keys (raw):', keys.slice(0, 3));
-          console.log('💰 [LOAD SPOT PRICING] Sample values:', keys.slice(0, 3).map(k => `${k}: ${cloudData[k]}`));
 
-          // Normalize all keys to uppercase and ensure all pricing values are numbers
+          // Clean and normalize: only load valid spot pricing (numeric values with SPOT_ in key)
+          // This filters out any Set Pricing data that got mixed in
           productionState.spotPricing = {};
+          let skippedCount = 0;
+
           Object.keys(cloudData).forEach(key => {
+            const value = cloudData[key];
             const normalizedKey = key.toUpperCase();
-            productionState.spotPricing[normalizedKey] = parseFloat(cloudData[key]) || 0;
-            if (normalizedKey !== key) {
-              console.log('💰 [LOAD SPOT PRICING] Normalized key:', key, '→', normalizedKey);
+
+            // Skip if value is an object (Set Pricing data) or not a valid number
+            if (typeof value === 'object') {
+              console.log('💰 [LOAD SPOT PRICING] ⚠️ Skipping invalid entry (object):', key);
+              skippedCount++;
+              return;
+            }
+
+            const numValue = parseFloat(value);
+            if (isNaN(numValue)) {
+              console.log('💰 [LOAD SPOT PRICING] ⚠️ Skipping invalid entry (not a number):', key, '=', value);
+              skippedCount++;
+              return;
+            }
+
+            // Only load entries that look like spot pricing (contain SPOT_) or are explicitly 0
+            if (normalizedKey.includes('SPOT_') || numValue === 0) {
+              productionState.spotPricing[normalizedKey] = numValue;
+              if (normalizedKey !== key) {
+                console.log('💰 [LOAD SPOT PRICING] Normalized key:', key, '→', normalizedKey);
+              }
+            } else {
+              console.log('💰 [LOAD SPOT PRICING] ⚠️ Skipping non-spot entry:', key, '=', value);
+              skippedCount++;
             }
           });
 
-          console.log('💰 [LOAD SPOT PRICING] Loaded into productionState.spotPricing:', Object.keys(productionState.spotPricing).length, 'prices');
-          console.log('💰 [LOAD SPOT PRICING] Sample normalized keys:', Object.keys(productionState.spotPricing).slice(0, 5));
+          console.log('💰 [LOAD SPOT PRICING] ✅ Loaded', Object.keys(productionState.spotPricing).length, 'valid spot prices');
+          if (skippedCount > 0) {
+            console.log('💰 [LOAD SPOT PRICING] ⚠️ Skipped', skippedCount, 'invalid entries');
+          }
+          console.log('💰 [LOAD SPOT PRICING] Sample loaded keys:', Object.keys(productionState.spotPricing).slice(0, 5));
         } else {
           console.log('💰 [LOAD SPOT PRICING] No cloud data found, starting fresh');
         }
