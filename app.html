@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <title>9x12 Pro - Community Card Management</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- VERSION: 2025-01-13-v15 CACHE BUSTER -->
+  <!-- VERSION: 2025-01-13-v16 CACHE BUSTER -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
@@ -1073,6 +1073,7 @@
               <select id="duplicateSize" class="border rounded-md p-2 w-full bg-white">
                 <option value="">Keep same</option>
                 <option value="9x12">9×12</option>
+                <option value="6x12">6.5×12</option>
               </select>
             </div>
           </div>
@@ -2109,6 +2110,7 @@
             <label class="text-sm font-medium block mb-1">Format</label>
             <select id="newPostcardSize" class="border rounded-md p-2 w-full bg-white">
               <option value="9x12">9×12 (12" wide × 9" tall)</option>
+              <option value="6x12">6.5×12 (12" wide × 6.5" tall)</option>
             </select>
           </div>
         </div>
@@ -2712,7 +2714,7 @@ Thanks!
     const mateOf = n => { for (const [a,b] of PAIRS) { if (a===n) return b; if (b===n) return a; } return null; };
 
     // VERSION CHECK - If you don't see this in console, you're viewing cached HTML
-    console.log('🔥 APP VERSION: 2025-01-13-v15 - Sync Set Pricing to Calculator');
+    console.log('🔥 APP VERSION: 2025-01-13-v16 - Add 6.5×12 Postcard Size Option');
 
     const state = {
       mailers: [],
