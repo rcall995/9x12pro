@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <title>9x12 Pro - Community Card Management</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- VERSION: 2025-01-13-v6 CACHE BUSTER -->
+  <!-- VERSION: 2025-01-13-v7 CACHE BUSTER -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
@@ -8901,25 +8901,44 @@ Thanks!
     async function loadSpotPricing() {
       try {
         const cloudData = await loadFromCloud('spotPricing');
+        console.log('💰 [LOAD SPOT PRICING] Cloud data received:', cloudData ? 'YES' : 'NO');
         if (cloudData) {
+          const keys = Object.keys(cloudData);
+          console.log('💰 [LOAD SPOT PRICING] Found', keys.length, 'spot prices');
+          console.log('💰 [LOAD SPOT PRICING] Sample keys:', keys.slice(0, 3));
+          console.log('💰 [LOAD SPOT PRICING] Sample values:', keys.slice(0, 3).map(k => `${k}: ${cloudData[k]}`));
+
           // Ensure all pricing values are numbers, not strings
           productionState.spotPricing = {};
           Object.keys(cloudData).forEach(key => {
             productionState.spotPricing[key] = parseFloat(cloudData[key]) || 0;
           });
+
+          console.log('💰 [LOAD SPOT PRICING] Loaded into productionState.spotPricing:', Object.keys(productionState.spotPricing).length, 'prices');
+        } else {
+          console.log('💰 [LOAD SPOT PRICING] No cloud data found, starting fresh');
         }
       } catch (e) {
-        console.log('Spot pricing not available (using new pricing system)');
+        console.log('💰 [LOAD SPOT PRICING] Error:', e.message);
       }
     }
 
     async function saveSpotPricing() {
       try {
+        const keys = Object.keys(productionState.spotPricing);
+        console.log('💾 [SAVE SPOT PRICING] Saving', keys.length, 'spot prices to cloud');
+        console.log('💾 [SAVE SPOT PRICING] Sample keys:', keys.slice(0, 3));
+        console.log('💾 [SAVE SPOT PRICING] Sample values:', keys.slice(0, 3).map(k => `${k}: ${productionState.spotPricing[k]}`));
+        console.log('💾 [SAVE SPOT PRICING] Full data being saved:', JSON.stringify(productionState.spotPricing).substring(0, 200) + '...');
+
         await saveToCloud('spotPricing', productionState.spotPricing);
+
+        console.log('💾 [SAVE SPOT PRICING] ✅ Successfully saved to cloud');
+
         // Also save to localStorage as backup
         safeSetItem('mailslot-pricing', JSON.stringify(productionState.spotPricing));
       } catch (e) {
-        console.error('Failed to save spot pricing:', e);
+        console.error('💾 [SAVE SPOT PRICING] ❌ Failed to save:', e);
       }
     }
 
