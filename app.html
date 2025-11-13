@@ -2903,10 +2903,20 @@ Thanks!
           continue;
         }
 
-        // Determine price based on new pricing system or fall back to old
+        // Determine price with correct precedence:
+        // 1. FIRST check for per-spot custom pricing (takes precedence)
+        // 2. Then use new pricing system (singleAd/doubleAd/bannerAd)
+        // 3. Finally fall back to DEFAULT_SPOT_PRICE
         let price;
-        if (pricing) {
-          // New pricing system
+        const priceKey = `${mailerId}-Spot_${i}`;
+        const customSpotPrice = productionState.spotPricing[priceKey];
+
+        if (customSpotPrice !== undefined && customSpotPrice !== null) {
+          // Use per-spot custom pricing if it exists
+          price = parseFloat(customSpotPrice) || DEFAULT_SPOT_PRICE;
+          console.log(`  💵 Using custom price for Spot ${i}: $${price}`);
+        } else if (pricing) {
+          // Use new pricing system (standard prices)
           if (isMerged) {
             // Check if it's a banner (spots 13-14 merged)
             if ((i === 13 || i === 14) && mate && (mate === 13 || mate === 14)) {
@@ -2921,10 +2931,11 @@ Thanks!
           }
           // Ensure price is a number
           price = parseFloat(price) || DEFAULT_SPOT_PRICE;
+          console.log(`  💵 Using standard price for Spot ${i}: $${price} (${isMerged ? 'double' : 'single'})`);
         } else {
-          // Fall back to old per-spot pricing system
-          const priceKey = `${mailerId}-Spot_${i}`;
-          price = parseFloat(productionState.spotPricing[priceKey]) || DEFAULT_SPOT_PRICE;
+          // No pricing data at all - use default
+          price = DEFAULT_SPOT_PRICE;
+          console.log(`  💵 Using DEFAULT price for Spot ${i}: $${price}`);
         }
 
         // Only count revenue if spot has a business name entered
@@ -8853,6 +8864,34 @@ Thanks!
       }
     }
 
+    /* ========= SPOT PRICING (PER-SPOT CUSTOM PRICES) ========= */
+    async function loadSpotPricing() {
+      try {
+        const cloudData = await loadFromCloud('spotPricing');
+        if (cloudData) {
+          // Ensure all pricing values are numbers, not strings
+          productionState.spotPricing = {};
+          Object.keys(cloudData).forEach(key => {
+            productionState.spotPricing[key] = parseFloat(cloudData[key]) || 0;
+          });
+          console.log('✅ Loaded spot pricing:', productionState.spotPricing);
+        }
+      } catch (e) {
+        console.log('Spot pricing not available (using new pricing system)');
+      }
+    }
+
+    async function saveSpotPricing() {
+      try {
+        await saveToCloud('spotPricing', productionState.spotPricing);
+        // Also save to localStorage as backup
+        safeSetItem('mailslot-pricing', JSON.stringify(productionState.spotPricing));
+        console.log('✅ Saved spot pricing to cloud');
+      } catch (e) {
+        console.error('Failed to save spot pricing:', e);
+      }
+    }
+
     function openPricingModal() {
       if (!state.current) {
         toast('Please select a postcard first', false);
@@ -9468,6 +9507,7 @@ Thanks!
       Promise.allSettled([
         loadExpenses(),
         loadPricing(),
+        loadSpotPricing(),
         loadClients(),
         loadKanban(),
         loadTasks(),
@@ -9506,10 +9546,16 @@ Thanks!
         console.error('Failed to load prospect cache:', e);
       });
 
-      // Load pricing (can stay local for now)
+      // Load spot pricing from localStorage as fallback (cloud load happens earlier)
+      // This will be used if cloud sync fails or for migration
       try {
         const savedPricing = safeGetItem('mailslot-pricing');
-        if (savedPricing) productionState.spotPricing = JSON.parse(savedPricing);
+        if (savedPricing && Object.keys(productionState.spotPricing).length === 0) {
+          productionState.spotPricing = JSON.parse(savedPricing);
+          console.log('📦 Loaded spot pricing from localStorage (fallback)');
+          // Migrate to cloud if we loaded from localStorage
+          saveSpotPricing().then(() => console.log('✅ Migrated spot pricing to cloud'));
+        }
       } catch(e) {}
       updateAutoSaveStatus(); // Initialize auto-save status indicator
       updateQuickApiUsage(); // Initialize API usage display in prospecting section
@@ -10678,22 +10724,23 @@ Thanks!
       }
     }
     
-    function applyEditModal(){
+    async function applyEditModal(){
       const nameRaw = document.getElementById("editName").value;
       const name = String(nameRaw || "").replace(/\s+/g,' ').trim();
       const short = document.getElementById("editStatus").value;
       const long = toLongLabel(short);
       const price = parseFloat(document.getElementById("editPrice").value) || DEFAULT_SPOT_PRICE;
       const selectedClientId = document.getElementById('editClient').value;
-      
+
       const sel = [...state.selected].sort((a,b)=>a-b);
-      
+
       sel.forEach(spotNum => {
         const priceKey = `${state.current.Mailer_ID}-Spot_${spotNum}`;
         productionState.spotPricing[priceKey] = price;
       });
 
-      safeSetItem('mailslot-pricing', JSON.stringify(productionState.spotPricing));
+      // Save spot pricing to cloud (also saves to localStorage as backup)
+      await saveSpotPricing();
       
       if (sel.length === 2){
         const [a,b] = sel;
