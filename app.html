@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <title>9x12 Pro - Community Card Management</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- VERSION: 2025-01-13-v4 CACHE BUSTER -->
+  <!-- VERSION: 2025-01-13-v5 CACHE BUSTER -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
@@ -2644,7 +2644,7 @@ Thanks!
     const mateOf = n => { for (const [a,b] of PAIRS) { if (a===n) return b; if (b===n) return a; } return null; };
 
     // VERSION CHECK - If you don't see this in console, you're viewing cached HTML
-    console.log('🔥 APP VERSION: 2025-01-13-v4 - Campaign Selection + Pricing + Fix Misleading Save Message');
+    console.log('🔥 APP VERSION: 2025-01-13-v5 - Campaign Selection + Pricing + Remove Pending Count');
 
     const state = {
       mailers: [],
@@ -11187,16 +11187,8 @@ Thanks!
         textSpan.textContent = 'Saving...';
         saveBtn.classList.add('hidden');
       } else if (state.dirty) {
-        // Has unsaved changes
-        let changeCount = 0;
-        try {
-          changeCount = Object.keys(buildAvailabilityPayload()).length;
-        } catch(e) {
-          changeCount = 1; // Fallback if function doesn't exist yet
-        }
-        statusDiv.className = 'flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-orange-50 border border-orange-300 text-orange-700';
-        iconSpan.textContent = '⚠️';
-        textSpan.textContent = `${changeCount} pending`;
+        // Has unsaved changes - hide status, show manual save button
+        statusDiv.style.display = 'none';
         saveBtn.classList.remove('hidden');
       } else {
         // All saved
