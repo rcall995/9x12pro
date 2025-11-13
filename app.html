@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <title>9x12 Pro - Community Card Management</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- VERSION: 2025-01-13-v11 CACHE BUSTER -->
+  <!-- VERSION: 2025-01-13-v12 CACHE BUSTER -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
@@ -446,7 +446,13 @@
                         </button>
                     </div>
 
-                    <div id="salesActivityContainer" class="transition-all duration-300 ease-in-out overflow-hidden">
+                    <!-- Daily Goal Progress - always visible -->
+                    <div id="dailyGoalContainer">
+                        <!-- Daily goal dynamically populated -->
+                    </div>
+
+                    <!-- Collapsible Kanban Columns -->
+                    <div id="salesActivityKanbanColumns" class="transition-all duration-300 ease-in-out overflow-hidden">
                         <!-- Kanban columns dynamically populated -->
                     </div>
                 </div>
@@ -2651,7 +2657,7 @@ Thanks!
     const mateOf = n => { for (const [a,b] of PAIRS) { if (a===n) return b; if (b===n) return a; } return null; };
 
     // VERSION CHECK - If you don't see this in console, you're viewing cached HTML
-    console.log('🔥 APP VERSION: 2025-01-13-v11 - Add Weekly Sales Activity Collapse');
+    console.log('🔥 APP VERSION: 2025-01-13-v12 - Keep Daily Goal Visible When Collapsed');
 
     const state = {
       mailers: [],
@@ -7322,7 +7328,8 @@ Thanks!
     const debouncedRenderKanban = debounce(() => renderKanban(), DEBOUNCE_RENDER_DELAY);
 
     function renderKanban() {
-      const container = document.getElementById('salesActivityContainer');
+      const dailyGoalContainer = document.getElementById('dailyGoalContainer');
+      const kanbanColumnsContainer = document.getElementById('salesActivityKanbanColumns');
       const currentMailerId = state.current?.Mailer_ID;
 
       const columnDefs = [
@@ -7558,8 +7565,11 @@ Thanks!
         </div>
       `;
 
-      // Set container HTML with cloud sync bar + daily goal + columns wrapper
-      container.innerHTML = cloudSyncBar + dailyGoalHTML + columnsWrapperHTML;
+      // Set daily goal in its own container (always visible)
+      dailyGoalContainer.innerHTML = dailyGoalHTML;
+
+      // Set kanban columns in collapsible container
+      kanbanColumnsContainer.innerHTML = cloudSyncBar + columnsWrapperHTML;
 
       setupKanbanDrag();
       updateMoveToPoolButton();
@@ -7852,26 +7862,26 @@ Thanks!
 
     /* ========= SALES ACTIVITY TOGGLE ========= */
     function toggleSalesActivity() {
-      const container = document.getElementById('salesActivityContainer');
+      const kanbanColumns = document.getElementById('salesActivityKanbanColumns');
       const icon = document.getElementById('salesActivityToggleIcon');
 
-      if (container.style.maxHeight && container.style.maxHeight !== '0px') {
+      if (kanbanColumns.style.maxHeight && kanbanColumns.style.maxHeight !== '0px') {
         // Collapse
-        container.style.maxHeight = '0px';
-        container.style.marginBottom = '0px';
+        kanbanColumns.style.maxHeight = '0px';
+        kanbanColumns.style.marginTop = '0px';
         icon.style.transform = 'rotate(-90deg)';
         safeSetItem('salesActivityCollapsed', 'true');
       } else {
         // Expand
-        container.style.maxHeight = container.scrollHeight + 'px';
-        container.style.marginBottom = '';
+        kanbanColumns.style.maxHeight = kanbanColumns.scrollHeight + 'px';
+        kanbanColumns.style.marginTop = '';
         icon.style.transform = 'rotate(0deg)';
         safeSetItem('salesActivityCollapsed', 'false');
 
         // Remove max-height after transition so content can grow dynamically
         setTimeout(() => {
-          if (container.style.maxHeight !== '0px') {
-            container.style.maxHeight = 'none';
+          if (kanbanColumns.style.maxHeight !== '0px') {
+            kanbanColumns.style.maxHeight = 'none';
           }
         }, 300);
       }
@@ -7879,16 +7889,16 @@ Thanks!
 
     // Initialize sales activity state on page load
     function initSalesActivityState() {
-      const container = document.getElementById('salesActivityContainer');
+      const kanbanColumns = document.getElementById('salesActivityKanbanColumns');
       const icon = document.getElementById('salesActivityToggleIcon');
       const isCollapsed = safeGetItem('salesActivityCollapsed') === 'true';
 
       if (isCollapsed) {
-        container.style.maxHeight = '0px';
-        container.style.marginBottom = '0px';
+        kanbanColumns.style.maxHeight = '0px';
+        kanbanColumns.style.marginTop = '0px';
         icon.style.transform = 'rotate(-90deg)';
       } else {
-        container.style.maxHeight = 'none';
+        kanbanColumns.style.maxHeight = 'none';
       }
     }
 
