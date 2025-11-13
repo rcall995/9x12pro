@@ -2861,7 +2861,6 @@ Thanks!
 
       // Get pricing for this postcard (new system)
       const pricing = productionState.pricing[mailerId] || null;
-      console.log(`💰 Pricing for ${mailerId}:`, pricing);
 
       for (let i = 1; i <= TOTAL_SPOTS_PER_POSTCARD; i++) {
         const spot = getSpotData(i);
@@ -2900,39 +2899,30 @@ Thanks!
           continue;
         }
 
-        // Determine price with correct precedence:
-        // 1. FIRST check for per-spot custom pricing (takes precedence)
-        // 2. Then use new pricing system (singleAd/doubleAd/bannerAd)
-        // 3. Finally fall back to DEFAULT_SPOT_PRICE
+        // Simple pricing logic:
+        // 1. If spot has custom price (manually set) → use it
+        // 2. Otherwise → use Set Pricing defaults (Single/Double/Banner)
         let price;
         const priceKey = `${mailerId}-Spot_${i}`;
         const customSpotPrice = productionState.spotPricing[priceKey];
 
-        if (customSpotPrice !== undefined && customSpotPrice !== null) {
-          // Use per-spot custom pricing if it exists
-          price = parseFloat(customSpotPrice) || DEFAULT_SPOT_PRICE;
-          console.log(`  💵 Using custom price for Spot ${i}: $${price}`);
+        if (customSpotPrice !== undefined && customSpotPrice !== null && customSpotPrice > 0) {
+          // Use manually set price
+          price = parseFloat(customSpotPrice);
         } else if (pricing) {
-          // Use new pricing system (standard prices)
+          // Use Set Pricing defaults
           if (isMerged) {
-            // Check if it's a banner (spots 13-14 merged)
             if ((i === 13 || i === 14) && mate && (mate === 13 || mate === 14)) {
-              price = pricing.bannerAd || DEFAULT_SPOT_PRICE;
+              price = parseFloat(pricing.bannerAd) || DEFAULT_SPOT_PRICE;
             } else {
-              // Regular double ad
-              price = pricing.doubleAd || DEFAULT_SPOT_PRICE;
+              price = parseFloat(pricing.doubleAd) || DEFAULT_SPOT_PRICE;
             }
           } else {
-            // Single ad
-            price = pricing.singleAd || DEFAULT_SPOT_PRICE;
+            price = parseFloat(pricing.singleAd) || DEFAULT_SPOT_PRICE;
           }
-          // Ensure price is a number
-          price = parseFloat(price) || DEFAULT_SPOT_PRICE;
-          console.log(`  💵 Using standard price for Spot ${i}: $${price} (${isMerged ? 'double' : 'single'})`);
         } else {
-          // No pricing data at all - use default
+          // Fallback if nothing is set
           price = DEFAULT_SPOT_PRICE;
-          console.log(`  💵 Using DEFAULT price for Spot ${i}: $${price}`);
         }
 
         // Only count revenue if spot has a business name entered
@@ -2942,15 +2932,11 @@ Thanks!
 
           // Count toward current revenue ONLY for spots that have been paid
           if (spot.status === "Paid in Full") {
-            console.log(`  Spot ${i} (${spot.name}): +$${price} [Paid in Full] - paidRevenue was ${paidRevenue}`);
             paidRevenue += price;
-            console.log(`    paidRevenue is now ${paidRevenue} (type: ${typeof paidRevenue})`);
             spotsPaid++;
           } else if (spot.status === "Deposit Paid") {
             const depositAmount = price * 0.5;
-            console.log(`  Spot ${i} (${spot.name}): +$${depositAmount} [Deposit] - depositRevenue was ${depositRevenue}`);
             depositRevenue += depositAmount;
-            console.log(`    depositRevenue is now ${depositRevenue} (type: ${typeof depositRevenue})`);
           }
           // For any other status (Reserved, Invoice Sent, Ad Approved, etc.),
           // DO NOT count as current revenue - only count toward projected revenue
@@ -2958,7 +2944,6 @@ Thanks!
       }
       
       const currentRevenue = paidRevenue + depositRevenue;
-      console.log(`📊 Final totals: paidRevenue=${paidRevenue} (${typeof paidRevenue}), depositRevenue=${depositRevenue} (${typeof depositRevenue}), currentRevenue=${currentRevenue} (${typeof currentRevenue})`);
       const currentProfit = currentRevenue - totalExpenses;
       const projectedProfit = projectedRevenue - totalExpenses;
       const breakeven = currentRevenue >= totalExpenses;
@@ -8844,7 +8829,6 @@ Thanks!
               bannerAd: parseFloat(pricing.bannerAd) || 0
             };
           });
-          console.log('✅ Loaded pricing:', productionState.pricing);
         }
       } catch (e) {
         // Silently handle error - pricing table may not exist yet in Supabase
@@ -8871,7 +8855,6 @@ Thanks!
           Object.keys(cloudData).forEach(key => {
             productionState.spotPricing[key] = parseFloat(cloudData[key]) || 0;
           });
-          console.log('✅ Loaded spot pricing:', productionState.spotPricing);
         }
       } catch (e) {
         console.log('Spot pricing not available (using new pricing system)');
@@ -8883,7 +8866,6 @@ Thanks!
         await saveToCloud('spotPricing', productionState.spotPricing);
         // Also save to localStorage as backup
         safeSetItem('mailslot-pricing', JSON.stringify(productionState.spotPricing));
-        console.log('✅ Saved spot pricing to cloud');
       } catch (e) {
         console.error('Failed to save spot pricing:', e);
       }
@@ -9549,9 +9531,8 @@ Thanks!
         const savedPricing = safeGetItem('mailslot-pricing');
         if (savedPricing && Object.keys(productionState.spotPricing).length === 0) {
           productionState.spotPricing = JSON.parse(savedPricing);
-          console.log('📦 Loaded spot pricing from localStorage (fallback)');
           // Migrate to cloud if we loaded from localStorage
-          saveSpotPricing().then(() => console.log('✅ Migrated spot pricing to cloud'));
+          saveSpotPricing();
         }
       } catch(e) {}
       updateAutoSaveStatus(); // Initialize auto-save status indicator
@@ -10732,7 +10713,6 @@ Thanks!
       // Auto-change status from Available to Reserved when name is entered
       if (name && long === "Available") {
         long = "Reserved";
-        console.log(`Auto-changed status from Available to Reserved for: ${name}`);
       }
 
       const sel = [...state.selected].sort((a,b)=>a-b);
