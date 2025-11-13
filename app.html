@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <title>9x12 Pro - Community Card Management</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- VERSION: 2025-01-13-v12 CACHE BUSTER -->
+  <!-- VERSION: 2025-01-13-v13 CACHE BUSTER -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
@@ -1139,6 +1139,66 @@
         <div id="pricingPreview" class="bg-blue-50 rounded-lg p-3 border border-blue-200">
           <div class="text-xs font-medium text-blue-900 mb-1">Current Postcard Revenue Preview:</div>
           <div id="pricingPreviewText" class="text-sm text-gray-700">Select a postcard to see revenue</div>
+        </div>
+
+        <!-- Revenue Goal Calculator -->
+        <div class="bg-green-50 rounded-lg p-4 border border-green-200">
+          <div class="text-sm font-semibold text-green-900 mb-3">📊 Revenue Goal Calculator</div>
+          <p class="text-xs text-gray-600 mb-3">Set your revenue goal based on how many of each ad size you plan to sell:</p>
+
+          <div class="space-y-3">
+            <div class="flex gap-3 items-center">
+              <div class="flex-1">
+                <label class="text-xs font-medium block mb-1">Singles (#)</label>
+                <input id="goalSingleCount" type="number" min="0" class="border rounded-md p-2 w-full text-sm" placeholder="0" oninput="updateRevenueGoalCalculator()" />
+              </div>
+              <div class="flex-1">
+                <label class="text-xs font-medium block mb-1">Price Each ($)</label>
+                <input id="goalSinglePrice" type="number" step="0.01" min="0" class="border rounded-md p-2 w-full text-sm" placeholder="0.00" oninput="updateRevenueGoalCalculator()" />
+              </div>
+              <div class="flex-1 text-right">
+                <label class="text-xs font-medium block mb-1">Subtotal</label>
+                <div id="goalSingleTotal" class="text-sm font-semibold text-gray-700">$0.00</div>
+              </div>
+            </div>
+
+            <div class="flex gap-3 items-center">
+              <div class="flex-1">
+                <label class="text-xs font-medium block mb-1">Doubles (#)</label>
+                <input id="goalDoubleCount" type="number" min="0" class="border rounded-md p-2 w-full text-sm" placeholder="0" oninput="updateRevenueGoalCalculator()" />
+              </div>
+              <div class="flex-1">
+                <label class="text-xs font-medium block mb-1">Price Each ($)</label>
+                <input id="goalDoublePrice" type="number" step="0.01" min="0" class="border rounded-md p-2 w-full text-sm" placeholder="0.00" oninput="updateRevenueGoalCalculator()" />
+              </div>
+              <div class="flex-1 text-right">
+                <label class="text-xs font-medium block mb-1">Subtotal</label>
+                <div id="goalDoubleTotal" class="text-sm font-semibold text-gray-700">$0.00</div>
+              </div>
+            </div>
+
+            <div class="flex gap-3 items-center">
+              <div class="flex-1">
+                <label class="text-xs font-medium block mb-1">Banners (#)</label>
+                <input id="goalBannerCount" type="number" min="0" class="border rounded-md p-2 w-full text-sm" placeholder="0" oninput="updateRevenueGoalCalculator()" />
+              </div>
+              <div class="flex-1">
+                <label class="text-xs font-medium block mb-1">Price Each ($)</label>
+                <input id="goalBannerPrice" type="number" step="0.01" min="0" class="border rounded-md p-2 w-full text-sm" placeholder="0.00" oninput="updateRevenueGoalCalculator()" />
+              </div>
+              <div class="flex-1 text-right">
+                <label class="text-xs font-medium block mb-1">Subtotal</label>
+                <div id="goalBannerTotal" class="text-sm font-semibold text-gray-700">$0.00</div>
+              </div>
+            </div>
+
+            <div class="border-t border-green-300 pt-3 mt-3">
+              <div class="flex justify-between items-center">
+                <span class="text-sm font-bold text-green-900">Total Revenue Goal:</span>
+                <span id="goalTotalRevenue" class="text-lg font-bold text-green-700">$0.00</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2657,7 +2717,7 @@ Thanks!
     const mateOf = n => { for (const [a,b] of PAIRS) { if (a===n) return b; if (b===n) return a; } return null; };
 
     // VERSION CHECK - If you don't see this in console, you're viewing cached HTML
-    console.log('🔥 APP VERSION: 2025-01-13-v12 - Keep Daily Goal Visible When Collapsed');
+    console.log('🔥 APP VERSION: 2025-01-13-v13 - Add Revenue Goal Calculator to Set Pricing');
 
     const state = {
       mailers: [],
@@ -2688,7 +2748,8 @@ Thanks!
     const productionState = {
       expenses: {},
       spotPricing: {},
-      pricing: {} // Per-postcard pricing: { mailerId: { singleAd, doubleAd, bannerAd } }
+      pricing: {}, // Per-postcard pricing: { mailerId: { singleAd, doubleAd, bannerAd } }
+      revenueGoals: {} // Per-postcard revenue goals: { mailerId: { singleCount, singlePrice, doubleCount, doublePrice, bannerCount, bannerPrice, total } }
     };
     
     const DEFAULT_SPOT_PRICE = 500;
@@ -3052,13 +3113,17 @@ Thanks!
         maxPotentialRevenue += spotPrice;
       }
 
+      // Use revenue goal if set, otherwise use maxPotentialRevenue
+      const revenueGoal = productionState.revenueGoals[mailerId];
+      const revenueTarget = (revenueGoal && revenueGoal.total > 0) ? revenueGoal.total : maxPotentialRevenue;
+
       return {
         revenue: {
           paid: paidRevenue,
           deposit: depositRevenue,
           current: currentRevenue,
           projected: projectedRevenue,
-          target: maxPotentialRevenue
+          target: revenueTarget
         },
         expenses: {
           ...expenses,
@@ -3113,13 +3178,10 @@ Thanks!
       if (expensesEl) expensesEl.textContent = formatCurrency(financials.expenses.total);
       
       if (spotsToBreakevenEl) {
-        const potentialProfit = financials.revenue.target - financials.expenses.total;
-        const potentialProfitText = `<div class="text-xs text-gray-400 mt-1">Potential profit once filled: ${formatCurrency(potentialProfit)}</div>`;
-
         if (financials.metrics.breakeven) {
-          spotsToBreakevenEl.innerHTML = '✓ <span class="text-green-600 font-bold">Profitable!</span>' + potentialProfitText;
+          spotsToBreakevenEl.innerHTML = '✓ <span class="text-green-600 font-bold">Profitable!</span>';
         } else {
-          spotsToBreakevenEl.innerHTML = `Need <span class="font-bold text-indigo-600">${financials.metrics.spotsNeeded} more spot${financials.metrics.spotsNeeded === 1 ? '' : 's'}</span> to break even` + potentialProfitText;
+          spotsToBreakevenEl.innerHTML = `Need <span class="font-bold text-indigo-600">${financials.metrics.spotsNeeded} more spot${financials.metrics.spotsNeeded === 1 ? '' : 's'}</span> to break even`;
         }
       }
       
@@ -8951,8 +9013,20 @@ Thanks!
     async function savePricing() {
       try {
         await saveToCloud('pricing', productionState.pricing);
+        await saveToCloud('revenueGoals', productionState.revenueGoals);
       } catch (e) {
         console.warn('Pricing saved locally only (cloud sync failed):', e);
+      }
+    }
+
+    async function loadRevenueGoals() {
+      try {
+        const cloudData = await loadFromCloud('revenueGoals');
+        if (cloudData) {
+          productionState.revenueGoals = cloudData;
+        }
+      } catch (e) {
+        console.log('Revenue goals not available');
       }
     }
 
@@ -9041,6 +9115,25 @@ Thanks!
       }
     }
 
+    function updateRevenueGoalCalculator() {
+      const singleCount = parseFloat(document.getElementById("goalSingleCount").value) || 0;
+      const singlePrice = parseFloat(document.getElementById("goalSinglePrice").value) || 0;
+      const doubleCount = parseFloat(document.getElementById("goalDoubleCount").value) || 0;
+      const doublePrice = parseFloat(document.getElementById("goalDoublePrice").value) || 0;
+      const bannerCount = parseFloat(document.getElementById("goalBannerCount").value) || 0;
+      const bannerPrice = parseFloat(document.getElementById("goalBannerPrice").value) || 0;
+
+      const singleTotal = singleCount * singlePrice;
+      const doubleTotal = doubleCount * doublePrice;
+      const bannerTotal = bannerCount * bannerPrice;
+      const total = singleTotal + doubleTotal + bannerTotal;
+
+      document.getElementById("goalSingleTotal").textContent = formatCurrency(singleTotal);
+      document.getElementById("goalDoubleTotal").textContent = formatCurrency(doubleTotal);
+      document.getElementById("goalBannerTotal").textContent = formatCurrency(bannerTotal);
+      document.getElementById("goalTotalRevenue").textContent = formatCurrency(total);
+    }
+
     function openPricingModal() {
       if (!state.current) {
         toast('Please select a postcard first', false);
@@ -9057,7 +9150,22 @@ Thanks!
       document.getElementById("pricingDoubleAd").value = pricing.doubleAd || '';
       document.getElementById("pricingBannerAd").value = pricing.bannerAd || '';
 
+      // Load existing revenue goal for this postcard
+      const revenueGoal = productionState.revenueGoals[mailerId] || {
+        singleCount: 0, singlePrice: pricing.singleAd || 0,
+        doubleCount: 0, doublePrice: pricing.doubleAd || 0,
+        bannerCount: 0, bannerPrice: pricing.bannerAd || 0
+      };
+
+      document.getElementById("goalSingleCount").value = revenueGoal.singleCount || '';
+      document.getElementById("goalSinglePrice").value = revenueGoal.singlePrice || pricing.singleAd || '';
+      document.getElementById("goalDoubleCount").value = revenueGoal.doubleCount || '';
+      document.getElementById("goalDoublePrice").value = revenueGoal.doublePrice || pricing.doubleAd || '';
+      document.getElementById("goalBannerCount").value = revenueGoal.bannerCount || '';
+      document.getElementById("goalBannerPrice").value = revenueGoal.bannerPrice || pricing.bannerAd || '';
+
       updatePricingPreview();
+      updateRevenueGoalCalculator();
 
       modal.style.display = "flex";
       modal.setAttribute('aria-hidden', 'false');
@@ -9128,10 +9236,27 @@ Thanks!
 
       productionState.pricing[mailerId] = { singleAd, doubleAd, bannerAd };
 
+      // Save revenue goal
+      const singleCount = parseFloat(document.getElementById("goalSingleCount").value) || 0;
+      const singlePrice = parseFloat(document.getElementById("goalSinglePrice").value) || 0;
+      const doubleCount = parseFloat(document.getElementById("goalDoubleCount").value) || 0;
+      const doublePrice = parseFloat(document.getElementById("goalDoublePrice").value) || 0;
+      const bannerCount = parseFloat(document.getElementById("goalBannerCount").value) || 0;
+      const bannerPrice = parseFloat(document.getElementById("goalBannerPrice").value) || 0;
+
+      const total = (singleCount * singlePrice) + (doubleCount * doublePrice) + (bannerCount * bannerPrice);
+
+      productionState.revenueGoals[mailerId] = {
+        singleCount, singlePrice,
+        doubleCount, doublePrice,
+        bannerCount, bannerPrice,
+        total
+      };
+
       await savePricing();
 
       closePricingModal();
-      toast('Pricing saved');
+      toast('Pricing and revenue goal saved');
 
       // Refresh financials display
       updateFinancialDashboard();
@@ -9656,6 +9781,7 @@ Thanks!
       Promise.allSettled([
         loadExpenses(),
         loadPricing(),
+        loadRevenueGoals(),
         loadSpotPricing(),
         loadClients(),
         loadKanban(),
@@ -9670,7 +9796,7 @@ Thanks!
         if (failed > 0) {
           console.warn(`⚠️ ${succeeded} data types loaded, ${failed} failed (using localStorage cache)`);
           const failedTypes = results
-            .map((r, i) => r.status === 'rejected' ? ['expenses', 'pricing', 'clients', 'kanban', 'tasks', 'notInterested', 'manualProspects', 'businessCategories'][i] : null)
+            .map((r, i) => r.status === 'rejected' ? ['expenses', 'pricing', 'revenueGoals', 'spotPricing', 'clients', 'kanban', 'tasks', 'notInterested', 'manualProspects', 'businessCategories'][i] : null)
             .filter(t => t !== null);
           console.warn('Failed types:', failedTypes.join(', '));
 
