@@ -2993,15 +2993,11 @@ Thanks!
 
       // Calculate maximum potential revenue based on pricing system
       let maxPotentialRevenue = 0;
-      if (pricing) {
-        // New pricing system - calculate based on actual spot configuration
-        // Start with all spots as singles
-        maxPotentialRevenue = TOTAL_SPOTS_PER_POSTCARD * (pricing.singleAd || DEFAULT_SPOT_PRICE);
-
-        // Could be merged into doubles or banner - but for max potential, use singles
-        // (User can merge spots later if they want)
+      if (pricing && pricing.singleAd) {
+        // Use Set Pricing singleAd price for potential revenue goal
+        maxPotentialRevenue = TOTAL_SPOTS_PER_POSTCARD * parseFloat(pricing.singleAd);
       } else {
-        // Old system - use default
+        // Fallback if Set Pricing not configured
         maxPotentialRevenue = TOTAL_SPOTS_PER_POSTCARD * DEFAULT_SPOT_PRICE;
       }
 
