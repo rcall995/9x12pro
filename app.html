@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <title>9x12 Pro - Community Card Management</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- VERSION: 2025-01-13-v13 CACHE BUSTER -->
+  <!-- VERSION: 2025-01-13-v14 CACHE BUSTER -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
@@ -1134,11 +1134,6 @@
               <input id="pricingBannerAd" type="number" step="0.01" class="border rounded-md p-2 w-full" placeholder="e.g., 699.00" />
             </div>
           </div>
-        </div>
-
-        <div id="pricingPreview" class="bg-blue-50 rounded-lg p-3 border border-blue-200">
-          <div class="text-xs font-medium text-blue-900 mb-1">Current Postcard Revenue Preview:</div>
-          <div id="pricingPreviewText" class="text-sm text-gray-700">Select a postcard to see revenue</div>
         </div>
 
         <!-- Revenue Goal Calculator -->
@@ -2717,7 +2712,7 @@ Thanks!
     const mateOf = n => { for (const [a,b] of PAIRS) { if (a===n) return b; if (b===n) return a; } return null; };
 
     // VERSION CHECK - If you don't see this in console, you're viewing cached HTML
-    console.log('🔥 APP VERSION: 2025-01-13-v13 - Add Revenue Goal Calculator to Set Pricing');
+    console.log('🔥 APP VERSION: 2025-01-13-v14 - Remove Current Postcard Revenue Preview');
 
     const state = {
       mailers: [],
@@ -9164,7 +9159,6 @@ Thanks!
       document.getElementById("goalBannerCount").value = revenueGoal.bannerCount || '';
       document.getElementById("goalBannerPrice").value = revenueGoal.bannerPrice || pricing.bannerAd || '';
 
-      updatePricingPreview();
       updateRevenueGoalCalculator();
 
       modal.style.display = "flex";
@@ -9177,53 +9171,6 @@ Thanks!
       modal.style.display = "none";
       modal.setAttribute('aria-hidden', 'true');
       releaseModalFocus(modal);
-    }
-
-    function updatePricingPreview() {
-      if (!state.current) return;
-
-      const singleAd = parseFloat(document.getElementById("pricingSingleAd").value) || 0;
-      const doubleAd = parseFloat(document.getElementById("pricingDoubleAd").value) || 0;
-      const bannerAd = parseFloat(document.getElementById("pricingBannerAd").value) || 0;
-
-      // Count ads: singles (1 spot), doubles (2 spots), banner (spots 13-14 merged)
-      let singleCount = 0, doubleCount = 0, bannerCount = 0;
-
-      for (let i = 1; i <= 18; i++) {
-        const spotKey = `Spot_${i}`;
-        const spot = state.availability[spotKey];
-
-        // Skip if spot is available
-        if (!spot || !spot.name || spot.name.trim() === "" || spot.status === "Available") {
-          continue;
-        }
-
-        // Check if this is the second spot in a merged pair (skip to avoid double counting)
-        const mate = mateOf(i);
-        if (mate && mate < i && state.merged.has(keyPair(i, mate))) {
-          continue; // Already counted with first spot
-        }
-
-        // Check if this spot is merged with its mate
-        if (mate && mate > i && state.merged.has(keyPair(i, mate))) {
-          // This is a merged pair
-          if (i === 13 && mate === 14) {
-            // Banner ad (spots 13-14 merged)
-            bannerCount++;
-          } else {
-            // Regular double ad
-            doubleCount++;
-          }
-        } else {
-          // Single ad
-          singleCount++;
-        }
-      }
-
-      const revenue = (singleCount * singleAd) + (doubleCount * doubleAd) + (bannerCount * bannerAd);
-
-      document.getElementById("pricingPreviewText").textContent =
-        `${singleCount} singles + ${doubleCount} doubles + ${bannerCount} banners = $${revenue.toFixed(2)} revenue`;
     }
 
     async function savePricingModal() {
@@ -9899,10 +9846,6 @@ Thanks!
       // Pricing modal
       btn("btnCancelPricing", closePricingModal);
       btn("btnSavePricing", savePricingModal);
-      ["pricingSingleAd", "pricingDoubleAd", "pricingBannerAd"].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.addEventListener('input', updatePricingPreview);
-      });
 
       // Expense modal
       btn("btnCancelExpense", closeExpenseModal);
