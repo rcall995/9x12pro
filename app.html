@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <title>9x12 Pro - Community Card Management</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- VERSION: 2025-01-13-v2 CACHE BUSTER -->
+  <!-- VERSION: 2025-01-13-v3 CACHE BUSTER -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
@@ -2644,7 +2644,7 @@ Thanks!
     const mateOf = n => { for (const [a,b] of PAIRS) { if (a===n) return b; if (b===n) return a; } return null; };
 
     // VERSION CHECK - If you don't see this in console, you're viewing cached HTML
-    console.log('🔥 APP VERSION: 2025-01-13-v2 - Campaign Selection Fix + Pricing Debug');
+    console.log('🔥 APP VERSION: 2025-01-13-v3 - Campaign Selection Fix + Pricing Load Order Fix');
 
     const state = {
       mailers: [],
@@ -2827,6 +2827,14 @@ Thanks!
       console.log('Campaign data provided?', !!campaign);
       console.log('spotPricing loaded?', Object.keys(productionState.spotPricing).length > 0);
       console.log('pricing loaded?', Object.keys(productionState.pricing).length > 0);
+
+      // If pricing data hasn't loaded yet, return null to avoid showing $500 defaults
+      // The calculations will run again once pricing loads
+      const hasPricingData = Object.keys(productionState.pricing).length > 0 || Object.keys(productionState.spotPricing).length > 0;
+      if (!hasPricingData) {
+        console.log('⏳ Skipping financial calculations - waiting for pricing data to load');
+        return null;
+      }
 
       const expenses = productionState.expenses[mailerId] || { ...DEFAULT_EXPENSES };
       const totalExpenses = Object.values(expenses).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
@@ -9551,7 +9559,8 @@ Thanks!
           toast(`⚠️ ${failed} data type(s) loaded from local cache (cloud unavailable)`, false);
         }
 
-        // Load campaigns AFTER expenses are loaded so financial dashboard shows correct data
+        // Load campaigns AFTER expenses and pricing are loaded so financial dashboard shows correct data
+        console.log('✅ Pricing data loaded. Loading campaigns...');
         loadCampaigns();
       });
 
