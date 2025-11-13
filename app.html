@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <title>9x12 Pro - Community Card Management</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- VERSION: 2025-01-13-v7 CACHE BUSTER -->
+  <!-- VERSION: 2025-01-13-v8 CACHE BUSTER -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
@@ -2924,7 +2924,7 @@ Thanks!
         // 1. If spot has custom price (manually set) → use it
         // 2. Otherwise → use Set Pricing defaults (Single/Double/Banner)
         let price;
-        const priceKey = `${mailerId}-Spot_${i}`;
+        const priceKey = normalizePriceKey(mailerId, i);
         const customSpotPrice = productionState.spotPricing[priceKey];
 
         // Debug pricing lookup for first spot only
@@ -3023,7 +3023,7 @@ Thanks!
       // This accounts for custom spot pricing - if a spot has a custom price, use it
       let maxPotentialRevenue = 0;
       for (let i = 1; i <= TOTAL_SPOTS_PER_POSTCARD; i++) {
-        const priceKey = `${mailerId}-Spot_${i}`;
+        const priceKey = normalizePriceKey(mailerId, i);
         const customSpotPrice = productionState.spotPricing[priceKey];
 
         // Use same 3-step pricing logic
@@ -8898,6 +8898,14 @@ Thanks!
     }
 
     /* ========= SPOT PRICING (PER-SPOT CUSTOM PRICES) ========= */
+
+    // Helper function to normalize pricing keys (uppercase for consistency)
+    // This fixes case mismatch between old data (GRAND-ISLAND-12-2025) and new (Grand-Island-12-2025)
+    function normalizePriceKey(mailerId, spotNum = null) {
+      const base = String(mailerId).toUpperCase();
+      return spotNum ? `${base}-Spot_${spotNum}` : base;
+    }
+
     async function loadSpotPricing() {
       try {
         const cloudData = await loadFromCloud('spotPricing');
@@ -8905,16 +8913,21 @@ Thanks!
         if (cloudData) {
           const keys = Object.keys(cloudData);
           console.log('💰 [LOAD SPOT PRICING] Found', keys.length, 'spot prices');
-          console.log('💰 [LOAD SPOT PRICING] Sample keys:', keys.slice(0, 3));
+          console.log('💰 [LOAD SPOT PRICING] Sample keys (raw):', keys.slice(0, 3));
           console.log('💰 [LOAD SPOT PRICING] Sample values:', keys.slice(0, 3).map(k => `${k}: ${cloudData[k]}`));
 
-          // Ensure all pricing values are numbers, not strings
+          // Normalize all keys to uppercase and ensure all pricing values are numbers
           productionState.spotPricing = {};
           Object.keys(cloudData).forEach(key => {
-            productionState.spotPricing[key] = parseFloat(cloudData[key]) || 0;
+            const normalizedKey = key.toUpperCase();
+            productionState.spotPricing[normalizedKey] = parseFloat(cloudData[key]) || 0;
+            if (normalizedKey !== key) {
+              console.log('💰 [LOAD SPOT PRICING] Normalized key:', key, '→', normalizedKey);
+            }
           });
 
           console.log('💰 [LOAD SPOT PRICING] Loaded into productionState.spotPricing:', Object.keys(productionState.spotPricing).length, 'prices');
+          console.log('💰 [LOAD SPOT PRICING] Sample normalized keys:', Object.keys(productionState.spotPricing).slice(0, 5));
         } else {
           console.log('💰 [LOAD SPOT PRICING] No cloud data found, starting fresh');
         }
@@ -10561,7 +10574,7 @@ Thanks!
       // Add price badge if spot is sold and has a price
       if (state.current && spots.length > 0 && longStatus !== "Available") {
         const spotNum = spots[0];
-        const priceKey = `${state.current.Mailer_ID}-Spot_${spotNum}`;
+        const priceKey = normalizePriceKey(state.current.Mailer_ID, spotNum);
         const customSpotPrice = productionState.spotPricing[priceKey];
         const pricing = productionState.pricing[state.current.Mailer_ID];
 
@@ -10745,7 +10758,7 @@ Thanks!
         statusEl.value = toShortKey(s.status);
 
         // Use new pricing system or fall back to old spot pricing
-        const priceKey = `${mailerId}-Spot_${sel[0]}`;
+        const priceKey = normalizePriceKey(mailerId, sel[0]);
         const oldPrice = productionState.spotPricing[priceKey];
         if (oldPrice) {
           priceEl.value = oldPrice;
@@ -10763,7 +10776,7 @@ Thanks!
         statusEl.value = toShortKey(st);
 
         // Use new pricing system for double ad or fall back to old spot pricing
-        const priceKey = `${mailerId}-Spot_${a}`;
+        const priceKey = normalizePriceKey(mailerId, a);
         const oldPrice = productionState.spotPricing[priceKey];
         if (oldPrice) {
           priceEl.value = oldPrice;
@@ -10845,7 +10858,7 @@ Thanks!
       const sel = [...state.selected].sort((a,b)=>a-b);
 
       sel.forEach(spotNum => {
-        const priceKey = `${state.current.Mailer_ID}-Spot_${spotNum}`;
+        const priceKey = normalizePriceKey(state.current.Mailer_ID, spotNum);
         productionState.spotPricing[priceKey] = price;
       });
 
