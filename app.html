@@ -2936,20 +2936,18 @@ Thanks!
           spotsSold++;
           projectedRevenue += price;
 
-          // Count toward current revenue ONLY for spots that have been paid
-          if (spot.status === "Paid in Full") {
-            console.log(`    ✅ PAID IN FULL - Adding $${price} to revenue`);
-            paidRevenue += price;
-            spotsPaid++;
-          } else if (spot.status === "Deposit Paid") {
+          // Count all filled spots as revenue (Reserved and beyond)
+          if (spot.status === "Deposit Paid") {
+            // Deposit Paid = only 50% received so far
             const depositAmount = price * 0.5;
             console.log(`    💰 DEPOSIT PAID - Adding $${depositAmount} to revenue`);
             depositRevenue += depositAmount;
           } else {
-            console.log(`    ⏳ Status "${spot.status}" - NOT counted as current revenue (projected only)`);
+            // Reserved, Invoice Sent, Ad Approved, Paid in Full = full price
+            console.log(`    ✅ ${spot.status} - Adding $${price} to revenue`);
+            paidRevenue += price;
+            spotsPaid++;
           }
-          // For any other status (Reserved, Invoice Sent, Ad Approved, etc.),
-          // DO NOT count as current revenue - only count toward projected revenue
         }
       }
       
