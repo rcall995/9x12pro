@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <title>9x12 Pro - Community Card Management</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- VERSION: 2025-01-13-v14 CACHE BUSTER -->
+  <!-- VERSION: 2025-01-13-v15 CACHE BUSTER -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
@@ -2712,7 +2712,7 @@ Thanks!
     const mateOf = n => { for (const [a,b] of PAIRS) { if (a===n) return b; if (b===n) return a; } return null; };
 
     // VERSION CHECK - If you don't see this in console, you're viewing cached HTML
-    console.log('🔥 APP VERSION: 2025-01-13-v14 - Remove Current Postcard Revenue Preview');
+    console.log('🔥 APP VERSION: 2025-01-13-v15 - Sync Set Pricing to Calculator');
 
     const state = {
       mailers: [],
@@ -9110,6 +9110,19 @@ Thanks!
       }
     }
 
+    // Sync top pricing inputs to bottom calculator price fields
+    function syncPricingToCalculator() {
+      const singlePrice = parseFloat(document.getElementById("pricingSingleAd").value) || 0;
+      const doublePrice = parseFloat(document.getElementById("pricingDoubleAd").value) || 0;
+      const bannerPrice = parseFloat(document.getElementById("pricingBannerAd").value) || 0;
+
+      document.getElementById("goalSinglePrice").value = singlePrice;
+      document.getElementById("goalDoublePrice").value = doublePrice;
+      document.getElementById("goalBannerPrice").value = bannerPrice;
+
+      updateRevenueGoalCalculator();
+    }
+
     function updateRevenueGoalCalculator() {
       const singleCount = parseFloat(document.getElementById("goalSingleCount").value) || 0;
       const singlePrice = parseFloat(document.getElementById("goalSinglePrice").value) || 0;
@@ -9846,6 +9859,12 @@ Thanks!
       // Pricing modal
       btn("btnCancelPricing", closePricingModal);
       btn("btnSavePricing", savePricingModal);
+
+      // Sync top pricing inputs to bottom calculator
+      ["pricingSingleAd", "pricingDoubleAd", "pricingBannerAd"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', syncPricingToCalculator);
+      });
 
       // Expense modal
       btn("btnCancelExpense", closeExpenseModal);
