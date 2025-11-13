@@ -2991,14 +2991,24 @@ Thanks!
       }
       const effectiveTotalSpots = TOTAL_SPOTS_PER_POSTCARD - mergedPairsCount;
 
-      // Calculate maximum potential revenue based on pricing system
+      // Calculate maximum potential revenue by summing actual price for each spot
+      // This accounts for custom spot pricing - if a spot has a custom price, use it
       let maxPotentialRevenue = 0;
-      if (pricing && pricing.singleAd) {
-        // Use Set Pricing singleAd price for potential revenue goal
-        maxPotentialRevenue = TOTAL_SPOTS_PER_POSTCARD * parseFloat(pricing.singleAd);
-      } else {
-        // Fallback if Set Pricing not configured
-        maxPotentialRevenue = TOTAL_SPOTS_PER_POSTCARD * DEFAULT_SPOT_PRICE;
+      for (let i = 1; i <= TOTAL_SPOTS_PER_POSTCARD; i++) {
+        const priceKey = `${mailerId}-Spot_${i}`;
+        const customSpotPrice = productionState.spotPricing[priceKey];
+
+        // Use same 3-step pricing logic
+        let spotPrice;
+        if (customSpotPrice !== undefined && customSpotPrice !== null && customSpotPrice > 0) {
+          spotPrice = parseFloat(customSpotPrice);
+        } else if (pricing) {
+          spotPrice = parseFloat(pricing.singleAd) || DEFAULT_SPOT_PRICE;
+        } else {
+          spotPrice = DEFAULT_SPOT_PRICE;
+        }
+
+        maxPotentialRevenue += spotPrice;
       }
 
       return {
