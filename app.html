@@ -10728,9 +10728,15 @@ Thanks!
       const nameRaw = document.getElementById("editName").value;
       const name = String(nameRaw || "").replace(/\s+/g,' ').trim();
       const short = document.getElementById("editStatus").value;
-      const long = toLongLabel(short);
+      let long = toLongLabel(short);
       const price = parseFloat(document.getElementById("editPrice").value) || DEFAULT_SPOT_PRICE;
       const selectedClientId = document.getElementById('editClient').value;
+
+      // Auto-change status from Available to Reserved when name is entered
+      if (name && long === "Available") {
+        long = "Reserved";
+        console.log(`Auto-changed status from Available to Reserved for: ${name}`);
+      }
 
       const sel = [...state.selected].sort((a,b)=>a-b);
 
