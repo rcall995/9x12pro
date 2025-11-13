@@ -2815,6 +2815,11 @@ Thanks!
     function calculateFinancials(mailerId, campaign = null) {
       if (!mailerId) return null;
 
+      console.log(`\n💰 CALCULATING FINANCIALS FOR: ${mailerId}`);
+      console.log('Campaign data provided?', !!campaign);
+      console.log('spotPricing loaded?', Object.keys(productionState.spotPricing).length > 0);
+      console.log('pricing loaded?', Object.keys(productionState.pricing).length > 0);
+
       const expenses = productionState.expenses[mailerId] || { ...DEFAULT_EXPENSES };
       const totalExpenses = Object.values(expenses).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
 
@@ -2927,16 +2932,21 @@ Thanks!
 
         // Only count revenue if spot has a business name entered
         if (spot && spot.status !== "Available" && spot.name && spot.name.trim() !== "") {
+          console.log(`  📍 Spot ${i}: "${spot.name}" | Status: "${spot.status}" | Price: $${price} | Merged: ${isMerged}`);
           spotsSold++;
           projectedRevenue += price;
 
           // Count toward current revenue ONLY for spots that have been paid
           if (spot.status === "Paid in Full") {
+            console.log(`    ✅ PAID IN FULL - Adding $${price} to revenue`);
             paidRevenue += price;
             spotsPaid++;
           } else if (spot.status === "Deposit Paid") {
             const depositAmount = price * 0.5;
+            console.log(`    💰 DEPOSIT PAID - Adding $${depositAmount} to revenue`);
             depositRevenue += depositAmount;
+          } else {
+            console.log(`    ⏳ Status "${spot.status}" - NOT counted as current revenue (projected only)`);
           }
           // For any other status (Reserved, Invoice Sent, Ad Approved, etc.),
           // DO NOT count as current revenue - only count toward projected revenue
@@ -2947,7 +2957,16 @@ Thanks!
       const currentProfit = currentRevenue - totalExpenses;
       const projectedProfit = projectedRevenue - totalExpenses;
       const breakeven = currentRevenue >= totalExpenses;
-      
+
+      console.log(`💵 REVENUE SUMMARY:`);
+      console.log(`  Spots Sold: ${spotsSold}`);
+      console.log(`  Projected Revenue: $${projectedRevenue.toFixed(2)}`);
+      console.log(`  Paid Revenue: $${paidRevenue.toFixed(2)}`);
+      console.log(`  Deposit Revenue: $${depositRevenue.toFixed(2)}`);
+      console.log(`  Current Revenue: $${currentRevenue.toFixed(2)}`);
+      console.log(`  Total Expenses: $${totalExpenses.toFixed(2)}`);
+      console.log(`  Current Profit: $${currentProfit.toFixed(2)}\n`);
+
       const avgSpotPrice = spotsSold > 0 ? projectedRevenue / spotsSold : DEFAULT_SPOT_PRICE;
       const remainingToBreakeven = Math.max(0, totalExpenses - currentRevenue);
       const spotsNeeded = Math.ceil(remainingToBreakeven / avgSpotPrice);
@@ -10208,21 +10227,6 @@ Thanks!
 
       console.log('Rendering cards in progress. Total mailers:', state.mailers.length);
 
-      // Debug: Check first campaign's spot data
-      if (state.mailers.length > 0) {
-        const firstCampaign = state.mailers[0];
-        console.log('First campaign sample:', firstCampaign.Town);
-        console.log('Spot_1 type:', typeof firstCampaign.Spot_1);
-        console.log('Spot_1 value:', firstCampaign.Spot_1);
-        if (firstCampaign.Spot_1) {
-          try {
-            const parsed = typeof firstCampaign.Spot_1 === 'string' ? JSON.parse(firstCampaign.Spot_1) : firstCampaign.Spot_1;
-            console.log('Spot_1 parsed:', parsed);
-          } catch (e) {
-            console.log('Spot_1 parse error:', e.message);
-          }
-        }
-      }
 
       // Filter postcards that are "in progress" (not fully sold - includes 0 spots sold)
       const inProgressCards = state.mailers.filter(campaign => {
