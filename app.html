@@ -2647,7 +2647,8 @@ Thanks!
       merged: new Set(),
       selected: new Set(),
       dirty: false,
-      lastSide: "front"
+      lastSide: "front",
+      updatingSelectors: false  // Flag to prevent circular updates when syncing dropdowns
     };
     
     const stagedColors = {
@@ -9940,6 +9941,9 @@ Thanks!
 
     // When town changes, populate month dropdown with only months for that town
     function onTownChanged() {
+      // Prevent circular updates when syncing dropdowns programmatically
+      if (state.updatingSelectors) return;
+
       const townSelect = document.getElementById("headerTownSelect");
       const monthSelect = document.getElementById("headerMonthSelect");
 
@@ -9996,6 +10000,9 @@ Thanks!
 
     // Update selected postcard when town or month selector changes
     function updatePostcardFromSelectors() {
+      // Prevent circular updates when syncing dropdowns programmatically
+      if (state.updatingSelectors) return;
+
       const townSelect = document.getElementById("headerTownSelect");
       const monthSelect = document.getElementById("headerMonthSelect");
 
@@ -10154,12 +10161,18 @@ Thanks!
       if (selManager) selManager.value = i;
 
       // Update town and month selectors to match current postcard
-      // Use a flag to prevent infinite recursion
-      if (townSelect && m.Town) {
-        townSelect.value = m.Town;
-        // Manually populate month dropdown without triggering events
-        populateMonthsForTown(m.Town);
-        if (monthSelect && m.Mail_Date) monthSelect.value = m.Mail_Date;
+      // Set flag to prevent circular updates/infinite recursion
+      state.updatingSelectors = true;
+      try {
+        if (townSelect && m.Town) {
+          townSelect.value = m.Town;
+          // Manually populate month dropdown without triggering events
+          populateMonthsForTown(m.Town);
+          if (monthSelect && m.Mail_Date) monthSelect.value = m.Mail_Date;
+        }
+      } finally {
+        // Always clear the flag, even if there's an error
+        state.updatingSelectors = false;
       }
     }
 
