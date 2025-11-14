@@ -2737,7 +2737,7 @@ Thanks!
     const mateOf = n => { for (const [a,b] of PAIRS) { if (a===n) return b; if (b===n) return a; } return null; };
 
     // VERSION CHECK - If you don't see this in console, you're viewing cached HTML
-    console.log('🔥 APP VERSION: 2025-01-13-v18 - Add Edit Postcard Details (In Homes Date)');
+    console.log('🔥 APP VERSION: 2025-01-14-v19 - Fix spot pricing corruption (filter campaign-level pricing)');
 
     const state = {
       mailers: [],
@@ -9117,18 +9117,34 @@ Thanks!
 
     async function saveSpotPricing() {
       try {
-        const keys = Object.keys(productionState.spotPricing);
+        // FILTER OUT campaign-level pricing objects before saving
+        // Only save individual spot prices (numbers with SPOT_ in key)
+        const cleanedSpotPricing = {};
+        Object.keys(productionState.spotPricing).forEach(key => {
+          const value = productionState.spotPricing[key];
+          // Only save if value is a number AND key contains SPOT_
+          if (typeof value === 'number' && !isNaN(value) && key.toUpperCase().includes('SPOT_')) {
+            cleanedSpotPricing[key.toUpperCase()] = value;
+          } else if (typeof value === 'object') {
+            console.log('💾 [SAVE SPOT PRICING] ⚠️ Filtering out campaign-level pricing:', key);
+          }
+        });
+
+        const keys = Object.keys(cleanedSpotPricing);
         console.log('💾 [SAVE SPOT PRICING] Saving', keys.length, 'spot prices to cloud');
         console.log('💾 [SAVE SPOT PRICING] Sample keys:', keys.slice(0, 3));
-        console.log('💾 [SAVE SPOT PRICING] Sample values:', keys.slice(0, 3).map(k => `${k}: ${productionState.spotPricing[k]}`));
-        console.log('💾 [SAVE SPOT PRICING] Full data being saved:', JSON.stringify(productionState.spotPricing).substring(0, 200) + '...');
+        console.log('💾 [SAVE SPOT PRICING] Sample values:', keys.slice(0, 3).map(k => `${k}: ${cleanedSpotPricing[k]}`));
+        console.log('💾 [SAVE SPOT PRICING] Full data being saved:', JSON.stringify(cleanedSpotPricing).substring(0, 200) + '...');
 
-        await saveToCloud('spotPricing', productionState.spotPricing);
+        await saveToCloud('spotPricing', cleanedSpotPricing);
 
         console.log('💾 [SAVE SPOT PRICING] ✅ Successfully saved to cloud');
 
-        // Also save to localStorage as backup
-        safeSetItem('mailslot-pricing', JSON.stringify(productionState.spotPricing));
+        // Update productionState to match cleaned data
+        productionState.spotPricing = cleanedSpotPricing;
+
+        // Also save to localStorage as backup (cleaned version only)
+        safeSetItem('mailslot-pricing', JSON.stringify(cleanedSpotPricing));
       } catch (e) {
         console.error('💾 [SAVE SPOT PRICING] ❌ Failed to save:', e);
       }
@@ -9870,9 +9886,24 @@ Thanks!
       try {
         const savedPricing = safeGetItem('mailslot-pricing');
         if (savedPricing && Object.keys(productionState.spotPricing).length === 0) {
-          productionState.spotPricing = JSON.parse(savedPricing);
-          // Migrate to cloud if we loaded from localStorage
-          saveSpotPricing();
+          const rawPricing = JSON.parse(savedPricing);
+
+          // FILTER: Only load valid spot prices (numbers with SPOT_ in key)
+          // Prevents corrupted campaign-level pricing from localStorage
+          productionState.spotPricing = {};
+          Object.keys(rawPricing).forEach(key => {
+            const value = rawPricing[key];
+            if (typeof value === 'number' && !isNaN(value) && key.toUpperCase().includes('SPOT_')) {
+              productionState.spotPricing[key.toUpperCase()] = value;
+            }
+          });
+
+          console.log('💰 [LOCALSTORAGE MIGRATION] Loaded', Object.keys(productionState.spotPricing).length, 'valid spot prices from localStorage');
+
+          // Migrate cleaned data to cloud
+          if (Object.keys(productionState.spotPricing).length > 0) {
+            saveSpotPricing();
+          }
         }
       } catch(e) {}
       updateAutoSaveStatus(); // Initialize auto-save status indicator

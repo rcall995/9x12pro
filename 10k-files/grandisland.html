@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Grand Island Businesses - Your Local Direct Mail Solution | 10k Postcards</title>
+  <meta name="description" content="Exclusive direct mail marketing for Grand Island businesses. Reach 4,757 island households with category exclusivity. Join local businesses already growing with 10k Postcards." />
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --primary-color: #312fd4;
+      --primary-hover: #211ea5;
+      --accent-color: #27a844;
+      --island-blue: #0077be;
+      --island-green: #2d5f3f;
+      --light-bg: #f8f9fc;
+      --white: #ffffff;
+      --text-dark: #1a1a1a;
+      --text-gray: #4a5568;
+      --border-light: #e2e8f0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--text-dark);
+      line-height: 1.6;
+      background: var(--light-bg);
+    }
+
+    /* Hero Section with Grand Island Feel */
+    .hero {
+      background: linear-gradient(135deg, var(--island-blue) 0%, var(--island-green) 100%);
+      color: white;
+      padding: 6rem 2rem;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '🏝️';
+      position: absolute;
+      font-size: 20rem;
+      opacity: 0.05;
+      top: -4rem;
+      right: -4rem;
+      transform: rotate(-15deg);
+    }
+
+    .hero-content {
+      max-width: 900px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 1;
+    }
+
+    .island-badge {
+      display: inline-block;
+      background: rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(10px);
+      padding: 0.75rem 1.5rem;
+      border-radius: 50px;
+      font-weight: 700;
+      margin-bottom: 1.5rem;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .hero h1 {
+      font-size: 3.5rem;
+      font-weight: 900;
+      margin-bottom: 1.5rem;
+      line-height: 1.2;
+    }
+
+    .hero p {
+      font-size: 1.4rem;
+      margin-bottom: 2rem;
+      opacity: 0.95;
+    }
+
+    .hero-cta {
+      display: inline-flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .cta-button {
+      display: inline-block;
+      background: white;
+      color: var(--island-blue);
+      padding: 1.25rem 2.5rem;
+      border-radius: 50px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      text-decoration: none;
+      transition: all 0.3s;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+
+    .cta-button:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+    }
+
+    .cta-button.secondary {
+      background: transparent;
+      color: white;
+      border: 2px solid white;
+    }
+
+    .cta-button.secondary:hover {
+      background: rgba(255,255,255,0.1);
+    }
+
+    /* Stats Section */
+    .stats-section {
+      padding: 4rem 2rem;
+      background: white;
+      margin-top: -3rem;
+      position: relative;
+      z-index: 2;
+    }
+
+    .stats-container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 2rem;
+    }
+
+    .stat-card {
+      text-align: center;
+      padding: 2rem;
+      background: var(--light-bg);
+      border-radius: 16px;
+      border: 2px solid var(--border-light);
+      transition: all 0.3s;
+    }
+
+    .stat-card:hover {
+      border-color: var(--island-blue);
+      transform: translateY(-5px);
+      box-shadow: 0 8px 20px rgba(0,119,190,0.15);
+    }
+
+    .stat-value {
+      font-size: 3rem;
+      font-weight: 900;
+      color: var(--island-blue);
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-label {
+      font-size: 0.95rem;
+      color: var(--text-gray);
+      font-weight: 600;
+    }
+
+    /* Why Grand Island Section */
+    .why-section {
+      padding: 5rem 2rem;
+      background: var(--light-bg);
+    }
+
+    .why-container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .section-header {
+      text-align: center;
+      margin-bottom: 4rem;
+    }
+
+    .section-header h2 {
+      font-size: 2.5rem;
+      font-weight: 900;
+      color: var(--text-dark);
+      margin-bottom: 1rem;
+    }
+
+    .section-header p {
+      font-size: 1.2rem;
+      color: var(--text-gray);
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2rem;
+    }
+
+    .feature-card {
+      background: white;
+      padding: 2.5rem;
+      border-radius: 16px;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      transition: all 0.3s;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+    }
+
+    .feature-icon {
+      font-size: 3.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .feature-card h3 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      color: var(--text-dark);
+    }
+
+    .feature-card p {
+      color: var(--text-gray);
+      line-height: 1.8;
+    }
+
+    /* Pricing Section */
+    .pricing-section {
+      padding: 5rem 2rem;
+      background: white;
+    }
+
+    .pricing-container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .pricing-highlight {
+      background: linear-gradient(135deg, var(--accent-color) 0%, #1f8a37 100%);
+      color: white;
+      padding: 2rem;
+      border-radius: 16px;
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+
+    .pricing-highlight h3 {
+      font-size: 1.75rem;
+      font-weight: 800;
+      margin-bottom: 0.5rem;
+    }
+
+    .pricing-cards {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 2rem;
+    }
+
+    .pricing-card {
+      background: var(--light-bg);
+      border-radius: 16px;
+      padding: 3rem;
+      border: 3px solid var(--border-light);
+      transition: all 0.3s;
+    }
+
+    .pricing-card.featured {
+      border-color: var(--accent-color);
+      background: white;
+      box-shadow: 0 8px 30px rgba(39, 168, 68, 0.2);
+      transform: scale(1.05);
+    }
+
+    .pricing-card:hover {
+      transform: translateY(-5px) scale(1.05);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+    }
+
+    .pricing-card h4 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      color: var(--text-dark);
+    }
+
+    .pricing-card .price {
+      font-size: 3rem;
+      font-weight: 900;
+      color: var(--island-blue);
+      margin: 1rem 0;
+    }
+
+    .pricing-card .price-note {
+      color: var(--text-gray);
+      font-size: 0.95rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .pricing-card ul {
+      list-style: none;
+      margin-bottom: 2rem;
+    }
+
+    .pricing-card ul li {
+      padding: 0.5rem 0;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .check {
+      color: var(--accent-color);
+      font-weight: 900;
+      font-size: 1.25rem;
+    }
+
+    .pricing-card .cta-button {
+      width: 100%;
+      text-align: center;
+      background: var(--island-blue);
+      color: white;
+    }
+
+    .pricing-card.featured .cta-button {
+      background: var(--accent-color);
+    }
+
+    /* Local Business Section */
+    .local-section {
+      padding: 5rem 2rem;
+      background: var(--light-bg);
+    }
+
+    .local-container {
+      max-width: 1000px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .testimonial-card {
+      background: white;
+      padding: 3rem;
+      border-radius: 16px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.1);
+      margin-top: 2rem;
+    }
+
+    .testimonial-text {
+      font-size: 1.3rem;
+      font-style: italic;
+      color: var(--text-dark);
+      margin-bottom: 2rem;
+      line-height: 1.8;
+    }
+
+    .testimonial-author {
+      font-weight: 700;
+      color: var(--island-blue);
+    }
+
+    /* Final CTA */
+    .final-cta {
+      padding: 5rem 2rem;
+      background: linear-gradient(135deg, var(--island-blue) 0%, var(--island-green) 100%);
+      color: white;
+      text-align: center;
+    }
+
+    .final-cta h2 {
+      font-size: 3rem;
+      font-weight: 900;
+      margin-bottom: 1rem;
+    }
+
+    .final-cta p {
+      font-size: 1.3rem;
+      margin-bottom: 2rem;
+      opacity: 0.95;
+    }
+
+    footer {
+      background: var(--text-dark);
+      color: white;
+      padding: 3rem 2rem;
+      text-align: center;
+    }
+
+    footer p {
+      color: rgba(255,255,255,0.7);
+    }
+
+    footer a {
+      color: white;
+      text-decoration: none;
+      margin: 0 1rem;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 968px) {
+      .hero h1 {
+        font-size: 2.5rem;
+      }
+
+      .stats-grid,
+      .features-grid,
+      .pricing-cards {
+        grid-template-columns: 1fr;
+      }
+
+      .pricing-card.featured {
+        transform: scale(1);
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="hero-content">
+      <div class="island-badge">🏝️ Exclusively for Grand Island Businesses</div>
+      <h1>Welcome Home, Grand Island!</h1>
+      <p>You're not just any market. You're <strong>our home base</strong>. Reach <strong>every single household</strong> on the island with the marketing you deserve.</p>
+      <div class="hero-cta">
+        <a href="#pricing" class="cta-button">See Island Pricing</a>
+        <a href="#why" class="cta-button secondary">Why We Started Here</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Stats Section -->
+  <section class="stats-section">
+    <div class="stats-container">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">100%</div>
+          <div class="stat-label">Complete Island Coverage</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">~9,500</div>
+          <div class="stat-label">Total Island Addresses</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">$102k</div>
+          <div class="stat-label">Average Income</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="spots-available">12</div>
+          <div class="stat-label">Spots Available Now</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Why Grand Island Section -->
+  <section class="why-section" id="why">
+    <div class="why-container">
+      <div class="section-header">
+        <h2>Why We Started on Grand Island</h2>
+        <p>This is where we live, work, and raise our families. We know these streets—and we reach <strong>every single one</strong>.</p>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">🏠</div>
+          <h3>We're Islanders Too</h3>
+          <p>This isn't just business—it's personal. We're your neighbors, and we want to see every local business thrive.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🎯</div>
+          <h3>100% Island Coverage</h3>
+          <p>Every single household from Beaver Island to Love Road. Nearly 9,500 addresses reached through strategic rotation—complete island coverage guaranteed.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🛡️</div>
+          <h3>Your Category Only</h3>
+          <p>Once you're in, your competitors are locked out. It's your spot, your island.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">💰</div>
+          <h3>Island-First Pricing</h3>
+          <p>As our home market, Grand Island businesses get our best rates and priority placement.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">📬</div>
+          <h3>Can't Miss It</h3>
+          <p>9×12 inch premium postcard. When islanders check their mail, your business is right there.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🤝</div>
+          <h3>Built on Trust</h3>
+          <p>We started here because we believe in supporting the businesses that make Grand Island special.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing Section -->
+  <section class="pricing-section" id="pricing">
+    <div class="pricing-container">
+      <div class="section-header">
+        <h2>Grand Island Pricing</h2>
+        <p>Transparent, affordable, and designed for island businesses</p>
+      </div>
+
+      <div class="pricing-highlight">
+        <h3>🎉 Island Business Priority</h3>
+        <p>As a Grand Island business, you get first pick of available categories and spots!</p>
+      </div>
+
+      <div class="pricing-cards">
+        <!-- Banner Ad -->
+        <div class="pricing-card">
+          <h4>Banner Ad</h4>
+          <div class="price" id="banner-price">$325</div>
+          <div class="price-note">per month • 6.8¢ per household</div>
+          <ul>
+            <li><span class="check">✓</span> Premium top/bottom placement</li>
+            <li><span class="check">✓</span> Complete island coverage</li>
+            <li><span class="check">✓</span> Every island household reached</li>
+            <li><span class="check">✓</span> Category exclusivity</li>
+            <li><span class="check">✓</span> Professional design included</li>
+            <li><span class="check">✓</span> Cancel anytime</li>
+          </ul>
+          <a href="../reserve.html?market=Grand+Island&type=Banner" class="cta-button">Reserve Banner Spot</a>
+        </div>
+
+        <!-- Standard Ad - Featured -->
+        <div class="pricing-card featured">
+          <h4>Standard Ad</h4>
+          <div class="price" id="standard-price">$375</div>
+          <div class="price-note">per month • 7.9¢ per household</div>
+          <ul>
+            <li><span class="check">✓</span> Most popular size</li>
+            <li><span class="check">✓</span> Complete island coverage</li>
+            <li><span class="check">✓</span> Every island household reached</li>
+            <li><span class="check">✓</span> Category exclusivity</li>
+            <li><span class="check">✓</span> Professional design included</li>
+            <li><span class="check">✓</span> Cancel anytime</li>
+          </ul>
+          <a href="../reserve.html?market=Grand+Island&type=Standard" class="cta-button">Reserve Standard Spot</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Local Business Section -->
+  <section class="local-section">
+    <div class="local-container">
+      <div class="section-header">
+        <h2>Join Growing Island Businesses</h2>
+        <p>Local businesses already using 10k Postcards to reach islanders</p>
+      </div>
+
+      <div class="testimonial-card">
+        <div class="testimonial-text">
+          "Grand Island is a tight-knit community. Being on that postcard that hits every mailbox? That's invaluable for a local business like ours."
+        </div>
+        <div class="testimonial-author">— Island Business Owner</div>
+      </div>
+
+      <div style="margin-top: 3rem; padding: 2.5rem; background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08);">
+        <h3 style="font-size: 1.75rem; margin-bottom: 1.5rem; color: var(--island-blue);">📬 How Complete Coverage Works</h3>
+        <p style="color: var(--text-gray); font-size: 1.1rem; line-height: 1.8; margin-bottom: 1rem;">
+          Grand Island has nearly 9,500 households—more than any single postcard can hold. Our solution? <strong>Strategic rotation</strong> that ensures complete island coverage over time.
+        </p>
+        <p style="color: var(--text-gray); font-size: 1.1rem; line-height: 1.8;">
+          Each month, we mail to approximately 4,750 targeted households. Through careful rotation, <strong>every island address receives your message</strong>. No neighborhood is left out, no potential customer is missed. That's true island-wide reach.
+        </p>
+      </div>
+
+      <div style="margin-top: 2rem; padding: 2rem; background: rgba(0,119,190,0.1); border-radius: 12px;">
+        <h3 style="font-size: 1.5rem; margin-bottom: 1rem;">🏆 Island Categories Available:</h3>
+        <p style="color: var(--text-gray); font-size: 1.1rem;">
+          Restaurants • Auto Services • Home Services • Health & Wellness • Real Estate • Professional Services • And More
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Final CTA -->
+  <section class="final-cta">
+    <h2>Ready to Reach Every Islander?</h2>
+    <p>Join the businesses making Grand Island their marketing home</p>
+    <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+      <a href="../reserve.html?market=Grand+Island" class="cta-button">Reserve Your Spot Today</a>
+      <a href="market-grand-island.html" class="cta-button" style="background: rgba(255,255,255,0.2); border: 2px solid white;">View Live Availability →</a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <p>
+      <a href="../index.html">Home</a>
+      <a href="../about.html">About</a>
+      <a href="../how-it-works.html">How It Works</a>
+      <a href="../pricing.html">All Markets</a>
+      <a href="../contact.html">Contact</a>
+    </p>
+    <p style="margin-top: 1rem;">&copy; 2025 10k Postcards. Proudly serving Grand Island, NY.</p>
+  </footer>
+
+  <script>
+    // Load live pricing from Supabase
+    var SUPABASE_URL = "https://kurhsdvxsgkgnfimfqdo.supabase.co";
+    var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1cmhzZHZ4c2drZ25maW1mcWRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4MDk3NDYsImV4cCI6MjA3ODM4NTc0Nn0.nB_GsE89WJ3eAQrgmNKb-fbCktHTHf-987D-G6lscZA";
+    var supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Load Grand Island pricing
+    Promise.all([
+      supabaseClient
+        .from('postcards')
+        .select('mailer_id, spot_1, spot_2, spot_3, spot_4, spot_5, spot_6, spot_7, spot_8, spot_9, spot_10, spot_11, spot_12, spot_13, spot_14, spot_15, spot_16, banner_top, banner_bottom')
+        .ilike('town', 'Grand Island')
+        .eq('payment_status', 'Active')
+        .order('mail_date', { ascending: true })
+        .limit(1),
+      supabaseClient
+        .from('app_data')
+        .select('data')
+        .eq('data_type', 'pricing')
+        .single()
+    ])
+    .then(function(results) {
+      var postcardResult = results[0];
+      var pricingResult = results[1];
+
+      if (postcardResult.data && postcardResult.data.length > 0) {
+        var postcard = postcardResult.data[0];
+        var mailerId = postcard.mailer_id;
+        var allPricing = pricingResult.data ? pricingResult.data.data : {};
+        var pricing = allPricing[mailerId];
+
+        // Update pricing
+        if (pricing) {
+          var bannerPrice = pricing.bannerAd || 325;
+          var standardPrice = pricing.singleAd || 375;
+
+          document.getElementById('banner-price').textContent = '$' + bannerPrice;
+          document.getElementById('standard-price').textContent = '$' + standardPrice;
+
+          // Update cost per household
+          var bannerCost = (bannerPrice / 4757 * 100).toFixed(1);
+          var standardCost = (standardPrice / 4757 * 100).toFixed(1);
+
+          document.querySelector('#banner-price + .price-note').textContent =
+            'per month • ' + bannerCost + '¢ per household';
+          document.querySelector('#standard-price + .price-note').textContent =
+            'per month • ' + standardCost + '¢ per household';
+        }
+
+        // Count available spots
+        var spots = [
+          postcard.spot_1, postcard.spot_2, postcard.spot_3, postcard.spot_4,
+          postcard.spot_5, postcard.spot_6, postcard.spot_7, postcard.spot_8,
+          postcard.spot_9, postcard.spot_10, postcard.spot_11, postcard.spot_12,
+          postcard.spot_13, postcard.spot_14, postcard.spot_15, postcard.spot_16,
+          postcard.banner_top, postcard.banner_bottom
+        ];
+
+        var availableSpots = spots.filter(function(spot) {
+          return spot === 'Available' || spot === null || spot === '';
+        }).length;
+
+        document.getElementById('spots-available').textContent = availableSpots;
+      }
+    })
+    .catch(function(error) {
+      console.error('Error loading data:', error);
+    });
+  </script>
+</body>
+</html>

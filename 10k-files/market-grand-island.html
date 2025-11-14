@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Grand Island Market - 10k Postcards</title>
+  <meta name="description" content="Grand Island direct mail marketing - reach 4,757 households with $102k average income. Category exclusivity guaranteed. View live availability and pricing for ZIP 14072." />
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --primary-color: #312fd4;
+      --primary-hover: #211ea5;
+      --accent-color: #27a844;
+      --light-bg: #f8f9fc;
+      --white: #ffffff;
+      --text-dark: #1a1a1a;
+      --text-gray: #4a5568;
+      --border-light: #e2e8f0;
+    }
+    body { font-family: 'Inter', sans-serif; color: var(--text-dark); line-height: 1.6; background: var(--light-bg); }
+    header { background: var(--white); border-bottom: 1px solid var(--border-light); padding: 1rem 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .header-container { max-width: 1400px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+    .logo-img { height: clamp(60px, 12vw, 90px); width: auto; display: block; }
+    .logo-image { display: flex; align-items: center; text-decoration: none; line-height: 0; }
+    nav { display: flex; gap: 2rem; align-items: center; }
+    nav a { color: var(--text-gray); text-decoration: none; font-weight: 500; font-size: 0.95rem; transition: color 0.2s; }
+    nav a:hover { color: var(--primary-color); }
+    .nav-cta { background: var(--primary-color); color: white !important; padding: 0.65rem 1.5rem; border-radius: 8px; font-weight: 600; }
+    nav a.active { color: var(--primary-color); font-weight: 700; position: relative; }
+    nav a.active::after { content: ''; position: absolute; bottom: -8px; left: 0; right: 0; height: 3px; background: var(--primary-color); border-radius: 2px; }
+
+    .market-hero { background: linear-gradient(135deg, var(--primary-color) 0%, #4845e4 100%); color: white; padding: 4rem 2rem; }
+    .market-hero-container { max-width: 1200px; margin: 0 auto; text-align: center; }
+    .market-hero h1 { font-size: 3rem; font-weight: 800; margin-bottom: 1rem; }
+    .market-badge { display: inline-block; background: var(--accent-color); padding: 0.5rem 1rem; border-radius: 8px; font-weight: 700; margin-bottom: 1rem; }
+    .market-hero p { font-size: 1.25rem; opacity: 0.95; }
+
+    .market-section { padding: 5rem 2rem; }
+    .market-container { max-width: 1200px; margin: 0 auto; }
+
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2rem; margin-bottom: 4rem; }
+    .stat-card { background: white; padding: 2rem; border-radius: 12px; border: 2px solid var(--border-light); text-align: center; }
+    .stat-value { font-size: 2rem; font-weight: 800; color: var(--primary-color); margin-bottom: 0.5rem; }
+    .stat-label { color: var(--text-gray); font-weight: 600; }
+
+    .zones-section { background: white; padding: 3rem; border-radius: 16px; margin-bottom: 3rem; }
+    .zones-section h2 { font-size: 2rem; font-weight: 800; margin-bottom: 2rem; color: var(--text-dark); }
+
+    .cta-button { display: inline-block; background: var(--accent-color); color: white; padding: 1.25rem 3rem; border-radius: 10px; font-weight: 700; font-size: 1.25rem; text-decoration: none; transition: all 0.2s; border: none; cursor: pointer; }
+    .cta-button:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(39,168,68,0.4); }
+
+    .cta-button-secondary { background: var(--primary-color); margin-left: 1rem; }
+    .cta-button-secondary:hover { background: var(--primary-hover); box-shadow: 0 8px 20px rgba(49,47,212,0.4); }
+
+    .exclusive-banner { background: linear-gradient(135deg, var(--accent-color) 0%, #1f8a37 100%); color: white; padding: 2rem; border-radius: 12px; margin-bottom: 3rem; text-align: center; }
+    .exclusive-banner strong { font-size: 1.1rem; }
+
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: none; align-items: center; justify-content: center; z-index: 9999; padding: 1rem; }
+    .modal-backdrop.active { display: flex; }
+    .modal-content { background: white; border-radius: 16px; max-width: 1200px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 2rem; position: relative; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 2px solid var(--border-light); padding-bottom: 1rem; }
+    .modal-header h2 { font-size: 1.75rem; font-weight: 800; color: var(--text-dark); }
+    .modal-close { background: #ef4444; color: white; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 1.5rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; line-height: 1; }
+    .modal-close:hover { background: #dc2626; transform: scale(1.1); }
+
+    .postcard-wrapper { margin-bottom: 3rem; }
+    .postcard-section-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color: var(--text-dark); }
+
+    .postcard { background: #000000; border: 1px solid #e5e7eb; border-radius: 0; padding: 0.75rem; box-shadow: 0 6px 18px rgba(0,0,0,0.06); max-width: 100%; }
+    .postcard.size-6x12 { transform: scaleY(0.722); transform-origin: top center; }
+
+    .grid-front, .grid-back { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: 40fr 14fr 40fr; gap: 0.5rem; width: 100%; aspect-ratio: 12/9; }
+    .col-span-2 { grid-column: span 2 / span 2; }
+    .col-span-4 { grid-column: span 4 / span 4; }
+
+    .card { border-width: 2px; border-style: solid; border-radius: 0.75rem; padding: 0.85rem; text-align: center; font-weight: 600; position: relative; display: flex; align-items: center; justify-content: center; min-height: 80px; }
+    .card.banner { font-weight: 800; }
+    .spot-label { position: absolute; top: 6px; left: 8px; font-size: 0.7rem; font-weight: 700; opacity: 0.65; }
+    .price-badge { position: absolute; top: 6px; right: 8px; font-size: 0.75rem; padding: 4px 8px; border-radius: 9999px; background: rgba(49,47,212,0.95); color: white; font-weight: 700; box-shadow: 0 2px 6px rgba(49,47,212,0.3); }
+    .banner-text { font-size: 1.5rem; letter-spacing: 0.05em; }
+
+    .loading-message { text-align: center; padding: 3rem; font-size: 1.1rem; color: var(--text-gray); }
+    .error-message { text-align: center; padding: 2rem; background: #fee2e2; color: #991b1b; border-radius: 8px; }
+
+    footer { background: var(--text-dark); color: white; padding: 3rem 2rem 2rem; margin-top: 5rem; }
+    .footer-container { max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3rem; margin-bottom: 2rem; }
+    .footer-section h4 { font-weight: 700; margin-bottom: 1rem; }
+    .footer-section p, .footer-section a { color: rgba(255,255,255,0.8); text-decoration: none; line-height: 2; display: block; }
+    .footer-section a:hover { color: white; }
+    .footer-bottom { text-align: center; padding-top: 2rem; border-top: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); }
+
+    @media (max-width: 968px) {
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .footer-container { grid-template-columns: 1fr; }
+      nav { display: none; }
+      .logo-img { height: clamp(50px, 10vw, 70px); }
+      .grid-front, .grid-back { grid-template-columns: repeat(2, 1fr); aspect-ratio: unset; }
+      .cta-button-secondary { margin-left: 0; margin-top: 1rem; }
+    }
+    @media (max-width: 600px) {
+      .grid-front, .grid-back { grid-template-columns: 1fr; }
+      .card { min-height: 110px; padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-container">
+      <a href="index.html" class="logo-image">
+        <img src="images/10kpostcardlogo.png" alt="10k Postcards Logo" class="logo-img">
+      </a>
+      <nav>
+        <a href="about.html">About</a>
+        <a href="how-it-works.html">How It Works</a>
+        <a href="markets.html" class="active">Markets</a>
+        <a href="pricing.html">Pricing</a>
+        <a href="contact.html">Contact</a>
+        <a href="reserve.html" class="nav-cta">Reserve Your Spot</a>
+      </nav>
+    </div>
+  </header>
+
+  <section class="market-hero">
+    <div class="market-hero-container">
+      <div class="market-badge">ZIP 14072</div>
+      <h1>Grand Island Spotlight</h1>
+      <p>Reach nearly 5,000 island households every month</p>
+    </div>
+  </section>
+
+  <section class="market-section">
+    <div class="market-container">
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">4,757</div>
+          <div class="stat-label">Total Addresses</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">~11,700</div>
+          <div class="stat-label">Est. Population</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">$102k</div>
+          <div class="stat-label">Avg. Income</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">2.47</div>
+          <div class="stat-label">Avg. Household Size</div>
+        </div>
+      </div>
+
+      <div class="exclusive-banner">
+        <strong>🏝️ Grand Island Businesses Only</strong><br>
+        This market is exclusively reserved for businesses located on Grand Island. We support our island community!
+      </div>
+
+      <div style="background: linear-gradient(135deg, #0077be 0%, #2d5f3f 100%); color: white; padding: 1.5rem; border-radius: 12px; margin-bottom: 3rem; text-align: center;">
+        <strong>🏝️ New here?</strong> <a href="grandisland.html" style="color: white; text-decoration: underline; font-weight: 700;">Learn why Grand Island businesses choose 10k Postcards →</a>
+      </div>
+
+      <div class="zones-section">
+        <h2 style="text-align: center; margin-bottom: 1rem;">Live Availability</h2>
+        <p style="color: var(--text-gray); font-size: 1.1rem; line-height: 1.8; margin-bottom: 2rem; text-align: center;">
+          See exactly which spots are available on the next Grand Island postcard. Green = taken, Gray = available for your business.
+        </p>
+
+        <div id="availabilityDisplay">
+          <div class="loading-message">Loading live availability...</div>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin-top: 3rem;">
+        <a href="reserve.html?market=Grand+Island" class="cta-button">Reserve Your Spot Now</a>
+        <p style="margin-top: 1rem; color: var(--text-gray);">Only ONE business per category. Don't let your competitor beat you!</p>
+      </div>
+
+    </div>
+  </section>
+
+  <footer>
+    <div class="footer-container">
+      <div class="footer-section">
+        <h4>10k Postcards</h4>
+        <p>Affordable direct mail marketing for local businesses</p>
+      </div>
+      <div class="footer-section">
+        <h4>Quick Links</h4>
+        <a href="about.html">About Us</a>
+        <a href="how-it-works.html">How It Works</a>
+        <a href="markets.html">Our Markets</a>
+      </div>
+      <div class="footer-section">
+        <h4>Get Started</h4>
+        <a href="reserve.html">Reserve Your Spot</a>
+        <a href="contact.html">Contact Us</a>
+      </div>
+    </div>
+    <div class="footer-bottom"><p>&copy; 2025 10k Postcards. All rights reserved.</p></div>
+  </footer>
+
+  <script>
+    var SUPABASE_URL = "https://kurhsdvxsgkgnfimfqdo.supabase.co";
+    var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1cmhzZHZ4c2drZ25maW1mcWRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4MDk3NDYsImV4cCI6MjA3ODM4NTc0Nn0.nB_GsE89WJ3eAQrgmNKb-fbCktHTHf-987D-G6lscZA";
+
+    var supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    var AVAILABLE_COLOR = { bg: "#e5e7eb", border: "#9ca3af" };
+    var TAKEN_COLOR = { bg: "#27a844", border: "#1f8a36" };
+
+    function getStatusDisplay(rawStatus) {
+      if (!rawStatus || rawStatus.toLowerCase() === "available") return "Available";
+      var match = String(rawStatus).match(/^(.+?):\s*(.+)$/);
+      if (match) return match[1].trim();
+      return rawStatus;
+    }
+
+    function getBusinessName(rawStatus) {
+      if (!rawStatus || rawStatus.toLowerCase() === "available") return "Available";
+      var match = String(rawStatus).match(/^(.+?):\s*(.+)$/);
+      if (match) return match[2].trim();
+      return rawStatus;
+    }
+
+    function createCard(label, name, status, span, isBanner, bannerBg, price) {
+      var div = document.createElement("div");
+      var spanClass = span === 4 ? "col-span-4" : (span === 2 ? "col-span-2" : "");
+      div.className = "card " + spanClass + (isBanner ? " banner" : "");
+
+      var isAvailable = name === "Available";
+
+      if (isBanner && bannerBg) {
+        div.style.backgroundColor = bannerBg;
+        div.style.borderColor = bannerBg;
+        div.style.color = "#ffffff";
+      } else {
+        var colors = isAvailable ? AVAILABLE_COLOR : TAKEN_COLOR;
+        div.style.backgroundColor = colors.bg;
+        div.style.borderColor = colors.border;
+        div.style.color = isAvailable ? "#000000" : "#ffffff";
+      }
+
+      if (!isBanner) {
+        var labelEl = document.createElement("div");
+        labelEl.className = "spot-label";
+        labelEl.textContent = label;
+        labelEl.style.color = isAvailable ? "#000000" : "#ffffff";
+        labelEl.style.opacity = "1";
+        div.appendChild(labelEl);
+      }
+
+      var nameEl = document.createElement("div");
+      if (isBanner) nameEl.className = "banner-text";
+      nameEl.textContent = name;
+      div.appendChild(nameEl);
+
+      if (isAvailable && price && !isBanner) {
+        var priceEl = document.createElement("div");
+        priceEl.className = "price-badge";
+        priceEl.textContent = "$" + price;
+        div.appendChild(priceEl);
+      }
+
+      return div;
+    }
+
+    function renderPostcard(container, postcard, pricing) {
+      container.innerHTML = "";
+
+      var singlePrice = pricing ? pricing.singleAd : null;
+      var doublePrice = pricing ? pricing.doubleAd : null;
+      var bannerPrice = pricing ? pricing.bannerAd : null;
+
+      var inHomesDate = "";
+      if (postcard.in_homes_date) {
+        var inHomesObj = new Date(postcard.in_homes_date);
+        inHomesDate = inHomesObj.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+      }
+
+      if (inHomesDate) {
+        var inHomesDiv = document.createElement("div");
+        inHomesDiv.style.textAlign = "center";
+        inHomesDiv.style.padding = "1rem";
+        inHomesDiv.style.background = "#312fd4";
+        inHomesDiv.style.borderRadius = "8px";
+        inHomesDiv.style.marginBottom = "2rem";
+        inHomesDiv.style.fontWeight = "600";
+        inHomesDiv.style.color = "#ffffff";
+        inHomesDiv.innerHTML = "Expected in homes: " + inHomesDate;
+        container.appendChild(inHomesDiv);
+      }
+
+      var wrapper1 = document.createElement("div");
+      wrapper1.className = "postcard-wrapper";
+
+      var title1 = document.createElement("div");
+      title1.className = "postcard-section-title";
+      title1.textContent = "Front Side";
+      wrapper1.appendChild(title1);
+
+      var postcardDiv1 = document.createElement("div");
+      postcardDiv1.className = "postcard" + (postcard.postcard_size === "6x12" ? " size-6x12" : "");
+      postcardDiv1.style.backgroundColor = postcard.postcard_bg || "#000000";
+
+      var frontGrid = document.createElement("div");
+      frontGrid.className = "grid-front";
+      postcardDiv1.appendChild(frontGrid);
+      wrapper1.appendChild(postcardDiv1);
+      container.appendChild(wrapper1);
+
+      var wrapper2 = document.createElement("div");
+      wrapper2.className = "postcard-wrapper";
+
+      var title2 = document.createElement("div");
+      title2.className = "postcard-section-title";
+      title2.textContent = "Back Side";
+      wrapper2.appendChild(title2);
+
+      var postcardDiv2 = document.createElement("div");
+      postcardDiv2.className = "postcard" + (postcard.postcard_size === "6x12" ? " size-6x12" : "");
+      postcardDiv2.style.backgroundColor = postcard.postcard_bg || "#000000";
+
+      var backGrid = document.createElement("div");
+      backGrid.className = "grid-back";
+      postcardDiv2.appendChild(backGrid);
+      wrapper2.appendChild(postcardDiv2);
+      container.appendChild(wrapper2);
+
+      var ctaDiv = document.createElement("div");
+      ctaDiv.style.textAlign = "center";
+      ctaDiv.style.marginTop = "2rem";
+      var ctaLink = document.createElement("a");
+      ctaLink.href = "reserve.html";
+      ctaLink.className = "cta-button";
+      ctaLink.textContent = "Reserve Your Spot Now";
+      ctaDiv.appendChild(ctaLink);
+      container.appendChild(ctaDiv);
+
+      renderRow(frontGrid, postcard, 1, 4, singlePrice, doublePrice);
+
+      var month = "";
+      if (postcard.mail_date && /^\d{4}-\d{2}-\d{2}/.test(postcard.mail_date)) {
+        var monthNum = parseInt(postcard.mail_date.split("-")[1]);
+        var monthNames = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        month = monthNames[monthNum] || "";
+      }
+      var town = postcard.town.toUpperCase();
+      var bannerText = month ? town + " — " + month.toUpperCase() : town;
+      var bannerBg = postcard.banner_bg || "#000000";
+      frontGrid.appendChild(createCard("", bannerText, "", 4, true, bannerBg, null));
+
+      renderRow(frontGrid, postcard, 5, 8, singlePrice, doublePrice);
+
+      renderRow(backGrid, postcard, 9, 12, singlePrice, doublePrice);
+
+      var spot13Data = postcard.spot_13;
+      var spot14Data = postcard.spot_14;
+      var name13 = getBusinessName(spot13Data);
+      var name14 = getBusinessName(spot14Data);
+      var status13 = getStatusDisplay(spot13Data);
+      var status14 = getStatusDisplay(spot14Data);
+
+      if (name13 !== "Available" && name13 === name14) {
+        backGrid.appendChild(createCard("Spots 13-14", name13, status13, 4, false, null, null));
+      } else {
+        var price13 = name13 === "Available" ? bannerPrice : null;
+        var price14 = name14 === "Available" ? bannerPrice : null;
+        backGrid.appendChild(createCard("Spot 13", name13, status13, 2, false, null, price13));
+        backGrid.appendChild(createCard("Spot 14", name14, status14, 2, false, null, price14));
+      }
+
+      renderRow(backGrid, postcard, 15, 16, singlePrice, doublePrice);
+
+      var spot17Data = postcard.spot_17;
+      var spot18Data = postcard.spot_18;
+      var name17 = getBusinessName(spot17Data);
+      var name18 = getBusinessName(spot18Data);
+      var status17 = getStatusDisplay(spot17Data);
+      var status18 = getStatusDisplay(spot18Data);
+
+      if (name17 !== "Available" && name17 === name18) {
+        backGrid.appendChild(createCard("Spots 17-18", name17, status17, 2, false, null, null));
+      } else {
+        var price17 = name17 === "Available" ? bannerPrice : null;
+        var price18 = name18 === "Available" ? bannerPrice : null;
+        backGrid.appendChild(createCard("Spot 17", name17, status17, 1, false, null, price17));
+        backGrid.appendChild(createCard("Spot 18", name18, status18, 1, false, null, price18));
+      }
+    }
+
+    function renderRow(grid, postcard, start, end, singlePrice, doublePrice) {
+      for (var i = start; i <= end; i += 2) {
+        var spot1Data = postcard["spot_" + i];
+        var spot2Data = postcard["spot_" + (i + 1)];
+
+        var name1 = getBusinessName(spot1Data);
+        var name2 = getBusinessName(spot2Data);
+        var status1 = getStatusDisplay(spot1Data);
+        var status2 = getStatusDisplay(spot2Data);
+
+        if (name1 !== "Available" && name1 === name2) {
+          grid.appendChild(createCard("Spots " + i + "-" + (i + 1), name1, status1, 2, false, null, null));
+        } else {
+          var price1 = name1 === "Available" ? singlePrice : null;
+          var price2 = name2 === "Available" ? singlePrice : null;
+          grid.appendChild(createCard("Spot " + i, name1, status1, 1, false, null, price1));
+          grid.appendChild(createCard("Spot " + (i + 1), name2, status2, 1, false, null, price2));
+        }
+      }
+    }
+
+    // Load availability directly on page load
+    function loadAvailability() {
+      var container = document.getElementById("availabilityDisplay");
+
+      Promise.all([
+        supabaseClient
+          .from("postcards")
+          .select("*")
+          .ilike("town", "Grand Island")
+          .eq("payment_status", "Active")
+          .order("mail_date", { ascending: true })
+          .limit(1),
+        supabaseClient
+          .from("app_data")
+          .select("data")
+          .eq("data_type", "pricing")
+          .single()
+      ])
+      .then(function(results) {
+        var postcardResult = results[0];
+        var pricingResult = results[1];
+
+        if (postcardResult.error) throw postcardResult.error;
+
+        if (!postcardResult.data || postcardResult.data.length === 0) {
+          container.innerHTML = '<div class="error-message">No active postcards found for Grand Island. Check back soon!</div>';
+          return;
+        }
+
+        var postcard = postcardResult.data[0];
+        var allPricing = pricingResult.data ? pricingResult.data.data : {};
+        var mailerId = postcard.mailer_id;
+        var pricing = allPricing[mailerId] || null;
+
+        renderPostcard(container, postcard, pricing);
+      })
+      .catch(function(err) {
+        console.error("Error loading availability:", err);
+        container.innerHTML = '<div class="error-message">Failed to load availability. Please try again later.</div>';
+      });
+    }
+
+    // Load availability when page loads
+    loadAvailability();
+  </script>
+</body>
+</html>
