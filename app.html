@@ -2737,7 +2737,7 @@ Thanks!
     const mateOf = n => { for (const [a,b] of PAIRS) { if (a===n) return b; if (b===n) return a; } return null; };
 
     // VERSION CHECK - If you don't see this in console, you're viewing cached HTML
-    console.log('🔥 APP VERSION: 2025-01-14-v20 - Fix Edit Postcard Details save button');
+    console.log('🔥 APP VERSION: 2025-01-14-v21 - Fix date timezone issue (display correct date)');
 
     const state = {
       mailers: [],
@@ -9273,11 +9273,18 @@ Thanks!
       const inHomesDate = state.current.In_Homes_Date;
 
       if (inHomesDate) {
-        const dateObj = new Date(inHomesDate);
-        const yyyy = dateObj.getFullYear();
-        const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
-        const dd = String(dateObj.getDate()).padStart(2, '0');
-        document.getElementById("editInHomesDate").value = `${yyyy}-${mm}-${dd}`;
+        // Parse date string without timezone conversion
+        // If already in YYYY-MM-DD format, use it directly
+        if (/^\d{4}-\d{2}-\d{2}/.test(inHomesDate)) {
+          document.getElementById("editInHomesDate").value = inHomesDate.substring(0, 10);
+        } else {
+          // Fallback: parse as local date
+          const dateObj = new Date(inHomesDate);
+          const yyyy = dateObj.getFullYear();
+          const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+          const dd = String(dateObj.getDate()).padStart(2, '0');
+          document.getElementById("editInHomesDate").value = `${yyyy}-${mm}-${dd}`;
+        }
       } else {
         document.getElementById("editInHomesDate").value = '';
       }
