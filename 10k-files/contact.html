@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contact Us - 10k Postcards</title>
+  <meta name="description" content="Contact 10k Postcards for questions about direct mail marketing. Get answers about category exclusivity, pricing, and how to reach thousands of local homes." />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --primary-color: #312fd4;
+      --primary-hover: #211ea5;
+      --accent-color: #27a844;
+      --light-bg: #f8f9fc;
+      --white: #ffffff;
+      --text-dark: #1a1a1a;
+      --text-gray: #4a5568;
+      --border-light: #e2e8f0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--text-dark);
+      line-height: 1.6;
+      background: var(--light-bg);
+    }
+
+    header {
+      background: var(--white);
+      border-bottom: 1px solid var(--border-light);
+      padding: 1rem 2rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .header-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo-img {
+      height: clamp(60px, 12vw, 90px);
+      width: auto;
+      display: block;
+    }
+    .logo-image {
+      display: flex;
+      align-items: center;
+      text-decoration: none;
+      line-height: 0;
+    }
+
+    nav {
+      display: flex;
+      gap: 2rem;
+      align-items: center;
+    }
+
+    nav a {
+      color: var(--text-gray);
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 0.95rem;
+      transition: color 0.2s;
+    }
+
+    nav a:hover {
+      color: var(--primary-color);
+    }
+
+    .nav-cta {
+      background: var(--primary-color);
+      color: white !important;
+      padding: 0.65rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    
+    .nav-cta:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+    }
+
+    /* Active page highlighting */
+    nav a.active {
+      color: var(--primary-color);
+      font-weight: 700;
+      position: relative;
+    }
+    nav a.active::after {
+      content: '';
+      position: absolute;
+      bottom: -8px;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--primary-color);
+      border-radius: 2px;
+    }
+
+    .page-hero {
+      background: linear-gradient(135deg, var(--primary-color) 0%, #4845e4 100%);
+      color: white;
+      padding: 4rem 2rem;
+      text-align: center;
+    }
+
+    .page-hero h1 {
+      font-size: 3rem;
+      font-weight: 800;
+      margin-bottom: 1rem;
+    }
+
+    .page-hero p {
+      font-size: 1.25rem;
+      opacity: 0.95;
+    }
+
+    .contact-section {
+      padding: 5rem 2rem;
+    }
+
+    .contact-container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .contact-card {
+      background: white;
+      padding: 3rem;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+
+    .form-group {
+      margin-bottom: 1.5rem;
+    }
+
+    .form-group label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: var(--text-dark);
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 0.875rem;
+      border: 2px solid var(--border-light);
+      border-radius: 8px;
+      font-size: 1rem;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: var(--primary-color);
+    }
+
+    .form-group textarea {
+      min-height: 150px;
+      resize: vertical;
+    }
+
+    .submit-button {
+      width: 100%;
+      background: var(--primary-color);
+      color: white;
+      padding: 1rem 2rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .submit-button:hover {
+      background: var(--primary-hover);
+      transform: translateY(-2px);
+    }
+
+    .contact-info {
+      margin-top: 3rem;
+      padding-top: 3rem;
+      border-top: 1px solid var(--border-light);
+      text-align: center;
+    }
+
+    .contact-info h3 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 1.5rem;
+      color: var(--text-dark);
+    }
+
+    .contact-methods {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 2rem;
+      margin-top: 2rem;
+    }
+
+    .contact-method {
+      background: var(--light-bg);
+      padding: 2rem;
+      border-radius: 12px;
+    }
+
+    .contact-method-icon {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+    }
+
+    .contact-method h4 {
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      color: var(--text-dark);
+    }
+
+    .contact-method p {
+      color: var(--text-gray);
+    }
+
+    footer {
+      background: var(--text-dark);
+      color: white;
+      padding: 3rem 2rem 2rem;
+      margin-top: 5rem;
+    }
+
+    .footer-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3rem;
+      margin-bottom: 2rem;
+    }
+
+    .footer-section h4 {
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+
+    .footer-section p, .footer-section a {
+      color: rgba(255,255,255,0.8);
+      text-decoration: none;
+      line-height: 2;
+      display: block;
+    }
+
+    .footer-section a:hover {
+      color: white;
+    }
+
+    .footer-bottom {
+      text-align: center;
+      padding-top: 2rem;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.6);
+    }
+
+    @media (max-width: 968px) {
+      .contact-methods {
+        grid-template-columns: 1fr;
+      }
+
+      .footer-container {
+        grid-template-columns: 1fr;
+      }
+
+      nav {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-container">
+      <a href="index.html" class="logo-image">
+        <img src="images/10kpostcardlogo.png" alt="10k Postcards Logo" class="logo-img">
+      </a>
+      <nav>
+        <a href="about.html">About</a>
+        <a href="how-it-works.html">How It Works</a>
+        <a href="markets.html">Markets</a>
+        <a href="pricing.html">Pricing</a>
+        <a href="contact.html" class="active">Contact</a>
+        <a href="reserve.html" class="nav-cta">Reserve Your Spot</a>
+      </nav>
+    </div>
+  </header>
+
+  <section class="page-hero">
+    <h1>Get in Touch</h1>
+    <p>Have questions? We're here to help!</p>
+  </section>
+
+  <section class="contact-section">
+    <div class="contact-container">
+      <div class="contact-card">
+        <form action="https://formspree.io/f/xdkowwwq" method="POST">
+          <div class="form-group">
+            <label for="name">Your Name *</label>
+            <input type="text" id="name" name="name" required />
+          </div>
+
+          <div class="form-group">
+            <label for="email">Email Address *</label>
+            <input type="email" id="email" name="email" required />
+          </div>
+
+          <div class="form-group">
+            <label for="phone">Phone Number</label>
+            <input type="tel" id="phone" name="phone" />
+          </div>
+
+          <div class="form-group">
+            <label for="business">Business Name</label>
+            <input type="text" id="business" name="business" />
+          </div>
+
+          <div class="form-group">
+            <label for="market">Interested Market</label>
+            <select id="market" name="market">
+              <option value="">Select a market</option>
+              <option value="Grand Island">Grand Island</option>
+              <option value="Kenmore">Kenmore</option>
+              <option value="Tonawanda 14223">Tonawanda 14223</option>
+              <option value="East Amherst">East Amherst</option>
+              <option value="Tonawanda 14150">Tonawanda 14150</option>
+              <option value="North Tonawanda">North Tonawanda</option>
+              <option value="Clarence">Clarence</option>
+              <option value="Amherst">Amherst</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="message">Message *</label>
+            <textarea id="message" name="message" required></textarea>
+          </div>
+
+          <input type="hidden" name="_to" value="rcall@10kpostcards.com" />
+          <input type="hidden" name="_subject" value="New Contact Form Submission - 10k Postcards" />
+
+          <button type="submit" class="submit-button">Send Message</button>
+        </form>
+
+        <div class="contact-info">
+          <h3>Other Ways to Reach Us</h3>
+          
+          <div class="contact-methods">
+            <div class="contact-method">
+              <div class="contact-method-icon">📧</div>
+              <h4>Email</h4>
+              <p>Prefer email? Send us a message directly at the address shown in our response.</p>
+            </div>
+
+            <div class="contact-method">
+              <div class="contact-method-icon">📱</div>
+              <h4>Text/SMS</h4>
+              <p>Text us anytime at the number provided in our response for quick questions.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="footer-container">
+      <div class="footer-section">
+        <h4>10k Postcards</h4>
+        <p>Affordable direct mail marketing for local businesses</p>
+      </div>
+
+      <div class="footer-section">
+        <h4>Quick Links</h4>
+        <a href="about.html">About Us</a>
+        <a href="how-it-works.html">How It Works</a>
+        <a href="markets.html">Our Markets</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+
+      <div class="footer-section">
+        <h4>Get Started</h4>
+        <a href="reserve.html">Reserve Your Spot</a>
+        <a href="contact.html">Contact Us</a>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <p>&copy; 2025 10k Postcards. All rights reserved.</p>
+    </div>
+  </footer>
+</body>
+</html>
