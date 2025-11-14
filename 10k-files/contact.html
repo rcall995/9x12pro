@@ -194,48 +194,6 @@
       transform: translateY(-2px);
     }
 
-    .contact-info {
-      margin-top: 3rem;
-      padding-top: 3rem;
-      border-top: 1px solid var(--border-light);
-      text-align: center;
-    }
-
-    .contact-info h3 {
-      font-size: 1.5rem;
-      font-weight: 700;
-      margin-bottom: 1.5rem;
-      color: var(--text-dark);
-    }
-
-    .contact-methods {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 2rem;
-      margin-top: 2rem;
-    }
-
-    .contact-method {
-      background: var(--light-bg);
-      padding: 2rem;
-      border-radius: 12px;
-    }
-
-    .contact-method-icon {
-      font-size: 2rem;
-      margin-bottom: 1rem;
-    }
-
-    .contact-method h4 {
-      font-weight: 700;
-      margin-bottom: 0.5rem;
-      color: var(--text-dark);
-    }
-
-    .contact-method p {
-      color: var(--text-gray);
-    }
-
     footer {
       background: var(--text-dark);
       color: white;
@@ -276,10 +234,6 @@
     }
 
     @media (max-width: 968px) {
-      .contact-methods {
-        grid-template-columns: 1fr;
-      }
-
       .footer-container {
         grid-template-columns: 1fr;
       }
@@ -361,24 +315,6 @@
 
           <button type="submit" class="submit-button">Send Message</button>
         </form>
-
-        <div class="contact-info">
-          <h3>Other Ways to Reach Us</h3>
-          
-          <div class="contact-methods">
-            <div class="contact-method">
-              <div class="contact-method-icon">📧</div>
-              <h4>Email</h4>
-              <p>Prefer email? Send us a message directly at the address shown in our response.</p>
-            </div>
-
-            <div class="contact-method">
-              <div class="contact-method-icon">📱</div>
-              <h4>Text/SMS</h4>
-              <p>Text us anytime at the number provided in our response for quick questions.</p>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   </section>
