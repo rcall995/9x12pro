@@ -2737,7 +2737,7 @@ Thanks!
     const mateOf = n => { for (const [a,b] of PAIRS) { if (a===n) return b; if (b===n) return a; } return null; };
 
     // VERSION CHECK - If you don't see this in console, you're viewing cached HTML
-    console.log('🔥 APP VERSION: 2025-01-14-v19 - Fix spot pricing corruption (filter campaign-level pricing)');
+    console.log('🔥 APP VERSION: 2025-01-14-v20 - Fix Edit Postcard Details save button');
 
     const state = {
       mailers: [],
@@ -9301,7 +9301,6 @@ Thanks!
 
       if (inHomesDateValue) {
         state.current.In_Homes_Date = inHomesDateValue;
-        markUnsavedChanges();
 
         try {
           const { error } = await supabaseClient
@@ -9312,14 +9311,13 @@ Thanks!
 
           if (error) throw error;
 
-          toast('In homes date updated successfully');
+          toast('✅ In homes date updated successfully');
+          closeEditDetailsModal();
         } catch (err) {
           console.error('Error updating in homes date:', err);
-          toast('Failed to update in homes date', false);
+          toast('❌ Failed to update in homes date', false);
         }
       }
-
-      closeEditDetailsModal();
     }
 
     function toggleTownInput() {
