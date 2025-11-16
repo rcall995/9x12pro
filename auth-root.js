@@ -108,6 +108,12 @@ function addLogoutButton() {
   // Find the header nav area
   var nav = document.querySelector('header .flex.gap-4');
   if (nav && currentAuthUser) {
+    // Add user name
+    var userName = document.createElement('span');
+    userName.id = 'rootUserName';
+    userName.className = 'px-4 py-2 text-sm font-medium text-gray-600';
+    userName.textContent = currentAuthUser.fullName;
+
     // Create logout button
     var logoutBtn = document.createElement('button');
     logoutBtn.id = 'rootLogoutBtn';
@@ -121,13 +127,7 @@ function addLogoutButton() {
       }
     };
 
-    // Add user name
-    var userName = document.createElement('span');
-    userName.className = 'px-4 py-2 text-sm font-medium text-gray-600';
-    userName.textContent = currentAuthUser.fullName;
-
-    // Clear existing nav and add new elements
-    nav.innerHTML = '';
+    // Append to nav without clearing existing content
     nav.appendChild(userName);
     nav.appendChild(logoutBtn);
   }
