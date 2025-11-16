@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run deploy)",
+      "Bash(git push:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nFix pricing load order to prevent $500 default flash\n\n- Add check to skip financial calculations if pricing data not loaded yet\n- Add log to confirm pricing data loaded before loading campaigns\n- Prevent initial $500 default prices from showing on page load\n- Update version to 2025-01-13-v3\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git commit:*)",
+      "Bash(dir:*)",
+      "Bash(curl:*)",
+      "Bash(vercel --version)",
+      "Bash(vercel:*)",
+      "Bash(test:*)",
+      "Bash(attrib:*)",
+      "Bash(start \"\" \"C:\\Users\\rich\\9x12Pro\\10k-files\\contact.html\")",
+      "Bash(explorer \"C:\\Users\\rich\\9x12Pro\\10k-files\")",
+      "Bash(findstr:*)",
+      "Bash(find:*)",
+      "Bash(git stash:*)",
+      "Bash(git pull:*)",
+      "Bash(git checkout:*)",
+      "Bash(git reset:*)",
+      "Bash(cat:*)",
+      "Bash(npm install:*)",
+      "Bash(npm ci:*)",
+      "Bash(rd /s /q node_modules)",
+      "Bash(taskkill:*)",
+      "Bash(npm cache clean:*)",
+      "WebSearch",
+      "Bash(npx create-react-app parcost-fresh)",
+      "Bash(npm start)",
+      "Bash(nul)",
+      "Bash(powershell -Command \"Remove-Item -Recurse -Force node_modules\")",
+      "Bash(timeout /t 2 /nobreak)",
+      "Bash(powershell -Command:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(node add-auth-to-pages.js:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

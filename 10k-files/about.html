@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>About Us - 10k Postcards</title>
+  <meta name="description" content="Learn about 10k Postcards - affordable direct mail marketing for local businesses. Category exclusivity guaranteed. Reach thousands of local homes for pennies per mailbox." />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --primary-color: #312fd4;
+      --primary-hover: #211ea5;
+      --accent-color: #27a844;
+      --light-bg: #f8f9fc;
+      --white: #ffffff;
+      --text-dark: #1a1a1a;
+      --text-gray: #4a5568;
+      --border-light: #e2e8f0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--text-dark);
+      line-height: 1.6;
+      background: var(--light-bg);
+    }
+
+    /* Header */
+    header {
+      background: var(--white);
+      border-bottom: 1px solid var(--border-light);
+      padding: 1rem 2rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .header-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Responsive Logo - 2.5x larger (90px base), scales on mobile */
+    .logo-img {
+      height: clamp(60px, 12vw, 90px);
+      width: auto;
+      display: block;
+    }
+    .logo-image {
+      display: flex;
+      align-items: center;
+      text-decoration: none;
+      line-height: 0;
+    }
+
+
+    nav {
+      display: flex;
+      gap: 2rem;
+      align-items: center;
+    }
+
+    nav a {
+      color: var(--text-gray);
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 0.95rem;
+      transition: color 0.2s;
+    }
+
+    nav a:hover {
+      color: var(--primary-color);
+    }
+
+    .nav-cta {
+      background: var(--primary-color);
+      color: white !important;
+      padding: 0.65rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    
+    .nav-cta:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+    }
+
+    /* Active page highlighting */
+    nav a.active {
+      color: var(--primary-color);
+      font-weight: 700;
+      position: relative;
+    }
+    nav a.active::after {
+      content: '';
+      position: absolute;
+      bottom: -8px;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--primary-color);
+      border-radius: 2px;
+    }
+
+    /* Hero Section */
+    .hero-about {
+      background: var(--primary-color);
+      color: white;
+      padding: 4rem 2rem;
+      text-align: center;
+    }
+
+    .hero-about h1 {
+      font-size: 3rem;
+      font-weight: 800;
+      margin-bottom: 1rem;
+    }
+
+    .hero-about p {
+      font-size: 1.25rem;
+      max-width: 700px;
+      margin: 0 auto;
+      opacity: 0.95;
+    }
+
+    /* Main Content */
+    .main-content {
+      max-width: 1000px;
+      margin: -3rem auto 0;
+      padding: 0 2rem 4rem;
+      position: relative;
+    }
+
+    /* Founder Story */
+    .founder-card {
+      background: white;
+      border-radius: 16px;
+      padding: 3rem;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+      margin-bottom: 3rem;
+    }
+
+    .founder-intro {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      gap: 2rem;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding-bottom: 2rem;
+      border-bottom: 2px solid var(--border-light);
+    }
+
+    .founder-photo {
+      width: 200px;
+      height: 200px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--accent-color) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 4rem;
+      color: white;
+      font-weight: 800;
+    }
+
+    .founder-name {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--text-dark);
+      margin-bottom: 0.5rem;
+    }
+
+    .founder-title {
+      font-size: 1.25rem;
+      color: var(--text-gray);
+      margin-bottom: 1rem;
+    }
+
+    .founder-tagline {
+      font-size: 1.1rem;
+      color: var(--primary-color);
+      font-weight: 600;
+      font-style: italic;
+    }
+
+    .story-content {
+      font-size: 1.1rem;
+      line-height: 1.8;
+      color: var(--text-gray);
+    }
+
+    .story-content p {
+      margin-bottom: 1.5rem;
+    }
+
+    .story-content strong {
+      color: var(--text-dark);
+      font-weight: 700;
+    }
+
+    .highlight-quote {
+      background: var(--light-bg);
+      border-left: 4px solid var(--primary-color);
+      padding: 1.5rem;
+      margin: 2rem 0;
+      font-size: 1.15rem;
+      font-style: italic;
+      color: var(--text-dark);
+    }
+
+    /* Mission Section */
+    .mission-section {
+      background: white;
+      border-radius: 16px;
+      padding: 3rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      margin-bottom: 3rem;
+    }
+
+    .mission-section h2 {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--text-dark);
+      margin-bottom: 1.5rem;
+      text-align: center;
+    }
+
+    .mission-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      margin-top: 2rem;
+    }
+
+    .mission-card {
+      background: var(--light-bg);
+      padding: 2rem;
+      border-radius: 12px;
+      border: 2px solid var(--border-light);
+      transition: all 0.3s;
+    }
+
+    .mission-card:hover {
+      border-color: var(--primary-color);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(49, 47, 212, 0.15);
+    }
+
+    .mission-icon {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .mission-card h3 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text-dark);
+      margin-bottom: 0.75rem;
+    }
+
+    .mission-card p {
+      color: var(--text-gray);
+      line-height: 1.6;
+    }
+
+    /* Values Section */
+    .values-section {
+      background: white;
+      border-radius: 16px;
+      padding: 3rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      margin-bottom: 3rem;
+    }
+
+    .values-section h2 {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--text-dark);
+      margin-bottom: 2rem;
+      text-align: center;
+    }
+
+    .values-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .value-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+
+    .value-icon {
+      width: 48px;
+      height: 48px;
+      background: var(--accent-color);
+      color: white;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      flex-shrink: 0;
+    }
+
+    .value-content h3 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text-dark);
+      margin-bottom: 0.5rem;
+    }
+
+    .value-content p {
+      color: var(--text-gray);
+      line-height: 1.6;
+    }
+
+    /* CTA Section */
+    .cta-section {
+      background: var(--primary-color);
+      color: white;
+      padding: 3rem;
+      border-radius: 16px;
+      text-align: center;
+    }
+
+    .cta-section h2 {
+      font-size: 2rem;
+      font-weight: 800;
+      margin-bottom: 1rem;
+    }
+
+    .cta-section p {
+      font-size: 1.15rem;
+      margin-bottom: 2rem;
+      opacity: 0.95;
+    }
+
+    .cta-button {
+      display: inline-block;
+      background: white;
+      color: var(--primary-color);
+      padding: 1rem 2.5rem;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .cta-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+    }
+
+    @media (max-width: 768px) {
+      .founder-intro {
+        grid-template-columns: 1fr;
+        text-align: center;
+      }
+
+      .founder-photo {
+        margin: 0 auto;
+      }
+
+      .mission-grid {
+        grid-template-columns: 1fr;
+      }
+
+      nav {
+        display: none;
+      }
+
+      .hero-about h1 {
+        font-size: 2rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header>
+    <div class="header-container">
+      <a href="index.html" class="logo-image">
+        <img src="images/10kpostcardlogo.png" alt="10k Postcards Logo" class="logo-img">
+      </a>
+      <nav>
+        <a href="about.html" class="active">About</a>
+        <a href="how-it-works.html">How It Works</a>
+        <a href="markets.html">Markets</a>
+        <a href="pricing.html">Pricing</a>
+        <a href="contact.html">Contact</a>
+        <a href="reserve.html" class="nav-cta">Reserve Your Spot</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero-about">
+    <h1>Our Story</h1>
+    <p>
+      Why we started 10k Postcards and the guy behind the giant postcard
+    </p>
+  </section>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <!-- Founder Story -->
+    <div class="founder-card">
+      <div class="founder-intro">
+        <div class="founder-photo">👤</div>
+        <div>
+          <h1 class="founder-name">Hi, I'm Rich</h1>
+          <p class="founder-title">Founder of 10k Postcards</p>
+          <p class="founder-tagline">The guy behind the giant postcard</p>
+        </div>
+      </div>
+
+      <div class="story-content">
+        <p>
+          <strong>I started 10k Postcards because I believe local businesses deserve more than overpriced ads and digital noise.</strong> 
+          You work hard to serve your community—I built this to help you stand out in it.
+        </p>
+
+        <p>
+          For years, I watched small business owners struggle with marketing. Digital ads were expensive and easily ignored. 
+          Traditional direct mail? Even worse—prohibitively expensive for most local businesses. The big marketing companies 
+          didn't care about small businesses; they wanted the enterprise clients with massive budgets.
+        </p>
+
+        <div class="highlight-quote">
+          "There had to be a better way. A way where local businesses could access the power of direct mail without breaking the bank."
+        </div>
+
+        <p>
+          That's when the idea hit me: <strong>what if multiple businesses shared the cost of one giant postcard?</strong> 
+          By partnering with non-competing local businesses, we could split the printing and mailing costs, making premium 
+          direct mail accessible to everyone.
+        </p>
+
+        <p>
+          Every month, I partner with a small group of non-competing local businesses to create a bold, oversized postcard 
+          that lands in thousands of neighborhood mailboxes. It's simple, affordable, and <strong>impossible to ignore</strong>.
+        </p>
+
+        <p>
+          This isn't just about advertising. It's about <strong>trust, visibility, and building something real</strong>—together. 
+          It's about giving local businesses the same marketing power that big corporations have, but at a fraction of the cost.
+        </p>
+
+        <p>
+          Because I believe things can be better. Because I believe good stories deserve to be told. And because I still 
+          believe in this community and the people in it.
+        </p>
+
+        <div class="highlight-quote">
+          "If that sounds like your kind of marketing, then maybe this postcard is exactly where your business belongs."
+        </div>
+      </div>
+    </div>
+
+    <!-- Mission -->
+    <div class="mission-section">
+      <h2>Our Mission</h2>
+      <p style="text-align: center; color: var(--text-gray); margin-bottom: 2rem; font-size: 1.1rem;">
+        Making Direct Mail Accessible for Every Business
+      </p>
+
+      <div class="mission-grid">
+        <div class="mission-card">
+          <div class="mission-icon">💰</div>
+          <h3>Precision Targeting</h3>
+          <p>
+            We target the top income-earning households in each market, ensuring your message reaches customers 
+            with purchasing power.
+          </p>
+        </div>
+
+        <div class="mission-card">
+          <div class="mission-icon">🎯</div>
+          <h3>Exclusivity Guaranteed</h3>
+          <p>
+            If you're on our postcard, your direct competitors won't be. This ensures your business gets the 
+            full attention it deserves.
+          </p>
+        </div>
+
+        <div class="mission-card">
+          <div class="mission-icon">🤝</div>
+          <h3>Community Support</h3>
+          <p>
+            By partnering with other local businesses, you're not just marketing—you're supporting your 
+            community and growing together.
+          </p>
+        </div>
+
+        <div class="mission-card">
+          <div class="mission-icon">🌱</div>
+          <h3>Environmental Responsibility</h3>
+          <p>
+            For every tree we use, we plant 5 more. Carbon-neutral marketing that actually helps the environment.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Values -->
+    <div class="values-section">
+      <h2>What We Stand For</h2>
+
+      <div class="values-list">
+        <div class="value-item">
+          <div class="value-icon">✓</div>
+          <div class="value-content">
+            <h3>Transparency</h3>
+            <p>
+              We show you exactly who you're reaching—specific demographics, mailbox counts, and coverage maps. 
+              No hidden fees, no surprises.
+            </p>
+          </div>
+        </div>
+
+        <div class="value-item">
+          <div class="value-icon">✓</div>
+          <div class="value-content">
+            <h3>Quality</h3>
+            <p>
+              Premium UV-coated 9×12 postcards printed on thick card stock. Your brand deserves to look amazing, 
+              and we make sure it does.
+            </p>
+          </div>
+        </div>
+
+        <div class="value-item">
+          <div class="value-icon">✓</div>
+          <div class="value-content">
+            <h3>Local Focus</h3>
+            <p>
+              We serve Western New York communities because we live here too. We understand local businesses and 
+              the people who support them.
+            </p>
+          </div>
+        </div>
+
+        <div class="value-item">
+          <div class="value-icon">✓</div>
+          <div class="value-content">
+            <h3>Results-Driven</h3>
+            <p>
+              Direct mail has 5-9x higher response rates than digital. We focus on what works, not what's trendy.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CTA -->
+    <div class="cta-section">
+      <h2>Ready to Join Us?</h2>
+      <p>
+        Reserve your exclusive spot today and start reaching thousands of local customers for just pennies per mailbox.
+      </p>
+      <a href="reserve.html" class="cta-button">Reserve Your Spot</a>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="auth.js"></script>
+</body>
+</html>

@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Kenmore Market - 10k Postcards</title>
-  <meta name="description" content="Kenmore direct mail marketing - reach 4,928 households with $77k average income. Category exclusivity guaranteed. View live availability and pricing for ZIP 14217." />
+  <title>Town of Tonawanda Market - 10k Postcards</title>
+  <meta name="description" content="Town of Tonawanda direct mail - reach 4,885 households in ZIP 14223. Category exclusivity guaranteed. Coming soon. Reserve your spot early." />
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="auth.js"></script>
@@ -56,6 +56,9 @@
 
     .cta-button-secondary { background: var(--primary-color); margin-left: 1rem; }
     .cta-button-secondary:hover { background: var(--primary-hover); box-shadow: 0 8px 20px rgba(49,47,212,0.4); }
+
+    .coming-soon-banner { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 2rem; border-radius: 12px; margin-bottom: 3rem; text-align: center; }
+    .coming-soon-banner strong { font-size: 1.3rem; }
 
     .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: none; align-items: center; justify-content: center; z-index: 9999; padding: 1rem; }
     .modal-backdrop.active { display: flex; }
@@ -123,8 +126,8 @@
 
   <section class="market-hero">
     <div class="market-hero-container">
-      <div class="market-badge">ZIP 14217</div>
-      <h1>Kenmore Spotlight</h1>
+      <div class="market-badge">ZIP 14223</div>
+      <h1>Town of Tonawanda Spotlight</h1>
       <p>Reach nearly 5,000 households every month</p>
     </div>
   </section>
@@ -132,32 +135,37 @@
   <section class="market-section">
     <div class="market-container">
 
+      <div class="coming-soon-banner">
+        <strong>🚀 COMING SOON</strong><br>
+        This market will be available soon! Contact us to reserve your spot early.
+      </div>
+
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-value">4,928</div>
+          <div class="stat-value">4,885</div>
           <div class="stat-label">Total Addresses</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value">~10,743</div>
+          <div class="stat-value">~10,601</div>
           <div class="stat-label">Est. Population</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value">$77k</div>
+          <div class="stat-value">$86k</div>
           <div class="stat-label">Avg. Income</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value">2.18</div>
+          <div class="stat-value">2.17</div>
           <div class="stat-label">Avg. Household Size</div>
         </div>
       </div>
 
       <div class="zones-section">
-        <h2>Why Kenmore?</h2>
+        <h2>Why Town of Tonawanda?</h2>
         <p style="color: var(--text-gray); font-size: 1.1rem; line-height: 1.8; margin-bottom: 2rem;">
-          Dense residential community with strong household incomes. Great for retail, restaurants, and service businesses. With nearly 5,000 addresses in a tight geographic area, your message gets maximum exposure in this established neighborhood.
+          Established neighborhoods with middle to upper-middle income households. Perfect for home services and family-oriented businesses. Strong community ties make this an ideal market for local businesses.
         </p>
 
-        <h2 style="margin-top: 3rem;">Pricing for Kenmore</h2>
+        <h2 style="margin-top: 3rem;">Pricing for Town of Tonawanda</h2>
         <div class="stats-grid" style="margin-top: 2rem;">
           <div class="stat-card">
             <div class="stat-label" style="margin-bottom: 0.5rem;">Standard Ad</div>
@@ -179,26 +187,12 @@
       </div>
 
       <div style="text-align: center;">
-        <button onclick="openAvailabilityModal()" class="cta-button cta-button-secondary">View Live Availability</button>
-        <a href="reserve.html" class="cta-button">Reserve Your Category Now</a>
-        <p style="margin-top: 1rem; color: var(--text-gray);">Only ONE business per category. Don't let your competitor beat you!</p>
+        <a href="contact.html" class="cta-button">Contact Us to Reserve</a>
+        <p style="margin-top: 1rem; color: var(--text-gray);">Be first in line when this market launches!</p>
       </div>
 
     </div>
   </section>
-
-  <div id="availabilityModal" class="modal-backdrop">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2 id="modalTitle">Kenmore - Live Availability</h2>
-        <button class="modal-close" onclick="closeAvailabilityModal()">×</button>
-      </div>
-
-      <div id="modalBody">
-        <div class="loading-message">Loading availability...</div>
-      </div>
-    </div>
-  </div>
 
   <footer>
     <div class="footer-container">
@@ -221,224 +215,12 @@
     <div class="footer-bottom"><p>&copy; 2025 10k Postcards. All rights reserved.</p></div>
   </footer>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     var SUPABASE_URL = "https://kurhsdvxsgkgnfimfqdo.supabase.co";
     var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1cmhzZHZ4c2drZ25maW1mcWRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4MDk3NDYsImV4cCI6MjA3ODM4NTc0Nn0.nB_GsE89WJ3eAQrgmNKb-fbCktHTHf-987D-G6lscZA";
 
     var supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-    var STATUS_COLORS = {
-      "Available": { bg: "#fef3c7", border: "#fcd34d" },
-      "Held": { bg: "#fff7ed", border: "#fb923c" },
-      "Invoice Sent": { bg: "#fed7aa", border: "#f97316" },
-      "Deposit Paid": { bg: "#fdba74", border: "#ea580c" },
-      "Proof In Progress": { bg: "#dbeafe", border: "#3b82f6" },
-      "Ad Approved": { bg: "#2563eb", border: "#1d4ed8" },
-      "Paid in Full": { bg: "#16a34a", border: "#15803d" },
-      "Reserved": { bg: "#fff7ed", border: "#fb923c" }
-    };
-
-    function getStatusDisplay(rawStatus) {
-      if (!rawStatus || rawStatus.toLowerCase() === "available") return "Available";
-      var match = String(rawStatus).match(/^(.+?):\s*(.+)$/);
-      if (match) return match[1].trim();
-      return rawStatus;
-    }
-
-    function getBusinessName(rawStatus) {
-      if (!rawStatus || rawStatus.toLowerCase() === "available") return "Available";
-      var match = String(rawStatus).match(/^(.+?):\s*(.+)$/);
-      if (match) return match[2].trim();
-      return rawStatus;
-    }
-
-    function createCard(label, name, status, span, isBanner) {
-      var div = document.createElement("div");
-      var spanClass = span === 4 ? "col-span-4" : (span === 2 ? "col-span-2" : "");
-      div.className = "card " + spanClass + (isBanner ? " banner" : "");
-
-      var statusKey = status === "Available" ? "Available" : status;
-      var colors = STATUS_COLORS[statusKey] || STATUS_COLORS["Available"];
-      div.style.backgroundColor = colors.bg;
-      div.style.borderColor = colors.border;
-
-      if (!isBanner) {
-        var labelEl = document.createElement("div");
-        labelEl.className = "spot-label";
-        labelEl.textContent = label;
-        div.appendChild(labelEl);
-      }
-
-      var nameEl = document.createElement("div");
-      if (isBanner) nameEl.className = "banner-text";
-      nameEl.textContent = name;
-      div.appendChild(nameEl);
-
-      return div;
-    }
-
-    function renderPostcard(container, postcard) {
-      container.innerHTML = "";
-
-      var inHomesDate = "";
-      if (postcard.in_homes_date) {
-        // Parse date without timezone conversion (treat as local date)
-        var dateStr = postcard.in_homes_date;
-        if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
-          // Parse YYYY-MM-DD as local date to avoid UTC timezone shift
-          var parts = dateStr.split('-');
-          var year = parseInt(parts[0]);
-          var month = parseInt(parts[1]) - 1; // JavaScript months are 0-indexed
-          var day = parseInt(parts[2]);
-          var inHomesObj = new Date(year, month, day);
-          inHomesDate = inHomesObj.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-        }
-      }
-
-      if (inHomesDate) {
-        var inHomesDiv = document.createElement("div");
-        inHomesDiv.style.textAlign = "center";
-        inHomesDiv.style.padding = "1rem";
-        inHomesDiv.style.background = "#dbeafe";
-        inHomesDiv.style.borderRadius = "8px";
-        inHomesDiv.style.marginBottom = "2rem";
-        inHomesDiv.style.fontWeight = "600";
-        inHomesDiv.innerHTML = "Expected in homes: " + inHomesDate;
-        container.appendChild(inHomesDiv);
-      }
-
-      var wrapper1 = document.createElement("div");
-      wrapper1.className = "postcard-wrapper";
-
-      var title1 = document.createElement("div");
-      title1.className = "postcard-section-title";
-      title1.textContent = "Front Side (16 Standard Ad Spots)";
-      wrapper1.appendChild(title1);
-
-      var postcardDiv1 = document.createElement("div");
-      postcardDiv1.className = "postcard" + (postcard.postcard_size === "6x12" ? " size-6x12" : "");
-      postcardDiv1.style.backgroundColor = postcard.postcard_bg || "#000000";
-
-      var frontGrid = document.createElement("div");
-      frontGrid.className = "grid-front";
-      postcardDiv1.appendChild(frontGrid);
-      wrapper1.appendChild(postcardDiv1);
-      container.appendChild(wrapper1);
-
-      var wrapper2 = document.createElement("div");
-      wrapper2.className = "postcard-wrapper";
-
-      var title2 = document.createElement("div");
-      title2.className = "postcard-section-title";
-      title2.textContent = "Back Side (2 Banner Ad Spots)";
-      wrapper2.appendChild(title2);
-
-      var postcardDiv2 = document.createElement("div");
-      postcardDiv2.className = "postcard" + (postcard.postcard_size === "6x12" ? " size-6x12" : "");
-      postcardDiv2.style.backgroundColor = postcard.postcard_bg || "#000000";
-
-      var backGrid = document.createElement("div");
-      backGrid.className = "grid-back";
-      postcardDiv2.appendChild(backGrid);
-      wrapper2.appendChild(postcardDiv2);
-      container.appendChild(wrapper2);
-
-      var ctaDiv = document.createElement("div");
-      ctaDiv.style.textAlign = "center";
-      ctaDiv.style.marginTop = "2rem";
-      var ctaLink = document.createElement("a");
-      ctaLink.href = "reserve.html";
-      ctaLink.className = "cta-button";
-      ctaLink.textContent = "Reserve Your Spot Now";
-      ctaDiv.appendChild(ctaLink);
-      container.appendChild(ctaDiv);
-
-      renderRow(frontGrid, postcard, 1, 4);
-
-      var month = "";
-      if (postcard.mail_date && /^\d{4}-\d{2}-\d{2}/.test(postcard.mail_date)) {
-        var monthNum = parseInt(postcard.mail_date.split("-")[1]);
-        var monthNames = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-        month = monthNames[monthNum] || "";
-      }
-      var town = postcard.town.toUpperCase();
-      var bannerText = month ? town + " — " + month.toUpperCase() : town;
-      frontGrid.appendChild(createCard("", bannerText, "", 4, true));
-
-      renderRow(frontGrid, postcard, 5, 8);
-
-      renderRow(backGrid, postcard, 9, 12);
-
-      var spot13Data = postcard.spot_13;
-      var banner1Status = getStatusDisplay(spot13Data);
-      var banner1Name = getBusinessName(spot13Data);
-      backGrid.appendChild(createCard("Spots 13-14", banner1Name, banner1Status, 4, false));
-
-      renderRow(backGrid, postcard, 15, 16);
-
-      var spot17Data = postcard.spot_17;
-      var banner2Status = getStatusDisplay(spot17Data);
-      var banner2Name = getBusinessName(spot17Data);
-      backGrid.appendChild(createCard("Spots 17-18", banner2Name, banner2Status, 2, false));
-    }
-
-    function renderRow(grid, postcard, start, end) {
-      for (var i = start; i <= end; i += 2) {
-        var spot1Data = postcard["spot_" + i];
-        var spot2Data = postcard["spot_" + (i + 1)];
-
-        var name1 = getBusinessName(spot1Data);
-        var name2 = getBusinessName(spot2Data);
-        var status1 = getStatusDisplay(spot1Data);
-        var status2 = getStatusDisplay(spot2Data);
-
-        if (name1 !== "Available" && name1 === name2) {
-          grid.appendChild(createCard("Spots " + i + "-" + (i + 1), name1, status1, 2, false));
-        } else {
-          grid.appendChild(createCard("Spot " + i, name1, status1, 1, false));
-          grid.appendChild(createCard("Spot " + (i + 1), name2, status2, 1, false));
-        }
-      }
-    }
-
-    function openAvailabilityModal() {
-      var modal = document.getElementById("availabilityModal");
-      var modalBody = document.getElementById("modalBody");
-
-      modal.classList.add("active");
-      modalBody.innerHTML = '<div class="loading-message">Loading availability...</div>';
-
-      supabaseClient
-        .from("postcards")
-        .select("*")
-        .ilike("town", "Kenmore")
-        .eq("payment_status", "Active")
-        .order("mail_date", { ascending: true })
-        .limit(1)
-        .then(function(result) {
-          if (result.error) throw result.error;
-
-          if (!result.data || result.data.length === 0) {
-            modalBody.innerHTML = '<div class="error-message">No active postcards found for Kenmore. Check back soon!</div>';
-            return;
-          }
-
-          var postcard = result.data[0];
-          renderPostcard(modalBody, postcard);
-        })
-        .catch(function(err) {
-          console.error("Error loading availability:", err);
-          modalBody.innerHTML = '<div class="error-message">Failed to load availability. Please try again later.</div>';
-        });
-    }
-
-    function closeAvailabilityModal() {
-      document.getElementById("availabilityModal").classList.remove("active");
-    }
-
-    document.getElementById("availabilityModal").addEventListener("click", function(e) {
-      if (e.target === this) closeAvailabilityModal();
-    });
 
     // Load pricing on page load
     function loadPricing() {
@@ -446,7 +228,7 @@
         supabaseClient
           .from("postcards")
           .select("mailer_id")
-          .ilike("town", "Kenmore")
+          .ilike("town", "Tonawanda")
           .eq("payment_status", "Active")
           .order("mail_date", { ascending: true })
           .limit(1),
@@ -493,10 +275,10 @@
       })
       .catch(function(err) {
         console.error("Error loading pricing:", err);
-        document.getElementById("price-standard").textContent = "Error";
-        document.getElementById("price-double").textContent = "Error";
-        document.getElementById("price-banner").textContent = "Error";
-        document.getElementById("price-double-banner").textContent = "Error";
+        document.getElementById("price-standard").textContent = "TBD";
+        document.getElementById("price-double").textContent = "TBD";
+        document.getElementById("price-banner").textContent = "TBD";
+        document.getElementById("price-double-banner").textContent = "TBD";
       });
     }
 

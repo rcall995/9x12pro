@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Availability Modal</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 2rem; }
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    .modal-backdrop.active { display: flex; }
+    .modal-content {
+      background: white;
+      padding: 2rem;
+      border-radius: 12px;
+      max-width: 800px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .btn {
+      background: #312fd4;
+      color: white;
+      padding: 1rem 2rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.1rem;
+      cursor: pointer;
+      margin: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Grand Island Market - Availability Test</h1>
+  <button onclick="openModal()" class="btn">View Live Availability</button>
+
+  <div id="myModal" class="modal-backdrop">
+    <div class="modal-content">
+      <h2>Live Availability</h2>
+      <div id="content">Loading...</div>
+      <button onclick="closeModal()" class="btn">Close</button>
+    </div>
+  </div>
+
+  <script>
+    function openModal() {
+      console.log("Modal opening...");
+      document.getElementById("myModal").classList.add("active");
+      loadData();
+    }
+
+    function closeModal() {
+      document.getElementById("myModal").classList.remove("active");
+    }
+
+    async function loadData() {
+      const SUPABASE_URL = "https://kurhsdvxsgkgnfimfqdo.supabase.co";
+      const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1cmhzZHZ4c2drZ25maW1mcWRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4MDk3NDYsImV4cCI6MjA3ODM4NTc0Nn0.nB_GsE89WJ3eAQrgmNKb-fbCktHTHf-987D-G6lscZA";
+
+      const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+      try {
+        const result = await client
+          .from("postcards")
+          .select("*")
+          .ilike("town", "Grand Island")
+          .eq("payment_status", "Active")
+          .limit(1);
+
+        if (result.error) throw result.error;
+
+        if (result.data && result.data.length > 0) {
+          const postcard = result.data[0];
+          let html = "<h3>" + postcard.town + " - " + postcard.mail_date + "</h3>";
+          html += "<p>Size: " + (postcard.postcard_size || "9x12") + "</p>";
+          html += "<p>Status: " + postcard.payment_status + "</p>";
+          html += "<h4>Spots:</h4><ul>";
+          for (let i = 1; i <= 18; i++) {
+            const spot = postcard["spot_" + i] || "Available";
+            html += "<li>Spot " + i + ": " + spot + "</li>";
+          }
+          html += "</ul>";
+          document.getElementById("content").innerHTML = html;
+        } else {
+          document.getElementById("content").innerHTML = "<p>No active postcards found for Grand Island.</p>";
+        }
+      } catch (err) {
+        console.error(err);
+        document.getElementById("content").innerHTML = "<p style='color:red'>Error: " + err.message + "</p>";
+      }
+    }
+  </script>
+</body>
+</html>

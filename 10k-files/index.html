@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>10k Postcards - Reach Thousands of Local Homes with 9x12 Billboard Mailers</title>
+  <meta name="description" content="Share a 9x12 postcard mailer with local businesses. Category exclusivity guaranteed. Reach thousands for just pennies per mailbox." />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    :root {
+      --primary-color: #312fd4;
+      --primary-hover: #211ea5;
+      --accent-color: #27a844;
+      --light-bg: #f8f9fc;
+      --white: #ffffff;
+      --text-dark: #1a1a1a;
+      --text-gray: #4a5568;
+      --border-light: #e2e8f0;
+    }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--text-dark);
+      line-height: 1.6;
+      background: var(--white);
+    }
+    /* Header */
+    header {
+      background: var(--white);
+      border-bottom: 1px solid var(--border-light);
+      padding: 1rem 2rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .header-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    /* Responsive Logo - 2.5x larger (90px base), scales on mobile */
+    .logo-img {
+      height: clamp(60px, 12vw, 90px);
+      width: auto;
+      display: block;
+    }
+    .logo-image {
+      display: flex;
+      align-items: center;
+      text-decoration: none;
+      line-height: 0;
+    }
+    nav {
+      display: flex;
+      gap: 2rem;
+      align-items: center;
+    }
+    nav a {
+      color: var(--text-gray);
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 0.95rem;
+      transition: color 0.2s;
+    }
+    nav a:hover {
+      color: var(--primary-color);
+    }
+    .nav-cta {
+      background: var(--primary-color);
+      color: white !important;
+      padding: 0.65rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .nav-cta:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+    }
+    /* Active page highlighting */
+    nav a.active {
+      color: var(--primary-color);
+      font-weight: 700;
+      position: relative;
+    }
+    nav a.active::after {
+      content: '';
+      position: absolute;
+      bottom: -8px;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--primary-color);
+      border-radius: 2px;
+    }
+    /* Hero Section */
+    .hero {
+      background: linear-gradient(135deg, var(--primary-color) 0%, #4845e4 100%);
+      color: white;
+      padding: 4rem 2rem;
+    }
+    .hero-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4rem;
+      align-items: center;
+    }
+    .hero-content h1 {
+      font-size: 3.5rem;
+      font-weight: 800;
+      line-height: 1.1;
+      margin-bottom: 1.5rem;
+    }
+    .hero-content p {
+      font-size: 1.25rem;
+      opacity: 0.95;
+      margin-bottom: 2rem;
+      line-height: 1.6;
+    }
+    .hero-highlight {
+      background: rgba(255,255,255,0.15);
+      padding: 1.5rem;
+      border-radius: 12px;
+      margin-bottom: 2rem;
+      border-left: 4px solid var(--accent-color);
+    }
+    .hero-highlight strong {
+      color: #ffd700;
+      font-size: 1.1rem;
+    }
+    .cta-button {
+      display: inline-block;
+      background: var(--accent-color);
+      color: white;
+      padding: 1rem 2.5rem;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      text-decoration: none;
+      transition: all 0.2s;
+      border: none;
+      cursor: pointer;
+    }
+    .cta-button:hover {
+      background: #1f8a37;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(39, 168, 68, 0.4);
+    }
+    /* Calculator Widget */
+    .calculator-widget {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+      border: 2px solid var(--border-light);
+    }
+    .calculator-header {
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+    .calculator-badge {
+      display: inline-block;
+      background: #ffd700;
+      color: var(--text-dark);
+      padding: 0.35rem 0.75rem;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 0.75rem;
+    }
+    .calculator-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text-dark);
+      margin-bottom: 0.5rem;
+    }
+    .calculator-subtitle {
+      font-size: 0.9rem;
+      color: var(--text-gray);
+    }
+    .calculator-select {
+      width: 100%;
+      padding: 0.875rem;
+      border: 2px solid var(--border-light);
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-dark);
+      margin-bottom: 1.5rem;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      background: white;
+    }
+    .calculator-select:focus {
+      outline: none;
+      border-color: var(--primary-color);
+    }
+    .calculator-stats {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border-light);
+    }
+    .stat-row:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    .stat-label {
+      color: var(--text-gray);
+      font-size: 0.95rem;
+      font-weight: 500;
+    }
+    .stat-value {
+      font-weight: 700;
+      font-size: 1.25rem;
+      color: var(--primary-color);
+    }
+    .popular-badge {
+      display: inline-block;
+      background: var(--accent-color);
+      color: white;
+      padding: 0.15rem 0.5rem;
+      border-radius: 6px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      margin-left: 0.5rem;
+      text-transform: uppercase;
+    }
+    .calculator-note {
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--text-gray);
+      margin-top: 1rem;
+      line-height: 1.5;
+    }
+    .calculator-cta {
+      width: 100%;
+      margin-top: 1.5rem;
+      text-align: center;
+      padding: 0.875rem;
+      background: var(--primary-color);
+      color: white;
+      border-radius: 10px;
+      font-weight: 700;
+      text-decoration: none;
+      display: block;
+      transition: all 0.2s;
+    }
+    .calculator-cta:hover {
+      background: var(--primary-hover);
+      transform: translateY(-2px);
+    }
+    /* Features Section */
+    .features {
+      padding: 5rem 2rem;
+      background: white;
+    }
+    .features-container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .section-header {
+      text-align: center;
+      margin-bottom: 4rem;
+    }
+    .section-title {
+      font-size: 2.5rem;
+      font-weight: 800;
+      color: var(--text-dark);
+      margin-bottom: 1rem;
+    }
+    .section-subtitle {
+      font-size: 1.25rem;
+      color: var(--text-gray);
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2rem;
+    }
+    .feature-card {
+      background: var(--light-bg);
+      padding: 2rem;
+      border-radius: 12px;
+      border: 2px solid var(--border-light);
+      transition: all 0.3s;
+    }
+    .feature-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      border-color: var(--primary-color);
+    }
+    .feature-icon {
+      width: 60px;
+      height: 60px;
+      background: var(--primary-color);
+      color: white;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      font-weight: 800;
+      margin-bottom: 1.5rem;
+    }
+    .feature-card h3 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+      color: var(--text-dark);
+    }
+    .feature-card p {
+      color: var(--text-gray);
+      line-height: 1.6;
+    }
+    /* Markets Section */
+    .markets-section {
+      padding: 5rem 2rem;
+      background: var(--light-bg);
+    }
+    .markets-container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .markets-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.5rem;
+      margin-top: 3rem;
+    }
+    .market-card {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 12px;
+      border: 2px solid var(--border-light);
+      transition: all 0.3s;
+      text-align: center;
+    }
+    .market-card:hover {
+      border-color: var(--primary-color);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+      transform: translateY(-3px);
+    }
+    .market-card h3 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text-dark);
+      margin-bottom: 0.5rem;
+    }
+    .market-card p {
+      color: var(--text-gray);
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+    }
+    .market-link {
+      color: var(--primary-color);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    /* CTA Section */
+    .cta-section {
+      background: var(--primary-color);
+      color: white;
+      padding: 5rem 2rem;
+      text-align: center;
+    }
+    .cta-section h2 {
+      font-size: 2.5rem;
+      font-weight: 800;
+      margin-bottom: 1rem;
+    }
+    .cta-section p {
+      font-size: 1.25rem;
+      opacity: 0.95;
+      margin-bottom: 2rem;
+    }
+    .cta-button-white {
+      background: white;
+      color: var(--primary-color);
+      display: inline-block;
+      padding: 1rem 2.5rem;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .cta-button-white:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(255,255,255,0.3);
+    }
+    /* Footer */
+    footer {
+      background: var(--text-dark);
+      color: white;
+      padding: 3rem 2rem 2rem;
+    }
+    .footer-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3rem;
+      margin-bottom: 2rem;
+    }
+    .footer-section h4 {
+      font-weight: 700;
+      margin-bottom: 1rem;
+      font-size: 1.1rem;
+    }
+    .footer-section p, .footer-section a {
+      color: rgba(255,255,255,0.8);
+      text-decoration: none;
+      line-height: 2;
+      display: block;
+    }
+    .footer-section a:hover {
+      color: white;
+    }
+    .footer-bottom {
+      text-align: center;
+      padding-top: 2rem;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.6);
+    }
+    /* Responsive */
+    @media (max-width: 968px) {
+      .hero-container {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+      }
+      .hero-content h1 {
+        font-size: 2.5rem;
+      }
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+      .markets-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .footer-container {
+        grid-template-columns: 1fr;
+      }
+      nav {
+        display: none;
+      }
+      .logo-img {
+        height: clamp(50px, 10vw, 70px);
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header>
+    <div class="header-container">
+      <a href="index.html" class="logo-image">
+        <img src="images/10kpostcardlogo.png" alt="10k Postcards Logo" class="logo-img">
+      </a>
+      <nav>
+        <a href="about.html">About</a>
+        <a href="how-it-works.html">How It Works</a>
+        <a href="markets.html">Markets</a>
+        <a href="pricing.html">Pricing</a>
+        <a href="contact.html">Contact</a>
+        <a href="reserve.html" class="nav-cta">Reserve Your Spot</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="hero-container">
+      <div class="hero-content">
+        <h1>Reach Thousands of Local Homes for Pennies Per Mailbox</h1>
+        <p>Share a 9x12 Billboard Mailer with local businesses. No competitors allowed—secure your category before they do.</p>
+
+        <div class="hero-highlight">
+          <strong>Category Exclusivity Guaranteed</strong><br>
+          Only ONE business per category. Beat your competitor to the mailbox.
+        </div>
+        <a href="reserve.html" class="cta-button">Reserve Your Spot Now</a>
+      </div>
+
+      <!-- Calculator Widget -->
+      <div class="calculator-widget">
+        <div class="calculator-header">
+          <div class="calculator-badge">See Your Pricing</div>
+          <h2 class="calculator-title">How Much Does It Cost?</h2>
+          <p class="calculator-subtitle">Select your market for instant pricing</p>
+        </div>
+        <select class="calculator-select" id="marketSelect">
+          <option value="">Select Your Market...</option>
+          <option value="grand-island">Grand Island</option>
+          <option value="kenmore">Kenmore</option>
+          <option value="tonawanda">Town of Tonawanda</option>
+          <option value="east-amherst">East Amherst</option>
+          <option value="city-of-tonawanda">City of Tonawanda</option>
+          <option value="north-tonawanda">North Tonawanda</option>
+          <option value="clarence">Clarence</option>
+          <option value="amherst">Amherst</option>
+        </select>
+        <div class="calculator-stats" id="pricingStats" style="display:none;">
+          <div class="stat-row">
+            <span class="stat-label">Households Reached</span>
+            <span class="stat-value" id="mailboxes">~4,750</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Standard Ad<span class="popular-badge">Most Popular</span></span>
+            <span class="stat-value" id="standardPrice">Loading...</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Double Standard</span>
+            <span class="stat-value" id="doublePrice">Loading...</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Banner Ad</span>
+            <span class="stat-value" id="bannerPrice">Loading...</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Cost Per Mailbox</span>
+            <span class="stat-value" id="costPer">~9.5¢</span>
+          </div>
+        </div>
+        <p class="calculator-note" id="defaultNote">
+          <strong>Starting at $325/month</strong><br>
+          All markets reach nearly 5,000 homes • No setup fees • Cancel anytime
+        </p>
+        <a href="markets.html" class="calculator-cta" id="marketCTA">View All Markets →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section class="features">
+    <div class="features-container">
+      <div class="section-header">
+        <h2 class="section-title">Why Choose 10k Postcards?</h2>
+        <p class="section-subtitle">Affordable, effective, and hassle-free local marketing</p>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">🎯</div>
+          <h3>No Competitors Allowed</h3>
+          <p>Your business is the only one in your category on the card. Lock out your competition by reserving your spot first.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📮</div>
+          <h3>Massive Reach</h3>
+          <p>Reach nearly 5,000 local households every month with our 9x12 Billboard Mailer—the largest piece of mail in their mailbox.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">💰</div>
+          <h3>Unbeatable Pricing</h3>
+          <p>Starting at just $325/month. By sharing the card with other businesses, you get massive exposure at a fraction of the cost.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">✅</div>
+          <h3>We Handle Everything</h3>
+          <p>From design and printing to addressing and mailing—we take care of every detail so you can focus on your business.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📊</div>
+          <h3>Proven Results</h3>
+          <p>Direct mail has a 90% open rate and 4.4% response rate—far higher than digital advertising.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🎯</div>
+          <h3>Target Your Area</h3>
+          <p>Choose specific neighborhoods and demographics. Reach the exact customers you want to attract.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Markets Section -->
+  <section class="markets-section">
+    <div class="markets-container">
+      <div class="section-header">
+        <h2 class="section-title">Available Markets</h2>
+        <p class="section-subtitle">We're growing! Select your market to learn more</p>
+      </div>
+      <div class="markets-grid">
+        <div class="market-card">
+          <h3>Grand Island</h3>
+          <p>Nearly 5,000 households<br>$102k avg income</p>
+          <a href="market-grand-island.html" class="market-link">View Details →</a>
+        </div>
+        <div class="market-card">
+          <h3>Kenmore</h3>
+          <p>Nearly 5,000 households<br>$77k avg income</p>
+          <a href="market-kenmore.html" class="market-link">View Details →</a>
+        </div>
+        <div class="market-card">
+          <h3>Town of Tonawanda</h3>
+          <p>Nearly 5,000 households<br>$86k avg income</p>
+          <a href="market-tonawanda-14223.html" class="market-link">View Details →</a>
+        </div>
+        <div class="market-card">
+          <h3>East Amherst</h3>
+          <p>Over 4,500 households<br>$125k avg income</p>
+          <a href="market-east-amherst.html" class="market-link">View Details →</a>
+        </div>
+        <div class="market-card">
+          <h3>City of Tonawanda</h3>
+          <p>Over 4,500 households<br>$79k avg income</p>
+          <a href="market-city-of-tonawanda.html" class="market-link">View Details →</a>
+        </div>
+        <div class="market-card">
+          <h3>North Tonawanda</h3>
+          <p>Nearly 5,000 households<br>$113k avg income</p>
+          <a href="market-north-tonawanda.html" class="market-link">View Details →</a>
+        </div>
+        <div class="market-card">
+          <h3>Clarence</h3>
+          <p>Nearly 5,000 households<br>$82k avg income</p>
+          <a href="market-clarence.html" class="market-link">View Details →</a>
+        </div>
+        <div class="market-card">
+          <h3>Amherst</h3>
+          <p>Nearly 5,000 households<br>$79k avg income</p>
+          <a href="market-amherst.html" class="market-link">View Details →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="cta-section">
+    <h2>Ready to Reach Thousands of Local Customers?</h2>
+    <p>Reserve your category now before your competitor does</p>
+    <a href="reserve.html" class="cta-button-white">Get Started Today</a>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-container">
+      <div class="footer-section">
+        <h4>10k Postcards</h4>
+        <p>Affordable direct mail marketing for local businesses</p>
+      </div>
+      <div class="footer-section">
+        <h4>Quick Links</h4>
+        <a href="about.html">About Us</a>
+        <a href="how-it-works.html">How It Works</a>
+        <a href="markets.html">Our Markets</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="footer-section">
+        <h4>Get Started</h4>
+        <a href="reserve.html">Reserve Your Spot</a>
+        <a href="contact.html">Contact Us</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>© 2025 10k Postcards. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="auth.js"></script>
+  <script>
+    var SUPABASE_URL = "https://kurhsdvxsgkgnfimfqdo.supabase.co";
+    var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1cmhzZHZ4c2drZ25maW1mcWRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4MDk3NDYsImV4cCI6MjA3ODM4NTc0Nn0.nB_GsE89WJ3eAQrgmNKb-fbCktHTHf-987D-G6lscZA";
+
+    var supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Market data mapping
+    var marketData = {
+      'grand-island': { town: 'Grand Island', addresses: 4757 },
+      'kenmore': { town: 'Kenmore', addresses: 4928 },
+      'tonawanda': { town: 'Tonawanda', addresses: 4885 },
+      'east-amherst': { town: 'East Amherst', addresses: 4507 },
+      'city-of-tonawanda': { town: 'City of Tonawanda', addresses: 4476 },
+      'north-tonawanda': { town: 'North Tonawanda', addresses: 4668 },
+      'clarence': { town: 'Clarence', addresses: 4887 },
+      'amherst': { town: 'Amherst', addresses: 4803 }
+    };
+
+    // Calculator functionality
+    var marketSelect = document.getElementById('marketSelect');
+    var pricingStats = document.getElementById('pricingStats');
+    var defaultNote = document.getElementById('defaultNote');
+    var mailboxes = document.getElementById('mailboxes');
+    var standardPrice = document.getElementById('standardPrice');
+    var doublePrice = document.getElementById('doublePrice');
+    var bannerPrice = document.getElementById('bannerPrice');
+    var costPer = document.getElementById('costPer');
+    var marketCTA = document.getElementById('marketCTA');
+
+    marketSelect.addEventListener('change', function() {
+      var marketKey = this.value;
+      if (marketKey && marketData[marketKey]) {
+        var market = marketData[marketKey];
+
+        // Show pricing stats, hide default note
+        pricingStats.style.display = 'flex';
+        defaultNote.style.display = 'none';
+
+        // Update mailboxes
+        mailboxes.textContent = market.addresses.toLocaleString();
+
+        // Update CTA
+        marketCTA.textContent = 'Reserve ' + market.town + ' Spot →';
+        marketCTA.href = 'reserve.html?market=' + marketKey;
+
+        // Load pricing from Supabase
+        loadPricing(market.town, market.addresses);
+      } else {
+        // Reset to default
+        pricingStats.style.display = 'none';
+        defaultNote.style.display = 'block';
+        marketCTA.textContent = 'View All Markets →';
+        marketCTA.href = 'markets.html';
+      }
+    });
+
+    function loadPricing(townName, addresses) {
+      Promise.all([
+        supabaseClient
+          .from("postcards")
+          .select("mailer_id")
+          .ilike("town", townName)
+          .eq("payment_status", "Active")
+          .order("mail_date", { ascending: true })
+          .limit(1),
+        supabaseClient
+          .from("app_data")
+          .select("data")
+          .eq("data_type", "pricing")
+          .single()
+      ])
+      .then(function(results) {
+        var postcardResult = results[0];
+        var pricingResult = results[1];
+
+        if (postcardResult.data && postcardResult.data.length > 0) {
+          var mailerId = postcardResult.data[0].mailer_id;
+          var allPricing = pricingResult.data ? pricingResult.data.data : {};
+          var pricing = allPricing[mailerId];
+
+          if (pricing) {
+            var singleAd = pricing.singleAd || 450;
+            var doubleAd = pricing.doubleAd || (singleAd * 2);
+            var bannerAd = pricing.bannerAd || 325;
+
+            standardPrice.textContent = "$" + singleAd + "/mo";
+            doublePrice.textContent = "$" + doubleAd + "/mo";
+            bannerPrice.textContent = "$" + bannerAd + "/mo";
+
+            var perMailbox = (singleAd / addresses * 100).toFixed(1);
+            costPer.textContent = perMailbox + "¢";
+          } else {
+            // No pricing found, show defaults
+            standardPrice.textContent = "$450/mo";
+            doublePrice.textContent = "$850/mo";
+            bannerPrice.textContent = "$325/mo";
+            costPer.textContent = "~9.5¢";
+          }
+        } else {
+          // No active postcard, show defaults
+          standardPrice.textContent = "$450/mo";
+          doublePrice.textContent = "$850/mo";
+          bannerPrice.textContent = "$325/mo";
+          costPer.textContent = "~9.5¢";
+        }
+      })
+      .catch(function(err) {
+        console.error("Error loading pricing:", err);
+        standardPrice.textContent = "$450/mo";
+        doublePrice.textContent = "$850/mo";
+        bannerPrice.textContent = "$325/mo";
+        costPer.textContent = "~9.5¢";
+      });
+    }
+  </script>
+</body>
+</html>

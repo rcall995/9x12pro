@@ -3,11 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Kenmore Market - 10k Postcards</title>
-  <meta name="description" content="Kenmore direct mail marketing - reach 4,928 households with $77k average income. Category exclusivity guaranteed. View live availability and pricing for ZIP 14217." />
+  <title>Grand Island Market - 10k Postcards</title>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="auth.js"></script>
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
@@ -57,6 +55,9 @@
     .cta-button-secondary { background: var(--primary-color); margin-left: 1rem; }
     .cta-button-secondary:hover { background: var(--primary-hover); box-shadow: 0 8px 20px rgba(49,47,212,0.4); }
 
+    .exclusive-banner { background: linear-gradient(135deg, var(--accent-color) 0%, #1f8a37 100%); color: white; padding: 2rem; border-radius: 12px; margin-bottom: 3rem; text-align: center; }
+    .exclusive-banner strong { font-size: 1.1rem; }
+
     .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: none; align-items: center; justify-content: center; z-index: 9999; padding: 1rem; }
     .modal-backdrop.active { display: flex; }
     .modal-content { background: white; border-radius: 16px; max-width: 1200px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 2rem; position: relative; }
@@ -78,6 +79,7 @@
     .card { border-width: 2px; border-style: solid; border-radius: 0.75rem; padding: 0.85rem; text-align: center; font-weight: 600; position: relative; display: flex; align-items: center; justify-content: center; min-height: 80px; }
     .card.banner { font-weight: 800; }
     .spot-label { position: absolute; top: 6px; left: 8px; font-size: 0.7rem; font-weight: 700; opacity: 0.65; }
+    .status-badge { position: absolute; bottom: 6px; right: 8px; font-size: 0.7rem; padding: 6px 10px; border-radius: 9999px; background: rgba(255,255,255,0.96); border: 1px solid rgba(0,0,0,0.06); color: #0f172a; font-weight: 700; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
     .banner-text { font-size: 1.5rem; letter-spacing: 0.05em; }
 
     .loading-message { text-align: center; padding: 3rem; font-size: 1.1rem; color: var(--text-gray); }
@@ -123,9 +125,9 @@
 
   <section class="market-hero">
     <div class="market-hero-container">
-      <div class="market-badge">ZIP 14217</div>
-      <h1>Kenmore Spotlight</h1>
-      <p>Reach nearly 5,000 households every month</p>
+      <div class="market-badge">2 Zones • ZIP 14072</div>
+      <h1>Grand Island Spotlight</h1>
+      <p>Grand Island businesses only • 2 alternating zones</p>
     </div>
   </section>
 
@@ -134,46 +136,51 @@
 
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-value">4,928</div>
+          <div class="stat-value">~9,514</div>
           <div class="stat-label">Total Addresses</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value">~10,743</div>
+          <div class="stat-value">~23,490</div>
           <div class="stat-label">Est. Population</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value">$77k</div>
+          <div class="stat-value">$102k</div>
           <div class="stat-label">Avg. Income</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value">2.18</div>
+          <div class="stat-value">2.47</div>
           <div class="stat-label">Avg. Household Size</div>
         </div>
       </div>
 
+      <div class="exclusive-banner">
+        <strong>🏝️ Grand Island Businesses Only</strong><br>
+        This market is exclusively reserved for businesses located on Grand Island. We support our island community!
+      </div>
+
       <div class="zones-section">
-        <h2>Why Kenmore?</h2>
+        <h2>Why Grand Island?</h2>
         <p style="color: var(--text-gray); font-size: 1.1rem; line-height: 1.8; margin-bottom: 2rem;">
-          Dense residential community with strong household incomes. Great for retail, restaurants, and service businesses. With nearly 5,000 addresses in a tight geographic area, your message gets maximum exposure in this established neighborhood.
+          Grand Island is divided into two income-based zones (~4,757 addresses each) that alternate monthly. Each mailing reaches a different part of the island, ensuring complete coverage over time. With an average household income of $102,000 and strong family sizes, this market is perfect for businesses serving island residents.
         </p>
 
-        <h2 style="margin-top: 3rem;">Pricing for Kenmore</h2>
+        <h2 style="margin-top: 3rem;">Pricing for Grand Island</h2>
         <div class="stats-grid" style="margin-top: 2rem;">
           <div class="stat-card">
             <div class="stat-label" style="margin-bottom: 0.5rem;">Standard Ad</div>
-            <div id="price-standard" class="stat-value" style="font-size: 1.75rem;">Loading...</div>
+            <div class="stat-value" style="font-size: 1.75rem;">$450/mo</div>
           </div>
           <div class="stat-card">
             <div class="stat-label" style="margin-bottom: 0.5rem;">Double Standard</div>
-            <div id="price-double" class="stat-value" style="font-size: 1.75rem;">Loading...</div>
+            <div class="stat-value" style="font-size: 1.75rem;">$850/mo</div>
           </div>
           <div class="stat-card">
             <div class="stat-label" style="margin-bottom: 0.5rem;">Banner Ad</div>
-            <div id="price-banner" class="stat-value" style="font-size: 1.75rem;">Loading...</div>
+            <div class="stat-value" style="font-size: 1.75rem;">$325/mo</div>
           </div>
           <div class="stat-card">
             <div class="stat-label" style="margin-bottom: 0.5rem;">Double Banner</div>
-            <div id="price-double-banner" class="stat-value" style="font-size: 1.75rem;">Loading...</div>
+            <div class="stat-value" style="font-size: 1.75rem;">$600/mo</div>
           </div>
         </div>
       </div>
@@ -190,7 +197,7 @@
   <div id="availabilityModal" class="modal-backdrop">
     <div class="modal-content">
       <div class="modal-header">
-        <h2 id="modalTitle">Kenmore - Live Availability</h2>
+        <h2 id="modalTitle">Grand Island - Live Availability</h2>
         <button class="modal-close" onclick="closeAvailabilityModal()">×</button>
       </div>
 
@@ -274,38 +281,18 @@
       nameEl.textContent = name;
       div.appendChild(nameEl);
 
+      if (!isBanner) {
+        var badgeEl = document.createElement("div");
+        badgeEl.className = "status-badge";
+        badgeEl.textContent = status;
+        div.appendChild(badgeEl);
+      }
+
       return div;
     }
 
     function renderPostcard(container, postcard) {
       container.innerHTML = "";
-
-      var inHomesDate = "";
-      if (postcard.in_homes_date) {
-        // Parse date without timezone conversion (treat as local date)
-        var dateStr = postcard.in_homes_date;
-        if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
-          // Parse YYYY-MM-DD as local date to avoid UTC timezone shift
-          var parts = dateStr.split('-');
-          var year = parseInt(parts[0]);
-          var month = parseInt(parts[1]) - 1; // JavaScript months are 0-indexed
-          var day = parseInt(parts[2]);
-          var inHomesObj = new Date(year, month, day);
-          inHomesDate = inHomesObj.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-        }
-      }
-
-      if (inHomesDate) {
-        var inHomesDiv = document.createElement("div");
-        inHomesDiv.style.textAlign = "center";
-        inHomesDiv.style.padding = "1rem";
-        inHomesDiv.style.background = "#dbeafe";
-        inHomesDiv.style.borderRadius = "8px";
-        inHomesDiv.style.marginBottom = "2rem";
-        inHomesDiv.style.fontWeight = "600";
-        inHomesDiv.innerHTML = "Expected in homes: " + inHomesDate;
-        container.appendChild(inHomesDiv);
-      }
 
       var wrapper1 = document.createElement("div");
       wrapper1.className = "postcard-wrapper";
@@ -353,52 +340,49 @@
       ctaDiv.appendChild(ctaLink);
       container.appendChild(ctaDiv);
 
-      renderRow(frontGrid, postcard, 1, 4);
-
-      var month = "";
-      if (postcard.mail_date && /^\d{4}-\d{2}-\d{2}/.test(postcard.mail_date)) {
-        var monthNum = parseInt(postcard.mail_date.split("-")[1]);
-        var monthNames = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-        month = monthNames[monthNum] || "";
+      for (var i = 1; i <= 4; i++) {
+        var spotData = postcard["spot_" + i];
+        var status = getStatusDisplay(spotData);
+        var name = getBusinessName(spotData);
+        frontGrid.appendChild(createCard("Spot " + i, name, status, 1, false));
       }
+
+      var dateObj = new Date(postcard.mail_date);
+      var month = dateObj.toLocaleString("default", { month: "long" }).toUpperCase();
       var town = postcard.town.toUpperCase();
-      var bannerText = month ? town + " — " + month.toUpperCase() : town;
+      var bannerText = town + " — " + month;
       frontGrid.appendChild(createCard("", bannerText, "", 4, true));
 
-      renderRow(frontGrid, postcard, 5, 8);
+      for (var i = 5; i <= 8; i++) {
+        var spotData = postcard["spot_" + i];
+        var status = getStatusDisplay(spotData);
+        var name = getBusinessName(spotData);
+        frontGrid.appendChild(createCard("Spot " + i, name, status, 1, false));
+      }
 
-      renderRow(backGrid, postcard, 9, 12);
+      for (var i = 9; i <= 12; i++) {
+        var spotData = postcard["spot_" + i];
+        var status = getStatusDisplay(spotData);
+        var name = getBusinessName(spotData);
+        backGrid.appendChild(createCard("Spot " + i, name, status, 1, false));
+      }
 
       var spot13Data = postcard.spot_13;
       var banner1Status = getStatusDisplay(spot13Data);
       var banner1Name = getBusinessName(spot13Data);
       backGrid.appendChild(createCard("Spots 13-14", banner1Name, banner1Status, 4, false));
 
-      renderRow(backGrid, postcard, 15, 16);
+      for (var i = 15; i <= 16; i++) {
+        var spotData = postcard["spot_" + i];
+        var status = getStatusDisplay(spotData);
+        var name = getBusinessName(spotData);
+        backGrid.appendChild(createCard("Spot " + i, name, status, 1, false));
+      }
 
       var spot17Data = postcard.spot_17;
       var banner2Status = getStatusDisplay(spot17Data);
       var banner2Name = getBusinessName(spot17Data);
       backGrid.appendChild(createCard("Spots 17-18", banner2Name, banner2Status, 2, false));
-    }
-
-    function renderRow(grid, postcard, start, end) {
-      for (var i = start; i <= end; i += 2) {
-        var spot1Data = postcard["spot_" + i];
-        var spot2Data = postcard["spot_" + (i + 1)];
-
-        var name1 = getBusinessName(spot1Data);
-        var name2 = getBusinessName(spot2Data);
-        var status1 = getStatusDisplay(spot1Data);
-        var status2 = getStatusDisplay(spot2Data);
-
-        if (name1 !== "Available" && name1 === name2) {
-          grid.appendChild(createCard("Spots " + i + "-" + (i + 1), name1, status1, 2, false));
-        } else {
-          grid.appendChild(createCard("Spot " + i, name1, status1, 1, false));
-          grid.appendChild(createCard("Spot " + (i + 1), name2, status2, 1, false));
-        }
-      }
     }
 
     function openAvailabilityModal() {
@@ -411,7 +395,7 @@
       supabaseClient
         .from("postcards")
         .select("*")
-        .ilike("town", "Kenmore")
+        .ilike("town", "Grand Island")
         .eq("payment_status", "Active")
         .order("mail_date", { ascending: true })
         .limit(1)
@@ -419,7 +403,7 @@
           if (result.error) throw result.error;
 
           if (!result.data || result.data.length === 0) {
-            modalBody.innerHTML = '<div class="error-message">No active postcards found for Kenmore. Check back soon!</div>';
+            modalBody.innerHTML = '<div class="error-message">No active postcards found for Grand Island. Check back soon!</div>';
             return;
           }
 
@@ -439,69 +423,6 @@
     document.getElementById("availabilityModal").addEventListener("click", function(e) {
       if (e.target === this) closeAvailabilityModal();
     });
-
-    // Load pricing on page load
-    function loadPricing() {
-      Promise.all([
-        supabaseClient
-          .from("postcards")
-          .select("mailer_id")
-          .ilike("town", "Kenmore")
-          .eq("payment_status", "Active")
-          .order("mail_date", { ascending: true })
-          .limit(1),
-        supabaseClient
-          .from("app_data")
-          .select("data")
-          .eq("data_type", "pricing")
-          .single()
-      ])
-      .then(function(results) {
-        var postcardResult = results[0];
-        var pricingResult = results[1];
-
-        if (postcardResult.data && postcardResult.data.length > 0) {
-          var mailerId = postcardResult.data[0].mailer_id;
-          var allPricing = pricingResult.data ? pricingResult.data.data : {};
-          var pricing = allPricing[mailerId];
-
-          if (pricing) {
-            // Update pricing display
-            var singleAd = pricing.singleAd || 0;
-            var doubleAd = pricing.doubleAd || (singleAd * 2);
-            var bannerAd = pricing.bannerAd || 0;
-            var doubleBanner = bannerAd * 2;
-
-            document.getElementById("price-standard").textContent = "$" + singleAd + "/mo";
-            document.getElementById("price-double").textContent = "$" + doubleAd + "/mo";
-            document.getElementById("price-banner").textContent = "$" + bannerAd + "/mo";
-            document.getElementById("price-double-banner").textContent = "$" + doubleBanner + "/mo";
-          } else {
-            // No pricing found
-            document.getElementById("price-standard").textContent = "TBD";
-            document.getElementById("price-double").textContent = "TBD";
-            document.getElementById("price-banner").textContent = "TBD";
-            document.getElementById("price-double-banner").textContent = "TBD";
-          }
-        } else {
-          // No active postcard found
-          document.getElementById("price-standard").textContent = "TBD";
-          document.getElementById("price-double").textContent = "TBD";
-          document.getElementById("price-banner").textContent = "TBD";
-          document.getElementById("price-double-banner").textContent = "TBD";
-        }
-      })
-      .catch(function(err) {
-        console.error("Error loading pricing:", err);
-        document.getElementById("price-standard").textContent = "Error";
-        document.getElementById("price-double").textContent = "Error";
-        document.getElementById("price-banner").textContent = "Error";
-        document.getElementById("price-double-banner").textContent = "Error";
-      });
-    }
-
-    // Load pricing when page loads
-    loadPricing();
   </script>
 </body>
 </html>

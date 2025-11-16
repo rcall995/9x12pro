@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Contact Us - 10k Postcards</title>
-  <meta name="description" content="Contact 10k Postcards for questions about direct mail marketing. Get answers about category exclusivity, pricing, and how to reach thousands of local homes." />
+  <title>Reserve Your Spot - 10k Postcards</title>
+  <meta name="description" content="Reserve your exclusive category before your competitor does! Only ONE business per category. Reach nearly 5,000 local homes with affordable direct mail marketing." />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
     * {
@@ -108,7 +108,7 @@
     }
 
     .page-hero {
-      background: linear-gradient(135deg, var(--primary-color) 0%, #4845e4 100%);
+      background: linear-gradient(135deg, var(--accent-color) 0%, #1f8a37 100%);
       color: white;
       padding: 4rem 2rem;
       text-align: center;
@@ -125,16 +125,30 @@
       opacity: 0.95;
     }
 
-    .contact-section {
+    .reserve-section {
       padding: 5rem 2rem;
     }
 
-    .contact-container {
+    .reserve-container {
       max-width: 800px;
       margin: 0 auto;
     }
 
-    .contact-card {
+    .urgency-banner {
+      background: #fef3c7;
+      border: 2px solid #f59e0b;
+      padding: 1.5rem;
+      border-radius: 12px;
+      margin-bottom: 3rem;
+      text-align: center;
+    }
+
+    .urgency-banner strong {
+      color: #f59e0b;
+      font-size: 1.1rem;
+    }
+
+    .reserve-card {
       background: white;
       padding: 3rem;
       border-radius: 16px;
@@ -168,30 +182,34 @@
     .form-group select:focus,
     .form-group textarea:focus {
       outline: none;
-      border-color: var(--primary-color);
-    }
-
-    .form-group textarea {
-      min-height: 150px;
-      resize: vertical;
+      border-color: var(--accent-color);
     }
 
     .submit-button {
       width: 100%;
-      background: var(--primary-color);
+      background: var(--accent-color);
       color: white;
-      padding: 1rem 2rem;
+      padding: 1.25rem 2rem;
       border: none;
       border-radius: 8px;
-      font-size: 1.1rem;
+      font-size: 1.2rem;
       font-weight: 700;
       cursor: pointer;
       transition: all 0.2s;
     }
 
     .submit-button:hover {
-      background: var(--primary-hover);
+      background: #1f8a37;
       transform: translateY(-2px);
+    }
+
+    .form-note {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: var(--light-bg);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      color: var(--text-gray);
     }
 
     footer {
@@ -255,21 +273,100 @@
         <a href="how-it-works.html">How It Works</a>
         <a href="markets.html">Markets</a>
         <a href="pricing.html">Pricing</a>
-        <a href="contact.html" class="active">Contact</a>
-        <a href="reserve.html" class="nav-cta">Reserve Your Spot</a>
+        <a href="contact.html">Contact</a>
+        <a href="reserve.html" class="nav-cta active">Reserve Your Spot</a>
       </nav>
     </div>
   </header>
 
   <section class="page-hero">
-    <h1>Get in Touch</h1>
-    <p>Have questions? We're here to help!</p>
+    <h1>Reserve Your Category Now</h1>
+    <p>Don't let your competitor beat you to the mailbox!</p>
   </section>
 
-  <section class="contact-section">
-    <div class="contact-container">
-      <div class="contact-card">
-        <iframe src="https://docs.google.com/forms/d/e/1FAIpQLSeRJouz0NLa3kb7I2b4AziNcCcr4BQBBwZ8Lly4ZytvbMn4CA/viewform?embedded=true" width="100%" height="1200" frameborder="0" marginheight="0" marginwidth="0">Loading…</iframe>
+  <section class="reserve-section">
+    <div class="reserve-container">
+      
+      <div class="urgency-banner">
+        <strong>⚡ Act Fast!</strong><br>
+        Only ONE business per category. Once your category is taken, you're locked out.
+      </div>
+
+      <div class="reserve-card">
+        <form action="https://formspree.io/f/xdkowwwq" method="POST">
+          <div class="form-group">
+            <label for="business">Business Name *</label>
+            <input type="text" id="business" name="business" required />
+          </div>
+
+          <div class="form-group">
+            <label for="category">Business Category *</label>
+            <input type="text" id="category" name="category" placeholder="e.g., Pizza Restaurant, Plumber, Auto Repair, Dentist" required />
+          </div>
+
+          <div class="form-group">
+            <label for="name">Your Name *</label>
+            <input type="text" id="name" name="name" required />
+          </div>
+
+          <div class="form-group">
+            <label for="email">Email Address *</label>
+            <input type="email" id="email" name="email" required />
+          </div>
+
+          <div class="form-group">
+            <label for="phone">Phone Number *</label>
+            <input type="tel" id="phone" name="phone" required />
+          </div>
+
+          <div class="form-group">
+            <label for="market">Preferred Market *</label>
+            <select id="market" name="market" required>
+              <option value="">Select your market</option>
+              <option value="Grand Island">Grand Island</option>
+              <option value="Kenmore">Kenmore</option>
+              <option value="Tonawanda 14223">Tonawanda 14223</option>
+              <option value="East Amherst">East Amherst</option>
+              <option value="Tonawanda 14150">Tonawanda 14150</option>
+              <option value="North Tonawanda">North Tonawanda</option>
+              <option value="Clarence">Clarence</option>
+              <option value="Amherst">Amherst</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="adtype">Preferred Ad Type *</label>
+            <select id="adtype" name="adtype" required>
+              <option value="">Select ad type</option>
+              <option value="Standard Ad">Standard Ad</option>
+              <option value="Double Standard Ad">Double Standard Ad</option>
+              <option value="Banner Ad">Banner Ad</option>
+              <option value="Double Banner Ad">Double Banner Ad</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="markets">Interested in Multiple Markets? (10% discount)</label>
+            <select id="markets" name="markets">
+              <option value="Single Market">Single Market</option>
+              <option value="2+ Markets (10% off)">2+ Markets (10% off)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="message">Additional Information</label>
+            <textarea id="message" name="message" rows="4" placeholder="Tell us about your business, any special offers you'd like to feature, or questions you have..."></textarea>
+          </div>
+
+          <input type="hidden" name="_to" value="rcall@10kpostcards.com" />
+          <input type="hidden" name="_subject" value="New Reservation Request - 10k Postcards" />
+
+          <button type="submit" class="submit-button">Reserve My Spot Now →</button>
+
+          <div class="form-note">
+            📝 <strong>What happens next?</strong> We'll review your category availability and contact you within 24 hours to confirm your spot and get started with your design.
+          </div>
+        </form>
       </div>
     </div>
   </section>
