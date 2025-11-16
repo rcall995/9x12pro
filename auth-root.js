@@ -105,20 +105,35 @@ function addLogoutButton() {
     return;
   }
 
-  // Find the header nav area
+  if (!currentAuthUser) {
+    return;
+  }
+
+  // Try to find nav area - works for index.html
   var nav = document.querySelector('header .flex.gap-4');
-  if (nav && currentAuthUser) {
+
+  // If not found, try to find header directly - works for app.html
+  if (!nav) {
+    nav = document.querySelector('header');
+  }
+
+  if (nav) {
+    // Create container for user info and logout
+    var userContainer = document.createElement('div');
+    userContainer.className = 'flex items-center gap-3';
+    userContainer.style.cssText = 'margin-left: auto;';
+
     // Add user name
     var userName = document.createElement('span');
     userName.id = 'rootUserName';
-    userName.className = 'px-4 py-2 text-sm font-medium text-gray-600';
+    userName.className = 'text-sm font-medium text-gray-600';
     userName.textContent = currentAuthUser.fullName;
 
     // Create logout button
     var logoutBtn = document.createElement('button');
     logoutBtn.id = 'rootLogoutBtn';
     logoutBtn.textContent = 'Logout';
-    logoutBtn.className = 'px-4 py-2 text-sm font-medium text-gray-700 hover:text-red-600 transition';
+    logoutBtn.className = 'px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition shadow-md';
     logoutBtn.onclick = function() {
       if (confirm('Are you sure you want to log out?')) {
         supabaseClient.auth.signOut().then(function() {
@@ -127,9 +142,11 @@ function addLogoutButton() {
       }
     };
 
-    // Append to nav without clearing existing content
-    nav.appendChild(userName);
-    nav.appendChild(logoutBtn);
+    userContainer.appendChild(userName);
+    userContainer.appendChild(logoutBtn);
+
+    // Append to nav
+    nav.appendChild(userContainer);
   }
 }
 
