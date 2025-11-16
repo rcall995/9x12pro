@@ -57,9 +57,9 @@ function checkUserApproval(userId, user) {
     .then(function(result) {
       if (result.error) {
         console.error('Approval check error:', result.error);
-        // If no approval record found, redirect to login with message
-        alert('Your account is pending approval. Please contact an administrator.');
+        // If table doesn't exist or no approval record found, block access
         supabaseClient.auth.signOut().then(function() {
+          alert('Access denied. Your account is pending approval or the system is not properly configured.');
           redirectToLogin();
         });
         return;
@@ -67,8 +67,8 @@ function checkUserApproval(userId, user) {
 
       if (!result.data.approved) {
         // User not approved yet
-        alert('Your account is pending approval. Please contact an administrator.');
         supabaseClient.auth.signOut().then(function() {
+          alert('Your account is pending approval. Please contact an administrator.');
           redirectToLogin();
         });
         return;
@@ -82,6 +82,9 @@ function checkUserApproval(userId, user) {
       };
       authInitialized = true;
 
+      // Show the page content
+      document.body.style.display = 'block';
+
       // Trigger custom event that pages can listen to
       var event = new CustomEvent('authReady', { detail: currentUser });
       document.dispatchEvent(event);
@@ -91,8 +94,10 @@ function checkUserApproval(userId, user) {
     })
     .catch(function(err) {
       console.error('Error checking approval:', err);
-      alert('An error occurred. Please try logging in again.');
-      redirectToLogin();
+      supabaseClient.auth.signOut().then(function() {
+        alert('An error occurred. Please try logging in again.');
+        redirectToLogin();
+      });
     });
 }
 
@@ -174,5 +179,10 @@ function isAuthReady() {
 if (!window.location.pathname.includes('login.html') &&
     !window.location.pathname.includes('register.html') &&
     !window.location.pathname.includes('forgot-password.html')) {
+
+  // Hide page content until authentication is verified
+  document.body.style.display = 'none';
+
+  // Initialize authentication
   initAuth();
 }
