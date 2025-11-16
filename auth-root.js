@@ -93,7 +93,7 @@ function checkRootUserApproval(userId, user) {
  * Redirect to login page
  */
 function redirectToRootLogin() {
-  window.location.href = '10k-files/login.html?redirect=' + encodeURIComponent(window.location.pathname);
+  window.location.href = 'login.html?redirect=' + encodeURIComponent(window.location.pathname);
 }
 
 /**
