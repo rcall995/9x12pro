@@ -5,6 +5,9 @@
 
 // This file expects supabaseClient to already be defined in the page
 
+// Make these global so app.html can access them
+window.currentAuthUser = null;
+window.authReady = false;
 var currentAuthUser = null;
 var authReady = false;
 
@@ -80,7 +83,9 @@ function checkRootUserApproval(userId, user) {
         email: user.email,
         fullName: result.data.full_name || user.user_metadata?.full_name || user.email
       };
+      window.currentAuthUser = currentAuthUser; // Make available globally
       authReady = true;
+      window.authReady = true;
 
       // Show the page content
       console.log('🎨 Setting body display to block');

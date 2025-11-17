@@ -2487,6 +2487,25 @@
     // Supabase client is initialized in HEAD section
     var supabaseClient = window.supabaseClient; // Local reference
 
+    // Get current user email from auth (replaces ACTIVE_USER constant)
+    function getCurrentUserEmail() {
+      // Check if auth-root.js has set currentAuthUser
+      if (window.currentAuthUser && window.currentAuthUser.email) {
+        return window.currentAuthUser.email;
+      }
+      // Fallback: try to get from session
+      console.warn('⚠️ currentAuthUser not available, returning null');
+      return null;
+    }
+
+    // For backward compatibility, create a getter for ACTIVE_USER
+    var ACTIVE_USER = null;
+    Object.defineProperty(window, 'ACTIVE_USER', {
+      get: function() {
+        return getCurrentUserEmail();
+      }
+    });
+
     // Cloud Sync State - Tracks what's syncing and when
     const cloudSyncState = {
       syncing: false,
