@@ -7395,16 +7395,19 @@ Thanks!
         return;
       }
 
-      // Open Google Voice in new tab with pre-filled message
-      // Google Voice doesn't have a direct URL scheme, so we'll open to the messages page
-      const googleVoiceUrl = 'https://voice.google.com/u/0/messages';
-      window.open(googleVoiceUrl, '_blank');
+      // Use SMS protocol to open default SMS app with pre-filled message
+      // Format: sms:PHONE?body=MESSAGE
+      const cleanPhone = phone.replace(/\D/g, ''); // Remove non-digits
+      const smsUrl = `sms:${cleanPhone}?body=${encodeURIComponent(message)}`;
 
-      // Copy message to clipboard for easy pasting
-      navigator.clipboard.writeText(`To: ${phone}\n\n${message}`).then(() => {
-        alert(`Message copied to clipboard!\n\nPhone: ${phone}\n\nGoogle Voice is opening in a new tab. Paste the message there to send.`);
+      // Try to open SMS app
+      window.location.href = smsUrl;
+
+      // Also copy to clipboard as backup
+      navigator.clipboard.writeText(message).then(() => {
+        console.log('Message copied to clipboard as backup');
       }).catch(() => {
-        alert(`Send this message via Google Voice:\n\nPhone: ${phone}\n\nMessage: ${message}`);
+        console.log('Could not copy to clipboard');
       });
 
       // Log this interaction
