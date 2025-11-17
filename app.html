@@ -162,21 +162,25 @@
       transform-origin: top center;
     }
 
-    /* Mobile Responsiveness - Scale postcards to fit phone width */
+    /* Mobile Responsiveness - Maintain landscape layout with horizontal scroll */
     @media (max-width: 768px) {
-      .postcard {
+      .side-wrap {
         width: 100%;
-        max-width: calc(100vw - 2rem);
+        overflow-x: auto;
+        overflow-y: visible;
+        -webkit-overflow-scrolling: touch;
+      }
+      .postcard {
+        min-width: 600px; /* Minimum width to maintain 12:9 landscape ratio */
+        width: 100%;
+        max-width: 100%;
         margin: 0 auto;
         padding: 0.5rem;
-      }
-      .side-wrap {
-        max-width: 100%;
-        overflow-x: auto;
       }
       /* Scale down the grid on mobile */
       .grid-front, .grid-back {
         font-size: 0.85rem;
+        min-width: 100%;
       }
       /* Make cards more touch-friendly */
       .card {
@@ -193,17 +197,18 @@
       }
     }
 
-    /* Extra small screens */
+    /* Extra small screens - iPhone */
     @media (max-width: 480px) {
       .postcard {
-        padding: 0.25rem;
+        min-width: 500px; /* Smaller min-width but still landscape */
+        padding: 0.35rem;
       }
       .grid-front, .grid-back {
         gap: 0.25rem;
-        font-size: 0.75rem;
+        font-size: 0.7rem;
       }
       .card {
-        min-height: 70px;
+        min-height: 60px;
         padding: 0.5rem;
       }
     }
