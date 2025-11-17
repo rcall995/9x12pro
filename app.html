@@ -5572,6 +5572,15 @@ Thanks!
           // Save cleaned data back
           await saveToCloud('manualProspects', prospectPoolState.manualProspects).catch(e => console.warn('Failed to save deduplicated manual prospects:', e));
         }
+
+        // Auto-cleanup: Run once to fix isEnriched flag on all pool items
+        const hasRunCleanup = localStorage.getItem('hasRunProspectPoolCleanup_v1');
+        if (!hasRunCleanup) {
+          console.log('🔧 Running one-time prospect pool cleanup...');
+          await cleanupProspectPoolEnrichment();
+          localStorage.setItem('hasRunProspectPoolCleanup_v1', 'true');
+          console.log('✅ One-time cleanup complete. Will not run again.');
+        }
       } catch(err) {
         console.error('Error loading manual prospects:', err);
       }
@@ -10123,16 +10132,6 @@ Thanks!
       // Load prospect cache from cloud with merge
       loadPlacesCache().then(() => {
         renderProspectPool(); // Re-render to show loaded prospects
-
-        // Auto-cleanup: Run once to fix isEnriched flag on all pool items
-        const hasRunCleanup = localStorage.getItem('hasRunProspectPoolCleanup_v1');
-        if (!hasRunCleanup) {
-          console.log('🔧 Running one-time prospect pool cleanup...');
-          cleanupProspectPoolEnrichment().then(() => {
-            localStorage.setItem('hasRunProspectPoolCleanup_v1', 'true');
-            console.log('✅ One-time cleanup complete. Will not run again.');
-          });
-        }
 
         // Save to cloud to ensure computer's data is uploaded
         savePlacesCache();
