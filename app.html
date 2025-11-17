@@ -251,6 +251,14 @@
       opacity: 0.5;
       transform: rotate(5deg);
     }
+    .kanban-item.drag-over {
+      border-top: 3px solid #4f46e5;
+      margin-top: 4px;
+    }
+    .kanban-column.drag-over-column {
+      background-color: #eef2ff;
+      border: 2px dashed #4f46e5;
+    }
     .card > div:not(.spot-label):not(.status-badge):not(.selected-pill):not(.price-badge):not(.card-edit-overlay) {
       overflow: hidden;
       text-overflow: ellipsis;
@@ -7730,6 +7738,31 @@ Thanks!
         item.ondragend = function(e) {
           this.classList.remove('dragging');
           draggedItem = null;
+
+          // Clean up all visual indicators
+          document.querySelectorAll('.kanban-item.drag-over').forEach(el => {
+            el.classList.remove('drag-over');
+          });
+          document.querySelectorAll('.kanban-column.drag-over-column').forEach(el => {
+            el.classList.remove('drag-over-column');
+          });
+        };
+
+        // Add drag over for individual items to show drop position
+        item.ondragover = function(e) {
+          e.preventDefault();
+          if (draggedItem && draggedItem !== this) {
+            // Remove previous indicators
+            document.querySelectorAll('.kanban-item.drag-over').forEach(el => {
+              el.classList.remove('drag-over');
+            });
+            // Add indicator to this item
+            this.classList.add('drag-over');
+          }
+        };
+
+        item.ondragleave = function(e) {
+          this.classList.remove('drag-over');
         };
       });
 
@@ -7740,10 +7773,30 @@ Thanks!
         col.ondragover = function(e) {
           e.preventDefault();
           e.dataTransfer.dropEffect = 'move';
+
+          // Add column highlight
+          if (!this.classList.contains('drag-over-column')) {
+            this.classList.add('drag-over-column');
+          }
+        };
+
+        col.ondragleave = function(e) {
+          // Only remove if leaving the column entirely
+          if (e.target === this) {
+            this.classList.remove('drag-over-column');
+          }
         };
 
         col.ondrop = async function(e) {
           e.preventDefault();
+
+          // Clean up all visual indicators immediately
+          document.querySelectorAll('.kanban-item.drag-over').forEach(el => {
+            el.classList.remove('drag-over');
+          });
+          document.querySelectorAll('.kanban-column.drag-over-column').forEach(el => {
+            el.classList.remove('drag-over-column');
+          });
 
           if (!draggedItem) {
             return;
