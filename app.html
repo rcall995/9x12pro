@@ -10587,50 +10587,72 @@ Thanks!
           if (monthSelect && newPostcard.Mail_Date) monthSelect.value = newPostcard.Mail_Date;
         }
 
-        // Save to cloud immediately
+        // Save to cloud immediately with retry logic for mobile
         btn.innerHTML = '☁️ Saving to cloud...';
 
-        try {
-          // Insert into Supabase with snake_case column names
-          const { error } = await supabaseClient
-            .from('postcards')
-            .insert({
-              user_email: ACTIVE_USER,
-              mailer_id: newPostcard.Mailer_ID,
-              town: newPostcard.Town,
-              mail_date: newPostcard.Mail_Date,
-              in_homes_date: newPostcard.In_Homes_Date,
-              payment_status: newPostcard.Payment_Status,
-              postcard_size: newPostcard.Postcard_Size || '9x12',
-              postcard_bg: newPostcard.Postcard_BG,
-              banner_bg: newPostcard.Banner_BG,
-              spot_1: newPostcard.availability.Spot_1 || 'Available',
-              spot_2: newPostcard.availability.Spot_2 || 'Available',
-              spot_3: newPostcard.availability.Spot_3 || 'Available',
-              spot_4: newPostcard.availability.Spot_4 || 'Available',
-              spot_5: newPostcard.availability.Spot_5 || 'Available',
-              spot_6: newPostcard.availability.Spot_6 || 'Available',
-              spot_7: newPostcard.availability.Spot_7 || 'Available',
-              spot_8: newPostcard.availability.Spot_8 || 'Available',
-              spot_9: newPostcard.availability.Spot_9 || 'Available',
-              spot_10: newPostcard.availability.Spot_10 || 'Available',
-              spot_11: newPostcard.availability.Spot_11 || 'Available',
-              spot_12: newPostcard.availability.Spot_12 || 'Available',
-              spot_13: newPostcard.availability.Spot_13 || 'Available',
-              spot_14: newPostcard.availability.Spot_14 || 'Available',
-              spot_15: newPostcard.availability.Spot_15 || 'Available',
-              spot_16: newPostcard.availability.Spot_16 || 'Available',
-              spot_17: newPostcard.availability.Spot_17 || 'Available',
-              spot_18: newPostcard.availability.Spot_18 || 'Available'
-            });
+        let cloudSaveSuccess = false;
+        let retryCount = 0;
+        const maxRetries = 2;
 
-          if (error) throw error;
+        while (!cloudSaveSuccess && retryCount <= maxRetries) {
+          try {
+            console.log(`💾 Attempting cloud save (attempt ${retryCount + 1}/${maxRetries + 1})...`);
 
-          toast("✅ Postcard created and saved to cloud!", true);
+            // Insert into Supabase with snake_case column names
+            const { data, error } = await supabaseClient
+              .from('postcards')
+              .insert({
+                user_email: ACTIVE_USER,
+                mailer_id: newPostcard.Mailer_ID,
+                town: newPostcard.Town,
+                mail_date: newPostcard.Mail_Date,
+                in_homes_date: newPostcard.In_Homes_Date,
+                payment_status: newPostcard.Payment_Status,
+                postcard_size: newPostcard.Postcard_Size || '9x12',
+                postcard_bg: newPostcard.Postcard_BG,
+                banner_bg: newPostcard.Banner_BG,
+                spot_1: newPostcard.availability.Spot_1 || 'Available',
+                spot_2: newPostcard.availability.Spot_2 || 'Available',
+                spot_3: newPostcard.availability.Spot_3 || 'Available',
+                spot_4: newPostcard.availability.Spot_4 || 'Available',
+                spot_5: newPostcard.availability.Spot_5 || 'Available',
+                spot_6: newPostcard.availability.Spot_6 || 'Available',
+                spot_7: newPostcard.availability.Spot_7 || 'Available',
+                spot_8: newPostcard.availability.Spot_8 || 'Available',
+                spot_9: newPostcard.availability.Spot_9 || 'Available',
+                spot_10: newPostcard.availability.Spot_10 || 'Available',
+                spot_11: newPostcard.availability.Spot_11 || 'Available',
+                spot_12: newPostcard.availability.Spot_12 || 'Available',
+                spot_13: newPostcard.availability.Spot_13 || 'Available',
+                spot_14: newPostcard.availability.Spot_14 || 'Available',
+                spot_15: newPostcard.availability.Spot_15 || 'Available',
+                spot_16: newPostcard.availability.Spot_16 || 'Available',
+                spot_17: newPostcard.availability.Spot_17 || 'Available',
+                spot_18: newPostcard.availability.Spot_18 || 'Available'
+              });
 
-        } catch (cloudErr) {
-          console.error("Failed to save to cloud:", cloudErr);
-          toast("⚠️ Postcard created locally. Will sync on next spot edit.", false);
+            if (error) {
+              console.error(`❌ Cloud save attempt ${retryCount + 1} failed:`, error);
+              throw error;
+            }
+
+            console.log('✅ Cloud save successful!', data);
+            cloudSaveSuccess = true;
+            toast("✅ Postcard created and saved to cloud!", true);
+
+          } catch (cloudErr) {
+            retryCount++;
+            console.error(`Failed to save to cloud (attempt ${retryCount}/${maxRetries + 1}):`, cloudErr);
+
+            if (retryCount > maxRetries) {
+              // Final failure after all retries
+              toast("⚠️ Cloud save failed after retries. Postcard created locally. Will sync on next edit.", false);
+            } else {
+              // Wait before retry
+              btn.innerHTML = `☁️ Retrying... (${retryCount}/${maxRetries + 1})`;
+              await new Promise(resolve => setTimeout(resolve, 1500));
+            }
+          }
         }
 
         // Switch to the new postcard
