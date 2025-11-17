@@ -10596,6 +10596,19 @@ Thanks!
       // Load daily goal state from localStorage
       loadDailyGoalState();
 
+      // Wait for auth to complete before loading user data
+      console.log('⏳ Waiting for authentication before loading data...');
+      var waitForAuth = setInterval(function() {
+        if (window.authReady && ACTIVE_USER) {
+          clearInterval(waitForAuth);
+          console.log('✅ Auth ready, loading user data for:', ACTIVE_USER);
+          loadAllData();
+        }
+      }, 100);
+    });
+
+    // Separate function for loading all data (called after auth is ready)
+    function loadAllData() {
       // Load all state from cloud (with localStorage fallback)
       Promise.allSettled([
         loadExpenses(),
@@ -10710,8 +10723,11 @@ Thanks!
       window.renderProspectPool = renderProspectPool;
       window.switchTab = switchTab;
       window.deleteCurrentPostcard = deleteCurrentPostcard;
+    }
+
+    // End of loadAllData function
     });
-    
+
     function bindUI(){
       const btn = (id, handler) => {
         const el = document.getElementById(id);
