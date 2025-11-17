@@ -5908,7 +5908,15 @@ Thanks!
       renderProspectPool();
     }
 
+    // Store search term to preserve during re-renders
+    var prospectPoolSearchTerm = '';
+
     function renderProspectPool() {
+      // Save current search value if it exists
+      const searchInput = document.getElementById('prospectPoolSearch');
+      if (searchInput) {
+        prospectPoolSearchTerm = searchInput.value;
+      }
       const container = document.getElementById('prospectPoolContainer');
       const statsContainer = document.getElementById('prospectPoolStats');
       const zipCheckboxContainer = document.getElementById('prospectPoolZipCheckboxes');
@@ -6169,6 +6177,7 @@ Thanks!
               id="prospectPoolSearch"
               placeholder="Search businesses by name..."
               oninput="filterProspectPool(this.value)"
+              value="${prospectPoolSearchTerm}"
               class="w-full px-4 py-2 pl-10 border-2 border-indigo-300 rounded-lg focus:border-indigo-500 focus:outline-none"
             />
             <svg class="absolute left-3 top-3 h-5 w-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -6516,6 +6525,7 @@ Thanks!
 
     // Filter prospect pool by search term
     function filterProspectPool(searchTerm) {
+      prospectPoolSearchTerm = searchTerm; // Save for re-renders
       const term = searchTerm.toLowerCase().trim();
 
       // Get all prospect items
