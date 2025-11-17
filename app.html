@@ -6418,7 +6418,8 @@ Thanks!
                 }
 
                 // For raw prospects (from search results) - show with checkbox
-                const isSelected = prospectPoolState.selectedIds.has(prospect.placeId);
+                const prospectId = prospect.placeId || prospect.id;
+                const isSelected = prospectPoolState.selectedIds.has(prospectId);
                 const isDisabled = prospect.inSystem;
 
                 return `
@@ -6428,7 +6429,7 @@ Thanks!
                         type="checkbox"
                         ${isSelected ? 'checked' : ''}
                         ${isDisabled ? 'disabled' : ''}
-                        onchange="event.stopPropagation(); togglePoolProspect('${prospect.placeId}')"
+                        onchange="event.stopPropagation(); togglePoolProspect('${prospectId}')"
                         onclick="event.stopPropagation()"
                         class="mt-1 w-4 h-4 text-indigo-600 rounded cursor-pointer flex-shrink-0"
                       />
@@ -6466,11 +6467,15 @@ Thanks!
     }
 
     function togglePoolProspect(placeId) {
+      console.log('🟢 togglePoolProspect called with ID:', placeId);
       if (prospectPoolState.selectedIds.has(placeId)) {
         prospectPoolState.selectedIds.delete(placeId);
+        console.log('🟢 Removed from selection. Total selected:', prospectPoolState.selectedIds.size);
       } else {
         prospectPoolState.selectedIds.add(placeId);
+        console.log('🟢 Added to selection. Total selected:', prospectPoolState.selectedIds.size);
       }
+      console.log('🟢 Selected IDs:', Array.from(prospectPoolState.selectedIds));
       updatePoolSelectedCount();
       // Just update the checkbox state, don't re-render everything
     }
@@ -6549,17 +6554,15 @@ Thanks!
     }
 
     async function addFromProspectPool() {
+      console.log('🔵 addFromProspectPool called');
       if (prospectPoolState.selectedIds.size === 0) {
         toast('No prospects selected', false);
         return;
       }
 
-      // Get current mailer ID
-      const currentMailerId = state.current?.Mailer_ID;
-      if (!currentMailerId) {
-        toast('Please select a postcard first', false);
-        return;
-      }
+      // Get current mailer ID (optional - can be null)
+      const currentMailerId = state.current?.Mailer_ID || null;
+      console.log('🔵 currentMailerId:', currentMailerId);
 
       const btn = document.getElementById('btnAddFromPool');
       const originalText = btn.textContent;
@@ -6567,8 +6570,11 @@ Thanks!
       btn.textContent = '⏳ Adding...';
 
       try {
-        // Collect all selected businesses
+        // Collect all selected businesses from both sources
         const selectedBusinesses = [];
+        console.log('🔵 Collecting selected businesses...');
+
+        // From Google Places searches
         Object.values(placesCache.searches).forEach(cached => {
           cached.cachedData?.forEach(business => {
             if (prospectPoolState.selectedIds.has(business.placeId)) {
@@ -6577,14 +6583,26 @@ Thanks!
           });
         });
 
+        // From manually added prospects
+        prospectPoolState.manualProspects?.forEach(business => {
+          const businessId = business.id || business.placeId;
+          if (prospectPoolState.selectedIds.has(businessId)) {
+            selectedBusinesses.push(business);
+            console.log('🔵 Found selected manual business:', business.businessName, 'ID:', businessId);
+          }
+        });
+
+        console.log('🔵 Total selected businesses:', selectedBusinesses.length);
+
         // Fetch details and add to kanban
         const prospectingColumn = 'prospect-list';
         const existingLeads = kanbanState.columns[prospectingColumn] || [];
+        console.log('🔵 Existing leads in prospect-list:', existingLeads.length);
 
-        // Get existing placeIds for current mailer to prevent duplicates
+        // Get existing placeIds to prevent duplicates (check all leads, not just current mailer)
         const existingPlaceIds = new Set(
           existingLeads
-            .filter(lead => lead.mailerId === currentMailerId && lead.placeId)
+            .filter(lead => lead.placeId)
             .map(lead => lead.placeId)
         );
 
@@ -6593,45 +6611,77 @@ Thanks!
 
         for (let i = 0; i < selectedBusinesses.length; i++) {
           const business = selectedBusinesses[i];
+          const businessId = business.placeId || business.id;
 
           // Skip if already exists for this mailer
-          if (existingPlaceIds.has(business.placeId)) {
+          if (existingPlaceIds.has(businessId)) {
             skippedCount++;
             continue;
           }
 
-          btn.textContent = `⏳ Fetching contact details... (${i + 1}/${selectedBusinesses.length})`;
+          btn.textContent = `⏳ Adding... (${i + 1}/${selectedBusinesses.length})`;
 
-          // Fetch basic details from Google Places API
-          let details = { phone: '', website: '', email: '', facebook: '', instagram: '', source: 'google-places' };
+          let newLead;
 
-          if (business.placeId) {
-            details = await fetchPlaceDetails(business.placeId);
+          // Handle manually added businesses (no API fetch needed)
+          if (business.type === 'manual') {
+            console.log('🔵 Processing manual business:', business.businessName);
+            newLead = {
+              id: Date.now() + Math.random(),
+              businessName: business.businessName || business.name,
+              contactName: '',
+              phone: business.phone || '',
+              email: business.email || '',
+              estimatedValue: 500,
+              notes: business.notes || `Manually added business\nAddress: ${business.address}\nTown: ${business.town}`,
+              source: 'manual',
+              placeId: business.id, // Use the manual ID as placeId for tracking
+              website: business.website || '',
+              facebook: '',
+              instagram: '',
+              category: business.category || 'other',
+              zipCode: business.zipCode || null,
+              mailerId: currentMailerId,
+              town: business.town || state.current?.Town,
+              addedDate: new Date().toISOString(),
+              interactions: []
+            };
+            console.log('🔵 Created newLead:', newLead);
+          } else {
+            // Handle Google Places businesses (needs API fetch)
+            btn.textContent = `⏳ Fetching contact details... (${i + 1}/${selectedBusinesses.length})`;
+
+            let details = { phone: '', website: '', email: '', facebook: '', instagram: '', source: 'google-places' };
+
+            if (business.placeId) {
+              details = await fetchPlaceDetails(business.placeId);
+            }
+
+            newLead = {
+              id: Date.now() + Math.random(),
+              businessName: business.name,
+              contactName: '',
+              phone: details.phone || '',
+              email: details.email || '',
+              estimatedValue: 500,
+              notes: `Found via Google Places\nAddress: ${business.address}\nRating: ${business.rating} (${business.userRatingsTotal} reviews)\n${details.phone ? `Phone: ${details.phone}\n` : ''}${details.website ? `Website: ${details.website}\n` : ''}Place ID: ${business.placeId}\n\n💡 Use CSV export/import to add Facebook/Instagram URLs`,
+              source: 'google-places',
+              placeId: business.placeId,
+              website: details.website || '',
+              facebook: '',
+              instagram: '',
+              category: business.category || 'other',
+              zipCode: business.zipCode || null,
+              mailerId: currentMailerId,
+              town: state.current?.Town,
+              addedDate: new Date().toISOString(),
+              interactions: []
+            };
           }
-
-          const newLead = {
-            id: Date.now() + Math.random(),
-            businessName: business.name,
-            contactName: '',
-            phone: details.phone || '',
-            email: details.email || '',
-            estimatedValue: 500,
-            notes: `Found via Google Places\nAddress: ${business.address}\nRating: ${business.rating} (${business.userRatingsTotal} reviews)\n${details.phone ? `Phone: ${details.phone}\n` : ''}${details.website ? `Website: ${details.website}\n` : ''}Place ID: ${business.placeId}\n\n💡 Use CSV export/import to add Facebook/Instagram URLs`,
-            source: 'google-places',
-            placeId: business.placeId,
-            website: details.website || '',
-            facebook: '',
-            instagram: '',
-            category: business.category || 'other',
-            zipCode: business.zipCode || null, // Tag with ZIP code from search
-            mailerId: currentMailerId, // Link to current card
-            town: state.current?.Town, // Tag with town for organization
-            addedDate: new Date().toISOString(),
-            interactions: [] // Interaction history: [{date, type, notes, nextFollowUp}]
-          };
 
           kanbanState.columns[prospectingColumn].push(newLead);
           addedCount++;
+          console.log('🔵 Added to kanban. Total added:', addedCount);
 
           // Small delay to avoid rate limiting
           if (i < selectedBusinesses.length - 1) {
@@ -6639,10 +6689,13 @@ Thanks!
           }
         }
 
+        console.log('🔵 Saving kanban...');
         saveKanban();
+        console.log('🔵 Rendering kanban...');
         renderKanban();
 
         // Clear selections and re-render pool
+        console.log('🔵 Clearing selections and re-rendering pool...');
         prospectPoolState.selectedIds.clear();
         renderProspectPool();
 
