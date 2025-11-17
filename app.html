@@ -6268,6 +6268,13 @@ Thanks!
       // Collect all available ZIP codes for the filter dropdown
       const availableZips = new Set();
 
+      // Add ZIP codes from manual prospects FIRST (so they appear in filter)
+      prospectPoolState.manualProspects.forEach(prospect => {
+        if (prospect.zipCode) {
+          availableZips.add(prospect.zipCode);
+        }
+      });
+
       // Process cached searches (with deduplication)
       const seenPlaceIds = new Set(); // Track placeIds to prevent duplicates
       let skippedByZip = 0;
@@ -6413,8 +6420,6 @@ Thanks!
           if (filterByZip && prospect.zipCode && !selectedZips.includes(prospect.zipCode)) {
             return false; // Skip if ZIP doesn't match filter
           }
-          // Track available ZIP code
-          if (prospect.zipCode) availableZips.add(prospect.zipCode);
           return true;
         })
         .filter(prospect => {
