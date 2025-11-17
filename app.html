@@ -3705,25 +3705,45 @@ Thanks!
       clients.sort((a, b) => a.businessName.localeCompare(b.businessName));
       
       container.innerHTML = clients.map(client => {
-        const lastPurchase = client.history.length > 0 
-          ? client.history[client.history.length - 1] 
+        const lastPurchase = client.history.length > 0
+          ? client.history[client.history.length - 1]
           : null;
-        
+
+        const hasPhone = client.contact && client.contact.phone;
+        const hasEmail = client.contact && client.contact.email;
+
         return `
-          <div class="client-row" 
-               onclick="openClientModal('${client.id}')" 
+          <div class="client-row"
                data-client-id="${client.id}"
                data-category="${client.category}"
                data-business="${client.businessName.toLowerCase()}">
-            <div class="flex justify-between items-start">
-              <div class="flex-1">
+            <div class="flex justify-between items-start gap-3">
+              <div class="flex-1" onclick="openClientModal('${client.id}')" style="cursor: pointer;">
                 <div class="font-semibold text-gray-900">${esc(client.businessName)}</div>
                 <div class="text-sm text-gray-600">${esc(client.category || 'Uncategorized')}</div>
-                ${client.contact.name ? `<div class="text-sm text-gray-500">${esc(client.contact.name)} • ${esc(client.contact.phone)}</div>` : ''}
+                ${client.contact.name ? `<div class="text-sm text-gray-500">${esc(client.contact.name)} • ${esc(client.contact.phone || '')}</div>` : ''}
               </div>
-              <div class="text-right">
-                <div class="text-sm font-semibold text-green-600">${formatCurrency(client.lifetime.totalSpent)}</div>
-                <div class="text-xs text-gray-500">${client.lifetime.cardsBought} card${client.lifetime.cardsBought === 1 ? '' : 's'}</div>
+              <div class="flex flex-col gap-2">
+                <div class="text-right">
+                  <div class="text-sm font-semibold text-green-600">${formatCurrency(client.lifetime.totalSpent)}</div>
+                  <div class="text-xs text-gray-500">${client.lifetime.cardsBought} card${client.lifetime.cardsBought === 1 ? '' : 's'}</div>
+                </div>
+                <div class="flex gap-1.5">
+                  ${hasPhone ? `
+                    <button onclick="event.stopPropagation(); openClientSMS('${client.id}')"
+                            class="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                            title="Send SMS">
+                      📱 SMS
+                    </button>
+                  ` : ''}
+                  ${hasEmail ? `
+                    <button onclick="event.stopPropagation(); openClientEmail('${client.id}')"
+                            class="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                            title="Send Email">
+                      ✉️ Email
+                    </button>
+                  ` : ''}
+                </div>
               </div>
             </div>
             ${lastPurchase ? `
@@ -7609,6 +7629,126 @@ Thanks!
       closeSendEmailModal();
     }
 
+    // Client Database SMS/Email Functions
+    function openClientSMS(clientId) {
+      const client = crmState.clients[clientId];
+      if (!client) {
+        alert('Client not found');
+        return;
+      }
+
+      if (!client.contact || !client.contact.phone) {
+        alert('This client does not have a phone number on file');
+        return;
+      }
+
+      // Open SMS modal
+      const modal = document.getElementById('sendSMSModal');
+      modal.style.display = 'flex';
+      modal.setAttribute('aria-hidden', 'false');
+
+      // Populate business info
+      document.getElementById('smsBusinessName').textContent = client.businessName;
+      document.getElementById('smsPhoneNumber').textContent = client.contact.phone;
+
+      // Load default template
+      document.getElementById('smsTemplate').value = 'intro';
+      loadSMSTemplate();
+
+      // Store client ID for sending
+      currentSMSClientId = clientId;
+    }
+
+    function openClientEmail(clientId) {
+      const client = crmState.clients[clientId];
+      if (!client) {
+        alert('Client not found');
+        return;
+      }
+
+      if (!client.contact || !client.contact.email) {
+        alert('This client does not have an email address on file');
+        return;
+      }
+
+      // Open email modal
+      const modal = document.getElementById('sendEmailModal');
+      modal.style.display = 'flex';
+      modal.setAttribute('aria-hidden', 'false');
+
+      // Populate business info
+      document.getElementById('emailBusinessName').textContent = client.businessName;
+      document.getElementById('emailAddress').textContent = client.contact.email;
+
+      // Load default template
+      document.getElementById('emailTemplate').value = 'intro';
+      loadEmailTemplate();
+
+      // Store client ID for sending
+      currentEmailClientId = clientId;
+    }
+
+    // Variables to track which client we're messaging
+    let currentSMSClientId = null;
+    let currentEmailClientId = null;
+
+    // Convert Prospect to Client Function
+    function convertProspectToClient(leadId, columnName) {
+      // Find the prospect in the specified column
+      const prospect = (kanbanState.columns[columnName] || []).find(item => {
+        return typeof item === 'object' && item.id === leadId;
+      });
+
+      if (!prospect) {
+        alert('Prospect not found');
+        return;
+      }
+
+      // Check if already exists in clients
+      const existingClient = Object.values(crmState.clients).find(c =>
+        c.businessName.toLowerCase() === prospect.businessName.toLowerCase()
+      );
+
+      if (existingClient) {
+        alert('This business is already in your Client Database');
+        return;
+      }
+
+      // Create new client from prospect data
+      const clientId = `client_${Date.now()}`;
+      const newClient = {
+        id: clientId,
+        businessName: prospect.businessName,
+        category: prospect.category || 'Other',
+        contact: {
+          name: prospect.contactName || '',
+          phone: prospect.phone || '',
+          email: prospect.email || ''
+        },
+        address: prospect.notes ? prospect.notes.split('\n')[1] || '' : '',
+        lifetime: {
+          totalSpent: 0,
+          cardsBought: 0
+        },
+        history: [],
+        notes: prospect.notes || '',
+        createdDate: new Date().toISOString()
+      };
+
+      // Add to clients
+      crmState.clients[clientId] = newClient;
+
+      // Save and refresh
+      saveClientsToStorage();
+      renderClientList();
+
+      // Show success message
+      toast(`✅ ${prospect.businessName} added to Client Database!`, true);
+
+      // Switch to clients tab
+      switchTab('clients');
+    }
+
     // Manual Business Entry Functions
     function openAddManualBusinessModal() {
       const modal = document.getElementById('addManualBusinessModal');
@@ -8426,6 +8566,9 @@ Thanks!
                           🚫 Not Interested
                         </button>
                       </div>
+                      <button onclick="convertProspectToClient(${leadId}, 'to-contact'); event.stopPropagation();" class="w-full px-3 py-1.5 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 font-medium" title="Add to Client Database">
+                        👤 Convert to Client
+                      </button>
                     </div>
                   ` : ''}
                 </div>
