@@ -908,22 +908,77 @@
         
         <!-- CLIENT DATABASE TAB -->
         <div data-content="clients" class="tab-pane hidden">
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-xl font-bold">Client Database</h3>
-                <div class="flex gap-2">
-                    <button onclick="document.getElementById('csvFileInput').click()" class="px-3 py-1.5 bg-purple-600 text-white rounded-md text-sm hover:bg-purple-700">
-                        📤 Import CSV
+            <!-- MESSAGE TEMPLATES SECTION -->
+            <div class="mb-8">
+                <div class="mb-6 flex justify-between items-center">
+                    <div>
+                        <h3 class="text-2xl font-bold">📋 Message Templates</h3>
+                        <p class="text-sm text-gray-600 mt-1">Create and manage email/SMS templates that sync across all devices</p>
+                    </div>
+                    <button onclick="openCreateTemplateModal()" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-medium text-sm">
+                        ➕ New Template
                     </button>
-                    <input type="file" id="csvFileInput" accept=".csv" onchange="importClientsCSV(event)" style="display: none;" />
-                    <button onclick="exportClientsCSV()" class="px-3 py-1.5 bg-green-600 text-white rounded-md text-sm hover:bg-green-700">
-                        📥 Export CSV
-                    </button>
-                    <button onclick="syncClientsToSheets()" class="px-3 py-1.5 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700">
-                        ☁️ Sync to Sheets
-                    </button>
-                    <button onclick="openClientModal()" class="px-4 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
-                        + Add Client
-                    </button>
+                </div>
+
+                <!-- Template Categories -->
+                <div class="space-y-6">
+                    <!-- Prospect Templates -->
+                    <div class="bg-white border rounded-lg p-6">
+                        <h4 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                            <span>🎯</span>
+                            <span>Prospect Templates</span>
+                            <span id="prospectTemplateCount" class="text-sm font-normal text-gray-500">(0)</span>
+                        </h4>
+                        <div id="prospectTemplatesList" class="space-y-2">
+                            <!-- Dynamically populated -->
+                        </div>
+                    </div>
+
+                    <!-- Client Templates -->
+                    <div class="bg-white border rounded-lg p-6">
+                        <h4 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                            <span>👥</span>
+                            <span>Client Templates</span>
+                            <span id="clientTemplateCount" class="text-sm font-normal text-gray-500">(0)</span>
+                        </h4>
+                        <div id="clientTemplatesList" class="space-y-2">
+                            <!-- Dynamically populated -->
+                        </div>
+                    </div>
+
+                    <!-- Follow-up Templates -->
+                    <div class="bg-white border rounded-lg p-6">
+                        <h4 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                            <span>🔄</span>
+                            <span>Follow-up Templates</span>
+                            <span id="followupTemplateCount" class="text-sm font-normal text-gray-500">(0)</span>
+                        </h4>
+                        <div id="followupTemplatesList" class="space-y-2">
+                            <!-- Dynamically populated -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CLIENT LIST SECTION -->
+            <div class="border-t pt-8">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xl font-bold">Client Database</h3>
+                    <div class="flex gap-2">
+                        <button onclick="document.getElementById('csvFileInput').click()" class="px-3 py-1.5 bg-purple-600 text-white rounded-md text-sm hover:bg-purple-700">
+                            📤 Import CSV
+                        </button>
+                        <input type="file" id="csvFileInput" accept=".csv" onchange="importClientsCSV(event)" style="display: none;" />
+                        <button onclick="exportClientsCSV()" class="px-3 py-1.5 bg-green-600 text-white rounded-md text-sm hover:bg-green-700">
+                            📥 Export CSV
+                        </button>
+                        <button onclick="syncClientsToSheets()" class="px-3 py-1.5 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700">
+                            ☁️ Sync to Sheets
+                        </button>
+                        <button onclick="openClientModal()" class="px-4 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
+                            + Add Client
+                        </button>
+                    </div>
                 </div>
             </div>
             
@@ -1052,58 +1107,6 @@
             <!-- Transaction Count -->
             <div class="mt-4 text-sm text-gray-600 text-center">
                 <span id="transactionCount">0 transactions</span>
-            </div>
-
-            <!-- MESSAGE TEMPLATES SECTION -->
-            <div class="mt-12 border-t pt-8">
-                <div class="mb-6 flex justify-between items-center">
-                    <div>
-                        <h3 class="text-2xl font-bold">📋 Message Templates</h3>
-                        <p class="text-sm text-gray-600 mt-1">Create and manage email/SMS templates that sync across all devices</p>
-                    </div>
-                    <button onclick="openCreateTemplateModal()" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-medium text-sm">
-                        ➕ New Template
-                    </button>
-                </div>
-
-                <!-- Template Categories -->
-                <div class="space-y-6">
-                    <!-- Prospect Templates -->
-                    <div class="bg-white border rounded-lg p-6">
-                        <h4 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                            <span>🎯</span>
-                            <span>Prospect Templates</span>
-                            <span id="prospectTemplateCount" class="text-sm font-normal text-gray-500">(0)</span>
-                        </h4>
-                        <div id="prospectTemplatesList" class="space-y-2">
-                            <!-- Dynamically populated -->
-                        </div>
-                    </div>
-
-                    <!-- Client Templates -->
-                    <div class="bg-white border rounded-lg p-6">
-                        <h4 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                            <span>👥</span>
-                            <span>Client Templates</span>
-                            <span id="clientTemplateCount" class="text-sm font-normal text-gray-500">(0)</span>
-                        </h4>
-                        <div id="clientTemplatesList" class="space-y-2">
-                            <!-- Dynamically populated -->
-                        </div>
-                    </div>
-
-                    <!-- Follow-up Templates -->
-                    <div class="bg-white border rounded-lg p-6">
-                        <h4 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                            <span>🔄</span>
-                            <span>Follow-up Templates</span>
-                            <span id="followupTemplateCount" class="text-sm font-normal text-gray-500">(0)</span>
-                        </h4>
-                        <div id="followupTemplatesList" class="space-y-2">
-                            <!-- Dynamically populated -->
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
@@ -12100,8 +12103,8 @@ Thanks!
             }
         }
 
-        // Render template manager when admin tab is opened
-        if (tabName === 'admin') {
+        // Render template manager when clients tab is opened
+        if (tabName === 'clients') {
             setTimeout(() => renderTemplateManager(), 100);
         }
 
