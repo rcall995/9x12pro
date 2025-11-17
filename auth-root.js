@@ -12,8 +12,10 @@ var authReady = false;
  * Initialize authentication check
  */
 function initRootAuth() {
+  console.log('🔐 initRootAuth called');
   // Get current session
   supabaseClient.auth.getSession().then(function(result) {
+    console.log('📋 Session result:', result);
     if (result.error) {
       console.error('Auth error:', result.error);
       redirectToRootLogin();
@@ -22,10 +24,12 @@ function initRootAuth() {
 
     if (!result.data.session) {
       // No session, redirect to login
+      console.log('❌ No session found, redirecting to login');
       redirectToRootLogin();
       return;
     }
 
+    console.log('✅ Session found, checking user approval');
     // Check if user is approved
     var userId = result.data.session.user.id;
     checkRootUserApproval(userId, result.data.session.user);
@@ -43,12 +47,14 @@ function initRootAuth() {
  * Check if user is approved
  */
 function checkRootUserApproval(userId, user) {
+  console.log('🔍 Checking approval for user:', userId);
   supabaseClient
     .from('user_approvals')
     .select('approved, full_name')
     .eq('user_id', userId)
     .single()
     .then(function(result) {
+      console.log('📊 Approval check result:', result);
       if (result.error) {
         console.error('Approval check error:', result.error);
         supabaseClient.auth.signOut().then(function() {
@@ -59,6 +65,7 @@ function checkRootUserApproval(userId, user) {
       }
 
       if (!result.data.approved) {
+        console.log('⛔ User not approved');
         supabaseClient.auth.signOut().then(function() {
           alert('Your account is pending approval. Please contact an administrator.');
           redirectToRootLogin();
@@ -67,6 +74,7 @@ function checkRootUserApproval(userId, user) {
       }
 
       // User is approved
+      console.log('✅ User approved, showing page');
       currentAuthUser = {
         id: userId,
         email: user.email,
@@ -75,6 +83,7 @@ function checkRootUserApproval(userId, user) {
       authReady = true;
 
       // Show the page content
+      console.log('🎨 Setting body display to block');
       document.body.style.display = 'block';
 
       // Add logout button if needed
