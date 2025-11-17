@@ -3,8 +3,24 @@
 <head>
   <meta charset="UTF-8" />
   <title>9x12 Pro - Community Card Management</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- VERSION: 2025-01-13-v18 CACHE BUSTER -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes" />
+  <meta name="description" content="Manage your direct mail postcard campaigns, track prospects, and grow your business" />
+
+  <!-- PWA Meta Tags -->
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="9x12 Pro" />
+  <meta name="theme-color" content="#4F46E5" />
+
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/manifest.json" />
+
+  <!-- Favicons -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%234F46E5'/><text x='50' y='60' font-family='Arial' font-size='24' font-weight='bold' fill='white' text-anchor='middle'>9x12</text></svg>" />
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='192' height='192'><rect width='192' height='192' fill='%234F46E5' rx='32'/><text x='96' y='130' font-family='Arial' font-size='80' font-weight='bold' fill='white' text-anchor='middle'>9×12</text><text x='96' y='165' font-family='Arial' font-size='24' fill='%23A5B4FC' text-anchor='middle'>PRO</text></svg>" />
+
+  <!-- VERSION: 2025-01-14-v22 PWA Support -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
@@ -13688,5 +13704,133 @@ Thanks!
 
   </script>
   <script src="auth-root.js"></script>
+
+  <!-- PWA Service Worker Registration -->
+  <script>
+    // Register service worker for PWA functionality
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/service-worker.js')
+          .then((registration) => {
+            console.log('✅ Service Worker registered:', registration.scope);
+
+            // Check for updates
+            registration.addEventListener('updatefound', () => {
+              const newWorker = registration.installing;
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  // New version available
+                  if (confirm('New version available! Reload to update?')) {
+                    newWorker.postMessage({ type: 'SKIP_WAITING' });
+                    window.location.reload();
+                  }
+                }
+              });
+            });
+          })
+          .catch((error) => {
+            console.log('❌ Service Worker registration failed:', error);
+          });
+      });
+
+      // Handle service worker updates
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
+      });
+    }
+
+    // PWA Install prompt
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      // Prevent the mini-infobar from appearing on mobile
+      e.preventDefault();
+      // Stash the event so it can be triggered later
+      deferredPrompt = e;
+
+      // Show install button/banner (we can add UI for this later)
+      console.log('💡 PWA install available');
+
+      // Optionally show a custom install button
+      showPWAInstallPrompt();
+    });
+
+    function showPWAInstallPrompt() {
+      // Only show on mobile or if not already installed
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+
+      if (deferredPrompt && !isStandalone) {
+        // Create a toast notification with install option
+        const installToast = document.createElement('div');
+        installToast.style.cssText = `
+          position: fixed;
+          bottom: 20px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: #4F46E5;
+          color: white;
+          padding: 16px 24px;
+          border-radius: 12px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+          z-index: 10000;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          max-width: 90%;
+          animation: slideUp 0.3s ease-out;
+        `;
+
+        installToast.innerHTML = `
+          <span>📱 Install 9x12 Pro app for quick access!</span>
+          <button id="pwaInstallBtn" style="background: white; color: #4F46E5; padding: 8px 16px; border-radius: 6px; border: none; font-weight: 600; cursor: pointer;">Install</button>
+          <button id="pwaDismissBtn" style="background: transparent; color: white; padding: 8px; border: none; cursor: pointer; font-size: 20px;">×</button>
+        `;
+
+        document.body.appendChild(installToast);
+
+        document.getElementById('pwaInstallBtn').addEventListener('click', async () => {
+          if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            console.log(`User response to install prompt: ${outcome}`);
+            deferredPrompt = null;
+            installToast.remove();
+          }
+        });
+
+        document.getElementById('pwaDismissBtn').addEventListener('click', () => {
+          installToast.remove();
+          localStorage.setItem('pwa-install-dismissed', Date.now());
+        });
+
+        // Auto-dismiss after 10 seconds
+        setTimeout(() => {
+          if (installToast.parentNode) {
+            installToast.remove();
+          }
+        }, 10000);
+      }
+    }
+
+    // Add slide up animation
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideUp {
+        from {
+          transform: translateX(-50%) translateY(100px);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(-50%) translateY(0);
+          opacity: 1;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  </script>
 </body>
 </html><!-- Force refresh 1762829270 -->
