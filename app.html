@@ -5912,10 +5912,12 @@ Thanks!
     var prospectPoolSearchTerm = '';
 
     function renderProspectPool() {
+      console.log('🎯 renderProspectPool called');
       // Save current search value if it exists
       const searchInput = document.getElementById('prospectPoolSearch');
       if (searchInput) {
         prospectPoolSearchTerm = searchInput.value;
+        console.log('💾 Saved search term:', prospectPoolSearchTerm);
       }
       const container = document.getElementById('prospectPoolContainer');
       const statsContainer = document.getElementById('prospectPoolStats');
@@ -6533,11 +6535,12 @@ Thanks!
 
     // Filter prospect pool by search term
     function filterProspectPool(searchTerm) {
+      console.log('🔍 Filter called with:', searchTerm);
       prospectPoolSearchTerm = searchTerm; // Save for re-renders
       const term = searchTerm.toLowerCase().trim();
 
-      // Get all prospect items
-      const allProspectItems = document.querySelectorAll('#prospectPoolContainer > div > div:not(.bg-indigo-50)');
+      // Get all prospect items - use more specific selector
+      const allProspectItems = document.querySelectorAll('#prospectPoolContainer .mb-8');
 
       allProspectItems.forEach(categorySection => {
         const categoryHeader = categorySection.querySelector('h4');
