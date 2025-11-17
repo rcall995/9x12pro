@@ -2669,6 +2669,39 @@
         </div>
       </div>
 
+      <!-- Quick Send with Template Section -->
+      <div class="bg-green-50 rounded-lg border border-green-200 p-4 mb-4">
+        <h4 class="font-semibold text-green-900 mb-3">📤 Quick Send with Template</h4>
+
+        <div class="space-y-3">
+          <div>
+            <label class="text-xs font-medium text-gray-700 block mb-1">Select Template:</label>
+            <select id="quickSendTemplateSelector" class="border rounded-md w-full p-2 text-sm bg-white" onchange="previewQuickSendTemplate()">
+              <option value="">-- Choose a template --</option>
+            </select>
+          </div>
+
+          <div id="quickSendPreview" class="hidden bg-white border rounded-lg p-3">
+            <div class="text-xs font-semibold text-gray-700 mb-2">Preview:</div>
+            <div id="quickSendPreviewSubject" class="text-xs font-semibold text-gray-900 mb-1"></div>
+            <pre id="quickSendPreviewBody" class="text-xs text-gray-700 whitespace-pre-wrap font-sans max-h-32 overflow-y-auto"></pre>
+          </div>
+
+          <div class="flex gap-2">
+            <button id="btnQuickSendSMS" onclick="quickSendWithTemplate('sms')" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
+              📱 Send SMS
+            </button>
+            <button id="btnQuickSendEmail" onclick="quickSendWithTemplate('email')" class="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
+              ✉️ Send Email
+            </button>
+          </div>
+
+          <div class="text-xs text-gray-600 mt-2">
+            💡 Select a template, preview it, then click Send to open your SMS/Email app with the message pre-filled.
+          </div>
+        </div>
+      </div>
+
       <!-- Interaction Timeline Section -->
       <div class="bg-white rounded-lg border p-4 mb-4">
         <h4 class="font-semibold text-gray-700 mb-3">Interaction History</h4>
@@ -7790,9 +7823,213 @@ Thanks!
       document.getElementById('newInteractionFollowUp').value = '';
       document.getElementById('templatePreview').classList.add('hidden');
 
+      // Populate quick send template selector
+      populateQuickSendTemplates();
+
       // Show modal
       modal.style.display = 'flex';
       modal.setAttribute('aria-hidden', 'false');
+    }
+
+    function populateQuickSendTemplates() {
+      const selector = document.getElementById('quickSendTemplateSelector');
+      if (!selector) return;
+
+      // Get all templates
+      const allTemplates = Object.values(userTemplatesState.templates);
+
+      // Build options HTML
+      let optionsHTML = '<option value="">-- Choose a template --</option>';
+
+      // Group by category
+      const categories = {
+        prospect: '🎯 Prospect Templates',
+        client: '👥 Client Templates',
+        followup: '🔄 Follow-up Templates'
+      };
+
+      Object.keys(categories).forEach(category => {
+        const templates = allTemplates.filter(t => t.category === category);
+        if (templates.length > 0) {
+          optionsHTML += `<optgroup label="${categories[category]}">`;
+          templates.forEach(t => {
+            const icon = t.type === 'email' ? '📧' : t.type === 'sms' ? '📱' : t.type === 'messenger' ? '📘' : '📷';
+            optionsHTML += `<option value="${t.id}">${icon} ${esc(t.name)}</option>`;
+          });
+          optionsHTML += '</optgroup>';
+        }
+      });
+
+      selector.innerHTML = optionsHTML;
+
+      // Reset preview and disable buttons
+      document.getElementById('quickSendPreview').classList.add('hidden');
+      document.getElementById('btnQuickSendSMS').disabled = true;
+      document.getElementById('btnQuickSendEmail').disabled = true;
+    }
+
+    let currentQuickSendTemplate = null;
+
+    function previewQuickSendTemplate() {
+      const selector = document.getElementById('quickSendTemplateSelector');
+      const templateId = selector.value;
+
+      if (!templateId) {
+        document.getElementById('quickSendPreview').classList.add('hidden');
+        document.getElementById('btnQuickSendSMS').disabled = true;
+        document.getElementById('btnQuickSendEmail').disabled = true;
+        currentQuickSendTemplate = null;
+        return;
+      }
+
+      const template = userTemplatesState.templates[templateId];
+      if (!template) return;
+
+      currentQuickSendTemplate = template;
+
+      // Prepare data from current prospect
+      const data = {
+        businessName: currentProspectDetail.businessName || currentProspectDetail.name || 'Business',
+        contactName: currentProspectDetail.contactName || '',
+        phone: currentProspectDetail.phone || '',
+        email: currentProspectDetail.email || '',
+        town: currentProspectDetail.town || currentProspectDetail.zipCode || '',
+        zipCode: currentProspectDetail.zipCode || '',
+        campaign: '',
+        amount: '',
+        date: new Date().toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })
+      };
+
+      // Fill template variables
+      const filled = fillTemplateVariables(template, data);
+
+      // Show preview
+      const previewSubject = document.getElementById('quickSendPreviewSubject');
+      const previewBody = document.getElementById('quickSendPreviewBody');
+
+      if (filled.subject) {
+        previewSubject.textContent = `Subject: ${filled.subject}`;
+        previewSubject.style.display = 'block';
+      } else {
+        previewSubject.style.display = 'none';
+      }
+
+      previewBody.textContent = filled.body;
+      document.getElementById('quickSendPreview').classList.remove('hidden');
+
+      // Enable appropriate buttons based on template type and available contact info
+      const hasSMS = currentProspectDetail.phone && (template.type === 'sms' || template.type === 'messenger' || template.type === 'instagram');
+      const hasEmail = currentProspectDetail.email && template.type === 'email';
+
+      document.getElementById('btnQuickSendSMS').disabled = !hasSMS;
+      document.getElementById('btnQuickSendEmail').disabled = !hasEmail;
+    }
+
+    async function quickSendWithTemplate(sendType) {
+      if (!currentQuickSendTemplate || !currentProspectDetail) return;
+
+      // Prepare data
+      const data = {
+        businessName: currentProspectDetail.businessName || currentProspectDetail.name || 'Business',
+        contactName: currentProspectDetail.contactName || '',
+        phone: currentProspectDetail.phone || '',
+        email: currentProspectDetail.email || '',
+        town: currentProspectDetail.town || currentProspectDetail.zipCode || '',
+        zipCode: currentProspectDetail.zipCode || '',
+        campaign: '',
+        amount: '',
+        date: new Date().toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })
+      };
+
+      const filled = fillTemplateVariables(currentQuickSendTemplate, data);
+
+      if (sendType === 'sms') {
+        // Open SMS app with message
+        if (!currentProspectDetail.phone) {
+          toast('⚠️ No phone number available', false);
+          return;
+        }
+
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const cleanPhone = currentProspectDetail.phone.replace(/\D/g, '');
+
+        if (isMobile) {
+          window.location.href = `sms:${cleanPhone}?body=${encodeURIComponent(filled.body)}`;
+        } else {
+          // Copy to clipboard for desktop
+          navigator.clipboard.writeText(filled.body).then(() => {
+            toast('📋 Message copied to clipboard!', true);
+            window.open('https://voice.google.com/u/0/messages', '_blank');
+          });
+        }
+
+        // Auto-log interaction
+        await logQuickSendInteraction('sms', currentQuickSendTemplate.name);
+
+      } else if (sendType === 'email') {
+        // Open email client
+        if (!currentProspectDetail.email) {
+          toast('⚠️ No email address available', false);
+          return;
+        }
+
+        const mailtoLink = `mailto:${currentProspectDetail.email}?subject=${encodeURIComponent(filled.subject)}&body=${encodeURIComponent(filled.body)}`;
+        window.location.href = mailtoLink;
+
+        // Auto-log interaction
+        await logQuickSendInteraction('email', currentQuickSendTemplate.name);
+      }
+
+      toast(`✅ Opening ${sendType === 'sms' ? 'SMS' : 'Email'} app...`, true);
+    }
+
+    async function logQuickSendInteraction(type, templateName) {
+      if (!currentProspectDetail) return;
+
+      const newInteraction = {
+        type: type,
+        date: new Date().toISOString(),
+        notes: `Sent ${type === 'sms' ? 'SMS' : 'Email'} - Template: ${templateName}`,
+        nextFollowUp: null
+      };
+
+      // If this is a client, save to client database
+      if (currentProspectDetail.source === 'client') {
+        const clientId = currentProspectDetail.id;
+        if (crmState.clients[clientId]) {
+          if (!crmState.clients[clientId].interactions) crmState.clients[clientId].interactions = [];
+          crmState.clients[clientId].interactions.push(newInteraction);
+          saveClients();
+        }
+      } else {
+        // If prospect is in kanban, save to kanban
+        let foundInKanban = false;
+        Object.keys(kanbanState.columns).forEach(columnKey => {
+          kanbanState.columns[columnKey].forEach(prospect => {
+            if (prospect.id === currentProspectDetail.id || prospect.placeId === currentProspectDetail.placeId) {
+              if (!prospect.interactions) prospect.interactions = [];
+              prospect.interactions.push(newInteraction);
+              foundInKanban = true;
+            }
+          });
+        });
+        if (foundInKanban) {
+          saveKanban();
+        }
+      }
+
+      // Update current prospect detail and re-render timeline
+      if (!currentProspectDetail.interactions) currentProspectDetail.interactions = [];
+      currentProspectDetail.interactions.push(newInteraction);
+      renderInteractionTimeline(currentProspectDetail.interactions);
+
+      // Update last used timestamp on template
+      if (currentQuickSendTemplate) {
+        currentQuickSendTemplate.lastUsed = new Date().toISOString();
+        saveUserTemplates();
+      }
+
+      console.log('✅ Interaction logged:', newInteraction);
     }
 
     function closeProspectDetailModal() {
