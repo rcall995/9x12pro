@@ -204,3 +204,61 @@ Phone: (716) 123-4567
 ---
 
 **Enjoy the cleaner, more efficient Kanban board!** 🎉
+
+---
+
+## Update: November 17, 2025 - Prospect Pool Enhancement
+
+### Added "Not Interested" Button to Prospect Pool
+
+**New Feature:** You can now mark businesses as "Not Interested" directly from the Prospect Pool, without having to add them to the Kanban first.
+
+#### Where to Find It:
+- **Prospect Pool tab** → Business cards
+
+#### Button Locations:
+
+**1. Enriched Prospects (green border, contact info shown):**
+```
+┌─────────────────────────────┐
+│ Business Name               │
+│ 📞 🌐 ✉️                 │
+│                             │
+│ [Add to Prospecting →] [🚫]│
+└─────────────────────────────┘
+```
+
+**2. Raw Prospects (from search results):**
+```
+┌─────────────────────────────┐
+│ ☐ Business Name        [🚫] │
+│   123 Main St              │
+│   ⭐ 4.5                   │
+└─────────────────────────────┘
+```
+
+#### How It Works:
+1. Click 🚫 button on any business card in Prospect Pool
+2. Confirmation dialog appears
+3. If confirmed:
+   - Business is removed from Prospect Pool
+   - Added to "Not Interested" list
+   - Won't appear in future searches
+   - Prospect Pool automatically refreshes
+
+#### Benefits:
+- **Faster workflow:** No need to add prospects to Kanban just to mark them as not interested
+- **Clean up searches:** Easily remove irrelevant businesses from search results
+- **Persistent exclusion:** Marked businesses won't appear again in future searches
+
+#### Technical Notes:
+- Button only shows for prospects NOT already in system
+- Uses same "Not Interested" list as Kanban
+- Saves to localStorage automatically
+- Removes from all search caches
+
+---
+
+**Deployed:** November 17, 2025
+**Status:** ✅ Live at https://9x12pro.com
+
