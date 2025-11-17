@@ -5574,12 +5574,17 @@ Thanks!
         }
 
         // Auto-cleanup: Run once to fix isEnriched flag on all pool items
-        const hasRunCleanup = localStorage.getItem('hasRunProspectPoolCleanup_v1');
+        const hasRunCleanup = localStorage.getItem('hasRunProspectPoolCleanup_v2');
+        console.log('🔍 Checking cleanup status:', hasRunCleanup ? 'Already run' : 'Need to run');
+        console.log('🔍 Manual prospects count:', prospectPoolState.manualProspects.length);
+
         if (!hasRunCleanup) {
           console.log('🔧 Running one-time prospect pool cleanup...');
           await cleanupProspectPoolEnrichment();
-          localStorage.setItem('hasRunProspectPoolCleanup_v1', 'true');
+          localStorage.setItem('hasRunProspectPoolCleanup_v2', 'true');
           console.log('✅ One-time cleanup complete. Will not run again.');
+        } else {
+          console.log('⏭️ Cleanup already completed previously.');
         }
       } catch(err) {
         console.error('Error loading manual prospects:', err);
