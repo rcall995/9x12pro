@@ -7129,13 +7129,13 @@ Thanks!
       currentProspectDetail = null;
     }
 
-    // SMS/Email Templates
-    const smsTemplates = {
+    // SMS/Email Templates for Prospect Outreach
+    const prospectSMSTemplates = {
       intro: "Hi! I'm reaching out from 9x12 Pro to help grow your business with targeted direct mail campaigns. Would you be interested in learning how we can help you reach more customers?",
       'follow-up': "Just following up on my previous message. I'd love to show you how 9x12 Pro can help grow your customer base. Do you have 10 minutes this week to chat?"
     };
 
-    const emailTemplates = {
+    const prospectEmailTemplates = {
       intro: {
         subject: "Grow Your Business with Targeted Direct Mail",
         body: "Hi,\n\nI hope this email finds you well. I'm reaching out because I believe 9x12 Pro can help you reach more potential customers in your area.\n\nWe specialize in targeted direct mail campaigns that get results. Our clients typically see a significant increase in customer inquiries and sales.\n\nWould you be interested in a quick 15-minute call to discuss how we can help your business grow?\n\nBest regards"
@@ -7201,7 +7201,7 @@ Thanks!
       const templateValue = templateSelect.value;
 
       if (templateValue && templateValue !== 'custom') {
-        messageArea.value = smsTemplates[templateValue] || '';
+        messageArea.value = prospectSMSTemplates[templateValue] || '';
       } else if (templateValue === 'custom') {
         messageArea.value = '';
       }
@@ -7332,7 +7332,7 @@ Thanks!
       const templateValue = templateSelect.value;
 
       if (templateValue && templateValue !== 'custom') {
-        const template = emailTemplates[templateValue];
+        const template = prospectEmailTemplates[templateValue];
         if (template) {
           subjectInput.value = template.subject;
           messageArea.value = template.body;
