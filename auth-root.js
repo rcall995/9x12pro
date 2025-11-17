@@ -161,7 +161,7 @@ function addLogoutButton() {
 
 // Hide page initially
 console.log('🚀 auth-root.js loaded');
-console.log('🔍 Checking for supabaseClient:', typeof supabaseClient, typeof window.supabaseClient);
+console.log('🔍 Checking for window.supabaseClient:', typeof window.supabaseClient);
 document.body.style.display = 'none';
 
 // Initialize auth when page loads
