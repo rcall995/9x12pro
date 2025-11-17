@@ -49,8 +49,10 @@ function initRootAuth() {
 /**
  * Check if user is approved
  */
-function checkRootUserApproval(userId, user) {
-  console.log('🔍 Checking approval for user:', userId);
+function checkRootUserApproval(userId, user, retryCount) {
+  retryCount = retryCount || 0;
+  console.log('🔍 Checking approval for user:', userId, 'attempt:', retryCount + 1);
+
   supabaseClient
     .from('user_approvals')
     .select('approved, full_name')
@@ -60,6 +62,17 @@ function checkRootUserApproval(userId, user) {
       console.log('📊 Approval check result:', result);
       if (result.error) {
         console.error('Approval check error:', result.error);
+
+        // Retry on network errors or temporary failures (max 3 attempts)
+        if (retryCount < 2 && (result.error.code === 'PGRST116' || result.error.message.includes('Failed to fetch'))) {
+          console.log('⏳ Retrying approval check...');
+          setTimeout(function() {
+            checkRootUserApproval(userId, user, retryCount + 1);
+          }, 1000);
+          return;
+        }
+
+        // Only sign out and redirect if it's a real approval issue
         supabaseClient.auth.signOut().then(function() {
           alert('Access denied. Your account is pending approval or not configured properly.');
           redirectToRootLogin();
