@@ -160,16 +160,23 @@ function addLogoutButton() {
 }
 
 // Hide page initially
+console.log('🚀 auth-root.js loaded');
+console.log('🔍 Checking for supabaseClient:', typeof supabaseClient, typeof window.supabaseClient);
 document.body.style.display = 'none';
 
 // Initialize auth when page loads
-if (typeof supabaseClient !== 'undefined') {
+if (typeof window.supabaseClient !== 'undefined') {
+  console.log('✅ supabaseClient found, initializing auth');
+  var supabaseClient = window.supabaseClient;
   initRootAuth();
 } else {
+  console.log('⏳ Waiting for supabaseClient...');
   // Wait for supabaseClient to be defined
   var checkSupabase = setInterval(function() {
-    if (typeof supabaseClient !== 'undefined') {
+    if (typeof window.supabaseClient !== 'undefined') {
+      console.log('✅ supabaseClient now available');
       clearInterval(checkSupabase);
+      var supabaseClient = window.supabaseClient;
       initRootAuth();
     }
   }, 100);
