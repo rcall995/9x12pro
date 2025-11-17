@@ -163,10 +163,43 @@
         width: 100%;
         max-width: calc(100vw - 2rem);
         margin: 0 auto;
+        padding: 0.5rem;
       }
       .side-wrap {
         max-width: 100%;
         overflow-x: auto;
+      }
+      /* Scale down the grid on mobile */
+      .grid-front, .grid-back {
+        font-size: 0.85rem;
+      }
+      /* Make cards more touch-friendly */
+      .card {
+        min-height: 80px;
+        padding: 0.75rem;
+      }
+      /* Adjust badges for mobile */
+      .price-badge, .status-badge {
+        font-size: 0.65rem;
+        padding: 3px 6px;
+      }
+      .spot-label {
+        font-size: 0.65rem;
+      }
+    }
+
+    /* Extra small screens */
+    @media (max-width: 480px) {
+      .postcard {
+        padding: 0.25rem;
+      }
+      .grid-front, .grid-back {
+        gap: 0.25rem;
+        font-size: 0.75rem;
+      }
+      .card {
+        min-height: 70px;
+        padding: 0.5rem;
       }
     }
     .placeholder {
