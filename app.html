@@ -8465,12 +8465,29 @@ Thanks!
         });
       }
 
-      // Move to pool
-      prospectPoolState.manualProspects.push({
-        ...lead,
-        movedToPoolDate: new Date().toISOString(),
-        isEnriched: false // Keep standard search result styling
-      });
+      // Move to pool - check if already exists to avoid duplicates
+      const existingIndex = prospectPoolState.manualProspects.findIndex(p =>
+        p.id === lead.id ||
+        (p.placeId && p.placeId === lead.placeId) ||
+        (p.businessName && p.businessName.toLowerCase() === lead.businessName.toLowerCase() && p.mailerId === lead.mailerId)
+      );
+
+      if (existingIndex !== -1) {
+        // Update existing prospect
+        prospectPoolState.manualProspects[existingIndex] = {
+          ...prospectPoolState.manualProspects[existingIndex],
+          ...lead,
+          movedToPoolDate: new Date().toISOString(),
+          isEnriched: false // Keep standard search result styling
+        };
+      } else {
+        // Add new prospect
+        prospectPoolState.manualProspects.push({
+          ...lead,
+          movedToPoolDate: new Date().toISOString(),
+          isEnriched: false // Keep standard search result styling
+        });
+      }
 
       // Remove from prospecting
       kanbanState.columns[prospectingColumn].splice(leadIndex, 1);
