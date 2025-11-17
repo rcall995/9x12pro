@@ -8052,7 +8052,7 @@ Thanks!
       });
     }
 
-    function markNotInterested() {
+    async function markNotInterested() {
       if (!currentProspectDetail) return;
 
       const businessName = currentProspectDetail.businessName;
@@ -8061,21 +8061,33 @@ Thanks!
       if (!confirmed) return;
 
       const prospectId = currentProspectDetail.id;
-      const placeId = currentProspectDetail.placeId;
+      const placeId = currentProspectDetail.placeId || prospectId;
 
       // Add to Not Interested list
-      if (!Array.isArray(window.notInterestedList)) {
-        window.notInterestedList = [];
-      }
+      if (!notInterestedState.placeIds) notInterestedState.placeIds = new Set();
+      if (!notInterestedState.businesses) notInterestedState.businesses = {};
 
-      window.notInterestedList.push({
+      notInterestedState.placeIds.add(placeId);
+      notInterestedState.businesses[placeId] = {
         businessName,
-        placeId: placeId || prospectId,
+        placeId: placeId,
         dateMarked: new Date().toISOString(),
         reason: 'User marked as not interested'
-      });
+      };
 
-      localStorage.setItem('mailslot-not-interested', JSON.stringify(window.notInterestedList));
+      // Save to cloud database
+      const cloudData = {
+        placeIds: Array.from(notInterestedState.placeIds),
+        businesses: notInterestedState.businesses
+      };
+
+      try {
+        await saveToCloud('notInterested', cloudData);
+      } catch (err) {
+        console.error('Failed to save not interested to cloud:', err);
+        // Still save to localStorage as backup
+        localStorage.setItem('mailslot-not-interested', JSON.stringify(cloudData));
+      }
 
       // Remove from prospect pool (searches cache)
       let removedCount = 0;
@@ -8122,24 +8134,36 @@ Thanks!
     }
 
     // Mark prospect as not interested directly from the pool
-    function markProspectNotInterested(placeId, businessName) {
+    async function markProspectNotInterested(placeId, businessName) {
       const confirmed = confirm(`Mark "${businessName}" as Not Interested?\n\nThis business will be removed from your prospect pool.`);
 
       if (!confirmed) return;
 
       // Add to Not Interested list
       if (!notInterestedState.placeIds) notInterestedState.placeIds = new Set();
-      if (!window.notInterestedList) window.notInterestedList = [];
+      if (!notInterestedState.businesses) notInterestedState.businesses = {};
 
       notInterestedState.placeIds.add(placeId);
-      window.notInterestedList.push({
+      notInterestedState.businesses[placeId] = {
         businessName,
         placeId: placeId,
         dateMarked: new Date().toISOString(),
         reason: 'User marked as not interested from prospect pool'
-      });
+      };
 
-      localStorage.setItem('mailslot-not-interested', JSON.stringify(window.notInterestedList));
+      // Save to cloud database
+      const cloudData = {
+        placeIds: Array.from(notInterestedState.placeIds),
+        businesses: notInterestedState.businesses
+      };
+
+      try {
+        await saveToCloud('notInterested', cloudData);
+      } catch (err) {
+        console.error('Failed to save not interested to cloud:', err);
+        // Still save to localStorage as backup
+        localStorage.setItem('mailslot-not-interested', JSON.stringify(cloudData));
+      }
 
       // Remove from prospect pool (searches cache)
       let removedCount = 0;
