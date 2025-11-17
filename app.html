@@ -5912,12 +5912,10 @@ Thanks!
     var prospectPoolSearchTerm = '';
 
     function renderProspectPool() {
-      console.log('🎯 renderProspectPool called');
       // Save current search value if it exists
       const searchInput = document.getElementById('prospectPoolSearch');
       if (searchInput) {
         prospectPoolSearchTerm = searchInput.value;
-        console.log('💾 Saved search term:', prospectPoolSearchTerm);
       }
       const container = document.getElementById('prospectPoolContainer');
       const statsContainer = document.getElementById('prospectPoolStats');
@@ -6535,25 +6533,19 @@ Thanks!
 
     // Filter prospect pool by search term
     function filterProspectPool(searchTerm) {
-      console.log('🔍 Filter called with:', searchTerm);
       prospectPoolSearchTerm = searchTerm; // Save for re-renders
       const term = searchTerm.toLowerCase().trim();
 
       // Get all category sections
       const categorySections = document.querySelectorAll('#prospectPoolContainer > .mb-8');
-      console.log('📋 Found category sections:', categorySections.length);
 
       categorySections.forEach(categorySection => {
         // Find the grid container with all prospect cards
         const grid = categorySection.querySelector('.grid');
-        if (!grid) {
-          console.log('⚠️ No grid found in section');
-          return;
-        }
+        if (!grid) return;
 
         // Get all prospect cards (both types - enriched and raw)
         const prospectCards = grid.querySelectorAll('div[onclick*="openProspectDetailModal"]');
-        console.log('📇 Found prospect cards:', prospectCards.length);
 
         let visibleCount = 0;
 
@@ -6576,8 +6568,6 @@ Thanks!
             card.style.display = 'none';
           }
         });
-
-        console.log('✅ Visible in category:', visibleCount);
 
         // Hide entire category if no visible prospects
         if (visibleCount === 0 && term !== '') {
