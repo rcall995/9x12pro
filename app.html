@@ -8325,59 +8325,251 @@ Thanks!
     function openClientSMS(clientId) {
       const client = crmState.clients[clientId];
       if (!client) {
-        alert('Client not found');
+        toast('Client not found', false);
         return;
       }
 
       if (!client.contact || !client.contact.phone) {
-        alert('This client does not have a phone number on file');
+        toast('This client does not have a phone number on file', false);
         return;
       }
 
-      // Open SMS modal
-      const modal = document.getElementById('sendSMSModal');
-      modal.style.display = 'flex';
-      modal.setAttribute('aria-hidden', 'false');
-
-      // Populate business info
-      document.getElementById('smsBusinessName').textContent = client.businessName;
-      document.getElementById('smsPhoneNumber').textContent = client.contact.phone;
-
-      // Load default template
-      document.getElementById('smsTemplate').value = 'intro';
-      loadSMSTemplate();
-
-      // Store client ID for sending
-      currentSMSClientId = clientId;
+      // Show inline template picker
+      showQuickTemplatePickerForClient(clientId, 'sms');
     }
 
     function openClientEmail(clientId) {
       const client = crmState.clients[clientId];
       if (!client) {
-        alert('Client not found');
+        toast('Client not found', false);
         return;
       }
 
       if (!client.contact || !client.contact.email) {
-        alert('This client does not have an email address on file');
+        toast('This client does not have an email address on file', false);
         return;
       }
 
-      // Open email modal
-      const modal = document.getElementById('sendEmailModal');
-      modal.style.display = 'flex';
-      modal.setAttribute('aria-hidden', 'false');
+      // Show inline template picker
+      showQuickTemplatePickerForClient(clientId, 'email');
+    }
 
-      // Populate business info
-      document.getElementById('emailBusinessName').textContent = client.businessName;
-      document.getElementById('emailAddress').textContent = client.contact.email;
+    // Quick Template Picker for Client Cards
+    function showQuickTemplatePickerForClient(clientId, sendType) {
+      const client = crmState.clients[clientId];
+      if (!client) return;
 
-      // Load default template
-      document.getElementById('emailTemplate').value = 'intro';
-      loadEmailTemplate();
+      // Get all templates matching the send type
+      const allTemplates = Object.values(userTemplatesState.templates);
+      const matchingTemplates = allTemplates.filter(t => {
+        if (sendType === 'sms') {
+          return t.type === 'sms' || t.type === 'messenger' || t.type === 'instagram';
+        } else if (sendType === 'email') {
+          return t.type === 'email';
+        }
+        return false;
+      });
 
-      // Store client ID for sending
-      currentEmailClientId = clientId;
+      if (matchingTemplates.length === 0) {
+        toast(`No ${sendType.toUpperCase()} templates found. Create one in Settings → Message Templates.`, false);
+        return;
+      }
+
+      // Build template options HTML
+      const templateOptions = matchingTemplates.map(t => {
+        const icon = t.type === 'email' ? '📧' : t.type === 'sms' ? '📱' : t.type === 'messenger' ? '📘' : '📷';
+        const categoryLabel = t.category === 'prospect' ? '🎯' : t.category === 'client' ? '👥' : '🔄';
+        return `<option value="${t.id}">${icon} ${categoryLabel} ${esc(t.name)}</option>`;
+      }).join('');
+
+      // Create modal HTML
+      const modalHTML = `
+        <div id="quickTemplatePicker" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target.id==='quickTemplatePicker') closeQuickTemplatePicker()">
+          <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+            <div class="border-b border-gray-200 px-6 py-4 flex justify-between items-center sticky top-0 bg-white">
+              <h3 class="text-lg font-semibold text-gray-900">
+                ${sendType === 'sms' ? '📱 Send SMS' : '✉️ Send Email'} - ${esc(client.businessName)}
+              </h3>
+              <button onclick="closeQuickTemplatePicker()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+            </div>
+            <div class="px-6 py-4 space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Select Template:</label>
+                <select id="quickTemplateSelect" class="w-full border border-gray-300 rounded-md p-2 text-sm" onchange="previewQuickTemplate('${clientId}', '${sendType}')">
+                  <option value="">-- Choose a template --</option>
+                  ${templateOptions}
+                </select>
+              </div>
+              <div id="quickTemplatePreview" class="hidden">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Preview:</label>
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <div id="quickTemplatePreviewSubject" class="font-semibold text-gray-900 mb-2"></div>
+                  <pre id="quickTemplatePreviewBody" class="text-sm text-gray-700 whitespace-pre-wrap font-sans max-h-64 overflow-y-auto"></pre>
+                </div>
+              </div>
+              <div class="flex gap-3 pt-4">
+                <button onclick="closeQuickTemplatePicker()" class="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 font-medium">
+                  Cancel
+                </button>
+                <button id="btnSendQuickTemplate" onclick="sendQuickTemplateFromPicker('${clientId}', '${sendType}')" class="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-medium disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
+                  ${sendType === 'sms' ? '📱 Send SMS' : '✉️ Send Email'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Insert modal into page
+      const existingModal = document.getElementById('quickTemplatePicker');
+      if (existingModal) existingModal.remove();
+      document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+      // Store current client ID
+      window.currentQuickTemplateClientId = clientId;
+      window.currentQuickTemplateSendType = sendType;
+    }
+
+    function previewQuickTemplate(clientId, sendType) {
+      const templateId = document.getElementById('quickTemplateSelect').value;
+      const previewContainer = document.getElementById('quickTemplatePreview');
+      const sendButton = document.getElementById('btnSendQuickTemplate');
+
+      if (!templateId) {
+        previewContainer.classList.add('hidden');
+        sendButton.disabled = true;
+        return;
+      }
+
+      const template = userTemplatesState.templates[templateId];
+      const client = crmState.clients[clientId];
+
+      if (!template || !client) {
+        previewContainer.classList.add('hidden');
+        sendButton.disabled = true;
+        return;
+      }
+
+      // Prepare data
+      const data = {
+        businessName: client.businessName || '',
+        contactName: client.contact?.name || '',
+        phone: client.contact?.phone || '',
+        email: client.contact?.email || '',
+        town: client.town || '',
+        zipCode: client.zipCode || '',
+        campaign: state.current?.mailerName || '',
+        amount: client.pricing?.finalPrice ? `$${client.pricing.finalPrice}` : '',
+        date: new Date().toLocaleDateString()
+      };
+
+      const filled = fillTemplateVariables(template, data);
+
+      // Show preview
+      const previewSubject = document.getElementById('quickTemplatePreviewSubject');
+      const previewBody = document.getElementById('quickTemplatePreviewBody');
+
+      if (template.type === 'email' && filled.subject) {
+        previewSubject.textContent = filled.subject;
+        previewSubject.style.display = 'block';
+      } else {
+        previewSubject.style.display = 'none';
+      }
+
+      previewBody.textContent = filled.body;
+      previewContainer.classList.remove('hidden');
+      sendButton.disabled = false;
+
+      // Store selected template
+      window.currentQuickTemplateSelected = template;
+    }
+
+    async function sendQuickTemplateFromPicker(clientId, sendType) {
+      const template = window.currentQuickTemplateSelected;
+      const client = crmState.clients[clientId];
+
+      if (!template || !client) {
+        toast('Template or client not found', false);
+        return;
+      }
+
+      // Prepare data
+      const data = {
+        businessName: client.businessName || '',
+        contactName: client.contact?.name || '',
+        phone: client.contact?.phone || '',
+        email: client.contact?.email || '',
+        town: client.town || '',
+        zipCode: client.zipCode || '',
+        campaign: state.current?.mailerName || '',
+        amount: client.pricing?.finalPrice ? `$${client.pricing.finalPrice}` : '',
+        date: new Date().toLocaleDateString()
+      };
+
+      const filled = fillTemplateVariables(template, data);
+
+      // Send based on type
+      if (sendType === 'sms') {
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const cleanPhone = client.contact.phone.replace(/\D/g, '');
+
+        if (isMobile) {
+          window.location.href = `sms:${cleanPhone}?body=${encodeURIComponent(filled.body)}`;
+        } else {
+          try {
+            await navigator.clipboard.writeText(filled.body);
+            toast('📋 Message copied to clipboard!', true);
+            window.open('https://voice.google.com/u/0/messages', '_blank');
+          } catch (err) {
+            toast('Failed to copy message. Please copy manually.', false);
+            console.error('Clipboard error:', err);
+          }
+        }
+
+        // Log interaction
+        await logClientInteraction(clientId, 'sms', `Sent SMS - Template: ${template.name}`);
+
+      } else if (sendType === 'email') {
+        const mailtoLink = `mailto:${client.contact.email}?subject=${encodeURIComponent(filled.subject)}&body=${encodeURIComponent(filled.body)}`;
+        window.location.href = mailtoLink;
+
+        // Log interaction
+        await logClientInteraction(clientId, 'email', `Sent Email - Template: ${template.name}`);
+      }
+
+      // Update template last used
+      template.lastUsed = new Date().toISOString();
+      saveUserTemplates();
+
+      // Close modal
+      closeQuickTemplatePicker();
+
+      toast(`✅ Opening ${sendType === 'sms' ? 'SMS' : 'Email'} app...`, true);
+    }
+
+    async function logClientInteraction(clientId, type, notes) {
+      const client = crmState.clients[clientId];
+      if (!client) return;
+
+      const newInteraction = {
+        type: type,
+        date: new Date().toISOString(),
+        notes: notes,
+        nextFollowUp: null
+      };
+
+      if (!client.interactions) client.interactions = [];
+      client.interactions.push(newInteraction);
+
+      await saveClients();
+    }
+
+    function closeQuickTemplatePicker() {
+      const modal = document.getElementById('quickTemplatePicker');
+      if (modal) modal.remove();
+      window.currentQuickTemplateClientId = null;
+      window.currentQuickTemplateSendType = null;
+      window.currentQuickTemplateSelected = null;
     }
 
     // Variables to track which client we're messaging
