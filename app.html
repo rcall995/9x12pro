@@ -2498,13 +2498,17 @@
       return null;
     }
 
-    // For backward compatibility, create a getter for ACTIVE_USER
-    var ACTIVE_USER = null;
-    Object.defineProperty(window, 'ACTIVE_USER', {
-      get: function() {
-        return getCurrentUserEmail();
+    // Initialize ACTIVE_USER - will be updated when auth completes
+    var ACTIVE_USER = getCurrentUserEmail();
+
+    // Poll to update ACTIVE_USER once auth is ready
+    var authCheckInterval = setInterval(function() {
+      if (window.currentAuthUser && window.currentAuthUser.email) {
+        ACTIVE_USER = window.currentAuthUser.email;
+        clearInterval(authCheckInterval);
+        console.log('✅ ACTIVE_USER set to:', ACTIVE_USER);
       }
-    });
+    }, 100);
 
     // Cloud Sync State - Tracks what's syncing and when
     const cloudSyncState = {
