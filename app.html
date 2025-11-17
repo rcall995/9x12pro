@@ -7410,9 +7410,17 @@ Thanks!
     const debouncedRenderKanban = debounce(() => renderKanban(), DEBOUNCE_RENDER_DELAY);
 
     function renderKanban() {
-      const dailyGoalContainer = document.getElementById('dailyGoalContainer');
-      const kanbanColumnsContainer = document.getElementById('salesActivityKanbanColumns');
-      const currentMailerId = state.current?.Mailer_ID;
+      try {
+        const dailyGoalContainer = document.getElementById('dailyGoalContainer');
+        const kanbanColumnsContainer = document.getElementById('salesActivityKanbanColumns');
+
+        // Safety check - if containers don't exist, bail out
+        if (!dailyGoalContainer || !kanbanColumnsContainer) {
+          console.warn('Kanban containers not found, skipping render');
+          return;
+        }
+
+        const currentMailerId = state.current?.Mailer_ID;
 
       const columnDefs = [
         { key: 'prospect-list', title: '1. Prospect List', color: 'blue' },
@@ -7655,6 +7663,10 @@ Thanks!
 
       setupKanbanDrag();
       updateMoveToPoolButton();
+      } catch (err) {
+        console.error('Error rendering kanban:', err);
+        toast('⚠️ Error displaying kanban. Please refresh.', false);
+      }
     }
     
     function setupKanbanDrag() {
@@ -7756,8 +7768,15 @@ Thanks!
             // Moving from "To Contact" to "Prospect List" (backwards) - don't count
 
             // IMPORTANT: await saveKanban before rendering to prevent race condition
-            await saveKanban();
-            renderKanban();
+            try {
+              await saveKanban();
+              renderKanban();
+            } catch (err) {
+              console.error('Error saving kanban after move:', err);
+              toast('⚠️ Error saving changes. Refreshing...', false);
+              // Still render even if save fails
+              renderKanban();
+            }
 
             // Map column key to display title
             const columnTitles = {
