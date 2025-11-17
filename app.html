@@ -7527,10 +7527,10 @@ Thanks!
       };
 
       // Add to manualProspects
-      if (!manualProspects) {
-        manualProspects = [];
+      if (!prospectPoolState.manualProspects) {
+        prospectPoolState.manualProspects = [];
       }
-      manualProspects.push(businessData);
+      prospectPoolState.manualProspects.push(businessData);
 
       // Save to storage and cloud
       saveManualProspects();
