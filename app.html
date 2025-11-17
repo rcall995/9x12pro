@@ -5590,6 +5590,29 @@ Thanks!
       updateMoveToPoolButton();
     }
 
+    // Select all prospects in the prospect-list column
+    function selectAllProspects() {
+      const prospectingColumn = 'prospect-list';
+      const items = kanbanState.columns[prospectingColumn] || [];
+
+      // Clear existing selections first
+      prospectingSelectionState.selectedIds.clear();
+
+      // Add all prospect IDs to selection
+      items.forEach((item, idx) => {
+        if (typeof item === 'object' && item) {
+          const leadId = item.id || idx;
+          prospectingSelectionState.selectedIds.add(leadId);
+        }
+      });
+
+      // Update UI
+      updateMoveToPoolButton();
+      renderKanban();
+
+      toast(`Selected ${prospectingSelectionState.selectedIds.size} prospects`, true);
+    }
+
     // Update visibility of "Move Selected to Pool" button
     function updateMoveToPoolButton() {
       const btn = document.getElementById('btnMoveSelectedToPool');
@@ -5651,7 +5674,8 @@ Thanks!
             ...lead,
             movedToPoolDate: new Date().toISOString(),
             mailerId: state.current?.Mailer_ID || null,
-            town: state.current?.Town || null
+            town: state.current?.Town || null,
+            isEnriched: false // Keep standard search result styling
           };
         } else {
           // Add new prospect to pool
@@ -5659,7 +5683,8 @@ Thanks!
             ...lead,
             movedToPoolDate: new Date().toISOString(),
             mailerId: state.current?.Mailer_ID || null, // Tag with current postcard
-            town: state.current?.Town || null // Tag with current town
+            town: state.current?.Town || null, // Tag with current town
+            isEnriched: false // Keep standard search result styling
           });
         }
 
@@ -7484,6 +7509,9 @@ Thanks!
         const buttons = col.key === 'prospect-list'
           ? `
             <div class="flex gap-1">
+              <button onclick="selectAllProspects()" class="text-xs px-2 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700" title="Select All">
+                ☑️
+              </button>
               <button onclick="exportProspectListCSV()" class="text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700" title="Export Prospect List to CSV">
                 📥
               </button>
