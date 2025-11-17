@@ -1,16 +1,27 @@
 /**
  * Service Worker for 9x12 Pro PWA
  * Provides offline support and caching
+ * Version: 2025-01-14-v23
  */
 
-const CACHE_NAME = '9x12-pro-v1';
+// Update this version when you want to force a cache refresh
+const CACHE_VERSION = 'v23';
+const CACHE_NAME = `9x12-pro-${CACHE_VERSION}`;
+
+// Core app files to cache on install
 const urlsToCache = [
   '/app.html',
   '/index.html',
   '/login.html',
   '/auth-root.js',
+  '/config.js'
+];
+
+// External resources - don't cache these, always fetch fresh
+const EXTERNAL_RESOURCES = [
   'https://cdn.tailwindcss.com',
-  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
+  'https://maps.googleapis.com/maps/api/js'
 ];
 
 // Install event - cache resources
@@ -56,6 +67,21 @@ self.addEventListener('fetch', (event) => {
 
   // Skip chrome extensions and non-http(s) requests
   if (!event.request.url.startsWith('http')) {
+    return;
+  }
+
+  // Skip external resources - always fetch fresh
+  const isExternal = EXTERNAL_RESOURCES.some(url => event.request.url.startsWith(url));
+  if (isExternal) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // Skip API calls - always fetch fresh
+  if (event.request.url.includes('/api/') ||
+      event.request.url.includes('supabase.co') ||
+      event.request.url.includes('maps.googleapis.com')) {
+    event.respondWith(fetch(event.request));
     return;
   }
 

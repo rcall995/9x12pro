@@ -34,7 +34,14 @@
       "Bash(powershell -Command:*)",
       "Bash(npm uninstall:*)",
       "Bash(node add-auth-to-pages.js:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(npm outdated:*)",
+      "Bash(if [ -f .env ])",
+      "Bash(then echo \"EXISTS\")",
+      "Bash(else echo \"NOT_FOUND\")",
+      "Bash(fi)",
+      "Bash(npm update:*)",
+      "Bash(node:*)"
     ],
     "deny": [],
     "ask": []

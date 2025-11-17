@@ -3,8 +3,9 @@
  * Include this file in all protected pages to require login
  */
 
-var SUPABASE_URL = "https://kurhsdvxsgkgnfimfqdo.supabase.co";
-var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1cmhzZHZ4c2drZ25maW1mcWRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4MDk3NDYsImV4cCI6MjA3ODM4NTc0Nn0.nB_GsE89WJ3eAQrgmNKb-fbCktHTHf-987D-G6lscZA";
+// Use config from parent window if available, otherwise use defaults
+var SUPABASE_URL = (window.APP_CONFIG && window.APP_CONFIG.supabase.url) || "https://kurhsdvxsgkgnfimfqdo.supabase.co";
+var SUPABASE_ANON_KEY = (window.APP_CONFIG && window.APP_CONFIG.supabase.anonKey) || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1cmhzZHZ4c2drZ25maW1mcWRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4MDk3NDYsImV4cCI6MjA3ODM4NTc0Nn0.nB_GsE89WJ3eAQrgmNKb-fbCktHTHf-987D-G6lscZA";
 
 var supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 

@@ -32,8 +32,22 @@
       window.googleMapsLoaded = true;
     };
   </script>
+  <!-- Core Utilities - Load First -->
+  <script src="config.js"></script>
+  <script src="error-handler.js"></script>
+  <script src="utils.js"></script>
+
   <!-- Google Maps JavaScript API with Places Library -->
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCNzXL-8UT-JI1Dy9wBN14KtH-UDMbeOlo&libraries=places&callback=initGoogleMaps" async defer></script>
+  <script>
+    // Use API key from config
+    (function() {
+      var script = document.createElement('script');
+      script.src = 'https://maps.googleapis.com/maps/api/js?key=' + window.APP_CONFIG.googleMaps.apiKey + '&libraries=places&callback=initGoogleMaps';
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  </script>
   <!-- Supabase JS Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
@@ -44,11 +58,13 @@
       var attempts = 0;
       var initInterval = setInterval(function() {
         attempts++;
-        if (window.supabase && window.supabase.createClient) {
+        if (window.supabase && window.supabase.createClient && window.APP_CONFIG) {
           clearInterval(initInterval);
-          const SUPABASE_URL = "https://kurhsdvxsgkgnfimfqdo.supabase.co";
-          const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1cmhzZHZ4c2drZ25maW1mcWRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4MDk3NDYsImV4cCI6MjA3ODM4NTc0Nn0.nB_GsE89WJ3eAQrgmNKb-fbCktHTHf-987D-G6lscZA";
-          window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+          // Use credentials from config
+          window.supabaseClient = window.supabase.createClient(
+            window.APP_CONFIG.supabase.url,
+            window.APP_CONFIG.supabase.anonKey
+          );
           console.log('✅ HEAD: window.supabaseClient created after', attempts, 'attempts');
         } else if (attempts > 50) {
           clearInterval(initInterval);
@@ -57,7 +73,6 @@
       }, 10);
     })();
   </script>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22><circle cx=%228%22 cy=%228%22 r=%226%22 fill=%22%23333%22/></svg>">
   <style>
     /* Core card */
     .card{border-width:2px;border-radius:.75rem;padding:.85rem;text-align:center;font-weight:600;position:relative;display:flex;align-items:center;justify-content:center;user-select:none;animation:fadeIn .25s ease-in-out;outline-offset:2px;z-index:1;transition:transform .15s ease,box-shadow .15s ease,outline .15s ease}
