@@ -6036,11 +6036,17 @@ Thanks!
       const categories = Object.keys(categorizedProspects).length;
       const selectedCount = prospectPoolState.selectedIds.size;
       const available = totalProspects - alreadyInSystem;
-      const kanbanProspectCount = (kanbanState.columns['prospect-list'] || []).length;
+
+      // Count total businesses across all 4 Kanban columns
+      const kanbanTotalCount =
+        (kanbanState.columns['prospect-list'] || []).length +
+        (kanbanState.columns['to-contact'] || []).length +
+        (kanbanState.columns['in-progress'] || []).length +
+        (kanbanState.columns['committed'] || []).length;
 
       statsContainer.innerHTML = `
         <div class="bg-white border rounded-lg p-4 text-center">
-          <div class="text-3xl font-bold text-purple-600">${kanbanProspectCount}</div>
+          <div class="text-3xl font-bold text-purple-600">${kanbanTotalCount}</div>
           <div class="text-xs text-gray-600 mt-1">My Prospect List</div>
         </div>
         <div class="bg-white border rounded-lg p-4 text-center">
