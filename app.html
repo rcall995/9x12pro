@@ -6125,7 +6125,8 @@ Thanks!
           }
           unifiedByCategory[category].push({
             ...prospect,
-            isEnriched: true, // From manual list = has contact info
+            // Respect existing isEnriched value (defaults to false for consistent checkbox UI)
+            isEnriched: prospect.isEnriched === true, // Only true if explicitly set
             type: 'manual'
           });
         });
