@@ -1792,6 +1792,95 @@
     </div>
   </div>
 
+  <!-- Send SMS Modal -->
+  <div id="sendSMSModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal" style="max-width: 500px;">
+      <h3 class="text-lg font-bold mb-4">📱 Send SMS via Google Voice</h3>
+
+      <div class="space-y-4">
+        <div>
+          <label class="text-sm font-medium text-gray-700 block mb-1">Business Name</label>
+          <div id="smsBusinessName" class="text-sm font-semibold text-gray-900"></div>
+        </div>
+
+        <div>
+          <label class="text-sm font-medium text-gray-700 block mb-1">Phone Number</label>
+          <div id="smsPhoneNumber" class="text-sm font-medium text-blue-600"></div>
+        </div>
+
+        <div>
+          <label class="text-sm font-medium text-gray-700 block mb-1">Template</label>
+          <select id="smsTemplate" class="border rounded-md w-full p-2 bg-white" onchange="loadSMSTemplate()">
+            <option value="">-- Select a template --</option>
+            <option value="intro">Introduction</option>
+            <option value="follow-up">Follow-up</option>
+            <option value="custom">Custom Message</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="text-sm font-medium text-gray-700 block mb-1">Message *</label>
+          <textarea id="smsMessage" rows="5" class="border rounded-md w-full p-2" placeholder="Type your message here..." required oninput="updateSMSCharCount()"></textarea>
+          <div class="text-xs text-gray-500 mt-1"><span id="smsCharCount">0</span>/160 characters</div>
+        </div>
+      </div>
+
+      <input type="hidden" id="smsLeadId" />
+
+      <div class="flex justify-end gap-2 mt-6">
+        <button onclick="closeSendSMSModal()" class="px-4 py-2 border rounded-md bg-gray-100 hover:bg-gray-200">Cancel</button>
+        <button onclick="sendSMSMessage()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">📱 Send via Google Voice</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Send Email Modal -->
+  <div id="sendEmailModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal" style="max-width: 600px;">
+      <h3 class="text-lg font-bold mb-4">✉️ Send Email</h3>
+
+      <div class="space-y-4">
+        <div>
+          <label class="text-sm font-medium text-gray-700 block mb-1">Business Name</label>
+          <div id="emailBusinessName" class="text-sm font-semibold text-gray-900"></div>
+        </div>
+
+        <div>
+          <label class="text-sm font-medium text-gray-700 block mb-1">Email Address</label>
+          <div id="emailAddress" class="text-sm font-medium text-blue-600"></div>
+        </div>
+
+        <div>
+          <label class="text-sm font-medium text-gray-700 block mb-1">Template</label>
+          <select id="emailTemplate" class="border rounded-md w-full p-2 bg-white" onchange="loadEmailTemplate()">
+            <option value="">-- Select a template --</option>
+            <option value="intro">Introduction & Value Proposition</option>
+            <option value="follow-up">Follow-up</option>
+            <option value="special-offer">Special Offer</option>
+            <option value="custom">Custom Email</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="text-sm font-medium text-gray-700 block mb-1">Subject *</label>
+          <input id="emailSubject" type="text" class="border rounded-md w-full p-2" placeholder="Email subject..." required />
+        </div>
+
+        <div>
+          <label class="text-sm font-medium text-gray-700 block mb-1">Message *</label>
+          <textarea id="emailMessage" rows="8" class="border rounded-md w-full p-2" placeholder="Type your email message here..." required></textarea>
+        </div>
+      </div>
+
+      <input type="hidden" id="emailLeadId" />
+
+      <div class="flex justify-end gap-2 mt-6">
+        <button onclick="closeSendEmailModal()" class="px-4 py-2 border rounded-md bg-gray-100 hover:bg-gray-200">Cancel</button>
+        <button onclick="sendEmailMessage()" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">✉️ Send Email</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Add Transaction Modal -->
   <div id="addTransactionModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
     <div class="modal" style="max-width: 600px;">
@@ -7024,6 +7113,277 @@ Thanks!
       currentProspectDetail = null;
     }
 
+    // SMS/Email Templates
+    const smsTemplates = {
+      intro: "Hi! I'm reaching out from 9x12 Pro to help grow your business with targeted direct mail campaigns. Would you be interested in learning how we can help you reach more customers?",
+      'follow-up': "Just following up on my previous message. I'd love to show you how 9x12 Pro can help grow your customer base. Do you have 10 minutes this week to chat?"
+    };
+
+    const emailTemplates = {
+      intro: {
+        subject: "Grow Your Business with Targeted Direct Mail",
+        body: "Hi,\n\nI hope this email finds you well. I'm reaching out because I believe 9x12 Pro can help you reach more potential customers in your area.\n\nWe specialize in targeted direct mail campaigns that get results. Our clients typically see a significant increase in customer inquiries and sales.\n\nWould you be interested in a quick 15-minute call to discuss how we can help your business grow?\n\nBest regards"
+      },
+      'follow-up': {
+        subject: "Following Up - Direct Mail Opportunity",
+        body: "Hi,\n\nI wanted to follow up on my previous message about our direct mail services at 9x12 Pro.\n\nMany businesses in your area have seen great results with our campaigns. I'd love to share some success stories and discuss how we can help you reach new customers.\n\nDo you have time this week for a brief conversation?\n\nBest regards"
+      },
+      'special-offer': {
+        subject: "Special Offer - Limited Time Direct Mail Promotion",
+        body: "Hi,\n\nI have exciting news! We're currently running a special promotion for new clients.\n\nFor a limited time, we're offering a discount on your first direct mail campaign with 9x12 Pro. This is a great opportunity to test our services and see real results.\n\nWould you like to learn more about this exclusive offer?\n\nBest regards"
+      }
+    };
+
+    // Global variable to track which business we're sending to
+    let currentSMSBusinessId = null;
+    let currentEmailBusinessId = null;
+
+    function openSendSMSModal(leadId, event) {
+      if (event) {
+        event.stopPropagation();
+      }
+
+      // Find the business in column 2
+      const business = (kanbanState.columns['to-contact'] || []).find(item => {
+        return typeof item === 'object' && item.id === leadId;
+      });
+
+      if (!business) {
+        alert('Business not found');
+        return;
+      }
+
+      currentSMSBusinessId = leadId;
+
+      // Populate modal
+      const businessName = business.businessName || business.name || 'Unknown Business';
+      const phone = business.phone || 'No phone on file';
+      document.getElementById('smsBusinessName').textContent = businessName;
+      document.getElementById('smsPhoneNumber').textContent = phone;
+
+      // Reset form
+      document.getElementById('smsTemplate').value = '';
+      document.getElementById('smsMessage').value = '';
+      updateSMSCharCount();
+
+      // Show modal
+      const modal = document.getElementById('sendSMSModal');
+      modal.style.display = 'flex';
+      modal.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeSendSMSModal() {
+      const modal = document.getElementById('sendSMSModal');
+      modal.style.display = 'none';
+      modal.setAttribute('aria-hidden', 'true');
+      currentSMSBusinessId = null;
+    }
+
+    function loadSMSTemplate() {
+      const templateSelect = document.getElementById('smsTemplate');
+      const messageArea = document.getElementById('smsMessage');
+      const templateValue = templateSelect.value;
+
+      if (templateValue && templateValue !== 'custom') {
+        messageArea.value = smsTemplates[templateValue] || '';
+      } else if (templateValue === 'custom') {
+        messageArea.value = '';
+      }
+
+      updateSMSCharCount();
+    }
+
+    function updateSMSCharCount() {
+      const message = document.getElementById('smsMessage').value;
+      const charCount = document.getElementById('smsCharCount');
+      charCount.textContent = message.length;
+
+      // Change color if approaching limit
+      if (message.length > 160) {
+        charCount.parentElement.classList.add('text-red-600');
+        charCount.parentElement.classList.remove('text-gray-500');
+      } else {
+        charCount.parentElement.classList.add('text-gray-500');
+        charCount.parentElement.classList.remove('text-red-600');
+      }
+    }
+
+    function sendSMSMessage() {
+      const message = document.getElementById('smsMessage').value.trim();
+
+      if (!message) {
+        alert('Please enter a message');
+        return;
+      }
+
+      if (!currentSMSBusinessId) {
+        alert('No business selected');
+        return;
+      }
+
+      // Find the business
+      const business = (kanbanState.columns['to-contact'] || []).find(item => {
+        return typeof item === 'object' && item.id === currentSMSBusinessId;
+      });
+
+      if (!business) {
+        alert('Business not found');
+        return;
+      }
+
+      const phone = business.phone || '';
+
+      if (!phone) {
+        alert('This business does not have a phone number on file');
+        return;
+      }
+
+      // Open Google Voice in new tab with pre-filled message
+      // Google Voice doesn't have a direct URL scheme, so we'll open to the messages page
+      const googleVoiceUrl = 'https://voice.google.com/u/0/messages';
+      window.open(googleVoiceUrl, '_blank');
+
+      // Copy message to clipboard for easy pasting
+      navigator.clipboard.writeText(`To: ${phone}\n\n${message}`).then(() => {
+        alert(`Message copied to clipboard!\n\nPhone: ${phone}\n\nGoogle Voice is opening in a new tab. Paste the message there to send.`);
+      }).catch(() => {
+        alert(`Send this message via Google Voice:\n\nPhone: ${phone}\n\nMessage: ${message}`);
+      });
+
+      // Log this interaction
+      if (!business.interactions) {
+        business.interactions = [];
+      }
+
+      business.interactions.push({
+        date: new Date().toISOString(),
+        type: 'sms',
+        notes: `SMS sent: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`
+      });
+
+      // Save to storage
+      saveKanbanStateToStorage();
+
+      closeSendSMSModal();
+    }
+
+    function openSendEmailModal(leadId, event) {
+      if (event) {
+        event.stopPropagation();
+      }
+
+      // Find the business in column 2
+      const business = (kanbanState.columns['to-contact'] || []).find(item => {
+        return typeof item === 'object' && item.id === leadId;
+      });
+
+      if (!business) {
+        alert('Business not found');
+        return;
+      }
+
+      currentEmailBusinessId = leadId;
+
+      // Populate modal
+      const businessName = business.businessName || business.name || 'Unknown Business';
+      document.getElementById('emailBusinessName').textContent = businessName;
+
+      const email = business.email || '';
+      document.getElementById('emailAddress').textContent = email || 'No email on file';
+
+      // Reset form
+      document.getElementById('emailTemplate').value = '';
+      document.getElementById('emailSubject').value = '';
+      document.getElementById('emailMessage').value = '';
+
+      // Show modal
+      const modal = document.getElementById('sendEmailModal');
+      modal.style.display = 'flex';
+      modal.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeSendEmailModal() {
+      const modal = document.getElementById('sendEmailModal');
+      modal.style.display = 'none';
+      modal.setAttribute('aria-hidden', 'true');
+      currentEmailBusinessId = null;
+    }
+
+    function loadEmailTemplate() {
+      const templateSelect = document.getElementById('emailTemplate');
+      const subjectInput = document.getElementById('emailSubject');
+      const messageArea = document.getElementById('emailMessage');
+      const templateValue = templateSelect.value;
+
+      if (templateValue && templateValue !== 'custom') {
+        const template = emailTemplates[templateValue];
+        if (template) {
+          subjectInput.value = template.subject;
+          messageArea.value = template.body;
+        }
+      } else if (templateValue === 'custom') {
+        subjectInput.value = '';
+        messageArea.value = '';
+      }
+    }
+
+    function sendEmailMessage() {
+      const subject = document.getElementById('emailSubject').value.trim();
+      const message = document.getElementById('emailMessage').value.trim();
+
+      if (!subject) {
+        alert('Please enter a subject');
+        return;
+      }
+
+      if (!message) {
+        alert('Please enter a message');
+        return;
+      }
+
+      if (!currentEmailBusinessId) {
+        alert('No business selected');
+        return;
+      }
+
+      // Find the business
+      const business = (kanbanState.columns['to-contact'] || []).find(item => {
+        return typeof item === 'object' && item.id === currentEmailBusinessId;
+      });
+
+      if (!business) {
+        alert('Business not found');
+        return;
+      }
+
+      const email = business.email || '';
+
+      if (!email) {
+        alert('This business does not have an email address on file');
+        return;
+      }
+
+      // Log this interaction
+      if (!business.interactions) {
+        business.interactions = [];
+      }
+
+      business.interactions.push({
+        date: new Date().toISOString(),
+        type: 'email',
+        notes: `Email sent: ${subject}`
+      });
+
+      // Save to storage
+      saveKanbanStateToStorage();
+
+      // Open mailto link
+      const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
+      window.location.href = mailtoUrl;
+
+      closeSendEmailModal();
+    }
+
     function renderInteractionTimeline(interactions) {
       const timeline = document.getElementById('interactionTimeline');
       if (!timeline) return;
@@ -7767,13 +8127,23 @@ Thanks!
                     </div>
                   </div>
                   ${col.key === 'to-contact' ? `
-                    <div class="flex gap-2 mt-2 pt-2 border-t border-gray-200">
-                      <button onclick="handleCommunicating(${leadId}, event)" class="flex-1 px-3 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 font-medium">
-                        💬 Communicating
-                      </button>
-                      <button onclick="handleNotInterested(${leadId}, event)" class="flex-1 px-3 py-1.5 bg-red-600 text-white text-xs rounded hover:bg-red-700 font-medium">
-                        🚫 Not Interested
-                      </button>
+                    <div class="mt-2 pt-2 border-t border-gray-200 space-y-2">
+                      <div class="flex gap-2">
+                        <button onclick="openSendSMSModal(${leadId}, event)" class="flex-1 px-3 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 font-medium" title="Send SMS via Google Voice">
+                          📱 SMS
+                        </button>
+                        <button onclick="openSendEmailModal(${leadId}, event)" class="flex-1 px-3 py-1.5 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700 font-medium" title="Send Email">
+                          ✉️ Email
+                        </button>
+                      </div>
+                      <div class="flex gap-2">
+                        <button onclick="handleCommunicating(${leadId}, event)" class="flex-1 px-3 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 font-medium">
+                          💬 Communicating
+                        </button>
+                        <button onclick="handleNotInterested(${leadId}, event)" class="flex-1 px-3 py-1.5 bg-red-600 text-white text-xs rounded hover:bg-red-700 font-medium">
+                          🚫 Not Interested
+                        </button>
+                      </div>
                     </div>
                   ` : ''}
                 </div>
