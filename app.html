@@ -2479,9 +2479,14 @@
               <div class="text-xs text-gray-500">Phone</div>
               <div id="detailPhone" class="text-sm text-gray-900">—</div>
             </div>
-            <button id="btnCallAction" onclick="quickAction('call')" class="px-3 py-1.5 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
-              📞 Call
-            </button>
+            <div class="flex gap-2">
+              <button id="btnCallAction" onclick="quickAction('call')" class="px-3 py-1.5 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
+                📞 Call
+              </button>
+              <button id="btnSMSAction" onclick="quickAction('sms')" class="px-3 py-1.5 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
+                📱 SMS
+              </button>
+            </div>
           </div>
 
           <div class="flex justify-between items-center">
@@ -7326,6 +7331,7 @@ Thanks!
 
       document.getElementById('detailPhone').textContent = phone || '—';
       document.getElementById('btnCallAction').disabled = !phone;
+      document.getElementById('btnSMSAction').disabled = !phone;
 
       document.getElementById('detailEmail').textContent = email || '—';
       document.getElementById('btnEmailAction').disabled = !email;
@@ -7880,6 +7886,29 @@ Thanks!
         case 'call':
           if (prospect.phone) {
             window.location.href = `tel:${prospect.phone}`;
+          }
+          break;
+        case 'sms':
+          if (prospect.phone) {
+            // Detect if mobile or desktop
+            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+            const cleanPhone = prospect.phone.replace(/\D/g, ''); // Remove non-digits
+
+            if (isMobile) {
+              // Mobile: Use native SMS protocol
+              window.location.href = `sms:${cleanPhone}`;
+            } else {
+              // Desktop: Open Google Voice
+              const googleVoiceUrl = `https://voice.google.com/u/0/messages`;
+              window.open(googleVoiceUrl, '_blank');
+
+              // Copy phone to clipboard
+              navigator.clipboard.writeText(prospect.phone).then(() => {
+                toast(`📋 Phone number copied: ${prospect.phone}\nGoogle Voice opened in new tab.`, true);
+              }).catch(() => {
+                toast(`📱 Google Voice opened. Send to: ${prospect.phone}`, true);
+              });
+            }
           }
           break;
         case 'email':
@@ -8566,24 +8595,25 @@ Thanks!
                   ${col.key === 'to-contact' ? `
                     <div class="mt-2 pt-2 border-t border-gray-200 space-y-2">
                       <div class="flex gap-2">
-                        <button onclick="openSendSMSModal(${leadId}, event)" class="flex-1 px-3 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 font-medium" title="Send SMS via Google Voice">
-                          📱 SMS
-                        </button>
-                        <button onclick="openSendEmailModal(${leadId}, event)" class="flex-1 px-3 py-1.5 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700 font-medium" title="Send Email">
-                          ✉️ Email
-                        </button>
-                      </div>
-                      <div class="flex gap-2">
-                        <button onclick="handleCommunicating(${leadId}, event)" class="flex-1 px-3 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 font-medium">
-                          💬 Communicating
-                        </button>
                         <button onclick="handleNotInterested(${leadId}, event)" class="flex-1 px-3 py-1.5 bg-red-600 text-white text-xs rounded hover:bg-red-700 font-medium">
                           🚫 Not Interested
                         </button>
+                        ${(() => {
+                          const businessName = typeof item === 'object' ? (item.businessName || item.name) : '';
+                          const isClient = businessName && Object.values(crmState.clients).some(c =>
+                            c.businessName.toLowerCase() === businessName.toLowerCase()
+                          );
+                          if (isClient) {
+                            return `<button class="flex-1 px-3 py-1.5 bg-gray-400 text-white text-xs rounded cursor-default font-medium" disabled>
+                              ✓ Current Client
+                            </button>`;
+                          } else {
+                            return `<button onclick="convertProspectToClient(${leadId}, 'to-contact'); event.stopPropagation();" class="flex-1 px-3 py-1.5 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 font-medium" title="Add to Client Database">
+                              👤 Convert to Client
+                            </button>`;
+                          }
+                        })()}
                       </div>
-                      <button onclick="convertProspectToClient(${leadId}, 'to-contact'); event.stopPropagation();" class="w-full px-3 py-1.5 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 font-medium" title="Add to Client Database">
-                        👤 Convert to Client
-                      </button>
                     </div>
                   ` : ''}
                 </div>
