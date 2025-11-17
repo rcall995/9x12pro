@@ -509,9 +509,14 @@
                     <h3 class="text-xl font-bold">Prospect Pool Management</h3>
                     <p class="text-sm text-gray-600 mt-1">Review and manage all businesses found from Google Places searches</p>
                 </div>
-                <button onclick="clearProspectPool()" class="px-4 py-2 text-sm bg-red-50 text-red-600 border border-red-200 rounded-md hover:bg-red-100 font-medium">
-                    Clear All
-                </button>
+                <div class="flex gap-2">
+                    <button onclick="openAddManualBusinessModal()" class="px-4 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 font-medium">
+                        ➕ Add Business Manually
+                    </button>
+                    <button onclick="clearProspectPool()" class="px-4 py-2 text-sm bg-red-50 text-red-600 border border-red-200 rounded-md hover:bg-red-100 font-medium">
+                        Clear All
+                    </button>
+                </div>
             </div>
 
             <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
@@ -1899,6 +1904,66 @@
         <button onclick="closeSendEmailModal()" class="px-4 py-2 border rounded-md bg-gray-100 hover:bg-gray-200">Cancel</button>
         <button onclick="sendEmailMessage()" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">✉️ Send Email</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Add Manual Business Modal -->
+  <div id="addManualBusinessModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal" style="max-width: 600px;">
+      <h3 class="text-lg font-bold mb-4">➕ Add Business Manually</h3>
+
+      <form id="addManualBusinessForm" class="space-y-4">
+        <div>
+          <label class="text-sm font-medium text-gray-700 block mb-1">Business Name *</label>
+          <input id="manualBusinessName" type="text" class="border rounded-md w-full p-2" placeholder="e.g., Joe's Pizza" required />
+        </div>
+
+        <div>
+          <label class="text-sm font-medium text-gray-700 block mb-1">Category *</label>
+          <input id="manualBusinessCategory" type="text" class="border rounded-md w-full p-2" placeholder="e.g., Restaurant, Hair Salon, Auto Repair" required />
+        </div>
+
+        <div>
+          <label class="text-sm font-medium text-gray-700 block mb-1">Address</label>
+          <input id="manualBusinessAddress" type="text" class="border rounded-md w-full p-2" placeholder="123 Main St" />
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-sm font-medium text-gray-700 block mb-1">City/Town *</label>
+            <input id="manualBusinessTown" type="text" class="border rounded-md w-full p-2" placeholder="Grand Island" required />
+          </div>
+          <div>
+            <label class="text-sm font-medium text-gray-700 block mb-1">ZIP Code</label>
+            <input id="manualBusinessZip" type="text" class="border rounded-md w-full p-2" placeholder="14072" />
+          </div>
+        </div>
+
+        <div>
+          <label class="text-sm font-medium text-gray-700 block mb-1">Phone</label>
+          <input id="manualBusinessPhone" type="tel" class="border rounded-md w-full p-2" placeholder="(716) 555-1234" />
+        </div>
+
+        <div>
+          <label class="text-sm font-medium text-gray-700 block mb-1">Email</label>
+          <input id="manualBusinessEmail" type="email" class="border rounded-md w-full p-2" placeholder="contact@business.com" />
+        </div>
+
+        <div>
+          <label class="text-sm font-medium text-gray-700 block mb-1">Website</label>
+          <input id="manualBusinessWebsite" type="url" class="border rounded-md w-full p-2" placeholder="https://www.business.com" />
+        </div>
+
+        <div>
+          <label class="text-sm font-medium text-gray-700 block mb-1">Notes (Optional)</label>
+          <textarea id="manualBusinessNotes" rows="3" class="border rounded-md w-full p-2" placeholder="Any additional information..."></textarea>
+        </div>
+
+        <div class="flex justify-end gap-2 mt-6 pt-4 border-t">
+          <button type="button" onclick="closeAddManualBusinessModal()" class="px-4 py-2 border rounded-md bg-gray-100 hover:bg-gray-200">Cancel</button>
+          <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">➕ Add to Prospect Pool</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -7422,6 +7487,63 @@ Thanks!
 
       closeSendEmailModal();
     }
+
+    // Manual Business Entry Functions
+    function openAddManualBusinessModal() {
+      const modal = document.getElementById('addManualBusinessModal');
+      modal.style.display = 'flex';
+      modal.setAttribute('aria-hidden', 'false');
+
+      // Reset form
+      document.getElementById('addManualBusinessForm').reset();
+    }
+
+    function closeAddManualBusinessModal() {
+      const modal = document.getElementById('addManualBusinessModal');
+      modal.style.display = 'none';
+      modal.setAttribute('aria-hidden', 'true');
+    }
+
+    // Handle form submission
+    document.getElementById('addManualBusinessForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+
+      // Get form values
+      const businessData = {
+        id: 'manual_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+        name: document.getElementById('manualBusinessName').value.trim(),
+        businessName: document.getElementById('manualBusinessName').value.trim(),
+        category: document.getElementById('manualBusinessCategory').value.trim(),
+        address: document.getElementById('manualBusinessAddress').value.trim(),
+        town: document.getElementById('manualBusinessTown').value.trim(),
+        zipCode: document.getElementById('manualBusinessZip').value.trim(),
+        phone: document.getElementById('manualBusinessPhone').value.trim(),
+        email: document.getElementById('manualBusinessEmail').value.trim(),
+        website: document.getElementById('manualBusinessWebsite').value.trim(),
+        notes: document.getElementById('manualBusinessNotes').value.trim(),
+        type: 'manual',
+        isEnriched: false,
+        addedAt: new Date().toISOString()
+      };
+
+      // Add to manualProspects
+      if (!manualProspects) {
+        manualProspects = [];
+      }
+      manualProspects.push(businessData);
+
+      // Save to storage and cloud
+      saveManualProspects();
+
+      // Re-render prospect pool to show new business
+      renderProspectPool();
+
+      // Show success message
+      toast(`✅ ${businessData.businessName} added to Prospect Pool`, true);
+
+      // Close modal
+      closeAddManualBusinessModal();
+    });
 
     function renderInteractionTimeline(interactions) {
       const timeline = document.getElementById('interactionTimeline');
