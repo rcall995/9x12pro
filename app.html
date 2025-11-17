@@ -2468,9 +2468,12 @@
     const ACTIVE_USER = "lastcall.me@hotmail.com";
 
     // Initialize Supabase client (must be global for auth-root.js)
+    console.log('🔧 Initializing Supabase client...');
+    console.log('🔧 window.supabase:', typeof window.supabase);
     const { createClient } = window.supabase;
     window.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     var supabaseClient = window.supabaseClient; // Keep local reference for backward compatibility
+    console.log('✅ window.supabaseClient created:', typeof window.supabaseClient);
 
     // Cloud Sync State - Tracks what's syncing and when
     const cloudSyncState = {
