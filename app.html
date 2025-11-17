@@ -5550,9 +5550,11 @@ Thanks!
 
     // Load manual prospects from localStorage
     async function loadManualProspects() {
+      console.log('📥 LOADING MANUAL PROSPECTS...');
       try {
         // Try loading from cloud first
         const cloudData = await loadFromCloud('manualProspects');
+        console.log('📥 Manual prospects cloud data:', cloudData ? `${cloudData.length} items` : 'null');
 
         if (cloudData && Array.isArray(cloudData)) {
           prospectPoolState.manualProspects = cloudData;
