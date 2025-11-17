@@ -6539,20 +6539,37 @@ Thanks!
       prospectPoolSearchTerm = searchTerm; // Save for re-renders
       const term = searchTerm.toLowerCase().trim();
 
-      // Get all prospect items - use more specific selector
-      const allProspectItems = document.querySelectorAll('#prospectPoolContainer .mb-8');
+      // Get all category sections
+      const categorySections = document.querySelectorAll('#prospectPoolContainer > .mb-8');
+      console.log('📋 Found category sections:', categorySections.length);
 
-      allProspectItems.forEach(categorySection => {
-        const categoryHeader = categorySection.querySelector('h4');
-        const prospectCards = categorySection.querySelectorAll('.bg-white, .border');
+      categorySections.forEach(categorySection => {
+        // Find the grid container with all prospect cards
+        const grid = categorySection.querySelector('.grid');
+        if (!grid) {
+          console.log('⚠️ No grid found in section');
+          return;
+        }
+
+        // Get all prospect cards (both types - enriched and raw)
+        const prospectCards = grid.querySelectorAll('div[onclick*="openProspectDetailModal"]');
+        console.log('📇 Found prospect cards:', prospectCards.length);
 
         let visibleCount = 0;
 
         prospectCards.forEach(card => {
+          // Get the business name from h5 tag
           const businessName = card.querySelector('h5')?.textContent || '';
-          const address = card.querySelector('p')?.textContent || '';
+          // Get address from p tag (for raw prospects)
+          const addressElements = card.querySelectorAll('p');
+          let address = '';
+          addressElements.forEach(p => {
+            address += p.textContent + ' ';
+          });
 
-          if (businessName.toLowerCase().includes(term) || address.toLowerCase().includes(term)) {
+          const matches = businessName.toLowerCase().includes(term) || address.toLowerCase().includes(term);
+
+          if (term === '' || matches) {
             card.style.display = '';
             visibleCount++;
           } else {
@@ -6560,8 +6577,10 @@ Thanks!
           }
         });
 
+        console.log('✅ Visible in category:', visibleCount);
+
         // Hide entire category if no visible prospects
-        if (visibleCount === 0) {
+        if (visibleCount === 0 && term !== '') {
           categorySection.style.display = 'none';
         } else {
           categorySection.style.display = '';
