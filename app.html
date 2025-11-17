@@ -2467,9 +2467,10 @@
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1cmhzZHZ4c2drZ25maW1mcWRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4MDk3NDYsImV4cCI6MjA3ODM4NTc0Nn0.nB_GsE89WJ3eAQrgmNKb-fbCktHTHf-987D-G6lscZA";
     const ACTIVE_USER = "lastcall.me@hotmail.com";
 
-    // Initialize Supabase client
+    // Initialize Supabase client (must be global for auth-root.js)
     const { createClient } = window.supabase;
-    const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    window.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    var supabaseClient = window.supabaseClient; // Keep local reference for backward compatibility
 
     // Cloud Sync State - Tracks what's syncing and when
     const cloudSyncState = {
