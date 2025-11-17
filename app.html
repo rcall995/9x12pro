@@ -7454,15 +7454,11 @@ Thanks!
         console.log(`Rendering column ${col.key}: ${rawItems.length} raw items, currentMailerId: ${currentMailerId}`);
 
         let items = rawItems
-          .filter(item => item != null) // Filter out null/undefined
-          .filter(item => {
-            // Filter by current mailer - show items that either:
-            // 1. Have mailerId matching current card, OR
-            // 2. Have no mailerId (legacy items, show in all cards)
-            if (!currentMailerId) return true; // Show all if no card selected
-            if (typeof item === 'string') return true; // Legacy string format
-            return !item.mailerId || item.mailerId === currentMailerId;
-          });
+          .filter(item => item != null); // Filter out null/undefined
+
+          // REMOVED mailerId filter - show all items regardless of campaign
+          // This prevents the kanban from emptying when switching campaigns
+          // Items are stored globally and can be used across all campaigns
 
         console.log(`After mailerId filter: ${items.length} items`);
 
