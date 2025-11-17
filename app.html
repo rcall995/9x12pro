@@ -8468,7 +8468,8 @@ Thanks!
       // Move to pool
       prospectPoolState.manualProspects.push({
         ...lead,
-        movedToPoolDate: new Date().toISOString()
+        movedToPoolDate: new Date().toISOString(),
+        isEnriched: false // Keep standard search result styling
       });
 
       // Remove from prospecting
