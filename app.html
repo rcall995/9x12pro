@@ -6509,9 +6509,14 @@ Thanks!
                       <h5 class="font-semibold text-sm text-gray-900 mb-2">${esc(prospect.businessName)}</h5>
                       ${contactIcons.length > 0 ? `<div class="flex gap-2 text-lg mb-2">${contactIcons.join(' ')}</div>` : ''}
                       ${prospect.followUpDate ? `<div class="text-xs text-purple-600 font-medium mb-2">📅 ${prospect.followUpDate}</div>` : ''}
-                      <button onclick="event.stopPropagation(); moveProspectFromPool(${prospect.id})" class="w-full px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-semibold text-xs">
-                        Add to Prospecting →
-                      </button>
+                      <div class="flex gap-2">
+                        <button onclick="event.stopPropagation(); moveProspectFromPool(${prospect.id})" class="flex-1 px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-semibold text-xs">
+                          Add to Prospecting →
+                        </button>
+                        <button onclick="event.stopPropagation(); markProspectNotInterested('${prospect.placeId || prospect.id}', '${esc(prospect.businessName).replace(/'/g, "\\'")}')" class="px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 font-semibold text-xs" title="Not Interested">
+                          🚫
+                        </button>
+                      </div>
                     </div>
                   `;
                 }
@@ -6522,8 +6527,8 @@ Thanks!
                 const isDisabled = prospect.inSystem;
 
                 return `
-                  <div class="border rounded-lg p-3 ${isDisabled ? 'bg-gray-50 opacity-60' : 'bg-white hover:shadow-md cursor-pointer'} transition" onclick="openProspectDetailModal(${JSON.stringify(prospect).replace(/"/g, '&quot;')}, 'prospect')">
-                    <div class="flex items-start gap-2">
+                  <div class="border rounded-lg p-3 ${isDisabled ? 'bg-gray-50 opacity-60' : 'bg-white hover:shadow-md'} transition">
+                    <div class="flex items-start gap-2" onclick="openProspectDetailModal(${JSON.stringify(prospect).replace(/"/g, '&quot;')}, 'prospect')">
                       <input
                         type="checkbox"
                         ${isSelected ? 'checked' : ''}
@@ -6532,7 +6537,7 @@ Thanks!
                         onclick="event.stopPropagation()"
                         class="mt-1 w-4 h-4 text-indigo-600 rounded cursor-pointer flex-shrink-0"
                       />
-                      <div class="flex-1 min-w-0">
+                      <div class="flex-1 min-w-0 cursor-pointer">
                         <h5 class="font-semibold text-sm text-gray-900 truncate">${esc(prospect.name)}</h5>
                         <p class="text-xs text-gray-600 mt-0.5 truncate">${esc(prospect.address)}</p>
                         <div class="flex items-center gap-2 mt-1 text-xs text-gray-500">
@@ -6540,6 +6545,11 @@ Thanks!
                           ${isDisabled ? '<span class="text-xs px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded">In System</span>' : ''}
                         </div>
                       </div>
+                      ${!isDisabled ? `
+                      <button onclick="event.stopPropagation(); markProspectNotInterested('${prospectId}', '${esc(prospect.name).replace(/'/g, "\\'")}')" class="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs font-semibold flex-shrink-0" title="Not Interested">
+                        🚫
+                      </button>
+                      ` : ''}
                     </div>
                   </div>
                 `;
@@ -8111,6 +8121,50 @@ Thanks!
       renderKanban();
     }
 
+    // Mark prospect as not interested directly from the pool
+    function markProspectNotInterested(placeId, businessName) {
+      const confirmed = confirm(`Mark "${businessName}" as Not Interested?\n\nThis business will be removed from your prospect pool.`);
+
+      if (!confirmed) return;
+
+      // Add to Not Interested list
+      if (!notInterestedState.placeIds) notInterestedState.placeIds = new Set();
+      if (!window.notInterestedList) window.notInterestedList = [];
+
+      notInterestedState.placeIds.add(placeId);
+      window.notInterestedList.push({
+        businessName,
+        placeId: placeId,
+        dateMarked: new Date().toISOString(),
+        reason: 'User marked as not interested from prospect pool'
+      });
+
+      localStorage.setItem('mailslot-not-interested', JSON.stringify(window.notInterestedList));
+
+      // Remove from prospect pool (searches cache)
+      let removedCount = 0;
+      Object.keys(placesCache.searches).forEach(cacheKey => {
+        const cached = placesCache.searches[cacheKey];
+        if (cached.cachedData) {
+          const beforeLength = cached.cachedData.length;
+          cached.cachedData = cached.cachedData.filter(p => {
+            // Keep item unless it matches the one we want to remove
+            if (p.placeId === placeId) return false;
+            if (p.id === placeId) return false;
+            if (p.name === businessName || p.businessName === businessName) return false;
+            return true;
+          });
+          removedCount += (beforeLength - cached.cachedData.length);
+        }
+      });
+      localStorage.setItem('mailslot-places-cache', JSON.stringify(placesCache));
+
+      toast(`✅ "${businessName}" marked as Not Interested`, true);
+
+      // Refresh prospect pool display
+      renderProspectPool();
+    }
+
     // Expose functions globally
     window.openProspectDetailModal = openProspectDetailModal;
     window.closeProspectDetailModal = closeProspectDetailModal;
@@ -8119,6 +8173,7 @@ Thanks!
     window.showMessageTemplate = showMessageTemplate;
     window.copyTemplate = copyTemplate;
     window.markNotInterested = markNotInterested;
+    window.markProspectNotInterested = markProspectNotInterested;
 
     /* ========= KANBAN FUNCTIONS ========= */
 
