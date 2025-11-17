@@ -245,19 +245,20 @@
     }
     .kanban-item {
       cursor: grab;
-      transition: opacity 0.2s;
+      transition: opacity 0.2s, transform 0.2s;
     }
     .kanban-item.dragging {
-      opacity: 0.5;
-      transform: rotate(5deg);
+      opacity: 0.3;
+      border: 2px dashed #4f46e5 !important;
+      background-color: #f0f0f0 !important;
     }
     .kanban-item.drag-over {
-      border-top: 3px solid #4f46e5;
-      margin-top: 4px;
+      border-top: 3px solid #4f46e5 !important;
+      padding-top: 4px;
     }
     .kanban-column.drag-over-column {
       background-color: #eef2ff;
-      border: 2px dashed #4f46e5;
+      border-radius: 8px;
     }
     .card > div:not(.spot-label):not(.status-badge):not(.selected-pill):not(.price-badge):not(.card-edit-overlay) {
       overflow: hidden;
@@ -7751,6 +7752,7 @@ Thanks!
         // Add drag over for individual items to show drop position
         item.ondragover = function(e) {
           e.preventDefault();
+          e.stopPropagation(); // Prevent column ondragover from interfering
           if (draggedItem && draggedItem !== this) {
             // Remove previous indicators
             document.querySelectorAll('.kanban-item.drag-over').forEach(el => {
@@ -7762,7 +7764,93 @@ Thanks!
         };
 
         item.ondragleave = function(e) {
-          this.classList.remove('drag-over');
+          // Only remove if actually leaving the item
+          if (!this.contains(e.relatedTarget)) {
+            this.classList.remove('drag-over');
+          }
+        };
+
+        // Handle drop on individual items to insert at position
+        item.ondrop = async function(e) {
+          e.preventDefault();
+          e.stopPropagation(); // Prevent column ondrop from also firing
+
+          // Clean up all visual indicators immediately
+          document.querySelectorAll('.kanban-item.drag-over').forEach(el => {
+            el.classList.remove('drag-over');
+          });
+          document.querySelectorAll('.kanban-column.drag-over-column').forEach(el => {
+            el.classList.remove('drag-over-column');
+          });
+
+          if (!draggedItem || draggedItem === this) {
+            return;
+          }
+
+          const fromColumn = draggedItem.closest('.kanban-column').dataset.column;
+          const toColumn = this.closest('.kanban-column').dataset.column;
+          const itemId = parseFloat(draggedItem.dataset.itemId);
+          const targetItemId = parseFloat(this.dataset.itemId);
+
+          console.log(`Dropping item ${itemId} before item ${targetItemId} in column ${toColumn}`);
+
+          // Find and remove from old column
+          const fromItems = kanbanState.columns[fromColumn] || [];
+          const fromIdx = fromItems.findIndex(item => {
+            if (typeof item === 'string') return false;
+            return item.id === itemId;
+          });
+
+          if (fromIdx > -1) {
+            const itemToMove = fromItems[fromIdx];
+            fromItems.splice(fromIdx, 1);
+
+            // Add to new column at the position BEFORE the target item
+            if (!kanbanState.columns[toColumn]) {
+              kanbanState.columns[toColumn] = [];
+            }
+
+            const toItems = kanbanState.columns[toColumn];
+            const targetIdx = toItems.findIndex(item => {
+              if (typeof item === 'string') return false;
+              return item.id === targetItemId;
+            });
+
+            // Insert before target, or at end if not found
+            if (targetIdx > -1) {
+              toItems.splice(targetIdx, 0, itemToMove);
+            } else {
+              toItems.push(itemToMove);
+            }
+
+            // Track daily goal
+            const businessName = typeof itemToMove === 'string' ? itemToMove : (itemToMove.businessName || 'Unnamed Lead');
+            const forwardColumns = ['in-progress', 'committed'];
+
+            if (fromColumn === 'to-contact' && forwardColumns.includes(toColumn)) {
+              incrementDailyGoal(businessName);
+            } else if (forwardColumns.includes(fromColumn) && toColumn === 'to-contact') {
+              decrementDailyGoal(businessName);
+            }
+
+            // Save and render
+            try {
+              await saveKanban();
+              renderKanban();
+            } catch (err) {
+              console.error('Error saving kanban after move:', err);
+              toast('⚠️ Error saving changes. Refreshing...', false);
+              renderKanban();
+            }
+
+            const columnTitles = {
+              'prospect-list': '1. Prospect List',
+              'to-contact': '2. To Contact',
+              'in-progress': '3. In Progress',
+              'committed': '4. Committed'
+            };
+            toast(`Moved to ${columnTitles[toColumn] || toColumn}`);
+          }
         };
       });
 
