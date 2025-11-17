@@ -7395,20 +7395,26 @@ Thanks!
         return;
       }
 
-      // Use SMS protocol to open default SMS app with pre-filled message
-      // Format: sms:PHONE?body=MESSAGE
+      // Detect if mobile or desktop
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       const cleanPhone = phone.replace(/\D/g, ''); // Remove non-digits
-      const smsUrl = `sms:${cleanPhone}?body=${encodeURIComponent(message)}`;
 
-      // Try to open SMS app
-      window.location.href = smsUrl;
+      if (isMobile) {
+        // Mobile: Use native SMS protocol
+        const smsUrl = `sms:${cleanPhone}&body=${encodeURIComponent(message)}`;
+        window.location.href = smsUrl;
+      } else {
+        // Desktop: Open Google Voice and copy message
+        const googleVoiceUrl = `https://voice.google.com/u/0/messages`;
+        window.open(googleVoiceUrl, '_blank');
 
-      // Also copy to clipboard as backup
-      navigator.clipboard.writeText(message).then(() => {
-        console.log('Message copied to clipboard as backup');
-      }).catch(() => {
-        console.log('Could not copy to clipboard');
-      });
+        // Copy phone and message to clipboard
+        navigator.clipboard.writeText(`To: ${phone}\n\n${message}`).then(() => {
+          toast(`📋 Message copied! Google Voice opened in new tab.\n\nPaste to send to: ${phone}`, true);
+        }).catch(() => {
+          alert(`Google Voice opened.\n\nSend to: ${phone}\n\nMessage: ${message}`);
+        });
+      }
 
       // Log this interaction
       if (!business.interactions) {
