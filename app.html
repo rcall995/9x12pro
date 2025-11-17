@@ -5589,6 +5589,38 @@ Thanks!
       }
     }
 
+    // One-time cleanup: Set isEnriched to false for all prospect pool items
+    async function cleanupProspectPoolEnrichment() {
+      console.log('🧹 Starting prospect pool cleanup...');
+      console.log(`Total items before cleanup: ${prospectPoolState.manualProspects.length}`);
+
+      let updatedCount = 0;
+      prospectPoolState.manualProspects = prospectPoolState.manualProspects.map(prospect => {
+        if (prospect.isEnriched !== false) {
+          updatedCount++;
+          return {
+            ...prospect,
+            isEnriched: false
+          };
+        }
+        return prospect;
+      });
+
+      console.log(`✅ Updated ${updatedCount} prospects to isEnriched: false`);
+
+      // Save to cloud and localStorage
+      await saveManualProspects();
+
+      // Re-render prospect pool
+      renderProspectPool();
+
+      toast(`🧹 Cleaned up ${updatedCount} prospect pool items`, true);
+      console.log('✅ Cleanup complete! All prospect pool items now show checkbox interface.');
+    }
+
+    // Expose cleanup function globally (can be called from console)
+    window.cleanupProspectPoolEnrichment = cleanupProspectPoolEnrichment;
+
     // Toggle selection of a prospect in Prospecting column
     function toggleProspectingSelection(leadId) {
       if (prospectingSelectionState.selectedIds.has(leadId)) {
@@ -10091,6 +10123,16 @@ Thanks!
       // Load prospect cache from cloud with merge
       loadPlacesCache().then(() => {
         renderProspectPool(); // Re-render to show loaded prospects
+
+        // Auto-cleanup: Run once to fix isEnriched flag on all pool items
+        const hasRunCleanup = localStorage.getItem('hasRunProspectPoolCleanup_v1');
+        if (!hasRunCleanup) {
+          console.log('🔧 Running one-time prospect pool cleanup...');
+          cleanupProspectPoolEnrichment().then(() => {
+            localStorage.setItem('hasRunProspectPoolCleanup_v1', 'true');
+            console.log('✅ One-time cleanup complete. Will not run again.');
+          });
+        }
 
         // Save to cloud to ensure computer's data is uploaded
         savePlacesCache();
