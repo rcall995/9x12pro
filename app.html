@@ -6122,9 +6122,22 @@ Thanks!
     async function loadBusinessCategories() {
       try {
         const cloudData = await loadFromCloud('businessCategories');
-        if (cloudData && Array.isArray(cloudData) && cloudData.length > 0) {
+
+        // ONE-TIME MIGRATION: Force update to new 51-category list (2025-01-14)
+        const CATEGORY_VERSION = '2025-01-14-v1';
+        const currentVersion = localStorage.getItem('categoryVersion');
+
+        if (currentVersion !== CATEGORY_VERSION) {
+          console.log('🔄 Migrating to new business categories (51 categories)');
+          // Use the new default categories
+          businessCategories.sort((a, b) => a.label.localeCompare(b.label));
+          await saveToCloud('businessCategories', businessCategories);
+          localStorage.setItem('categoryVersion', CATEGORY_VERSION);
+          console.log('✅ Categories migrated and saved to cloud');
+        } else if (cloudData && Array.isArray(cloudData) && cloudData.length > 0) {
           businessCategories = cloudData;
         }
+
         // Sort alphabetically by label
         businessCategories.sort((a, b) => a.label.localeCompare(b.label));
         renderBusinessCategories();
