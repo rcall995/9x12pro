@@ -5503,9 +5503,18 @@ Thanks!
                       actualZip = extractZipFromAddress(address);
                     }
                     if (!actualCity && address) {
-                      // Try to extract city from address (format: "123 Main St, Buffalo, NY 14072")
-                      const cityMatch = address.match(/,\s*([^,]+),\s*NY/i);
-                      actualCity = cityMatch ? cityMatch[1].trim() : null;
+                      // Try to extract city from address
+                      // Format can be: "123 Main St, Buffalo, NY 14072" OR "123 Main St, Grand Island"
+                      let cityMatch = address.match(/,\s*([^,]+),\s*NY/i);
+                      if (!cityMatch) {
+                        // Try simpler pattern: last comma-separated part (for "123 Street, Grand Island")
+                        const parts = address.split(',').map(p => p.trim());
+                        if (parts.length >= 2) {
+                          actualCity = parts[parts.length - 1]; // Get last part
+                        }
+                      } else {
+                        actualCity = cityMatch[1].trim();
+                      }
                     }
 
                     return {
@@ -5551,7 +5560,7 @@ Thanks!
                   }
 
                   // Priority 3: No ZIP and no city - filter out (can't validate)
-                  console.log(`❌ Filtering "${b.name}" - no ZIP or city detected in "${b.address}"`);
+                  console.log(`❌ Filtering "${b.name}" - no ZIP or city detected (actualZip: ${b.actualZip}, actualCity: ${b.actualCity}, address: "${b.address}")`);
                   return false;
                 });
 
@@ -5620,9 +5629,18 @@ Thanks!
                       actualZip = extractZipFromAddress(address);
                     }
                     if (!actualCity && address) {
-                      // Try to extract city from address (format: "123 Main St, Buffalo, NY 14072")
-                      const cityMatch = address.match(/,\s*([^,]+),\s*NY/i);
-                      actualCity = cityMatch ? cityMatch[1].trim() : null;
+                      // Try to extract city from address
+                      // Format can be: "123 Main St, Buffalo, NY 14072" OR "123 Main St, Grand Island"
+                      let cityMatch = address.match(/,\s*([^,]+),\s*NY/i);
+                      if (!cityMatch) {
+                        // Try simpler pattern: last comma-separated part (for "123 Street, Grand Island")
+                        const parts = address.split(',').map(p => p.trim());
+                        if (parts.length >= 2) {
+                          actualCity = parts[parts.length - 1]; // Get last part
+                        }
+                      } else {
+                        actualCity = cityMatch[1].trim();
+                      }
                     }
 
                     return {
@@ -5668,7 +5686,7 @@ Thanks!
                   }
 
                   // Priority 3: No ZIP and no city - filter out (can't validate)
-                  console.log(`❌ Filtering "${b.name}" - no ZIP or city detected in "${b.address}"`);
+                  console.log(`❌ Filtering "${b.name}" - no ZIP or city detected (actualZip: ${b.actualZip}, actualCity: ${b.actualCity}, address: "${b.address}")`);
                   return false;
                 });
 
