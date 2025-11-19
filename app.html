@@ -8589,13 +8589,23 @@ Thanks!
         return;
       }
 
-      // Check if already in Kanban
+      // Check if already in Kanban - only check if they have a valid placeId or exact originalClientId match
       const alreadyInKanban = Object.values(kanbanState.columns).some(column =>
-        column.some(item =>
-          typeof item === 'object' &&
-          (item.businessName?.toLowerCase() === client.businessName.toLowerCase() ||
-           item.placeId === client.placeId)
-        )
+        column.some(item => {
+          if (typeof item !== 'object') return false;
+
+          // Check if this exact client is already there via originalClientId
+          if (item.originalClientId && item.originalClientId === client.id) {
+            return true;
+          }
+
+          // Check placeId only if both exist and are not null/empty
+          if (client.placeId && item.placeId && client.placeId === item.placeId) {
+            return true;
+          }
+
+          return false;
+        })
       );
 
       if (alreadyInKanban) {
