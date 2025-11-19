@@ -5475,13 +5475,15 @@ Thanks!
                   // If we can't determine the ZIP, KEEP IT (benefit of doubt)
                   // Google often doesn't provide address_components in search results
                   if (!b.actualZip) {
-                    console.log(`✅ Keeping "${b.name}" - ZIP unknown (Google didn't provide address_components)`);
+                    console.log(`✅ Keeping "${b.name}" - ZIP unknown. Address: "${b.address}"`);
                     return true; // Keep if we can't determine (within search radius)
                   }
                   // Only REMOVE if ZIP is confirmed to be DIFFERENT
                   const matches = b.actualZip === zipCode;
                   if (!matches) {
-                    console.log(`🔍 Filtering out "${b.name}" - ZIP ${b.actualZip} doesn't match searched ZIP ${zipCode}`);
+                    console.log(`🔍 Filtering out "${b.name}" - actualZip ${b.actualZip} doesn't match searched ZIP ${zipCode}. Address: "${b.address}"`);
+                  } else {
+                    console.log(`✅ Keeping "${b.name}" - actualZip ${b.actualZip} matches searched ZIP ${zipCode}`);
                   }
                   return matches;
                 });
@@ -5565,13 +5567,15 @@ Thanks!
                   // If we can't determine the ZIP, KEEP IT (benefit of doubt)
                   // Google often doesn't provide address_components in search results
                   if (!b.actualZip) {
-                    console.log(`✅ Keeping "${b.name}" - ZIP unknown (Google didn't provide address_components)`);
+                    console.log(`✅ Keeping "${b.name}" - ZIP unknown. Address: "${b.address}"`);
                     return true; // Keep if we can't determine (within search radius)
                   }
                   // Only REMOVE if ZIP is confirmed to be DIFFERENT
                   const matches = b.actualZip === zipCode;
                   if (!matches) {
-                    console.log(`🔍 Filtering out "${b.name}" - ZIP ${b.actualZip} doesn't match searched ZIP ${zipCode}`);
+                    console.log(`🔍 Filtering out "${b.name}" - actualZip ${b.actualZip} doesn't match searched ZIP ${zipCode}. Address: "${b.address}"`);
+                  } else {
+                    console.log(`✅ Keeping "${b.name}" - actualZip ${b.actualZip} matches searched ZIP ${zipCode}`);
                   }
                   return matches;
                 });
@@ -7073,8 +7077,8 @@ Thanks!
                     if (ratingMatch) displayRating = parseFloat(ratingMatch[1]);
                   }
 
-                  // Show ZIP code instead of full address/town
-                  const displayLocation = prospect.zipCode ? `📍 ${prospect.zipCode}` : (prospect.town || '');
+                  // Show actual ZIP code (not the searched ZIP)
+                  const displayLocation = prospect.actualZip ? `📍 ${prospect.actualZip}` : (prospect.zipCode ? `📍 ${prospect.zipCode}` : (prospect.town || ''));
 
                   // Build metadata line (category only, since ZIP is shown above)
                   const metadata = [];
@@ -7121,8 +7125,8 @@ Thanks!
                   if (addressMatch) addressToShow = addressMatch[1];
                 }
 
-                // Show ZIP code instead of full address/town for raw prospects too
-                const rawDisplayLocation = prospect.zipCode ? `📍 ${prospect.zipCode}` : (prospect.town || '');
+                // Show actual ZIP code (not the searched ZIP) for raw prospects too
+                const rawDisplayLocation = prospect.actualZip ? `📍 ${prospect.actualZip}` : (prospect.zipCode ? `📍 ${prospect.zipCode}` : (prospect.town || ''));
 
                 // Extract phone and email from notes if available
                 let rawPhone = prospect.phone || '';
