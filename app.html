@@ -9519,6 +9519,7 @@ Thanks!
         const items = kanbanState.columns[columnKey];
         if (!Array.isArray(items)) return;
 
+        const seenIds = new Set(); // Track by unique ID first
         const seenPlaceIds = new Set();
         const seenBusinessNames = new Map(); // Map to track businessName+mailerId combos
         const deduped = [];
@@ -9529,7 +9530,16 @@ Thanks!
             return;
           }
 
-          // Skip if we've seen this placeId (most reliable identifier)
+          // First check unique ID (most reliable for all items)
+          if (item.id) {
+            if (seenIds.has(item.id)) {
+              totalRemoved++;
+              return; // Skip duplicate
+            }
+            seenIds.add(item.id);
+          }
+
+          // Skip if we've seen this placeId (reliable for Google Maps prospects)
           if (item.placeId) {
             if (seenPlaceIds.has(item.placeId)) {
               totalRemoved++;
@@ -9545,6 +9555,10 @@ Thanks!
               return; // Skip duplicate
             }
             seenBusinessNames.set(key, true);
+          }
+          // For items from Client Database (no mailerId, no placeId), use originalClientId
+          else if (item.originalClientId) {
+            // These are already checked by item.id above, so just add them
           }
 
           deduped.push(item);
@@ -9908,9 +9922,13 @@ Thanks!
                           🚫 Not Interested
                         </button>
                         ${(() => {
-                          const businessName = typeof item === 'object' ? (item.businessName || item.name) : '';
-                          const isClient = businessName && Object.values(crmState.clients).some(c =>
-                            c.businessName.toLowerCase() === businessName.toLowerCase()
+                          // Check if this prospect came from Client Database or is already a client
+                          const isClient = typeof item === 'object' && (
+                            item.source === 'client' ||
+                            item.originalClientId ||
+                            (item.businessName && Object.values(crmState.clients || {}).some(c =>
+                              c.businessName.toLowerCase() === item.businessName.toLowerCase()
+                            ))
                           );
                           if (isClient) {
                             return `<button onclick="event.stopPropagation(); completeAndRemoveFromKanban('${leadId}', 'to-contact');" class="flex-1 px-3 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 font-medium" title="Mark complete and remove from Kanban (keeps in Client Database)">
