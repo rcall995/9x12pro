@@ -45,7 +45,8 @@
       "Bash(start \"\" \"C:\\Users\\rich\\9x12Pro\\app.html\")",
       "Bash(start \"\" \"C:\\Users\\rich\\9x12Pro\\import-contacts-browser.js\")",
       "Bash(start \"\" \"C:\\Users\\rich\\9x12Pro\\import-contact-info.sql\")",
-      "Bash(start \"\" \"C:\\Users\\rich\\9x12Pro\\check-user-email.sql\")"
+      "Bash(start \"\" \"C:\\Users\\rich\\9x12Pro\\check-user-email.sql\")",
+      "WebFetch(domain:app.outscraper.com)"
     ],
     "deny": [],
     "ask": []
