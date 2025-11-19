@@ -5470,15 +5470,15 @@ Thanks!
                   });
 
                 // Filter to only businesses actually in the searched ZIP code
-                // STRICT FILTERING: ONLY keep businesses that have matching ZIP codes
+                // SMART FILTERING: Remove businesses confirmed to be in WRONG ZIP, keep uncertain ones
                 const businesses = allBusinesses.filter(b => {
-                  // If we can't determine the ZIP, REMOVE IT (strict filtering)
-                  // User searched for specific ZIP, so only include confirmed matches
+                  // If we can't determine the ZIP, KEEP IT (benefit of doubt)
+                  // Google often doesn't provide address_components in search results
                   if (!b.actualZip) {
-                    console.log(`⚠️ Filtering out "${b.name}" - no ZIP code found in address: "${b.address}"`);
-                    return false; // Remove if we can't confirm ZIP
+                    console.log(`✅ Keeping "${b.name}" - ZIP unknown (Google didn't provide address_components)`);
+                    return true; // Keep if we can't determine (within search radius)
                   }
-                  // Only keep if ZIP matches exactly
+                  // Only REMOVE if ZIP is confirmed to be DIFFERENT
                   const matches = b.actualZip === zipCode;
                   if (!matches) {
                     console.log(`🔍 Filtering out "${b.name}" - ZIP ${b.actualZip} doesn't match searched ZIP ${zipCode}`);
@@ -5560,15 +5560,15 @@ Thanks!
                   });
 
                 // Filter to only businesses actually in the searched ZIP code
-                // STRICT FILTERING: ONLY keep businesses that have matching ZIP codes
+                // SMART FILTERING: Remove businesses confirmed to be in WRONG ZIP, keep uncertain ones
                 const businesses = allBusinesses.filter(b => {
-                  // If we can't determine the ZIP, REMOVE IT (strict filtering)
-                  // User searched for specific ZIP, so only include confirmed matches
+                  // If we can't determine the ZIP, KEEP IT (benefit of doubt)
+                  // Google often doesn't provide address_components in search results
                   if (!b.actualZip) {
-                    console.log(`⚠️ Filtering out "${b.name}" - no ZIP code found in address: "${b.address}"`);
-                    return false; // Remove if we can't confirm ZIP
+                    console.log(`✅ Keeping "${b.name}" - ZIP unknown (Google didn't provide address_components)`);
+                    return true; // Keep if we can't determine (within search radius)
                   }
-                  // Only keep if ZIP matches exactly
+                  // Only REMOVE if ZIP is confirmed to be DIFFERENT
                   const matches = b.actualZip === zipCode;
                   if (!matches) {
                     console.log(`🔍 Filtering out "${b.name}" - ZIP ${b.actualZip} doesn't match searched ZIP ${zipCode}`);
