@@ -7366,13 +7366,15 @@ Thanks!
               ${prospects.map(prospect => {
                 // For enriched prospects (from manual list) - show with green border and contact icons
                 if (prospect.isEnriched) {
-                  const hasContact = prospect.phone || prospect.website || prospect.email;
+                  const hasContact = prospect.phone || prospect.website || prospect.email || prospect.facebook || prospect.instagram;
+
+                  // Build compact clickable icon display (matching kanban style)
                   const contactIcons = [];
-                  if (prospect.phone) contactIcons.push('📞');
-                  if (prospect.website) contactIcons.push('🌐');
-                  if (prospect.email) contactIcons.push('✉️');
-                  if (prospect.facebook) contactIcons.push('📘');
-                  if (prospect.instagram) contactIcons.push('📷');
+                  if (prospect.phone) contactIcons.push(`<a href="tel:${esc(prospect.phone)}" class="text-lg hover:text-blue-600" title="📞 ${esc(prospect.phone)}">📞</a>`);
+                  if (prospect.website) contactIcons.push(`<a href="${esc(ensureHttps(prospect.website))}" target="_blank" class="text-lg hover:text-blue-600" title="🌐 ${esc(prospect.website)}">🌐</a>`);
+                  if (prospect.email) contactIcons.push(`<a href="mailto:${esc(prospect.email)}" class="text-lg hover:text-blue-600" title="✉️ ${esc(prospect.email)}">✉️</a>`);
+                  if (prospect.facebook) contactIcons.push(`<a href="${esc(ensureHttps(prospect.facebook))}" target="_blank" class="text-lg hover:text-blue-600" title="Facebook">📘</a>`);
+                  if (prospect.instagram) contactIcons.push(`<a href="${esc(ensureHttps(prospect.instagram))}" target="_blank" class="text-lg hover:text-blue-600" title="Instagram">📷</a>`);
 
                   // Extract address and rating from notes if not available as separate fields
                   let displayAddress = prospect.address || prospect.town || '';
@@ -7402,12 +7404,15 @@ Thanks!
                     <div class="bg-white border-2 ${hasContact ? 'border-green-400' : 'border-gray-200'} rounded-lg p-3 hover:shadow-md transition cursor-pointer" onclick="openProspectDetailModal(${JSON.stringify(prospect).replace(/"/g, '&quot;')}, 'prospect')">
                       <h5 class="font-semibold text-sm text-gray-900 mb-1">${esc(prospect.businessName)}</h5>
                       ${displayLocation ? `<p class="text-xs text-gray-600 mt-0.5 mb-2">${esc(displayLocation)}</p>` : ''}
-                      ${displayAddress ? `<p class="text-xs text-gray-600 mb-1">📍 ${esc(displayAddress)}</p>` : ''}
-                      ${prospect.phone ? `<p class="text-xs text-gray-600 mb-1">📞 ${esc(prospect.phone)}</p>` : ''}
-                      ${prospect.email ? `<p class="text-xs text-gray-600 mb-1">✉️ ${esc(prospect.email)}</p>` : ''}
+                      ${displayAddress ? `<p class="text-xs text-gray-600 mb-2">📍 ${esc(displayAddress)}</p>` : ''}
                       ${metadata.length > 0 ? `<p class="text-xs text-gray-500 mb-2">${metadata.join(' • ')}</p>` : ''}
                       ${displayRating ? `<div class="flex items-center gap-2 mb-2 text-xs text-gray-500"><span>⭐ ${displayRating}</span></div>` : ''}
                       ${prospect.followUpDate ? `<div class="text-xs text-purple-600 font-medium mb-2">📅 ${prospect.followUpDate}</div>` : ''}
+                      ${contactIcons.length > 0 ? `
+                        <div class="flex gap-2 items-center justify-center py-2 mb-2 border-t border-gray-200">
+                          ${contactIcons.join('')}
+                        </div>
+                      ` : '<div class="text-gray-400 italic text-center py-2 mb-2 text-xs border-t border-gray-200">No contact info</div>'}
                       <div class="flex gap-2">
                         <button onclick="event.stopPropagation(); moveProspectFromPool(${prospect.id})" class="flex-1 px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-semibold text-xs">
                           Add to Prospecting →
@@ -7439,9 +7444,13 @@ Thanks!
                 // Show actual ZIP code (not the searched ZIP) for raw prospects too
                 const rawDisplayLocation = prospect.actualZip ? `📍 ${prospect.actualZip}` : (prospect.zipCode ? `📍 ${prospect.zipCode}` : (prospect.town || ''));
 
-                // Extract phone and email from notes if available
+                // Extract contact info from notes if available
                 let rawPhone = prospect.phone || '';
                 let rawEmail = prospect.email || '';
+                let rawWebsite = prospect.website || '';
+                let rawFacebook = prospect.facebook || '';
+                let rawInstagram = prospect.instagram || '';
+
                 if (!rawPhone && prospect.notes) {
                   const phoneMatch = prospect.notes.match(/Phone:\s*([^\n]+)/);
                   if (phoneMatch) rawPhone = phoneMatch[1];
@@ -7450,6 +7459,18 @@ Thanks!
                   const emailMatch = prospect.notes.match(/Email:\s*([^\n]+)/);
                   if (emailMatch) rawEmail = emailMatch[1];
                 }
+                if (!rawWebsite && prospect.notes) {
+                  const websiteMatch = prospect.notes.match(/Website:\s*([^\n]+)/);
+                  if (websiteMatch) rawWebsite = websiteMatch[1];
+                }
+
+                // Build compact clickable icon display for raw prospects
+                const rawContactIcons = [];
+                if (rawPhone) rawContactIcons.push(`<a href="tel:${esc(rawPhone)}" class="text-lg hover:text-blue-600" title="📞 ${esc(rawPhone)}">📞</a>`);
+                if (rawWebsite) rawContactIcons.push(`<a href="${esc(ensureHttps(rawWebsite))}" target="_blank" class="text-lg hover:text-blue-600" title="🌐 ${esc(rawWebsite)}">🌐</a>`);
+                if (rawEmail) rawContactIcons.push(`<a href="mailto:${esc(rawEmail)}" class="text-lg hover:text-blue-600" title="✉️ ${esc(rawEmail)}">✉️</a>`);
+                if (rawFacebook) rawContactIcons.push(`<a href="${esc(ensureHttps(rawFacebook))}" target="_blank" class="text-lg hover:text-blue-600" title="Facebook">📘</a>`);
+                if (rawInstagram) rawContactIcons.push(`<a href="${esc(ensureHttps(rawInstagram))}" target="_blank" class="text-lg hover:text-blue-600" title="Instagram">📷</a>`);
 
                 // Build metadata line (category only, since ZIP is shown above)
                 const rawMetadata = [];
@@ -7473,13 +7494,16 @@ Thanks!
                         <h5 class="font-semibold text-sm text-gray-900 truncate">${esc(displayName)}</h5>
                         ${rawDisplayLocation ? `<p class="text-xs text-gray-600 mt-0.5">${esc(rawDisplayLocation)}</p>` : ''}
                         ${addressToShow ? `<p class="text-xs text-gray-600 mt-0.5">📍 ${esc(addressToShow)}</p>` : ''}
-                        ${rawPhone ? `<p class="text-xs text-gray-600 mt-0.5">📞 ${esc(rawPhone)}</p>` : ''}
-                        ${rawEmail ? `<p class="text-xs text-gray-600 mt-0.5">✉️ ${esc(rawEmail)}</p>` : ''}
                         ${rawMetadata.length > 0 ? `<p class="text-xs text-gray-500 mt-0.5">${rawMetadata.join(' • ')}</p>` : ''}
                         <div class="flex items-center gap-2 mt-1 text-xs text-gray-500">
                           ${prospect.rating ? `<span>⭐ ${prospect.rating}</span>` : ''}
                           ${isDisabled ? '<span class="text-xs px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded">In System</span>' : ''}
                         </div>
+                        ${rawContactIcons.length > 0 ? `
+                          <div class="flex gap-2 items-center mt-2 pt-2 border-t border-gray-200">
+                            ${rawContactIcons.join('')}
+                          </div>
+                        ` : ''}
                       </div>
                       ${!isDisabled ? `
                       <button onclick="event.stopPropagation(); markProspectNotInterested('${prospectId}', '${esc(displayName).replace(/'/g, "\\'")}')" class="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs font-semibold flex-shrink-0" title="Not Interested">
