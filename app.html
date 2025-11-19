@@ -763,13 +763,22 @@
                             <span>🗑️ Clear previous searches before searching</span>
                         </label>
                     </div>
-                    <button
-                        id="btnRunBulkPopulate"
-                        onclick="runBulkAutoPopulate()"
-                        class="w-full sm:w-auto px-8 py-3 bg-white text-purple-600 font-bold rounded-lg hover:bg-purple-50 transition shadow-lg hover:shadow-xl transform hover:scale-105"
-                    >
-                        🔍 Search & Add Prospects
-                    </button>
+                    <div class="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                        <button
+                            id="btnRunBulkPopulate"
+                            onclick="runBulkAutoPopulate()"
+                            class="flex-1 sm:flex-none px-8 py-3 bg-white text-purple-600 font-bold rounded-lg hover:bg-purple-50 transition shadow-lg hover:shadow-xl transform hover:scale-105"
+                        >
+                            🔍 Search & Add Prospects
+                        </button>
+                        <button
+                            onclick="clearAllSearchCaches()"
+                            class="flex-1 sm:flex-none px-6 py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition shadow-lg"
+                            title="Clear all cached searches and start fresh"
+                        >
+                            🗑️ Clear All Searches
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -5790,6 +5799,39 @@ Thanks!
       categoryCheckboxes.forEach(checkbox => {
         checkbox.checked = selectAllCheckbox.checked;
       });
+    }
+
+    // Clear all search caches (localStorage + cloud)
+    async function clearAllSearchCaches() {
+      if (!confirm('⚠️ This will clear ALL cached searches and prospect data. Your clients will NOT be affected. Continue?')) {
+        return;
+      }
+
+      try {
+        // Clear localStorage
+        localStorage.removeItem('mailslot-places-cache');
+        localStorage.removeItem('categorizedProspects');
+        localStorage.removeItem('manualProspects');
+        localStorage.removeItem('notInterestedBusinesses');
+
+        // Clear in-memory cache
+        placesCache.searches = {};
+        prospectPoolState.selectedIds.clear();
+
+        // Clear cloud storage
+        await saveToCloud('placesCache', {});
+        await saveToCloud('categorizedProspects', {});
+        await saveToCloud('manualProspects', []);
+        await saveToCloud('notInterestedBusinesses', []);
+
+        toast('✅ All searches cleared! Reloading...', true);
+
+        // Reload page after a moment
+        setTimeout(() => location.reload(), 1000);
+      } catch (error) {
+        console.error('Error clearing caches:', error);
+        toast('❌ Error clearing caches. Check console.', false);
+      }
     }
 
     // Run bulk auto-populate with multiple categories - shows results in modal
