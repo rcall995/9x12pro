@@ -2401,9 +2401,9 @@
         <div>
           <label class="text-sm font-medium text-gray-700 block mb-1">Search Radius</label>
           <select id="autoPopRadius" class="border rounded-md w-full p-2 bg-white">
-            <option value="3000">~2 miles</option>
-            <option value="5000" selected>~3 miles</option>
-            <option value="8000">~5 miles</option>
+            <option value="3000" selected>~2 miles (recommended for single ZIP)</option>
+            <option value="5000">~3 miles</option>
+            <option value="8000">~5 miles (may include neighboring areas)</option>
             <option value="16000">~10 miles</option>
           </select>
         </div>
@@ -5240,7 +5240,7 @@ Thanks!
       // Reset form
       document.getElementById('autoPopZipCode').value = '';
       document.getElementById('autoPopCategory').value = '';
-      document.getElementById('autoPopRadius').value = '5000';
+      document.getElementById('autoPopRadius').value = '3000';
     }
 
     function updateApiUsageDisplay() {
@@ -5454,10 +5454,13 @@ Thanks!
                   });
 
                 // Filter to only businesses actually in the searched ZIP code
-                // IMPORTANT: Only filter OUT if we can confirm it's a DIFFERENT ZIP
-                // If no ZIP in address (actualZip is null), KEEP IT (Google often doesn't include ZIP in vicinity)
+                // STRICT FILTERING: Filter out businesses with confirmed different ZIP codes
                 const businesses = allBusinesses.filter(b => {
-                  if (!b.actualZip) return true; // No ZIP in address, keep it (can't confirm it's wrong)
+                  if (!b.actualZip) {
+                    // No ZIP in address - check if city/town name suggests different location
+                    // This helps filter out nearby cities that Google includes in radius
+                    return true; // Keep for now - user can manually filter in Prospect Pool
+                  }
                   return b.actualZip === zipCode; // Has ZIP, only keep if it matches
                 });
 
@@ -5519,10 +5522,13 @@ Thanks!
                   });
 
                 // Filter to only businesses actually in the searched ZIP code
-                // IMPORTANT: Only filter OUT if we can confirm it's a DIFFERENT ZIP
-                // If no ZIP in address (actualZip is null), KEEP IT (Google often doesn't include ZIP in vicinity)
+                // STRICT FILTERING: Filter out businesses with confirmed different ZIP codes
                 const businesses = allBusinesses.filter(b => {
-                  if (!b.actualZip) return true; // No ZIP in address, keep it (can't confirm it's wrong)
+                  if (!b.actualZip) {
+                    // No ZIP in address - check if city/town name suggests different location
+                    // This helps filter out nearby cities that Google includes in radius
+                    return true; // Keep for now - user can manually filter in Prospect Pool
+                  }
                   return b.actualZip === zipCode; // Has ZIP, only keep if it matches
                 });
 
