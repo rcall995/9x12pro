@@ -6404,6 +6404,7 @@ Thanks!
       { value: "school", label: "Daycare" },
       { value: "laundry", label: "Dry Cleaner" },
       { value: "dentist", label: "Dentist" },
+      { value: "doctor", label: "Doctor/Physician" },
       { value: "electrician", label: "Electrician" },
       { value: "florist", label: "Florist" },
       { value: "funeral_home", label: "Funeral Home" },
@@ -6423,6 +6424,7 @@ Thanks!
       { value: "moving_company", label: "Moving Company" },
       { value: "optometrist", label: "Optometrist" },
       { value: "painter", label: "Painter" },
+      { value: "pediatrician", label: "Pediatrician" },
       { value: "pest_control", label: "Pest Control" },
       { value: "pet_store", label: "Pet Store" },
       { value: "photographer", label: "Photography" },
@@ -8489,15 +8491,19 @@ Thanks!
         }
       }
 
-      // Update in clients
-      const clientIndex = crmState.clients.findIndex(c =>
-        c.id === prospectId ||
-        (placeId && c.placeId === placeId) ||
-        (c.businessName && c.businessName === businessName)
-      );
+      // Update in clients (clients is an object, not array)
+      let clientKey = null;
+      Object.keys(crmState.clients).forEach(key => {
+        const c = crmState.clients[key];
+        if (c.id === prospectId ||
+            (placeId && c.placeId === placeId) ||
+            (c.businessName && c.businessName === businessName)) {
+          clientKey = key;
+        }
+      });
 
-      if (clientIndex !== -1) {
-        crmState.clients[clientIndex].category = newCategory;
+      if (clientKey) {
+        crmState.clients[clientKey].category = newCategory;
         await saveClients();
         renderClientList();
         updated = true;
