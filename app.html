@@ -5470,14 +5470,20 @@ Thanks!
                   });
 
                 // Filter to only businesses actually in the searched ZIP code
-                // STRICT FILTERING: Filter out businesses with confirmed different ZIP codes
+                // STRICT FILTERING: ONLY keep businesses that have matching ZIP codes
                 const businesses = allBusinesses.filter(b => {
+                  // If we can't determine the ZIP, REMOVE IT (strict filtering)
+                  // User searched for specific ZIP, so only include confirmed matches
                   if (!b.actualZip) {
-                    // No ZIP in address - check if city/town name suggests different location
-                    // This helps filter out nearby cities that Google includes in radius
-                    return true; // Keep for now - user can manually filter in Prospect Pool
+                    console.log(`⚠️ Filtering out "${b.name}" - no ZIP code found in address: "${b.address}"`);
+                    return false; // Remove if we can't confirm ZIP
                   }
-                  return b.actualZip === zipCode; // Has ZIP, only keep if it matches
+                  // Only keep if ZIP matches exactly
+                  const matches = b.actualZip === zipCode;
+                  if (!matches) {
+                    console.log(`🔍 Filtering out "${b.name}" - ZIP ${b.actualZip} doesn't match searched ZIP ${zipCode}`);
+                  }
+                  return matches;
                 });
 
                 const filteredOutCount = allBusinesses.length - businesses.length;
@@ -5554,14 +5560,20 @@ Thanks!
                   });
 
                 // Filter to only businesses actually in the searched ZIP code
-                // STRICT FILTERING: Filter out businesses with confirmed different ZIP codes
+                // STRICT FILTERING: ONLY keep businesses that have matching ZIP codes
                 const businesses = allBusinesses.filter(b => {
+                  // If we can't determine the ZIP, REMOVE IT (strict filtering)
+                  // User searched for specific ZIP, so only include confirmed matches
                   if (!b.actualZip) {
-                    // No ZIP in address - check if city/town name suggests different location
-                    // This helps filter out nearby cities that Google includes in radius
-                    return true; // Keep for now - user can manually filter in Prospect Pool
+                    console.log(`⚠️ Filtering out "${b.name}" - no ZIP code found in address: "${b.address}"`);
+                    return false; // Remove if we can't confirm ZIP
                   }
-                  return b.actualZip === zipCode; // Has ZIP, only keep if it matches
+                  // Only keep if ZIP matches exactly
+                  const matches = b.actualZip === zipCode;
+                  if (!matches) {
+                    console.log(`🔍 Filtering out "${b.name}" - ZIP ${b.actualZip} doesn't match searched ZIP ${zipCode}`);
+                  }
+                  return matches;
                 });
 
                 const filteredOutCount = allBusinesses.length - businesses.length;
