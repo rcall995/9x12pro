@@ -7073,9 +7073,11 @@ Thanks!
                     if (ratingMatch) displayRating = parseFloat(ratingMatch[1]);
                   }
 
-                  // Build metadata line (ZIP, category, etc.)
+                  // Show ZIP code instead of full address/town
+                  const displayLocation = prospect.zipCode ? `📍 ${prospect.zipCode}` : (prospect.town || '');
+
+                  // Build metadata line (category only, since ZIP is shown above)
                   const metadata = [];
-                  if (prospect.zipCode) metadata.push(`📍 ${prospect.zipCode}`);
                   if (prospect.category) {
                     const categoryName = prospect.category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                     metadata.push(categoryName);
@@ -7084,7 +7086,7 @@ Thanks!
                   return `
                     <div class="bg-white border-2 ${hasContact ? 'border-green-400' : 'border-gray-200'} rounded-lg p-3 hover:shadow-md transition cursor-pointer" onclick="openProspectDetailModal(${JSON.stringify(prospect).replace(/"/g, '&quot;')}, 'prospect')">
                       <h5 class="font-semibold text-sm text-gray-900 mb-1">${esc(prospect.businessName)}</h5>
-                      ${displayAddress ? `<p class="text-xs text-gray-600 mt-0.5 mb-2">${esc(displayAddress)}</p>` : ''}
+                      ${displayLocation ? `<p class="text-xs text-gray-600 mt-0.5 mb-2">${esc(displayLocation)}</p>` : ''}
                       ${metadata.length > 0 ? `<p class="text-xs text-gray-500 mb-2">${metadata.join(' • ')}</p>` : ''}
                       ${displayRating ? `<div class="flex items-center gap-2 mb-2 text-xs text-gray-500"><span>⭐ ${displayRating}</span></div>` : ''}
                       ${contactIcons.length > 0 ? `<div class="flex gap-2 text-lg mb-2">${contactIcons.join(' ')}</div>` : ''}
@@ -7117,9 +7119,11 @@ Thanks!
                   if (addressMatch) addressToShow = addressMatch[1];
                 }
 
-                // Build metadata line for raw prospects too
+                // Show ZIP code instead of full address/town for raw prospects too
+                const rawDisplayLocation = prospect.zipCode ? `📍 ${prospect.zipCode}` : (prospect.town || '');
+
+                // Build metadata line (category only, since ZIP is shown above)
                 const rawMetadata = [];
-                if (prospect.zipCode) rawMetadata.push(`📍 ${prospect.zipCode}`);
                 if (prospect.category) {
                   const categoryName = prospect.category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                   rawMetadata.push(categoryName);
@@ -7138,8 +7142,8 @@ Thanks!
                       />
                       <div class="flex-1 min-w-0 cursor-pointer">
                         <h5 class="font-semibold text-sm text-gray-900 truncate">${esc(displayName)}</h5>
-                        ${addressToShow ? `<p class="text-xs text-gray-600 mt-0.5 truncate">${esc(addressToShow)}</p>` : ''}
-                        ${!addressToShow && rawMetadata.length > 0 ? `<p class="text-xs text-gray-500 mt-0.5">${rawMetadata.join(' • ')}</p>` : ''}
+                        ${rawDisplayLocation ? `<p class="text-xs text-gray-600 mt-0.5">${esc(rawDisplayLocation)}</p>` : ''}
+                        ${rawMetadata.length > 0 ? `<p class="text-xs text-gray-500 mt-0.5">${rawMetadata.join(' • ')}</p>` : ''}
                         <div class="flex items-center gap-2 mt-1 text-xs text-gray-500">
                           ${prospect.rating ? `<span>⭐ ${prospect.rating}</span>` : ''}
                           ${isDisabled ? '<span class="text-xs px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded">In System</span>' : ''}
