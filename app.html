@@ -6694,15 +6694,15 @@ Thanks!
           await saveToCloud('manualProspects', prospectPoolState.manualProspects).catch(e => console.warn('Failed to save deduplicated manual prospects:', e));
         }
 
-        // Auto-cleanup: Run once to fix isEnriched flag on all pool items
-        const hasRunCleanup = localStorage.getItem('hasRunProspectPoolCleanup_v2');
+        // Auto-cleanup: Run once to fix isEnriched flag and remove town field
+        const hasRunCleanup = localStorage.getItem('hasRunProspectPoolCleanup_v3');
         console.log('🔍 Checking cleanup status:', hasRunCleanup ? 'Already run' : 'Need to run');
         console.log('🔍 Manual prospects count:', prospectPoolState.manualProspects.length);
 
         if (!hasRunCleanup) {
-          console.log('🔧 Running one-time prospect pool cleanup...');
+          console.log('🔧 Running one-time prospect pool cleanup (v3 - remove town field)...');
           await cleanupProspectPoolEnrichment();
-          localStorage.setItem('hasRunProspectPoolCleanup_v2', 'true');
+          localStorage.setItem('hasRunProspectPoolCleanup_v3', 'true');
           console.log('✅ One-time cleanup complete. Will not run again.');
         } else {
           console.log('⏭️ Cleanup already completed previously.');
@@ -6724,24 +6724,36 @@ Thanks!
       }
     }
 
-    // One-time cleanup: Set isEnriched to false for all prospect pool items
+    // One-time cleanup: Set isEnriched to false and remove town field from all prospect pool items
     async function cleanupProspectPoolEnrichment() {
       console.log('🧹 Starting prospect pool cleanup...');
       console.log(`Total items before cleanup: ${prospectPoolState.manualProspects.length}`);
 
       let updatedCount = 0;
+      let townFieldsRemoved = 0;
       prospectPoolState.manualProspects = prospectPoolState.manualProspects.map(prospect => {
+        let needsUpdate = false;
+        const updated = { ...prospect };
+
         if (prospect.isEnriched !== false) {
+          updated.isEnriched = false;
+          needsUpdate = true;
           updatedCount++;
-          return {
-            ...prospect,
-            isEnriched: false
-          };
         }
-        return prospect;
+
+        // Remove town field (campaign name should not be stored in prospect data)
+        if (prospect.town) {
+          delete updated.town;
+          needsUpdate = true;
+          townFieldsRemoved++;
+          console.log(`🗑️ Removed town field from: ${prospect.businessName || prospect.name} (was: "${prospect.town}")`);
+        }
+
+        return needsUpdate ? updated : prospect;
       });
 
       console.log(`✅ Updated ${updatedCount} prospects to isEnriched: false`);
+      console.log(`✅ Removed town field from ${townFieldsRemoved} prospects`);
 
       // Save to cloud and localStorage
       await saveManualProspects();
@@ -7388,7 +7400,7 @@ Thanks!
                   if (prospect.instagram) contactIcons.push(`<a href="${esc(ensureHttps(prospect.instagram))}" target="_blank" class="text-lg hover:text-blue-600" title="Instagram">📷</a>`);
 
                   // Extract address and rating from notes if not available as separate fields
-                  let displayAddress = prospect.address || prospect.town || '';
+                  let displayAddress = prospect.address || '';
                   let displayRating = prospect.rating || 0;
 
                   if (!displayAddress && prospect.notes) {
@@ -7401,8 +7413,8 @@ Thanks!
                     if (ratingMatch) displayRating = parseFloat(ratingMatch[1]);
                   }
 
-                  // Show actual ZIP code (not the searched ZIP)
-                  const displayLocation = prospect.actualZip ? `📍 ${prospect.actualZip}` : (prospect.zipCode ? `📍 ${prospect.zipCode}` : (prospect.town || ''));
+                  // Show actual ZIP code (not the searched ZIP) - DON'T use town as fallback
+                  const displayLocation = prospect.actualZip ? `📍 ${prospect.actualZip}` : (prospect.zipCode ? `📍 ${prospect.zipCode}` : '');
 
                   // Build metadata line (category only, since ZIP is shown above)
                   const metadata = [];
@@ -7443,7 +7455,7 @@ Thanks!
 
                 // Handle both name/businessName and address field variations
                 const displayName = prospect.name || prospect.businessName || 'Unnamed Business';
-                const displayAddress = prospect.address || prospect.town || '';
+                const displayAddress = prospect.address || '';
 
                 // Extract address from notes if not available
                 let addressToShow = displayAddress;
@@ -7452,8 +7464,8 @@ Thanks!
                   if (addressMatch) addressToShow = addressMatch[1];
                 }
 
-                // Show actual ZIP code (not the searched ZIP) for raw prospects too
-                const rawDisplayLocation = prospect.actualZip ? `📍 ${prospect.actualZip}` : (prospect.zipCode ? `📍 ${prospect.zipCode}` : (prospect.town || ''));
+                // Show actual ZIP code (not the searched ZIP) for raw prospects too - DON'T use town as fallback
+                const rawDisplayLocation = prospect.actualZip ? `📍 ${prospect.actualZip}` : (prospect.zipCode ? `📍 ${prospect.zipCode}` : '');
 
                 // Extract contact info from notes if available
                 let rawPhone = prospect.phone || '';
