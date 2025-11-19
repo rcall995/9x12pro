@@ -8490,14 +8490,14 @@ Thanks!
       }
 
       // Update in clients
-      const clientIndex = clientState.clients.findIndex(c =>
+      const clientIndex = crmState.clients.findIndex(c =>
         c.id === prospectId ||
         (placeId && c.placeId === placeId) ||
         (c.businessName && c.businessName === businessName)
       );
 
       if (clientIndex !== -1) {
-        clientState.clients[clientIndex].category = newCategory;
+        crmState.clients[clientIndex].category = newCategory;
         await saveClients();
         renderClientList();
         updated = true;
