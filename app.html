@@ -6792,7 +6792,8 @@ Thanks!
     }
 
     // Move all selected prospects to Prospect Pool (bulk operation)
-    function moveSelectedToPool() {
+    async function moveSelectedToPool() {
+      console.log('🔵 moveSelectedToPool CALLED - Starting');
       const selectedCount = prospectingSelectionState.selectedIds.size;
 
       if (selectedCount === 0) {
@@ -6807,6 +6808,7 @@ Thanks!
 
       const prospectingColumn = 'prospect-list';
       const items = kanbanState.columns[prospectingColumn] || [];
+      console.log(`🔵 moveSelectedToPool - prospect-list has ${items.length} items before removal`);
       const movedProspects = [];
 
       // Collect all selected prospects
@@ -6839,7 +6841,7 @@ Thanks!
             ...lead,
             movedToPoolDate: new Date().toISOString(),
             mailerId: state.current?.Mailer_ID || null,
-            town: state.current?.Town || null,
+            // DON'T overwrite town - keep the original town from the lead
             isEnriched: false // Keep standard search result styling
           };
         } else {
@@ -6848,7 +6850,7 @@ Thanks!
             ...lead,
             movedToPoolDate: new Date().toISOString(),
             mailerId: state.current?.Mailer_ID || null, // Tag with current postcard
-            town: state.current?.Town || null, // Tag with current town
+            // DON'T set town to campaign name - keep the original town from the lead
             isEnriched: false // Keep standard search result styling
           });
         }
@@ -6860,15 +6862,22 @@ Thanks!
       // Clear selections
       prospectingSelectionState.selectedIds.clear();
 
+      console.log(`🔵 moveSelectedToPool - prospect-list has ${kanbanState.columns[prospectingColumn].length} items after removal`);
+      console.log('🔵 moveSelectedToPool - About to save');
+
       saveManualProspects();
-      saveKanban();
+      await saveKanban(); // AWAIT to prevent race condition
+
+      console.log(`🔵 moveSelectedToPool - After saveKanban, prospect-list has ${kanbanState.columns[prospectingColumn]?.length} items`);
+      console.log('🔵 moveSelectedToPool - About to renderKanban');
       renderKanban();
 
       toast(`✅ Moved ${selectedCount} prospect${selectedCount === 1 ? '' : 's'} to Prospect Pool for ${state.current?.Town || 'current campaign'}`, true);
+      console.log('🔵 moveSelectedToPool - COMPLETE');
     }
 
     // Legacy function - kept for backwards compatibility but now uses bulk selection
-    function moveProspectToPool(leadId, event) {
+    async function moveProspectToPool(leadId, event) {
       if (event) {
         event.stopPropagation();
         event.preventDefault();
@@ -6898,16 +6907,16 @@ Thanks!
           ...prospectPoolState.manualProspects[existingIndex],
           ...lead,
           movedToPoolDate: new Date().toISOString(),
-          mailerId: state.current?.Mailer_ID || null,
-          town: state.current?.Town || null
+          mailerId: state.current?.Mailer_ID || null
+          // DON'T overwrite town - keep the original town from the lead
         };
       } else {
         // Add new prospect to pool
         prospectPoolState.manualProspects.push({
           ...lead,
           movedToPoolDate: new Date().toISOString(),
-          mailerId: state.current?.Mailer_ID || null, // Tag with current postcard
-          town: state.current?.Town || null // Tag with current town
+          mailerId: state.current?.Mailer_ID || null // Tag with current postcard
+          // DON'T set town to campaign name - keep the original town from the lead
         });
       }
 
@@ -6918,7 +6927,7 @@ Thanks!
       prospectingSelectionState.selectedIds.delete(leadId);
 
       saveManualProspects();
-      saveKanban();
+      await saveKanban(); // AWAIT to prevent race condition
       renderKanban();
 
       toast(`"${lead.businessName}" moved to Prospect Pool for ${state.current?.Town || 'current campaign'}`, true);
@@ -7233,6 +7242,10 @@ Thanks!
 
       // Merge both manual prospects and search results into unified categories
       const unifiedByCategory = {};
+      // Track placeIds to prevent duplicates between manual prospects and search results
+      const unifiedSeenPlaceIds = new Set();
+      let manualProspectsAdded = 0;
+      let manualProspectsSkipped = 0;
 
       // 1. Add manual prospects (enriched) to unified pool - filter by ZIP and date
       prospectPoolState.manualProspects
@@ -7252,6 +7265,13 @@ Thanks!
           return movedDate >= cutoffDate;
         })
         .forEach(prospect => {
+          // Skip duplicates (prevent same placeId from appearing twice)
+          if (prospect.placeId && unifiedSeenPlaceIds.has(prospect.placeId)) {
+            manualProspectsSkipped++;
+            console.log(`🔵 Skipping duplicate manual prospect: ${prospect.businessName || prospect.name} (placeId: ${prospect.placeId})`);
+            return;
+          }
+
           const category = prospect.category || 'other';
           if (!unifiedByCategory[category]) {
             unifiedByCategory[category] = [];
@@ -7262,21 +7282,44 @@ Thanks!
             isEnriched: prospect.isEnriched === true, // Only true if explicitly set
             type: 'manual'
           });
+
+          // Mark this placeId as seen
+          if (prospect.placeId) {
+            unifiedSeenPlaceIds.add(prospect.placeId);
+          }
+          manualProspectsAdded++;
         });
 
-      // 2. Add search results (raw) to unified pool
+      // 2. Add search results (raw) to unified pool - SKIP duplicates already added from manual
+      let searchProspectsAdded = 0;
+      let searchProspectsSkipped = 0;
+
       Object.keys(categorizedProspects).forEach(category => {
         if (!unifiedByCategory[category]) {
           unifiedByCategory[category] = [];
         }
         categorizedProspects[category].forEach(prospect => {
+          // Skip if this placeId was already added from manual prospects
+          if (prospect.placeId && unifiedSeenPlaceIds.has(prospect.placeId)) {
+            searchProspectsSkipped++;
+            return; // Skip duplicate
+          }
+
           unifiedByCategory[category].push({
             ...prospect,
             isEnriched: false, // From search = no contact info yet
             type: 'search'
           });
+
+          // Mark as seen
+          if (prospect.placeId) {
+            unifiedSeenPlaceIds.add(prospect.placeId);
+          }
+          searchProspectsAdded++;
         });
       });
+
+      console.log(`🔵 Prospect Pool Deduplication: Manual=${manualProspectsAdded} added (${manualProspectsSkipped} duplicates skipped), Search=${searchProspectsAdded} added (${searchProspectsSkipped} duplicates skipped)`);
 
       // Render unified pool header
       container.innerHTML = `
@@ -10081,15 +10124,21 @@ Thanks!
 
     async function saveKanban() {
       try {
+        // Log who called this function
+        const stack = new Error().stack;
+        const caller = stack.split('\n')[2]?.trim() || 'unknown';
+        console.log('🔵 saveKanban CALLED FROM:', caller);
+        console.log('🔵 saveKanban - Before dedup, prospect-list length:', kanbanState.columns['prospect-list']?.length);
         console.log('🔵 saveKanban - Before dedup, to-contact length:', kanbanState.columns['to-contact']?.length);
 
         // Deduplicate before saving
         const removed = deduplicateKanbanData();
+        console.log('🔵 saveKanban - After dedup, prospect-list length:', kanbanState.columns['prospect-list']?.length);
         console.log('🔵 saveKanban - After dedup, to-contact length:', kanbanState.columns['to-contact']?.length, 'Removed:', removed);
 
         // Save to cloud and localStorage
         await saveToCloud('kanban', kanbanState.columns);
-        console.log('🔵 saveKanban - Saved to cloud');
+        console.log('🔵 saveKanban - Saved to cloud, prospect-list length:', kanbanState.columns['prospect-list']?.length);
       } catch(e) {
         console.warn('Kanban saved to localStorage only (cloud sync failed):', e);
       }
@@ -11494,7 +11543,7 @@ Thanks!
       openLeadModal(column, numericLeadId);
     }
 
-    function deleteLead(column, leadId, event) {
+    async function deleteLead(column, leadId, event) {
       // Stop event propagation
       if (event) {
         event.stopPropagation();
@@ -11529,7 +11578,7 @@ Thanks!
         // Clear this prospect from selection if it was selected
         prospectingSelectionState.selectedIds.delete(leadId);
 
-        saveKanban();
+        await saveKanban(); // AWAIT to prevent race condition
         renderKanban();
         toast("Lead deleted successfully");
       }
