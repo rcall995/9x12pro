@@ -5513,23 +5513,11 @@ Thanks!
                     };
                   });
 
-                // Filter to only businesses actually in the searched ZIP code
-                // SMART FILTERING: Use both ZIP and City validation
-                const businesses = allBusinesses.filter(b => {
-                  const matches = validateZipMatch(b.actualZip, b.actualCity, zipCode);
+                // NO FILTERING - keep all businesses found
+                // User can filter by ZIP in the Prospect Pool interface
+                const businesses = allBusinesses;
 
-                  if (!matches) {
-                    console.log(`🔍 Filtering out "${b.name}" - actualZip: ${b.actualZip || 'unknown'}, actualCity: ${b.actualCity || 'unknown'}, searched ZIP: ${zipCode}. Address: "${b.address}"`);
-                  } else if (b.actualZip) {
-                    console.log(`✅ Keeping "${b.name}" - actualZip ${b.actualZip} matches searched ZIP ${zipCode}`);
-                  } else if (b.actualCity) {
-                    console.log(`✅ Keeping "${b.name}" - actualCity "${b.actualCity}" matches ZIP ${zipCode} expected cities`);
-                  } else {
-                    console.log(`✅ Keeping "${b.name}" - ZIP/City unknown (within search radius). Address: "${b.address}"`);
-                  }
-
-                  return matches;
-                });
+                console.log(`✅ Found ${businesses.length} businesses for ${category} in search radius of ${zipCode}`);
 
                 const filteredOutCount = allBusinesses.length - businesses.length;
                 if (filteredOutCount > 0) {
@@ -5617,23 +5605,11 @@ Thanks!
                     };
                   });
 
-                // Filter to only businesses actually in the searched ZIP code
-                // SMART FILTERING: Use both ZIP and City validation
-                const businesses = allBusinesses.filter(b => {
-                  const matches = validateZipMatch(b.actualZip, b.actualCity, zipCode);
+                // NO FILTERING - keep all businesses found
+                // User can filter by ZIP in the Prospect Pool interface
+                const businesses = allBusinesses;
 
-                  if (!matches) {
-                    console.log(`🔍 Filtering out "${b.name}" - actualZip: ${b.actualZip || 'unknown'}, actualCity: ${b.actualCity || 'unknown'}, searched ZIP: ${zipCode}. Address: "${b.address}"`);
-                  } else if (b.actualZip) {
-                    console.log(`✅ Keeping "${b.name}" - actualZip ${b.actualZip} matches searched ZIP ${zipCode}`);
-                  } else if (b.actualCity) {
-                    console.log(`✅ Keeping "${b.name}" - actualCity "${b.actualCity}" matches ZIP ${zipCode} expected cities`);
-                  } else {
-                    console.log(`✅ Keeping "${b.name}" - ZIP/City unknown (within search radius). Address: "${b.address}"`);
-                  }
-
-                  return matches;
-                });
+                console.log(`✅ Found ${businesses.length} businesses for ${category} in search radius of ${zipCode}`);
 
                 const filteredOutCount = allBusinesses.length - businesses.length;
                 if (filteredOutCount > 0) {
