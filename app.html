@@ -7087,9 +7087,11 @@ Thanks!
                     <div class="bg-white border-2 ${hasContact ? 'border-green-400' : 'border-gray-200'} rounded-lg p-3 hover:shadow-md transition cursor-pointer" onclick="openProspectDetailModal(${JSON.stringify(prospect).replace(/"/g, '&quot;')}, 'prospect')">
                       <h5 class="font-semibold text-sm text-gray-900 mb-1">${esc(prospect.businessName)}</h5>
                       ${displayLocation ? `<p class="text-xs text-gray-600 mt-0.5 mb-2">${esc(displayLocation)}</p>` : ''}
+                      ${displayAddress ? `<p class="text-xs text-gray-600 mb-1">📍 ${esc(displayAddress)}</p>` : ''}
+                      ${prospect.phone ? `<p class="text-xs text-gray-600 mb-1">📞 ${esc(prospect.phone)}</p>` : ''}
+                      ${prospect.email ? `<p class="text-xs text-gray-600 mb-1">✉️ ${esc(prospect.email)}</p>` : ''}
                       ${metadata.length > 0 ? `<p class="text-xs text-gray-500 mb-2">${metadata.join(' • ')}</p>` : ''}
                       ${displayRating ? `<div class="flex items-center gap-2 mb-2 text-xs text-gray-500"><span>⭐ ${displayRating}</span></div>` : ''}
-                      ${contactIcons.length > 0 ? `<div class="flex gap-2 text-lg mb-2">${contactIcons.join(' ')}</div>` : ''}
                       ${prospect.followUpDate ? `<div class="text-xs text-purple-600 font-medium mb-2">📅 ${prospect.followUpDate}</div>` : ''}
                       <div class="flex gap-2">
                         <button onclick="event.stopPropagation(); moveProspectFromPool(${prospect.id})" class="flex-1 px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-semibold text-xs">
@@ -7122,6 +7124,18 @@ Thanks!
                 // Show ZIP code instead of full address/town for raw prospects too
                 const rawDisplayLocation = prospect.zipCode ? `📍 ${prospect.zipCode}` : (prospect.town || '');
 
+                // Extract phone and email from notes if available
+                let rawPhone = prospect.phone || '';
+                let rawEmail = prospect.email || '';
+                if (!rawPhone && prospect.notes) {
+                  const phoneMatch = prospect.notes.match(/Phone:\s*([^\n]+)/);
+                  if (phoneMatch) rawPhone = phoneMatch[1];
+                }
+                if (!rawEmail && prospect.notes) {
+                  const emailMatch = prospect.notes.match(/Email:\s*([^\n]+)/);
+                  if (emailMatch) rawEmail = emailMatch[1];
+                }
+
                 // Build metadata line (category only, since ZIP is shown above)
                 const rawMetadata = [];
                 if (prospect.category) {
@@ -7143,6 +7157,9 @@ Thanks!
                       <div class="flex-1 min-w-0 cursor-pointer">
                         <h5 class="font-semibold text-sm text-gray-900 truncate">${esc(displayName)}</h5>
                         ${rawDisplayLocation ? `<p class="text-xs text-gray-600 mt-0.5">${esc(rawDisplayLocation)}</p>` : ''}
+                        ${addressToShow ? `<p class="text-xs text-gray-600 mt-0.5">📍 ${esc(addressToShow)}</p>` : ''}
+                        ${rawPhone ? `<p class="text-xs text-gray-600 mt-0.5">📞 ${esc(rawPhone)}</p>` : ''}
+                        ${rawEmail ? `<p class="text-xs text-gray-600 mt-0.5">✉️ ${esc(rawEmail)}</p>` : ''}
                         ${rawMetadata.length > 0 ? `<p class="text-xs text-gray-500 mt-0.5">${rawMetadata.join(' • ')}</p>` : ''}
                         <div class="flex items-center gap-2 mt-1 text-xs text-gray-500">
                           ${prospect.rating ? `<span>⭐ ${prospect.rating}</span>` : ''}
