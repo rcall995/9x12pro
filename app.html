@@ -8657,6 +8657,11 @@ Thanks!
       saveKanban();
       console.log('🔵 saveKanban complete');
 
+      // Re-render Kanban to show the new client immediately
+      console.log('🔵 Calling renderKanban...');
+      renderKanban();
+      console.log('🔵 renderKanban complete');
+
       // Stay on Client Database - just show success message
       toast(`✅ ${client.businessName} added to Kanban - To Contact`, true);
     }
