@@ -43,10 +43,14 @@ export default async function handler(req, res) {
 
     const data = await response.json();
 
+    // Log the full response for debugging
+    console.log('Outscraper API response:', JSON.stringify(data, null, 2));
+
     // Extract the first result
     const result = data?.data?.[0]?.[0] || null;
 
     if (!result) {
+      console.log('No result found in Outscraper response');
       return res.status(200).json({
         phone: '',
         website: '',
@@ -55,7 +59,8 @@ export default async function handler(req, res) {
         instagram: '',
         enriched: false,
         source: 'outscraper',
-        cost: 1 // 1 credit used
+        cost: 1, // 1 credit used
+        debug: { raw: data } // Include raw data for debugging
       });
     }
 
