@@ -8642,8 +8642,8 @@ Thanks!
       // Save kanban state
       saveKanban();
 
-      // Switch to Sales Activity tab and render kanban
-      switchTab('activity');
+      // Switch to Pipeline tab (where Kanban is) and render
+      switchTab('pipeline');
       setTimeout(() => {
         renderKanban();
         toast(`✅ ${client.businessName} moved to Kanban - To Contact`, true);
