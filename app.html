@@ -6111,10 +6111,15 @@ Thanks!
         }
 
         if (allBusinesses.length === 0) {
-          toast(`Searched ${selectedCategories.length} categories. No businesses found in this area.`, false);
+          toast(`Searched ${selectedCategories.length} categories. No new businesses found in this area.`, false);
           btn.disabled = false;
           btn.innerHTML = originalText;
           updateQuickApiUsage();
+
+          // Still switch to Prospect Pool to show existing cached searches
+          setTimeout(() => {
+            switchTab('prospects');
+          }, 1500);
           return;
         }
 
