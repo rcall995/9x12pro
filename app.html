@@ -6836,22 +6836,12 @@ Thanks!
       let processedCaches = 0;
 
       Object.keys(placesCache.searches).forEach(cacheKey => {
-        const [zipCode, category] = cacheKey.split('-');
+        const [searchedZipCode, category] = cacheKey.split('-');
         const cached = placesCache.searches[cacheKey];
 
         // console.log(`🔍 DEBUG: Processing cache key: ${cacheKey}, has data: ${cached.cachedData ? cached.cachedData.length : 0}, lastFetched: ${cached.lastFetched}`);
 
         if (!cached.cachedData || cached.cachedData.length === 0) return;
-
-        // Track available ZIP codes
-        availableZips.add(zipCode);
-
-        // Filter by selected ZIP codes
-        if (filterByZip && !selectedZips.includes(zipCode)) {
-          skippedByZip++;
-          // console.log(`🔍 DEBUG: Skipping ${cacheKey} - ZIP filter (${zipCode} not in selected)`);
-          return; // Skip searches from unselected ZIP codes
-        }
 
         // NOTE: Don't check cache expiration - user should always see their prospect data
         // even if it's older than 30 days. They worked hard to build this list!
@@ -6878,9 +6868,23 @@ Thanks!
 
           if (!notInterestedState.placeIds.has(business.placeId)) {
             const isInSystem = existingPlaceIds.has(business.placeId);
+
+            // Use actualZip if available, fallback to searchedZipCode
+            const businessZip = business.actualZip || searchedZipCode;
+
+            // Track this ZIP as available for filtering
+            availableZips.add(businessZip);
+
+            // Filter by selected ZIP codes (use actualZip, not searched ZIP)
+            if (filterByZip && !selectedZips.includes(businessZip)) {
+              skippedByZip++;
+              return; // Skip if this business's actual ZIP doesn't match filter
+            }
+
             categorizedProspects[category].push({
               ...business,
-              zipCode,
+              zipCode: searchedZipCode, // Keep track of which search found this
+              actualZip: business.actualZip, // Preserve the actual ZIP
               inSystem: isInSystem
             });
             seenPlaceIds.add(business.placeId); // Mark as seen
@@ -6970,8 +6974,9 @@ Thanks!
       // 1. Add manual prospects (enriched) to unified pool - filter by ZIP and date
       prospectPoolState.manualProspects
         .filter(prospect => {
-          // Filter by selected ZIP codes
-          if (filterByZip && prospect.zipCode && !selectedZips.includes(prospect.zipCode)) {
+          // Filter by selected ZIP codes (use actualZip if available, fallback to zipCode)
+          const prospectZip = prospect.actualZip || prospect.zipCode;
+          if (filterByZip && prospectZip && !selectedZips.includes(prospectZip)) {
             return false; // Skip if ZIP doesn't match filter
           }
           return true;
