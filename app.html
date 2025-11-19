@@ -8668,6 +8668,40 @@ Thanks!
       }, 100);
     }
 
+    // Complete and Remove Client from Kanban
+    function completeAndRemoveFromKanban(leadId, columnName) {
+      // Find the prospect in the specified column
+      const prospect = (kanbanState.columns[columnName] || []).find(item => {
+        return typeof item === 'object' && item.id === leadId;
+      });
+
+      if (!prospect) {
+        toast('Prospect not found in Kanban', false);
+        return;
+      }
+
+      const businessName = prospect.businessName || prospect.name || 'this business';
+
+      // Confirm removal
+      if (!confirm(`Mark "${businessName}" as complete and remove from Kanban?\n\nThe client will remain in your Client Database.`)) {
+        return;
+      }
+
+      // Remove from kanban column
+      const columnIndex = kanbanState.columns[columnName].findIndex(item =>
+        typeof item === 'object' && item.id === leadId
+      );
+
+      if (columnIndex > -1) {
+        kanbanState.columns[columnName].splice(columnIndex, 1);
+        saveKanban();
+        renderKanban();
+        toast(`✅ ${businessName} marked complete and removed from Kanban`, true);
+      } else {
+        toast('Failed to remove from Kanban', false);
+      }
+    }
+
     // Convert Prospect to Client Function
     function convertProspectToClient(leadId, columnName) {
       // Find the prospect in the specified column
@@ -9898,8 +9932,8 @@ Thanks!
                             c.businessName.toLowerCase() === businessName.toLowerCase()
                           );
                           if (isClient) {
-                            return `<button class="flex-1 px-3 py-1.5 bg-gray-400 text-white text-xs rounded cursor-default font-medium" disabled>
-                              ✓ Current Client
+                            return `<button onclick="completeAndRemoveFromKanban(${leadId}, 'to-contact'); event.stopPropagation();" class="flex-1 px-3 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 font-medium" title="Mark complete and remove from Kanban (keeps in Client Database)">
+                              ✅ Complete
                             </button>`;
                           } else {
                             return `<button onclick="convertProspectToClient(${leadId}, 'to-contact'); event.stopPropagation();" class="flex-1 px-3 py-1.5 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 font-medium" title="Add to Client Database">
