@@ -5439,7 +5439,23 @@ Thanks!
                 const allBusinesses = (results || [])
                   .filter(place => place.business_status === 'OPERATIONAL') // Only active businesses
                   .map(place => {
-                    const address = place.vicinity || place.formatted_address || '';
+                    // Prefer formatted_address (has ZIP) over vicinity (often missing ZIP)
+                    const address = place.formatted_address || place.vicinity || '';
+
+                    // Extract ZIP from address_components (more reliable than parsing address string)
+                    let actualZip = null;
+                    if (place.address_components) {
+                      const zipComponent = place.address_components.find(comp =>
+                        comp.types.includes('postal_code')
+                      );
+                      actualZip = zipComponent ? zipComponent.short_name : null;
+                    }
+
+                    // Fallback to extracting from address string if address_components not available
+                    if (!actualZip) {
+                      actualZip = extractZipFromAddress(address);
+                    }
+
                     return {
                       placeId: place.place_id,
                       name: place.name,
@@ -5449,7 +5465,7 @@ Thanks!
                       types: place.types || [],
                       category: category, // Track which category this came from
                       zipCode: zipCode, // Track which ZIP code was used for the search
-                      actualZip: extractZipFromAddress(address) // Extract actual ZIP from address
+                      actualZip: actualZip // Extract actual ZIP from address_components or address string
                     };
                   });
 
@@ -5507,7 +5523,23 @@ Thanks!
                 const allBusinesses = (results || [])
                   .filter(place => place.business_status === 'OPERATIONAL') // Only active businesses
                   .map(place => {
-                    const address = place.vicinity || place.formatted_address || '';
+                    // Prefer formatted_address (has ZIP) over vicinity (often missing ZIP)
+                    const address = place.formatted_address || place.vicinity || '';
+
+                    // Extract ZIP from address_components (more reliable than parsing address string)
+                    let actualZip = null;
+                    if (place.address_components) {
+                      const zipComponent = place.address_components.find(comp =>
+                        comp.types.includes('postal_code')
+                      );
+                      actualZip = zipComponent ? zipComponent.short_name : null;
+                    }
+
+                    // Fallback to extracting from address string if address_components not available
+                    if (!actualZip) {
+                      actualZip = extractZipFromAddress(address);
+                    }
+
                     return {
                       placeId: place.place_id,
                       name: place.name,
@@ -5517,7 +5549,7 @@ Thanks!
                       types: place.types || [],
                       category: category, // Track which category this came from
                       zipCode: zipCode, // Track which ZIP code was used for the search
-                      actualZip: extractZipFromAddress(address) // Extract actual ZIP from address
+                      actualZip: actualZip // Extract actual ZIP from address_components or address string
                     };
                   });
 
