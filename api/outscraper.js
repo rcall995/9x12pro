@@ -20,11 +20,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Call Outscraper Google Maps Scraper API
+    // Call Outscraper Google Maps Scraper API with Emails & Contacts enrichment
     // Docs: https://app.outscraper.com/api-docs#tag/Google-Maps/paths/~1maps~1search-v3/get
-    const url = `https://api.app.outscraper.com/maps/search-v3?query=${encodeURIComponent(query)}&limit=${limit}&language=en&region=us&fields=name,full_address,phone,site,emails,facebook_url,instagram_url`;
+    // Enable domains_service to get emails, social media from websites
+    const url = `https://api.app.outscraper.com/maps/search-v3?query=${encodeURIComponent(query)}&limit=${limit}&language=en&region=us&fields=name,full_address,phone,site,emails,facebook_url,instagram_url&enrichments=domains_service`;
 
-    console.log('🔍 Calling Outscraper API:', url);
+    console.log('🔍 Calling Outscraper API with enrichment:', url);
     console.log('🔑 API Key length:', OUTSCRAPER_API_KEY?.length);
 
     const response = await fetch(url, {
