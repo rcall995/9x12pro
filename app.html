@@ -339,14 +339,16 @@
         border: 1px dashed #4f46e5;
     }
     .kanban-item {
-      cursor: grab !important;
       transition: opacity 0.2s, transform 0.2s;
       user-select: none;
       -webkit-user-select: none;
       -moz-user-select: none;
       -ms-user-select: none;
     }
-    .kanban-item:active {
+    .kanban-item .drag-handle {
+      cursor: grab !important;
+    }
+    .kanban-item .drag-handle:active {
       cursor: grabbing !important;
     }
     .kanban-item.dragging {
@@ -354,6 +356,9 @@
       cursor: grabbing !important;
       border: 2px dashed #4f46e5 !important;
       background-color: #f0f0f0 !important;
+    }
+    .kanban-item.dragging .drag-handle {
+      cursor: grabbing !important;
     }
     .kanban-item.drag-over {
       border-top: 3px solid #4f46e5 !important;
@@ -10357,7 +10362,7 @@ Thanks!
                           class="mt-1 w-4 h-4 text-purple-600 rounded cursor-pointer flex-shrink-0"
                         />
                       `}
-                      <div class="flex-1">
+                      <div class="flex-1 drag-handle">
                         <div class="font-medium text-xs break-words">${esc(leadName)}</div>
                         ${item.zipCode ? `<div class="text-xs text-gray-500 font-medium mt-0.5">📍 ${esc(item.zipCode)}</div>` : ''}
                       </div>
@@ -10391,8 +10396,10 @@ Thanks!
                         onclick="event.stopPropagation()"
                         class="mt-0.5 w-4 h-4 text-blue-600 rounded cursor-pointer flex-shrink-0"
                       />
-                    ` : ''}
-                    <div class="flex-1">
+                    ` : `
+                      <div class="drag-handle text-gray-400 hover:text-gray-600 cursor-grab flex-shrink-0 px-1" title="Drag to move">⋮⋮</div>
+                    `}
+                    <div class="flex-1 drag-handle">
                       <div class="font-medium">${esc(leadName)}</div>
                       ${typeof item === 'object' && item.zipCode ? `<div class="text-xs text-gray-500 font-medium mt-0.5">📍 ${esc(item.zipCode)}</div>` : ''}
                     </div>
@@ -10504,19 +10511,33 @@ Thanks!
         item.setAttribute('draggable', 'true');
 
         item.ondragstart = function(e) {
-          // Prevent drag if click started on or near interactive elements
+          // ALWAYS allow drag if started from drag handle
           let element = e.target;
+          let isDragHandle = false;
+
           while (element && element !== this) {
-            if (element.tagName === 'INPUT' ||
-                element.tagName === 'BUTTON' ||
-                element.tagName === 'A' ||
-                element.tagName === 'SELECT' ||
-                element.tagName === 'TEXTAREA') {
-              e.preventDefault();
-              e.stopPropagation();
-              return false;
+            if (element.classList && element.classList.contains('drag-handle')) {
+              isDragHandle = true;
+              break;
             }
             element = element.parentElement;
+          }
+
+          // If not from drag handle, prevent drag if click started on interactive elements
+          if (!isDragHandle) {
+            element = e.target;
+            while (element && element !== this) {
+              if (element.tagName === 'INPUT' ||
+                  element.tagName === 'BUTTON' ||
+                  element.tagName === 'A' ||
+                  element.tagName === 'SELECT' ||
+                  element.tagName === 'TEXTAREA') {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+              }
+              element = element.parentElement;
+            }
           }
 
           draggedItem = this;
