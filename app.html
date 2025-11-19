@@ -2628,7 +2628,9 @@
           </div>
           <div>
             <div class="text-xs text-gray-500 font-medium">Category</div>
-            <div id="detailCategory" class="text-base text-gray-900 mt-1">—</div>
+            <select id="detailCategory" onchange="updateProspectCategory(this.value)" class="text-sm text-gray-900 mt-1 border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white cursor-pointer">
+              <option value="">— Select Category —</option>
+            </select>
           </div>
           <div>
             <div class="text-xs text-gray-500 font-medium">ZIP Code</div>
@@ -8338,7 +8340,20 @@ Thanks!
 
       // Populate business info
       document.getElementById('detailBusinessName').textContent = businessName;
-      document.getElementById('detailCategory').textContent = prospectData.category || '—';
+
+      // Populate category dropdown
+      const categorySelect = document.getElementById('detailCategory');
+      categorySelect.innerHTML = '<option value="">— Select Category —</option>';
+      businessCategories.forEach(cat => {
+        const option = document.createElement('option');
+        option.value = cat.value;
+        option.textContent = cat.label;
+        if (cat.value === prospectData.category) {
+          option.selected = true;
+        }
+        categorySelect.appendChild(option);
+      });
+
       document.getElementById('detailZipCode').textContent = prospectData.zipCode || prospectData.town || '—';
 
       if (prospectData.rating) {
@@ -8387,6 +8402,117 @@ Thanks!
       // Show modal
       modal.style.display = 'flex';
       modal.setAttribute('aria-hidden', 'false');
+    }
+
+    // Update prospect category when changed in detail modal
+    async function updateProspectCategory(newCategory) {
+      if (!currentProspectDetail) return;
+
+      const prospectId = currentProspectDetail.id;
+      const placeId = currentProspectDetail.placeId;
+      const businessName = currentProspectDetail.businessName || currentProspectDetail.name;
+      const source = currentProspectDetail.source;
+
+      console.log('📝 Updating category for:', businessName, 'to:', newCategory, 'source:', source);
+
+      // Update in currentProspectDetail
+      currentProspectDetail.category = newCategory;
+
+      let updated = false;
+
+      // Update in kanban (all columns)
+      if (source === 'kanban') {
+        Object.keys(kanbanState.columns).forEach(columnKey => {
+          const items = kanbanState.columns[columnKey];
+          const index = items.findIndex(item =>
+            typeof item === 'object' && (
+              item.id === prospectId ||
+              (placeId && item.placeId === placeId) ||
+              (item.businessName && item.businessName === businessName)
+            )
+          );
+          if (index !== -1) {
+            kanbanState.columns[columnKey][index].category = newCategory;
+            updated = true;
+            console.log('✅ Updated category in kanban column:', columnKey);
+          }
+        });
+
+        if (updated) {
+          await saveKanban();
+          renderKanban();
+        }
+      }
+
+      // Update in prospect pool (manual prospects)
+      const manualIndex = prospectPoolState.manualProspects.findIndex(p =>
+        p.id === prospectId ||
+        (placeId && p.placeId === placeId) ||
+        (p.businessName && p.businessName === businessName)
+      );
+
+      if (manualIndex !== -1) {
+        prospectPoolState.manualProspects[manualIndex].category = newCategory;
+        saveManualProspects();
+        updated = true;
+        console.log('✅ Updated category in manual prospects');
+      }
+
+      // Update in places cache (search results)
+      if (placeId) {
+        let foundInCache = false;
+        Object.keys(placesCache.searches).forEach(searchKey => {
+          const search = placesCache.searches[searchKey];
+          if (search && search.results) {
+            Object.keys(search.results).forEach(category => {
+              const categoryResults = search.results[category];
+              if (Array.isArray(categoryResults)) {
+                const index = categoryResults.findIndex(p => p.placeId === placeId);
+                if (index !== -1) {
+                  categoryResults[index].category = newCategory;
+                  foundInCache = true;
+                }
+              }
+            });
+          }
+        });
+
+        if (foundInCache) {
+          savePlacesCache();
+          updated = true;
+          console.log('✅ Updated category in places cache');
+        }
+      }
+
+      // Update in clients
+      const clientIndex = clientState.clients.findIndex(c =>
+        c.id === prospectId ||
+        (placeId && c.placeId === placeId) ||
+        (c.businessName && c.businessName === businessName)
+      );
+
+      if (clientIndex !== -1) {
+        clientState.clients[clientIndex].category = newCategory;
+        await saveClients();
+        renderClientList();
+        updated = true;
+        console.log('✅ Updated category in clients');
+      }
+
+      if (updated) {
+        // Re-render prospect pool to show updated category
+        if (source === 'prospect') {
+          renderProspectPool();
+        }
+
+        // Get category label for display
+        const categoryObj = businessCategories.find(c => c.value === newCategory);
+        const categoryLabel = categoryObj ? categoryObj.label : newCategory;
+
+        toast(`✅ Category updated to "${categoryLabel}"`, true);
+      } else {
+        console.warn('⚠️ Could not find prospect to update category');
+      }
     }
 
     function populateQuickSendTemplates() {
