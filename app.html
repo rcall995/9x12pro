@@ -645,14 +645,26 @@
             </div>
 
             <div class="sticky bottom-4 mt-6 p-4 bg-white border-2 border-indigo-200 rounded-lg shadow-xl">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <span id="prospectPoolSelectedCount" class="text-2xl font-bold text-indigo-600">0</span>
-                        <span class="text-gray-600 ml-2">businesses selected</span>
+                <div class="flex flex-col gap-3">
+                    <!-- Enrichment Options -->
+                    <div class="flex items-center gap-4 p-3 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg border border-purple-200">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="enableOutscraper" class="w-4 h-4 text-purple-600 rounded focus:ring-purple-500">
+                            <span class="text-sm font-medium text-gray-700">🚀 Enrich with emails & social media</span>
+                        </label>
+                        <span class="text-xs text-purple-600 bg-purple-100 px-2 py-1 rounded-full">~$0.05/prospect</span>
                     </div>
-                    <button id="btnAddFromPool" onclick="addFromProspectPool()" class="px-8 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                        Add Selected to Pipeline
-                    </button>
+
+                    <!-- Selection Count & Add Button -->
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <span id="prospectPoolSelectedCount" class="text-2xl font-bold text-indigo-600">0</span>
+                            <span class="text-gray-600 ml-2">businesses selected</span>
+                        </div>
+                        <button id="btnAddFromPool" onclick="addFromProspectPool()" class="px-8 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                            Add Selected to Pipeline
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -5763,18 +5775,57 @@ Thanks!
 
     // Fetch enriched business details from Outscraper (phone, email, social media)
     // Uses Vercel serverless function as proxy to avoid CORS issues
-    // Removed Outscraper - use CSV import workflow for Facebook/Instagram enrichment
     async function fetchOutscraperDetails(businessName, address, placeId) {
-      // Return empty social media fields - user will enrich via CSV import
-      return {
-        phone: '',
-        website: '',
-        email: '',
-        facebook: '',
-        instagram: '',
-        enriched: false,
-        source: 'google-places'
-      };
+      try {
+        // Build search query - use full address for best match
+        const query = `${businessName} ${address}`;
+
+        console.log('🔍 Outscraper enrichment for:', businessName);
+
+        // Call our Vercel serverless function
+        const response = await fetch('/api/outscraper', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            query: query,
+            limit: 1
+          })
+        });
+
+        if (!response.ok) {
+          console.warn('Outscraper API failed:', await response.text());
+          return {
+            phone: '',
+            website: '',
+            email: '',
+            facebook: '',
+            instagram: '',
+            enriched: false,
+            source: 'outscraper',
+            cost: 0
+          };
+        }
+
+        const data = await response.json();
+        console.log('✅ Outscraper data:', data);
+
+        return data;
+
+      } catch(err) {
+        console.error('Error fetching Outscraper details:', err);
+        return {
+          phone: '',
+          website: '',
+          email: '',
+          facebook: '',
+          instagram: '',
+          enriched: false,
+          source: 'outscraper',
+          cost: 0
+        };
+      }
     }
 
     async function runAutoPopulate() {
@@ -7533,8 +7584,40 @@ Thanks!
 
             let details = { phone: '', website: '', email: '', facebook: '', instagram: '', source: 'google-places' };
 
-            if (business.placeId) {
+            // Check if user wants Outscraper enrichment
+            const enableOutscraper = document.getElementById('enableOutscraper')?.checked;
+
+            if (enableOutscraper && business.name && business.address) {
+              // Use Outscraper for enriched data (emails, social media)
+              btn.textContent = `🚀 Enriching with emails & social... (${i + 1}/${selectedBusinesses.length})`;
+              const outscraperData = await fetchOutscraperDetails(business.name, business.address, business.placeId);
+
+              // Merge Outscraper data with Google Places data
+              details = {
+                phone: outscraperData.phone || details.phone,
+                website: outscraperData.website || details.website,
+                email: outscraperData.email || '',
+                facebook: outscraperData.facebook || '',
+                instagram: outscraperData.instagram || '',
+                source: outscraperData.enriched ? 'outscraper' : 'google-places',
+                enriched: outscraperData.enriched,
+                cost: outscraperData.cost
+              };
+            } else if (business.placeId) {
+              // Use free Google Places details only
               details = await fetchPlaceDetails(business.placeId);
+            }
+
+            // Build notes based on enrichment source
+            let notes = `Found via ${details.source === 'outscraper' ? 'Outscraper (enriched)' : 'Google Places'}\nAddress: ${business.address}\nRating: ${business.rating} (${business.userRatingsTotal} reviews)\n`;
+            if (details.phone) notes += `Phone: ${details.phone}\n`;
+            if (details.website) notes += `Website: ${details.website}\n`;
+            if (details.email) notes += `📧 Email: ${details.email}\n`;
+            if (details.facebook) notes += `📘 Facebook: ${details.facebook}\n`;
+            if (details.instagram) notes += `📷 Instagram: ${details.instagram}\n`;
+            notes += `Place ID: ${business.placeId}`;
+            if (details.source === 'outscraper' && details.enriched) {
+              notes += `\n\n✅ Enriched with Outscraper`;
             }
 
             newLead = {
@@ -7544,12 +7627,12 @@ Thanks!
               phone: details.phone || '',
               email: details.email || '',
               estimatedValue: 500,
-              notes: `Found via Google Places\nAddress: ${business.address}\nRating: ${business.rating} (${business.userRatingsTotal} reviews)\n${details.phone ? `Phone: ${details.phone}\n` : ''}${details.website ? `Website: ${details.website}\n` : ''}Place ID: ${business.placeId}\n\n💡 Use CSV export/import to add Facebook/Instagram URLs`,
-              source: 'google-places',
+              notes: notes,
+              source: details.source || 'google-places',
               placeId: business.placeId,
               website: details.website || '',
-              facebook: '',
-              instagram: '',
+              facebook: details.facebook || '',
+              instagram: details.instagram || '',
               category: business.category || 'other',
               zipCode: business.zipCode || null,
               mailerId: currentMailerId,
