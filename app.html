@@ -7020,6 +7020,7 @@ Thanks!
     var prospectPoolSearchTerm = '';
 
     function renderProspectPool() {
+      console.log('🔵 DEBUG: renderProspectPool ENTRY - prospect-list length:', kanbanState.columns['prospect-list']?.length);
       // Save current search value if it exists
       const searchInput = document.getElementById('prospectPoolSearch');
       if (searchInput) {
@@ -7465,6 +7466,7 @@ Thanks!
           filterProspectPool(prospectPoolSearchTerm);
         }, 0);
       }
+      console.log('🔵 DEBUG: renderProspectPool EXIT - prospect-list length:', kanbanState.columns['prospect-list']?.length);
     }
 
     function togglePoolProspect(placeId) {
@@ -7738,14 +7740,19 @@ Thanks!
         }
 
         console.log('🔵 Saving kanban...');
-        saveKanban();
+        console.log('🔵 DEBUG: Before saveKanban, prospect-list length:', kanbanState.columns['prospect-list']?.length);
+        await saveKanban(); // AWAIT to prevent race condition
+        console.log('🔵 DEBUG: After saveKanban, prospect-list length:', kanbanState.columns['prospect-list']?.length);
         console.log('🔵 Rendering kanban...');
         renderKanban();
+        console.log('🔵 DEBUG: After renderKanban, prospect-list length:', kanbanState.columns['prospect-list']?.length);
 
         // Clear selections and re-render pool
         console.log('🔵 Clearing selections and re-rendering pool...');
         prospectPoolState.selectedIds.clear();
+        console.log('🔵 DEBUG: Before renderProspectPool, prospect-list length:', kanbanState.columns['prospect-list']?.length);
         renderProspectPool();
+        console.log('🔵 DEBUG: After renderProspectPool, prospect-list length:', kanbanState.columns['prospect-list']?.length);
 
         // Show success message
         let message = `✅ Added ${addedCount} prospect${addedCount === 1 ? '' : 's'} to Pipeline!`;
@@ -7756,7 +7763,9 @@ Thanks!
         toast(message, true);
 
         // Switch to pipeline tab
+        console.log('🔵 DEBUG: Before switchTab, prospect-list length:', kanbanState.columns['prospect-list']?.length);
         switchTab('pipeline');
+        console.log('🔵 DEBUG: After switchTab, prospect-list length:', kanbanState.columns['prospect-list']?.length);
       } catch(err) {
         console.error('Error adding from pool:', err);
         toast('Failed to add prospects. Please try again.', false);
@@ -10006,11 +10015,13 @@ Thanks!
     // Remove all duplicate prospects from kanban data (not just rendering)
     function deduplicateKanbanData() {
       let totalRemoved = 0;
+      console.log('🧹 DEBUG: deduplicateKanbanData ENTRY - prospect-list length:', kanbanState.columns['prospect-list']?.length);
 
       Object.keys(kanbanState.columns).forEach(columnKey => {
         const items = kanbanState.columns[columnKey];
         if (!Array.isArray(items)) return;
 
+        console.log(`🧹 DEBUG: Deduping column ${columnKey} with ${items.length} items`);
         const seenIds = new Set(); // Track by unique ID first
         const seenPlaceIds = new Set();
         const seenBusinessNames = new Map(); // Map to track businessName+mailerId combos
@@ -10056,12 +10067,14 @@ Thanks!
           deduped.push(item);
         });
 
+        console.log(`🧹 DEBUG: Column ${columnKey} - Before: ${items.length}, After: ${deduped.length}, Removed: ${items.length - deduped.length}`);
         kanbanState.columns[columnKey] = deduped;
       });
 
       if (totalRemoved > 0) {
         console.log(`🧹 Removed ${totalRemoved} duplicate prospect(s) from kanban data`);
       }
+      console.log('🧹 DEBUG: deduplicateKanbanData EXIT - prospect-list length:', kanbanState.columns['prospect-list']?.length);
 
       return totalRemoved;
     }
