@@ -51,7 +51,64 @@ export default async function handler(req, res) {
     // Log the full response for debugging
     console.log('Outscraper API response:', JSON.stringify(data, null, 2));
 
-    // Extract the first result
+    // Handle async response - Outscraper returns a task ID first
+    if (data.status === 'Pending' && data.results_location) {
+      console.log('⏳ Task is pending, polling for results:', data.results_location);
+
+      // Poll for results (max 3 attempts with 2 second delay)
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+
+        const resultResponse = await fetch(data.results_location, {
+          method: 'GET',
+          headers: {
+            'X-API-KEY': OUTSCRAPER_API_KEY,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (resultResponse.ok) {
+          const resultData = await resultResponse.json();
+          console.log('📥 Poll attempt', attempt + 1, ':', JSON.stringify(resultData, null, 2));
+
+          if (resultData.status === 'Success' && resultData.data) {
+            // Extract the first result from successful response
+            const result = resultData.data?.[0]?.[0] || null;
+
+            if (result) {
+              const enrichedData = {
+                phone: result.phone || '',
+                website: result.site || '',
+                email: result.emails?.[0] || '',
+                facebook: result.facebook_url || '',
+                instagram: result.instagram_url || '',
+                enriched: !!(result.phone || result.site || result.emails || result.facebook_url || result.instagram_url),
+                source: 'outscraper',
+                cost: 1
+              };
+
+              console.log('✅ Enriched data:', enrichedData);
+              return res.status(200).json(enrichedData);
+            }
+          }
+        }
+      }
+
+      console.log('⏱️ Timeout waiting for results');
+      return res.status(200).json({
+        phone: '',
+        website: '',
+        email: '',
+        facebook: '',
+        instagram: '',
+        enriched: false,
+        source: 'outscraper',
+        cost: 1,
+        debug: { error: 'Timeout waiting for results' }
+      });
+    }
+
+    // Handle direct response (if not async)
     const result = data?.data?.[0]?.[0] || null;
 
     if (!result) {
