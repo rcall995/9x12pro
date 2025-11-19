@@ -5522,16 +5522,25 @@ Thanks!
                     };
                   });
 
-                // NO FILTERING - keep all businesses found
-                // User can filter by ZIP in the Prospect Pool interface
-                const businesses = allBusinesses;
+                // STRICT ZIP FILTERING - only keep businesses with confirmed matching ZIP
+                const businesses = allBusinesses.filter(b => {
+                  // Must have actualZip AND it must match searched ZIP
+                  if (b.actualZip && b.actualZip === zipCode) {
+                    console.log(`✅ Keeping "${b.name}" - ZIP ${b.actualZip} matches`);
+                    return true;
+                  }
 
-                console.log(`✅ Found ${businesses.length} businesses for ${category} in search radius of ${zipCode}`);
+                  // Filter out everything else
+                  if (b.actualZip) {
+                    console.log(`❌ Filtering "${b.name}" - ZIP ${b.actualZip} doesn't match ${zipCode}`);
+                  } else {
+                    console.log(`❌ Filtering "${b.name}" - no ZIP detected in "${b.address}"`);
+                  }
+                  return false;
+                });
 
                 const filteredOutCount = allBusinesses.length - businesses.length;
-                if (filteredOutCount > 0) {
-                  console.log(`🔍 Filtered out ${filteredOutCount} business(es) with confirmed different ZIP codes (searched: ${zipCode})`);
-                }
+                console.log(`✅ Found ${businesses.length} matching businesses for ${category} in ZIP ${zipCode} (filtered out ${filteredOutCount} from other ZIPs)`);
 
                 // Cache results for 30 days
                 const cacheExpiry = new Date();
@@ -5614,16 +5623,25 @@ Thanks!
                     };
                   });
 
-                // NO FILTERING - keep all businesses found
-                // User can filter by ZIP in the Prospect Pool interface
-                const businesses = allBusinesses;
+                // STRICT ZIP FILTERING - only keep businesses with confirmed matching ZIP
+                const businesses = allBusinesses.filter(b => {
+                  // Must have actualZip AND it must match searched ZIP
+                  if (b.actualZip && b.actualZip === zipCode) {
+                    console.log(`✅ Keeping "${b.name}" - ZIP ${b.actualZip} matches`);
+                    return true;
+                  }
 
-                console.log(`✅ Found ${businesses.length} businesses for ${category} in search radius of ${zipCode}`);
+                  // Filter out everything else
+                  if (b.actualZip) {
+                    console.log(`❌ Filtering "${b.name}" - ZIP ${b.actualZip} doesn't match ${zipCode}`);
+                  } else {
+                    console.log(`❌ Filtering "${b.name}" - no ZIP detected in "${b.address}"`);
+                  }
+                  return false;
+                });
 
                 const filteredOutCount = allBusinesses.length - businesses.length;
-                if (filteredOutCount > 0) {
-                  console.log(`🔍 Filtered out ${filteredOutCount} business(es) with confirmed different ZIP codes (searched: ${zipCode})`);
-                }
+                console.log(`✅ Found ${businesses.length} matching businesses for ${category} in ZIP ${zipCode} (filtered out ${filteredOutCount} from other ZIPs)`);
 
                 // Cache results for 30 days
                 const cacheExpiry = new Date();
