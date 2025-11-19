@@ -24,6 +24,9 @@ export default async function handler(req, res) {
     // Docs: https://app.outscraper.com/api-docs#tag/Google-Maps/paths/~1maps~1search-v3/get
     const url = `https://api.app.outscraper.com/maps/search-v3?query=${encodeURIComponent(query)}&limit=${limit}&language=en&region=us&fields=name,full_address,phone,site,emails,facebook_url,instagram_url`;
 
+    console.log('🔍 Calling Outscraper API:', url);
+    console.log('🔑 API Key length:', OUTSCRAPER_API_KEY?.length);
+
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -31,6 +34,8 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json'
       }
     });
+
+    console.log('📡 Outscraper response status:', response.status, response.statusText);
 
     if (!response.ok) {
       const errorText = await response.text();
