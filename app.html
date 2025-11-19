@@ -7573,13 +7573,15 @@ Thanks!
       try {
         // Collect all selected businesses from both sources
         const selectedBusinesses = [];
+        const seenPlaceIds = new Set(); // Prevent duplicates
         console.log('🔵 Collecting selected businesses...');
 
         // From Google Places searches
         Object.values(placesCache.searches).forEach(cached => {
           cached.cachedData?.forEach(business => {
-            if (prospectPoolState.selectedIds.has(business.placeId)) {
+            if (prospectPoolState.selectedIds.has(business.placeId) && !seenPlaceIds.has(business.placeId)) {
               selectedBusinesses.push(business);
+              seenPlaceIds.add(business.placeId);
             }
           });
         });
@@ -7587,13 +7589,14 @@ Thanks!
         // From manually added prospects
         prospectPoolState.manualProspects?.forEach(business => {
           const businessId = business.id || business.placeId;
-          if (prospectPoolState.selectedIds.has(businessId)) {
+          if (prospectPoolState.selectedIds.has(businessId) && !seenPlaceIds.has(businessId)) {
             selectedBusinesses.push(business);
+            seenPlaceIds.add(businessId);
             console.log('🔵 Found selected manual business:', business.businessName, 'ID:', businessId);
           }
         });
 
-        console.log('🔵 Total selected businesses:', selectedBusinesses.length);
+        console.log('🔵 Total selected businesses:', selectedBusinesses.length, '(deduplicated)');
 
         // Fetch details and add to kanban
         const prospectingColumn = 'prospect-list';
