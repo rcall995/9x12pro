@@ -10540,6 +10540,7 @@ Thanks!
             }
           }
 
+          console.log('🟢 DRAG START - Item ID:', this.dataset.itemId, 'From column:', this.dataset.column);
           draggedItem = this;
           this.classList.add('dragging');
           e.dataTransfer.effectAllowed = 'move';
@@ -10585,6 +10586,8 @@ Thanks!
           e.preventDefault();
           e.stopPropagation(); // Prevent column ondrop from also firing
 
+          console.log('🔵 DROP on item - draggedItem exists:', !!draggedItem);
+
           // Clean up all visual indicators immediately
           document.querySelectorAll('.kanban-item.drag-over').forEach(el => {
             el.classList.remove('drag-over');
@@ -10594,6 +10597,7 @@ Thanks!
           });
 
           if (!draggedItem || draggedItem === this) {
+            console.log('⚠️ DROP ABORTED - draggedItem is null or same item');
             return;
           }
 
@@ -10602,7 +10606,7 @@ Thanks!
           const itemId = parseFloat(draggedItem.dataset.itemId);
           const targetItemId = parseFloat(this.dataset.itemId);
 
-          console.log(`Dropping item ${itemId} before item ${targetItemId} in column ${toColumn}`);
+          console.log(`🟣 DROPPING item ${itemId} before item ${targetItemId} in column ${toColumn} (from ${fromColumn})`);
 
           // Find and remove from old column
           const fromItems = kanbanState.columns[fromColumn] || [];
@@ -10688,6 +10692,8 @@ Thanks!
         col.ondrop = async function(e) {
           e.preventDefault();
 
+          console.log('🟠 DROP on column - draggedItem exists:', !!draggedItem);
+
           // Clean up all visual indicators immediately
           document.querySelectorAll('.kanban-item.drag-over').forEach(el => {
             el.classList.remove('drag-over');
@@ -10697,6 +10703,7 @@ Thanks!
           });
 
           if (!draggedItem) {
+            console.log('⚠️ COLUMN DROP ABORTED - draggedItem is null');
             return;
           }
 
@@ -10704,7 +10711,7 @@ Thanks!
           const toColumn = this.dataset.column;
           const itemId = parseFloat(draggedItem.dataset.itemId); // Use parseFloat to preserve decimals
 
-          console.log(`Moving item ${itemId} from ${fromColumn} to ${toColumn}`);
+          console.log(`🟡 COLUMN DROP - Moving item ${itemId} from ${fromColumn} to ${toColumn}`);
 
           // Find and remove from old column
           const fromItems = kanbanState.columns[fromColumn] || [];
