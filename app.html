@@ -5306,6 +5306,37 @@ Thanks!
       });
     }
 
+    // ZIP code to city mapping for Western NY area
+    const zipToCityMap = {
+      '14072': ['Grand Island'],
+      '14150': ['Tonawanda', 'North Tonawanda'],
+      '14217': ['Kenmore', 'Buffalo'],
+      '14120': ['North Tonawanda'],
+      '14221': ['Williamsville', 'Buffalo'],
+      '14225': ['Cheektowaga', 'Buffalo'],
+      // Add more as needed
+    };
+
+    // Validate if a business belongs to a ZIP code based on ZIP and/or city
+    function validateZipMatch(actualZip, actualCity, searchedZip) {
+      // First priority: if we have actualZip, use it
+      if (actualZip) {
+        return actualZip === searchedZip;
+      }
+
+      // Second priority: if we have actualCity, validate against expected cities for this ZIP
+      if (actualCity && zipToCityMap[searchedZip]) {
+        const expectedCities = zipToCityMap[searchedZip];
+        // Case-insensitive city match
+        return expectedCities.some(city =>
+          city.toLowerCase() === actualCity.toLowerCase()
+        );
+      }
+
+      // If we have neither ZIP nor city, keep it (benefit of doubt - within search radius)
+      return true;
+    }
+
     // Extract ZIP code from an address string
     function extractZipFromAddress(address) {
       if (!address) return null;
@@ -5442,18 +5473,30 @@ Thanks!
                     // Prefer formatted_address (has ZIP) over vicinity (often missing ZIP)
                     const address = place.formatted_address || place.vicinity || '';
 
-                    // Extract ZIP from address_components (more reliable than parsing address string)
+                    // Extract ZIP and City from address_components
                     let actualZip = null;
+                    let actualCity = null;
                     if (place.address_components) {
                       const zipComponent = place.address_components.find(comp =>
                         comp.types.includes('postal_code')
                       );
                       actualZip = zipComponent ? zipComponent.short_name : null;
+
+                      // Extract city (locality)
+                      const cityComponent = place.address_components.find(comp =>
+                        comp.types.includes('locality')
+                      );
+                      actualCity = cityComponent ? cityComponent.long_name : null;
                     }
 
                     // Fallback to extracting from address string if address_components not available
                     if (!actualZip) {
                       actualZip = extractZipFromAddress(address);
+                    }
+                    if (!actualCity && address) {
+                      // Try to extract city from address (format: "123 Main St, Buffalo, NY 14072")
+                      const cityMatch = address.match(/,\s*([^,]+),\s*NY/i);
+                      actualCity = cityMatch ? cityMatch[1].trim() : null;
                     }
 
                     return {
@@ -5465,26 +5508,26 @@ Thanks!
                       types: place.types || [],
                       category: category, // Track which category this came from
                       zipCode: zipCode, // Track which ZIP code was used for the search
-                      actualZip: actualZip // Extract actual ZIP from address_components or address string
+                      actualZip: actualZip, // Extract actual ZIP from address_components or address string
+                      actualCity: actualCity // Extract actual city
                     };
                   });
 
                 // Filter to only businesses actually in the searched ZIP code
-                // SMART FILTERING: Remove businesses confirmed to be in WRONG ZIP, keep uncertain ones
+                // SMART FILTERING: Use both ZIP and City validation
                 const businesses = allBusinesses.filter(b => {
-                  // If we can't determine the ZIP, KEEP IT (benefit of doubt)
-                  // Google often doesn't provide address_components in search results
-                  if (!b.actualZip) {
-                    console.log(`✅ Keeping "${b.name}" - ZIP unknown. Address: "${b.address}"`);
-                    return true; // Keep if we can't determine (within search radius)
-                  }
-                  // Only REMOVE if ZIP is confirmed to be DIFFERENT
-                  const matches = b.actualZip === zipCode;
+                  const matches = validateZipMatch(b.actualZip, b.actualCity, zipCode);
+
                   if (!matches) {
-                    console.log(`🔍 Filtering out "${b.name}" - actualZip ${b.actualZip} doesn't match searched ZIP ${zipCode}. Address: "${b.address}"`);
-                  } else {
+                    console.log(`🔍 Filtering out "${b.name}" - actualZip: ${b.actualZip || 'unknown'}, actualCity: ${b.actualCity || 'unknown'}, searched ZIP: ${zipCode}. Address: "${b.address}"`);
+                  } else if (b.actualZip) {
                     console.log(`✅ Keeping "${b.name}" - actualZip ${b.actualZip} matches searched ZIP ${zipCode}`);
+                  } else if (b.actualCity) {
+                    console.log(`✅ Keeping "${b.name}" - actualCity "${b.actualCity}" matches ZIP ${zipCode} expected cities`);
+                  } else {
+                    console.log(`✅ Keeping "${b.name}" - ZIP/City unknown (within search radius). Address: "${b.address}"`);
                   }
+
                   return matches;
                 });
 
@@ -5534,18 +5577,30 @@ Thanks!
                     // Prefer formatted_address (has ZIP) over vicinity (often missing ZIP)
                     const address = place.formatted_address || place.vicinity || '';
 
-                    // Extract ZIP from address_components (more reliable than parsing address string)
+                    // Extract ZIP and City from address_components
                     let actualZip = null;
+                    let actualCity = null;
                     if (place.address_components) {
                       const zipComponent = place.address_components.find(comp =>
                         comp.types.includes('postal_code')
                       );
                       actualZip = zipComponent ? zipComponent.short_name : null;
+
+                      // Extract city (locality)
+                      const cityComponent = place.address_components.find(comp =>
+                        comp.types.includes('locality')
+                      );
+                      actualCity = cityComponent ? cityComponent.long_name : null;
                     }
 
                     // Fallback to extracting from address string if address_components not available
                     if (!actualZip) {
                       actualZip = extractZipFromAddress(address);
+                    }
+                    if (!actualCity && address) {
+                      // Try to extract city from address (format: "123 Main St, Buffalo, NY 14072")
+                      const cityMatch = address.match(/,\s*([^,]+),\s*NY/i);
+                      actualCity = cityMatch ? cityMatch[1].trim() : null;
                     }
 
                     return {
@@ -5557,26 +5612,26 @@ Thanks!
                       types: place.types || [],
                       category: category, // Track which category this came from
                       zipCode: zipCode, // Track which ZIP code was used for the search
-                      actualZip: actualZip // Extract actual ZIP from address_components or address string
+                      actualZip: actualZip, // Extract actual ZIP from address_components or address string
+                      actualCity: actualCity // Extract actual city
                     };
                   });
 
                 // Filter to only businesses actually in the searched ZIP code
-                // SMART FILTERING: Remove businesses confirmed to be in WRONG ZIP, keep uncertain ones
+                // SMART FILTERING: Use both ZIP and City validation
                 const businesses = allBusinesses.filter(b => {
-                  // If we can't determine the ZIP, KEEP IT (benefit of doubt)
-                  // Google often doesn't provide address_components in search results
-                  if (!b.actualZip) {
-                    console.log(`✅ Keeping "${b.name}" - ZIP unknown. Address: "${b.address}"`);
-                    return true; // Keep if we can't determine (within search radius)
-                  }
-                  // Only REMOVE if ZIP is confirmed to be DIFFERENT
-                  const matches = b.actualZip === zipCode;
+                  const matches = validateZipMatch(b.actualZip, b.actualCity, zipCode);
+
                   if (!matches) {
-                    console.log(`🔍 Filtering out "${b.name}" - actualZip ${b.actualZip} doesn't match searched ZIP ${zipCode}. Address: "${b.address}"`);
-                  } else {
+                    console.log(`🔍 Filtering out "${b.name}" - actualZip: ${b.actualZip || 'unknown'}, actualCity: ${b.actualCity || 'unknown'}, searched ZIP: ${zipCode}. Address: "${b.address}"`);
+                  } else if (b.actualZip) {
                     console.log(`✅ Keeping "${b.name}" - actualZip ${b.actualZip} matches searched ZIP ${zipCode}`);
+                  } else if (b.actualCity) {
+                    console.log(`✅ Keeping "${b.name}" - actualCity "${b.actualCity}" matches ZIP ${zipCode} expected cities`);
+                  } else {
+                    console.log(`✅ Keeping "${b.name}" - ZIP/City unknown (within search radius). Address: "${b.address}"`);
                   }
+
                   return matches;
                 });
 
