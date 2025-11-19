@@ -8583,11 +8583,16 @@ Thanks!
 
     // Move Client to Kanban "To Contact" Column
     function moveClientToKanban(clientId) {
+      console.log('🔵 moveClientToKanban called with clientId:', clientId);
+
       const client = crmState.clients[clientId];
       if (!client) {
+        console.error('❌ Client not found:', clientId);
         toast('Client not found', false);
         return;
       }
+
+      console.log('🔵 Client found:', client.businessName);
 
       // Check if already in Kanban - only check if they have a valid placeId or exact originalClientId match
       const alreadyInKanban = Object.values(kanbanState.columns).some(column =>
@@ -8596,11 +8601,13 @@ Thanks!
 
           // Check if this exact client is already there via originalClientId
           if (item.originalClientId && item.originalClientId === client.id) {
+            console.log('🔵 Already in Kanban via originalClientId');
             return true;
           }
 
           // Check placeId only if both exist and are not null/empty
           if (client.placeId && item.placeId && client.placeId === item.placeId) {
+            console.log('🔵 Already in Kanban via placeId');
             return true;
           }
 
@@ -8609,6 +8616,7 @@ Thanks!
       );
 
       if (alreadyInKanban) {
+        console.log('❌ Already in Kanban, stopping');
         toast(`${client.businessName} is already in the Kanban board`, false);
         return;
       }
@@ -8633,14 +8641,21 @@ Thanks!
         addedAt: new Date().toISOString()
       };
 
+      console.log('🔵 Created prospect:', prospect);
+
       // Add to "To Contact" column
       if (!kanbanState.columns['to-contact']) {
         kanbanState.columns['to-contact'] = [];
       }
+
+      console.log('🔵 Before adding - to-contact column length:', kanbanState.columns['to-contact'].length);
       kanbanState.columns['to-contact'].unshift(prospect); // Add to top
+      console.log('🔵 After adding - to-contact column length:', kanbanState.columns['to-contact'].length);
 
       // Save kanban state
+      console.log('🔵 Calling saveKanban...');
       saveKanban();
+      console.log('🔵 saveKanban complete');
 
       // Stay on Client Database - just show success message
       toast(`✅ ${client.businessName} added to Kanban - To Contact`, true);
@@ -8663,12 +8678,7 @@ Thanks!
 
       const businessName = prospect.businessName || prospect.name || 'this business';
 
-      // Confirm removal
-      if (!confirm(`Mark "${businessName}" as complete and remove from Kanban?\n\nThe client will remain in your Client Database.`)) {
-        return;
-      }
-
-      // Remove from kanban column
+      // Remove from kanban column (no confirmation needed)
       const columnIndex = kanbanState.columns[columnName].findIndex(item =>
         typeof item === 'object' && String(item.id) === String(leadId)
       );
@@ -9576,11 +9586,15 @@ Thanks!
 
     async function saveKanban() {
       try {
+        console.log('🔵 saveKanban - Before dedup, to-contact length:', kanbanState.columns['to-contact']?.length);
+
         // Deduplicate before saving
-        deduplicateKanbanData();
+        const removed = deduplicateKanbanData();
+        console.log('🔵 saveKanban - After dedup, to-contact length:', kanbanState.columns['to-contact']?.length, 'Removed:', removed);
 
         // Save to cloud and localStorage
         await saveToCloud('kanban', kanbanState.columns);
+        console.log('🔵 saveKanban - Saved to cloud');
       } catch(e) {
         console.warn('Kanban saved to localStorage only (cloud sync failed):', e);
       }
