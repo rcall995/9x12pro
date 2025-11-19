@@ -3924,7 +3924,7 @@ Thanks!
                   <div class="text-sm font-semibold text-green-600">${formatCurrency(client.lifetime.totalSpent)}</div>
                   <div class="text-xs text-gray-500">${client.lifetime.cardsBought} card${client.lifetime.cardsBought === 1 ? '' : 's'}</div>
                 </div>
-                <div class="flex gap-1.5">
+                <div class="flex gap-1.5 flex-wrap">
                   ${hasPhone ? `
                     <button onclick="event.stopPropagation(); openClientSMS('${client.id}')"
                             class="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -3939,6 +3939,11 @@ Thanks!
                       ✉️ Email
                     </button>
                   ` : ''}
+                  <button onclick="event.stopPropagation(); moveClientToKanban('${client.id}')"
+                          class="px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700"
+                          title="Move to Kanban - To Contact column">
+                    📤 To Kanban
+                  </button>
                 </div>
               </div>
             </div>
@@ -8575,6 +8580,65 @@ Thanks!
     // Variables to track which client we're messaging
     let currentSMSClientId = null;
     let currentEmailClientId = null;
+
+    // Move Client to Kanban "To Contact" Column
+    function moveClientToKanban(clientId) {
+      const client = crmState.clients[clientId];
+      if (!client) {
+        toast('Client not found', false);
+        return;
+      }
+
+      // Check if already in Kanban
+      const alreadyInKanban = Object.values(kanbanState.columns).some(column =>
+        column.some(item =>
+          typeof item === 'object' &&
+          (item.businessName?.toLowerCase() === client.businessName.toLowerCase() ||
+           item.placeId === client.placeId)
+        )
+      );
+
+      if (alreadyInKanban) {
+        toast(`${client.businessName} is already in the Kanban board`, false);
+        return;
+      }
+
+      // Create prospect object from client
+      const prospect = {
+        id: `client_${client.id}_${Date.now()}`,
+        businessName: client.businessName,
+        contactName: client.contact?.name || '',
+        phone: client.contact?.phone || '',
+        email: client.contact?.email || '',
+        website: client.contact?.website || '',
+        facebook: client.contact?.facebook || '',
+        instagram: client.contact?.instagram || '',
+        town: client.town || '',
+        zipCode: client.zipCode || '',
+        placeId: client.placeId || null,
+        category: client.category || '',
+        interactions: client.interactions || [],
+        source: 'client',
+        originalClientId: client.id,
+        addedAt: new Date().toISOString()
+      };
+
+      // Add to "To Contact" column
+      if (!kanbanState.columns['to-contact']) {
+        kanbanState.columns['to-contact'] = [];
+      }
+      kanbanState.columns['to-contact'].unshift(prospect); // Add to top
+
+      // Save kanban state
+      saveKanban();
+
+      // Switch to Sales Activity tab and render kanban
+      switchTab('activity');
+      setTimeout(() => {
+        renderKanban();
+        toast(`✅ ${client.businessName} moved to Kanban - To Contact`, true);
+      }, 100);
+    }
 
     // Convert Prospect to Client Function
     function convertProspectToClient(leadId, columnName) {
