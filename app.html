@@ -339,11 +339,19 @@
         border: 1px dashed #4f46e5;
     }
     .kanban-item {
-      cursor: grab;
+      cursor: grab !important;
       transition: opacity 0.2s, transform 0.2s;
+      user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+    }
+    .kanban-item:active {
+      cursor: grabbing !important;
     }
     .kanban-item.dragging {
       opacity: 0.3;
+      cursor: grabbing !important;
       border: 2px dashed #4f46e5 !important;
       background-color: #f0f0f0 !important;
     }
@@ -10330,7 +10338,7 @@ Thanks!
                 if (item.instagram) contactIcons.push(`<a href="${esc(ensureHttps(item.instagram))}" target="_blank" class="text-lg hover:text-blue-600" title="Instagram">📷</a>`);
 
                 return `
-                  <div class="kanban-item text-xs p-2 bg-white border rounded ${hasContact ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'} cursor-move" data-item-id="${leadId}" data-column="${col.key}" ondblclick="openProspectDetailModal(${JSON.stringify(item).replace(/"/g, '&quot;')}, 'kanban')">
+                  <div class="kanban-item text-xs p-2 bg-white border rounded ${hasContact ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'}" data-item-id="${leadId}" data-column="${col.key}" ondblclick="openProspectDetailModal(${JSON.stringify(item).replace(/"/g, '&quot;')}, 'kanban')">
                     <div class="flex justify-between items-start gap-2 mb-2">
                       ${cloudSyncSelection.showSyncUI ? `
                         <input
@@ -10373,7 +10381,7 @@ Thanks!
               const isCloudSyncSelected = cloudSyncSelection.selectedIds.has(leadId);
 
               return `
-                <div class="kanban-item text-xs p-2 bg-white border rounded cursor-move" data-item-id="${leadId}" data-column="${col.key}" ondblclick="openProspectDetailModal(${typeof item === 'object' ? JSON.stringify(item).replace(/"/g, '&quot;') : '{}'}, 'kanban')">
+                <div class="kanban-item text-xs p-2 bg-white border rounded" data-item-id="${leadId}" data-column="${col.key}" ondblclick="openProspectDetailModal(${typeof item === 'object' ? JSON.stringify(item).replace(/"/g, '&quot;') : '{}'}, 'kanban')">
                   <div class="flex justify-between items-start gap-2">
                     ${cloudSyncSelection.showSyncUI && typeof item === 'object' ? `
                       <input
