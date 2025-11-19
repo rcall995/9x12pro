@@ -5607,8 +5607,7 @@ Thanks!
                   placeIds: businesses.map(b => b.placeId),
                   cachedData: businesses,
                   cachedUntil: cacheExpiry.toISOString(),
-                  lastFetched: new Date().toISOString(),
-                  town: state.current?.Town || null // Tag with current town
+                  lastFetched: new Date().toISOString()
                 };
 
                 savePlacesCache();
@@ -5733,8 +5732,7 @@ Thanks!
                   placeIds: businesses.map(b => b.placeId),
                   cachedData: businesses,
                   cachedUntil: cacheExpiry.toISOString(),
-                  lastFetched: new Date().toISOString(),
-                  town: state.current?.Town || null // Tag with current town
+                  lastFetched: new Date().toISOString()
                 };
 
                 savePlacesCache();
@@ -6335,7 +6333,6 @@ Thanks!
             category: business.category || 'other',
             zipCode: business.zipCode || null, // Tag with ZIP code from search
             mailerId: state.current?.Mailer_ID || null, // Tag with current postcard
-            town: state.current?.Town || null, // Tag with current town
             addedDate: new Date().toISOString(),
             interactions: [] // Interaction history: [{date, type, notes, nextFollowUp}]
           };
@@ -7799,7 +7796,6 @@ Thanks!
               category: business.category || 'other',
               zipCode: business.zipCode || null,
               mailerId: currentMailerId,
-              town: state.current?.Town,
               addedDate: new Date().toISOString(),
               interactions: []
             };
