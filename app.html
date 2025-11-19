@@ -10603,8 +10603,8 @@ Thanks!
 
           const fromColumn = draggedItem.closest('.kanban-column').dataset.column;
           const toColumn = this.closest('.kanban-column').dataset.column;
-          const itemId = parseFloat(draggedItem.dataset.itemId);
-          const targetItemId = parseFloat(this.dataset.itemId);
+          const itemId = draggedItem.dataset.itemId;
+          const targetItemId = this.dataset.itemId;
 
           console.log(`🟣 DROPPING item ${itemId} before item ${targetItemId} in column ${toColumn} (from ${fromColumn})`);
 
@@ -10612,7 +10612,8 @@ Thanks!
           const fromItems = kanbanState.columns[fromColumn] || [];
           const fromIdx = fromItems.findIndex(item => {
             if (typeof item === 'string') return false;
-            return item.id === itemId;
+            // Handle both string IDs and numeric IDs
+            return String(item.id) === String(itemId);
           });
 
           if (fromIdx > -1) {
@@ -10627,7 +10628,8 @@ Thanks!
             const toItems = kanbanState.columns[toColumn];
             const targetIdx = toItems.findIndex(item => {
               if (typeof item === 'string') return false;
-              return item.id === targetItemId;
+              // Handle both string IDs and numeric IDs
+              return String(item.id) === String(targetItemId);
             });
 
             // Insert before target, or at end if not found
@@ -10709,7 +10711,7 @@ Thanks!
 
           const fromColumn = draggedItem.closest('.kanban-column').dataset.column;
           const toColumn = this.dataset.column;
-          const itemId = parseFloat(draggedItem.dataset.itemId); // Use parseFloat to preserve decimals
+          const itemId = draggedItem.dataset.itemId;
 
           console.log(`🟡 COLUMN DROP - Moving item ${itemId} from ${fromColumn} to ${toColumn}`);
 
@@ -10717,7 +10719,8 @@ Thanks!
           const fromItems = kanbanState.columns[fromColumn] || [];
           const fromIdx = fromItems.findIndex(item => {
             if (typeof item === 'string') return false;
-            return item.id === itemId;
+            // Handle both string IDs and numeric IDs
+            return String(item.id) === String(itemId);
           });
 
           if (fromIdx > -1) {
@@ -10735,7 +10738,8 @@ Thanks!
             // Check if item already exists in destination
             const alreadyExists = kanbanState.columns[toColumn].some(item => {
               if (typeof item === 'string') return false;
-              return item.id === itemId;
+              // Handle both string IDs and numeric IDs
+              return String(item.id) === String(itemId);
             });
 
             if (!alreadyExists) {
