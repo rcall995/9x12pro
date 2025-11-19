@@ -6003,6 +6003,9 @@ Thanks!
             notes: `Found via Google Places\nAddress: ${business.address}\nRating: ${business.rating} (${business.userRatingsTotal} reviews)\n${details.phone ? `Phone: ${details.phone}\n` : ''}${details.website ? `Website: ${details.website}\n` : ''}Place ID: ${business.placeId}\n\n💡 Use CSV export/import to add Facebook/Instagram URLs`,
             source: 'google-places',
             placeId: business.placeId,
+            address: business.address || '', // Store address as separate field
+            rating: business.rating || 0, // Store rating as separate field
+            userRatingsTotal: business.userRatingsTotal || 0, // Store review count
             website: details.website || '',
             facebook: '',
             instagram: '',
@@ -6061,31 +6064,58 @@ Thanks!
 
     // Business Categories State
     let businessCategories = [
-      { value: "restaurant", label: "Restaurant" },
-      { value: "cafe", label: "Cafe" },
+      { value: "auto_body_shop", label: "Auto Body Shop" },
+      { value: "car_wash", label: "Auto Detailing" },
+      { value: "car_repair", label: "Auto Repair" },
+      { value: "bakery", label: "Bakery" },
       { value: "bar", label: "Bar/Pub" },
-      { value: "store", label: "Retail Store" },
-      { value: "grocery_or_supermarket", label: "Grocery" },
-      { value: "pharmacy", label: "Pharmacy" },
+      { value: "beauty_salon", label: "Beauty/Spa" },
+      { value: "bowling_alley", label: "Bowling Alley" },
+      { value: "cafe", label: "Cafe" },
+      { value: "car_dealer", label: "Car Dealer" },
+      { value: "car_wash", label: "Car Wash" },
+      { value: "meal_delivery", label: "Catering" },
+      { value: "chiropractor", label: "Chiropractor" },
+      { value: "cleaning", label: "Cleaning Service" },
+      { value: "general_contractor", label: "Contractor" },
+      { value: "school", label: "Daycare" },
+      { value: "laundry", label: "Dry Cleaner" },
+      { value: "dentist", label: "Dentist" },
+      { value: "electrician", label: "Electrician" },
+      { value: "florist", label: "Florist" },
+      { value: "funeral_home", label: "Funeral Home" },
+      { value: "furniture_store", label: "Furniture Store" },
       { value: "gym", label: "Gym" },
       { value: "hair_care", label: "Hair Salon" },
-      { value: "beauty_salon", label: "Beauty/Spa" },
-      { value: "dentist", label: "Dentist" },
-      { value: "doctor", label: "Doctor" },
-      { value: "lawyer", label: "Law Firm" },
-      { value: "real_estate_agency", label: "Real Estate" },
-      { value: "car_dealer", label: "Car Dealer" },
-      { value: "car_repair", label: "Auto Repair" },
-      { value: "plumber", label: "Plumber" },
-      { value: "electrician", label: "Electrician" },
-      { value: "roofing_contractor", label: "Roofer" },
-      { value: "general_contractor", label: "Contractor" },
-      { value: "painter", label: "Painter" },
-      { value: "florist", label: "Florist" },
-      { value: "pet_store", label: "Pet Store" },
-      { value: "accounting", label: "Accountant" },
+      { value: "hardware_store", label: "Hardware Store" },
+      { value: "home_goods_store", label: "Home Remodeling" },
+      { value: "plumber", label: "HVAC" },
       { value: "insurance_agency", label: "Insurance" },
-      { value: "bank", label: "Bank" }
+      { value: "jewelry_store", label: "Jewelry Store" },
+      { value: "landscaping", label: "Landscaping" },
+      { value: "laundry", label: "Laundromat" },
+      { value: "liquor_store", label: "Liquor Store" },
+      { value: "locksmith", label: "Locksmith" },
+      { value: "spa", label: "Massage Therapy" },
+      { value: "moving_company", label: "Moving Company" },
+      { value: "optometrist", label: "Optometrist" },
+      { value: "painter", label: "Painter" },
+      { value: "pest_control", label: "Pest Control" },
+      { value: "pet_store", label: "Pet Store" },
+      { value: "photographer", label: "Photography" },
+      { value: "physiotherapist", label: "Physical Therapy" },
+      { value: "pizza", label: "Pizzeria" },
+      { value: "plumber", label: "Plumber" },
+      { value: "real_estate_agency", label: "Real Estate" },
+      { value: "restaurant", label: "Restaurant" },
+      { value: "roofing_contractor", label: "Roofer" },
+      { value: "storage", label: "Storage Facility" },
+      { value: "tattoo_shop", label: "Tattoo Shop" },
+      { value: "car_repair", label: "Tire Shop" },
+      { value: "tree_service", label: "Tree Service" },
+      { value: "veterinary_care", label: "Veterinarian" },
+      { value: "marketing_agency", label: "Web Design/Marketing" },
+      { value: "window_cleaning", label: "Window Washing" }
     ];
 
     // Load business categories from cloud/localStorage
@@ -6966,9 +6996,34 @@ Thanks!
                   if (prospect.facebook) contactIcons.push('📘');
                   if (prospect.instagram) contactIcons.push('📷');
 
+                  // Extract address and rating from notes if not available as separate fields
+                  let displayAddress = prospect.address || prospect.town || '';
+                  let displayRating = prospect.rating || 0;
+
+                  if (!displayAddress && prospect.notes) {
+                    const addressMatch = prospect.notes.match(/Address:\s*([^\n]+)/);
+                    if (addressMatch) displayAddress = addressMatch[1];
+                  }
+
+                  if (!displayRating && prospect.notes) {
+                    const ratingMatch = prospect.notes.match(/Rating:\s*([\d.]+)/);
+                    if (ratingMatch) displayRating = parseFloat(ratingMatch[1]);
+                  }
+
+                  // Build metadata line (ZIP, category, etc.)
+                  const metadata = [];
+                  if (prospect.zipCode) metadata.push(`📍 ${prospect.zipCode}`);
+                  if (prospect.category) {
+                    const categoryName = prospect.category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    metadata.push(categoryName);
+                  }
+
                   return `
                     <div class="bg-white border-2 ${hasContact ? 'border-green-400' : 'border-gray-200'} rounded-lg p-3 hover:shadow-md transition cursor-pointer" onclick="openProspectDetailModal(${JSON.stringify(prospect).replace(/"/g, '&quot;')}, 'prospect')">
-                      <h5 class="font-semibold text-sm text-gray-900 mb-2">${esc(prospect.businessName)}</h5>
+                      <h5 class="font-semibold text-sm text-gray-900 mb-1">${esc(prospect.businessName)}</h5>
+                      ${displayAddress ? `<p class="text-xs text-gray-600 mt-0.5 mb-2">${esc(displayAddress)}</p>` : ''}
+                      ${metadata.length > 0 ? `<p class="text-xs text-gray-500 mb-2">${metadata.join(' • ')}</p>` : ''}
+                      ${displayRating ? `<div class="flex items-center gap-2 mb-2 text-xs text-gray-500"><span>⭐ ${displayRating}</span></div>` : ''}
                       ${contactIcons.length > 0 ? `<div class="flex gap-2 text-lg mb-2">${contactIcons.join(' ')}</div>` : ''}
                       ${prospect.followUpDate ? `<div class="text-xs text-purple-600 font-medium mb-2">📅 ${prospect.followUpDate}</div>` : ''}
                       <div class="flex gap-2">
@@ -6988,6 +7043,25 @@ Thanks!
                 const isSelected = prospectPoolState.selectedIds.has(prospectId);
                 const isDisabled = prospect.inSystem;
 
+                // Handle both name/businessName and address field variations
+                const displayName = prospect.name || prospect.businessName || 'Unnamed Business';
+                const displayAddress = prospect.address || prospect.town || '';
+
+                // Extract address from notes if not available
+                let addressToShow = displayAddress;
+                if (!addressToShow && prospect.notes) {
+                  const addressMatch = prospect.notes.match(/Address:\s*([^\n]+)/);
+                  if (addressMatch) addressToShow = addressMatch[1];
+                }
+
+                // Build metadata line for raw prospects too
+                const rawMetadata = [];
+                if (prospect.zipCode) rawMetadata.push(`📍 ${prospect.zipCode}`);
+                if (prospect.category) {
+                  const categoryName = prospect.category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                  rawMetadata.push(categoryName);
+                }
+
                 return `
                   <div class="border rounded-lg p-3 ${isDisabled ? 'bg-gray-50 opacity-60' : 'bg-white hover:shadow-md'} transition">
                     <div class="flex items-start gap-2" onclick="openProspectDetailModal(${JSON.stringify(prospect).replace(/"/g, '&quot;')}, 'prospect')">
@@ -7000,15 +7074,16 @@ Thanks!
                         class="mt-1 w-4 h-4 text-indigo-600 rounded cursor-pointer flex-shrink-0"
                       />
                       <div class="flex-1 min-w-0 cursor-pointer">
-                        <h5 class="font-semibold text-sm text-gray-900 truncate">${esc(prospect.name)}</h5>
-                        <p class="text-xs text-gray-600 mt-0.5 truncate">${esc(prospect.address)}</p>
+                        <h5 class="font-semibold text-sm text-gray-900 truncate">${esc(displayName)}</h5>
+                        ${addressToShow ? `<p class="text-xs text-gray-600 mt-0.5 truncate">${esc(addressToShow)}</p>` : ''}
+                        ${!addressToShow && rawMetadata.length > 0 ? `<p class="text-xs text-gray-500 mt-0.5">${rawMetadata.join(' • ')}</p>` : ''}
                         <div class="flex items-center gap-2 mt-1 text-xs text-gray-500">
                           ${prospect.rating ? `<span>⭐ ${prospect.rating}</span>` : ''}
                           ${isDisabled ? '<span class="text-xs px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded">In System</span>' : ''}
                         </div>
                       </div>
                       ${!isDisabled ? `
-                      <button onclick="event.stopPropagation(); markProspectNotInterested('${prospectId}', '${esc(prospect.name).replace(/'/g, "\\'")}')" class="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs font-semibold flex-shrink-0" title="Not Interested">
+                      <button onclick="event.stopPropagation(); markProspectNotInterested('${prospectId}', '${esc(displayName).replace(/'/g, "\\'")}')" class="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs font-semibold flex-shrink-0" title="Not Interested">
                         🚫
                       </button>
                       ` : ''}
