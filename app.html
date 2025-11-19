@@ -8642,40 +8642,21 @@ Thanks!
       // Save kanban state
       saveKanban();
 
-      // Switch to Pipeline tab (where Kanban is) and render
-      switchTab('pipeline');
-      setTimeout(() => {
-        // Ensure Kanban section is expanded
-        const kanbanColumns = document.getElementById('salesActivityKanbanColumns');
-        const icon = document.getElementById('salesActivityToggleIcon');
-        if (kanbanColumns && kanbanColumns.style.maxHeight === '0px') {
-          // Expand the collapsed Kanban
-          kanbanColumns.style.maxHeight = 'none';
-          kanbanColumns.style.marginTop = '';
-          if (icon) icon.style.transform = 'rotate(0deg)';
-          safeSetItem('salesActivityCollapsed', 'false');
-        }
-
-        renderKanban();
-        toast(`✅ ${client.businessName} moved to Kanban - To Contact`, true);
-
-        // Scroll to the Kanban section
-        setTimeout(() => {
-          if (kanbanColumns) {
-            kanbanColumns.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }
-        }, 200);
-      }, 100);
+      // Stay on Client Database - just show success message
+      toast(`✅ ${client.businessName} added to Kanban - To Contact`, true);
     }
 
     // Complete and Remove Client from Kanban
     function completeAndRemoveFromKanban(leadId, columnName) {
+      console.log('completeAndRemoveFromKanban called with:', leadId, columnName);
+
       // Find the prospect in the specified column
       const prospect = (kanbanState.columns[columnName] || []).find(item => {
-        return typeof item === 'object' && item.id === leadId;
+        return typeof item === 'object' && String(item.id) === String(leadId);
       });
 
       if (!prospect) {
+        console.log('Prospect not found. Available IDs:', kanbanState.columns[columnName]?.map(i => i.id));
         toast('Prospect not found in Kanban', false);
         return;
       }
@@ -8689,7 +8670,7 @@ Thanks!
 
       // Remove from kanban column
       const columnIndex = kanbanState.columns[columnName].findIndex(item =>
-        typeof item === 'object' && item.id === leadId
+        typeof item === 'object' && String(item.id) === String(leadId)
       );
 
       if (columnIndex > -1) {
@@ -9932,7 +9913,7 @@ Thanks!
                             c.businessName.toLowerCase() === businessName.toLowerCase()
                           );
                           if (isClient) {
-                            return `<button onclick="completeAndRemoveFromKanban(${leadId}, 'to-contact'); event.stopPropagation();" class="flex-1 px-3 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 font-medium" title="Mark complete and remove from Kanban (keeps in Client Database)">
+                            return `<button onclick="event.stopPropagation(); completeAndRemoveFromKanban('${leadId}', 'to-contact');" class="flex-1 px-3 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 font-medium" title="Mark complete and remove from Kanban (keeps in Client Database)">
                               ✅ Complete
                             </button>`;
                           } else {
