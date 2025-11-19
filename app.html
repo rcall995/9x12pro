@@ -5522,20 +5522,36 @@ Thanks!
                     };
                   });
 
-                // STRICT ZIP FILTERING - only keep businesses with confirmed matching ZIP
+                // SMART ZIP/CITY FILTERING
                 const businesses = allBusinesses.filter(b => {
-                  // Must have actualZip AND it must match searched ZIP
-                  if (b.actualZip && b.actualZip === zipCode) {
-                    console.log(`✅ Keeping "${b.name}" - ZIP ${b.actualZip} matches`);
-                    return true;
+                  // Priority 1: If we have actualZip, it must match
+                  if (b.actualZip) {
+                    if (b.actualZip === zipCode) {
+                      console.log(`✅ Keeping "${b.name}" - ZIP ${b.actualZip} matches`);
+                      return true;
+                    } else {
+                      console.log(`❌ Filtering "${b.name}" - ZIP ${b.actualZip} doesn't match ${zipCode}`);
+                      return false;
+                    }
                   }
 
-                  // Filter out everything else
-                  if (b.actualZip) {
-                    console.log(`❌ Filtering "${b.name}" - ZIP ${b.actualZip} doesn't match ${zipCode}`);
-                  } else {
-                    console.log(`❌ Filtering "${b.name}" - no ZIP detected in "${b.address}"`);
+                  // Priority 2: No ZIP but have city - validate city matches expected cities for this ZIP
+                  if (b.actualCity && zipToCityMap[zipCode]) {
+                    const expectedCities = zipToCityMap[zipCode];
+                    const cityMatches = expectedCities.some(city =>
+                      city.toLowerCase() === b.actualCity.toLowerCase()
+                    );
+                    if (cityMatches) {
+                      console.log(`✅ Keeping "${b.name}" - City "${b.actualCity}" matches ZIP ${zipCode} expected cities`);
+                      return true;
+                    } else {
+                      console.log(`❌ Filtering "${b.name}" - City "${b.actualCity}" doesn't match ZIP ${zipCode} expected cities`);
+                      return false;
+                    }
                   }
+
+                  // Priority 3: No ZIP and no city - filter out (can't validate)
+                  console.log(`❌ Filtering "${b.name}" - no ZIP or city detected in "${b.address}"`);
                   return false;
                 });
 
@@ -5623,20 +5639,36 @@ Thanks!
                     };
                   });
 
-                // STRICT ZIP FILTERING - only keep businesses with confirmed matching ZIP
+                // SMART ZIP/CITY FILTERING
                 const businesses = allBusinesses.filter(b => {
-                  // Must have actualZip AND it must match searched ZIP
-                  if (b.actualZip && b.actualZip === zipCode) {
-                    console.log(`✅ Keeping "${b.name}" - ZIP ${b.actualZip} matches`);
-                    return true;
+                  // Priority 1: If we have actualZip, it must match
+                  if (b.actualZip) {
+                    if (b.actualZip === zipCode) {
+                      console.log(`✅ Keeping "${b.name}" - ZIP ${b.actualZip} matches`);
+                      return true;
+                    } else {
+                      console.log(`❌ Filtering "${b.name}" - ZIP ${b.actualZip} doesn't match ${zipCode}`);
+                      return false;
+                    }
                   }
 
-                  // Filter out everything else
-                  if (b.actualZip) {
-                    console.log(`❌ Filtering "${b.name}" - ZIP ${b.actualZip} doesn't match ${zipCode}`);
-                  } else {
-                    console.log(`❌ Filtering "${b.name}" - no ZIP detected in "${b.address}"`);
+                  // Priority 2: No ZIP but have city - validate city matches expected cities for this ZIP
+                  if (b.actualCity && zipToCityMap[zipCode]) {
+                    const expectedCities = zipToCityMap[zipCode];
+                    const cityMatches = expectedCities.some(city =>
+                      city.toLowerCase() === b.actualCity.toLowerCase()
+                    );
+                    if (cityMatches) {
+                      console.log(`✅ Keeping "${b.name}" - City "${b.actualCity}" matches ZIP ${zipCode} expected cities`);
+                      return true;
+                    } else {
+                      console.log(`❌ Filtering "${b.name}" - City "${b.actualCity}" doesn't match ZIP ${zipCode} expected cities`);
+                      return false;
+                    }
                   }
+
+                  // Priority 3: No ZIP and no city - filter out (can't validate)
+                  console.log(`❌ Filtering "${b.name}" - no ZIP or city detected in "${b.address}"`);
                   return false;
                 });
 
