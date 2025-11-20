@@ -5876,6 +5876,8 @@ Thanks!
                       placeId: place.place_id,
                       name: place.name,
                       address: address,
+                      phone: place.formatted_phone_number || place.international_phone_number || '',
+                      website: place.website || '',
                       rating: place.rating || 0,
                       userRatingsTotal: place.user_ratings_total || 0,
                       types: place.types || [],
@@ -5922,8 +5924,28 @@ Thanks!
                 const filteredOutCount = allBusinesses.length - businesses.length;
                 console.log(`✅ Found ${businesses.length} matching businesses for ${category} in ZIP ${zipCode} (filtered out ${filteredOutCount} from other ZIPs)`);
 
+                // Fetch phone and website details for each business (required for enrichment)
+                console.log(`📞 Fetching contact details for ${businesses.length} businesses...`);
+                const businessesWithDetails = await Promise.all(
+                  businesses.map(async (b) => {
+                    try {
+                      const details = await fetchPlaceDetails(b.placeId);
+                      return {
+                        ...b,
+                        phone: details.phone || b.phone || '',
+                        website: details.website || b.website || ''
+                      };
+                    } catch (err) {
+                      console.warn(`Failed to fetch details for ${b.name}:`, err);
+                      return b; // Return original if details fetch fails
+                    }
+                  })
+                );
+
+                console.log(`✅ Fetched details for ${businessesWithDetails.length} businesses`);
+
                 // Calculate lead scores for all businesses
-                const businessesWithScores = businesses.map(b => {
+                const businessesWithScores = businessesWithDetails.map(b => {
                   const leadScore = calculateProspectScore(b);
                   const scoreCategory = getScoreCategory(leadScore);
                   return {
@@ -6019,6 +6041,8 @@ Thanks!
                       placeId: place.place_id,
                       name: place.name,
                       address: address,
+                      phone: place.formatted_phone_number || place.international_phone_number || '',
+                      website: place.website || '',
                       rating: place.rating || 0,
                       userRatingsTotal: place.user_ratings_total || 0,
                       types: place.types || [],
@@ -6065,8 +6089,28 @@ Thanks!
                 const filteredOutCount = allBusinesses.length - businesses.length;
                 console.log(`✅ Found ${businesses.length} matching businesses for ${category} in ZIP ${zipCode} (filtered out ${filteredOutCount} from other ZIPs)`);
 
+                // Fetch phone and website details for each business (required for enrichment)
+                console.log(`📞 Fetching contact details for ${businesses.length} businesses...`);
+                const businessesWithDetails = await Promise.all(
+                  businesses.map(async (b) => {
+                    try {
+                      const details = await fetchPlaceDetails(b.placeId);
+                      return {
+                        ...b,
+                        phone: details.phone || b.phone || '',
+                        website: details.website || b.website || ''
+                      };
+                    } catch (err) {
+                      console.warn(`Failed to fetch details for ${b.name}:`, err);
+                      return b; // Return original if details fetch fails
+                    }
+                  })
+                );
+
+                console.log(`✅ Fetched details for ${businessesWithDetails.length} businesses`);
+
                 // Calculate lead scores for all businesses
-                const businessesWithScores = businesses.map(b => {
+                const businessesWithScores = businessesWithDetails.map(b => {
                   const leadScore = calculateProspectScore(b);
                   const scoreCategory = getScoreCategory(leadScore);
                   return {
