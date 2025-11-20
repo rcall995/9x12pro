@@ -3035,6 +3035,26 @@
               📷 DM
             </button>
           </div>
+
+          <div class="flex justify-between items-center">
+            <div>
+              <div class="text-xs text-gray-500">LinkedIn</div>
+              <div id="detailLinkedIn" class="text-sm text-gray-900 truncate max-w-md">—</div>
+            </div>
+            <button id="btnLinkedInAction" onclick="quickAction('linkedin')" class="px-3 py-1.5 bg-blue-800 text-white rounded-md text-sm hover:bg-blue-900 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
+              💼 Visit
+            </button>
+          </div>
+
+          <div class="flex justify-between items-center">
+            <div>
+              <div class="text-xs text-gray-500">Twitter/X</div>
+              <div id="detailTwitter" class="text-sm text-gray-900 truncate max-w-md">—</div>
+            </div>
+            <button id="btnTwitterAction" onclick="quickAction('twitter')" class="px-3 py-1.5 bg-black text-white rounded-md text-sm hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
+              🐦 DM
+            </button>
+          </div>
         </div>
       </div>
 
@@ -8278,7 +8298,7 @@ Thanks!
               ${prospects.map(prospect => {
                 // For enriched prospects (from manual list) - show with green border and contact icons
                 if (prospect.isEnriched) {
-                  const hasContact = prospect.phone || prospect.website || prospect.email || prospect.facebook || prospect.instagram;
+                  const hasContact = prospect.phone || prospect.website || prospect.email || prospect.facebook || prospect.instagram || prospect.linkedin || prospect.twitter;
 
                   // Build compact clickable icon display (matching kanban style)
                   const contactIcons = [];
@@ -8287,6 +8307,8 @@ Thanks!
                   if (prospect.email) contactIcons.push(`<a href="mailto:${esc(prospect.email)}" class="text-lg hover:text-blue-600" title="✉️ ${esc(prospect.email)}">✉️</a>`);
                   if (prospect.facebook) contactIcons.push(`<a href="${esc(ensureHttps(prospect.facebook))}" target="_blank" class="text-lg hover:text-blue-600" title="Facebook">📘</a>`);
                   if (prospect.instagram) contactIcons.push(`<a href="${esc(ensureHttps(prospect.instagram))}" target="_blank" class="text-lg hover:text-blue-600" title="Instagram">📷</a>`);
+                  if (prospect.linkedin) contactIcons.push(`<a href="${esc(ensureHttps(prospect.linkedin))}" target="_blank" class="text-lg hover:text-blue-600" title="LinkedIn">💼</a>`);
+                  if (prospect.twitter) contactIcons.push(`<a href="${esc(ensureHttps(prospect.twitter))}" target="_blank" class="text-lg hover:text-blue-600" title="Twitter/X">🐦</a>`);
 
                   // Extract address and rating from notes if not available as separate fields
                   let displayAddress = prospect.address || '';
@@ -9323,6 +9345,8 @@ Thanks!
       const website = prospectData.website || '';
       const facebook = prospectData.facebook || '';
       const instagram = prospectData.instagram || '';
+      const linkedin = prospectData.linkedin || '';
+      const twitter = prospectData.twitter || '';
 
       document.getElementById('detailPhone').textContent = phone || '—';
       document.getElementById('btnCallAction').disabled = !phone;
@@ -9339,6 +9363,18 @@ Thanks!
 
       document.getElementById('detailInstagram').textContent = instagram || '—';
       document.getElementById('btnInstagramAction').disabled = !instagram;
+
+      // LinkedIn and Twitter (if elements exist in the modal)
+      const linkedinEl = document.getElementById('detailLinkedIn');
+      const twitterEl = document.getElementById('detailTwitter');
+      const btnLinkedInAction = document.getElementById('btnLinkedInAction');
+      const btnTwitterAction = document.getElementById('btnTwitterAction');
+
+      if (linkedinEl) linkedinEl.textContent = linkedin || '—';
+      if (btnLinkedInAction) btnLinkedInAction.disabled = !linkedin;
+
+      if (twitterEl) twitterEl.textContent = twitter || '—';
+      if (btnTwitterAction) btnTwitterAction.disabled = !twitter;
 
       // Render interaction timeline
       renderInteractionTimeline(prospectData.interactions || []);
@@ -10553,6 +10589,16 @@ Thanks!
         case 'instagram':
           if (prospect.instagram) {
             window.open(ensureHttps(prospect.instagram), '_blank');
+          }
+          break;
+        case 'linkedin':
+          if (prospect.linkedin) {
+            window.open(ensureHttps(prospect.linkedin), '_blank');
+          }
+          break;
+        case 'twitter':
+          if (prospect.twitter) {
+            window.open(ensureHttps(prospect.twitter), '_blank');
           }
           break;
       }
