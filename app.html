@@ -611,47 +611,17 @@
                 </div>
             </div>
 
-            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                <div class="flex items-start gap-3">
-                    <span class="text-2xl">💡</span>
-                    <div class="flex-1">
-                        <h4 class="font-semibold text-blue-900 mb-1">How this works:</h4>
-                        <ul class="text-sm text-blue-800 space-y-1">
-                            <li>• All businesses from your searches are stored here and organized by category</li>
-                            <li>• Use the <strong>ZIP Code filter</strong> to view businesses from specific areas</li>
-                            <li>• Select businesses by checking the boxes</li>
-                            <li>• Click "Add Selected to Pipeline" to move them to your Prospecting column</li>
-                            <li>• Results stay cached for 30 days - repeat searches won't use API quota</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
+            <!-- NEW: Professional FilterBar Component -->
+            <div id="prospectPoolFilterBar" class="mb-6"></div>
 
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 p-4 bg-gray-50 rounded-lg border">
-                <div class="flex flex-col gap-2 w-full sm:w-auto">
-                    <label class="text-sm font-medium text-gray-700">Filter by ZIP Codes:</label>
-                    <div id="prospectPoolZipCheckboxes" class="flex flex-wrap gap-3">
-                        <!-- Checkboxes will be populated dynamically -->
-                    </div>
-                </div>
-                <div class="flex items-center gap-2">
-                    <label class="text-sm font-medium text-gray-700 whitespace-nowrap">Show from:</label>
-                    <select id="prospectPoolDateFilter" onchange="filterProspectPoolByDate()" class="border rounded-md px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-indigo-500">
-                        <option value="all">All Time</option>
-                        <option value="7">Last 7 Days</option>
-                        <option value="30">Last 30 Days</option>
-                        <option value="90">Last 90 Days</option>
-                    </select>
-                </div>
-                <div class="flex items-center gap-2">
-                    <button onclick="exportProspectPoolCSV()" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium text-sm whitespace-nowrap">
-                        📥 Export CSV
-                    </button>
-                    <label for="importProspectPoolCSV" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium text-sm cursor-pointer whitespace-nowrap">
-                        📤 Import CSV
-                    </label>
-                    <input type="file" id="importProspectPoolCSV" accept=".csv" onchange="importProspectPoolCSV(event)" class="hidden" />
-                </div>
+            <div class="flex justify-end items-center gap-2 mb-4">
+                <button onclick="exportProspectPoolCSV()" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium text-sm whitespace-nowrap">
+                    📥 Export CSV
+                </button>
+                <label for="importProspectPoolCSV" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium text-sm cursor-pointer whitespace-nowrap">
+                    📤 Import CSV
+                </label>
+                <input type="file" id="importProspectPoolCSV" accept=".csv" onchange="importProspectPoolCSV(event)" class="hidden" />
             </div>
 
             <div id="prospectPoolStats" class="grid grid-cols-4 gap-4 mb-6">
@@ -13121,7 +13091,36 @@ Thanks!
     
     function linearize(v){ return v <= 0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4); }
     function useLightTextOn(hex){ try{ const h = hex.replace('#',''); const r=parseInt(h.slice(0,2),16), g=parseInt(h.slice(2,4),16), b=parseInt(h.slice(4,6),16); const L = 0.2126*linearize(r/255)+0.7152*linearize(g/255)+0.0722*linearize(b/255); return L < 0.45; }catch(e){ return true; } }
-    
+
+    /* ========= FILTER BAR INITIALIZATION ========= */
+    // Initialize Prospect Pool FilterBar
+    function initProspectPoolFilter() {
+      if (typeof FilterBar === 'undefined') {
+        console.warn('FilterBar not loaded yet, will retry...');
+        setTimeout(initProspectPoolFilter, 100);
+        return;
+      }
+
+      window.prospectPoolFilter = new FilterBar('prospectPoolFilterBar', {
+        showSearch: true,
+        showDate: true,
+        showCategory: true,
+        placeholder: 'Search businesses by name, address, or category...',
+        categories: [
+          'Restaurant', 'HVAC', 'Plumbing', 'Electrician', 'Legal',
+          'Medical', 'Real Estate', 'Home Services', 'Automotive',
+          'Retail', 'Fitness', 'Beauty & Salon', 'Other'
+        ],
+        onFilter: (filters) => {
+          console.log('✅ Prospect pool filters changed:', filters);
+          // TODO: Apply filters to prospect pool rendering
+          // This will be connected to the existing renderProspectPool function
+        }
+      });
+
+      console.log('✅ Prospect Pool FilterBar initialized');
+    }
+
     /* ========= INIT ========= */
     document.addEventListener("DOMContentLoaded", () => {
       try {
@@ -13150,6 +13149,9 @@ Thanks!
           loadAllData();
         }
       }, 100);
+
+      // Initialize FilterBar for Prospect Pool
+      initProspectPoolFilter();
     });
 
     // Separate function for loading all data (called after auth is ready)
@@ -14355,10 +14357,6 @@ Thanks!
     /* ========= MODAL & APPLY ========= */
     function openEditModal(){
       if (!state.selected.size) return;
-      const modal = document.getElementById("editModal");
-      const nameEl = document.getElementById("editName");
-      const statusEl = document.getElementById("editStatus");
-      const priceEl = document.getElementById("editPrice");
 
       lastFocusedElementBeforeModal = document.activeElement;
       const sel = [...state.selected].sort((a,b)=>a-b);
@@ -14367,47 +14365,81 @@ Thanks!
       const mailerId = state.current.Mailer_ID;
       const pricing = productionState.pricing[mailerId] || null;
 
+      let spotData = {};
+
       if (sel.length === 1){
         const s = state.availability[`Spot_${sel[0]}`] || {name:"", status:"Available"};
-        nameEl.value = s.name || "";
-        statusEl.value = toShortKey(s.status);
+        spotData.name = s.name || "";
+        spotData.status = toShortKey(s.status);
 
         // Use new pricing system or fall back to old spot pricing
         const priceKey = normalizePriceKey(mailerId, sel[0]);
         const oldPrice = productionState.spotPricing[priceKey];
         if (oldPrice) {
-          priceEl.value = oldPrice;
+          spotData.price = oldPrice;
         } else if (pricing && pricing.singleAd) {
-          priceEl.value = pricing.singleAd;
+          spotData.price = pricing.singleAd;
         } else {
-          priceEl.value = ""; // Empty instead of $500 default
+          spotData.price = ""; // Empty instead of $500 default
         }
       } else {
         const [a,b] = sel;
         const A = state.availability[`Spot_${a}`] || {name:"", status:"Available"}, B = state.availability[`Spot_${b}`] || {name:"", status:"Available"};
         const nm = (A.name && B.name && A.name.toLowerCase()===B.name.toLowerCase()) ? A.name : (A.name || B.name || "");
         const st = nm ? (A.status!=="Available" ? A.status : (B.status!=="Available"?B.status:"Proof In Progress")) : "Available";
-        nameEl.value = nm;
-        statusEl.value = toShortKey(st);
+        spotData.name = nm;
+        spotData.status = toShortKey(st);
 
         // Use new pricing system for double ad or fall back to old spot pricing
         const priceKey = normalizePriceKey(mailerId, a);
         const oldPrice = productionState.spotPricing[priceKey];
         if (oldPrice) {
-          priceEl.value = oldPrice;
+          spotData.price = oldPrice;
         } else if (pricing && pricing.doubleAd) {
-          priceEl.value = pricing.doubleAd;
+          spotData.price = pricing.doubleAd;
         } else {
-          priceEl.value = ""; // Empty instead of $500 default
+          spotData.price = ""; // Empty instead of $500 default
         }
       }
 
-      populateClientDropdown();
+      // Use new BusinessModal instead of old editModal
+      businessModal.open('spot', spotData, (data, selectedSpots) => {
+        // This callback handles the save
+        applyEditModalWithData(data, selectedSpots);
+      }, sel);
+    }
 
-      modal.style.display = "flex";
-      modal.setAttribute('aria-hidden', 'false');
-      trapModalFocus(modal);
-      nameEl.focus();
+    // New function to handle save from BusinessModal
+    async function applyEditModalWithData(data, selectedSpots) {
+      const name = String(data.name || "").replace(/\s+/g,' ').trim();
+      const short = data.status;
+      let long = toLongLabel(short);
+      const price = parseFloat(data.price) || DEFAULT_SPOT_PRICE;
+      const selectedClientId = data.linkedClientId;
+
+      // Auto-change status from Available to Reserved when name is entered
+      if (name && long === "Available") {
+        long = "Reserved";
+      }
+
+      const sel = selectedSpots.sort((a,b)=>a-b);
+
+      sel.forEach(spotNum => {
+        state.availability[`Spot_${spotNum}`] = { name, status: long };
+
+        // Store price in new pricing system
+        const mailerId = state.current.Mailer_ID;
+        const priceKey = normalizePriceKey(mailerId, spotNum);
+        productionState.spotPricing[priceKey] = price;
+
+        // Link to client if selected
+        if (selectedClientId) {
+          state.availability[`Spot_${spotNum}`].linkedClientId = selectedClientId;
+        }
+      });
+
+      await triggerSave();
+      renderGrid();
     }
     
     function trapModalFocus(modalEl) {
