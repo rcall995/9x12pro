@@ -14275,8 +14275,19 @@ Thanks!
       const container = document.getElementById('contractsExpiringList');
       if (!container) return;
 
+      // Check if crmState exists and has clients
+      if (!crmState || !crmState.clients) {
+        container.innerHTML = `
+          <div class="text-center py-6 text-gray-500">
+            <p class="text-sm">Loading clients...</p>
+          </div>
+        `;
+        return;
+      }
+
       // Get all clients with active contracts
-      const clientsWithContracts = clientsState.clients.filter(client => {
+      const allClients = Object.values(crmState.clients);
+      const clientsWithContracts = allClients.filter(client => {
         return client.contractEnabled && client.contractStartDate && client.contractLength;
       });
 
