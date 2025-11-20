@@ -7252,6 +7252,10 @@ Thanks!
       // Get selected ZIP codes from checkboxes
       const selectedZips = [];
       let allSelected = false;
+
+      // Check if this is first load (no checkboxes exist yet)
+      const isFirstLoad = !zipCheckboxContainer || !zipCheckboxContainer.querySelector('input[type="checkbox"]');
+
       if (zipCheckboxContainer) {
         const checkboxes = zipCheckboxContainer.querySelectorAll('input[type="checkbox"]:checked');
         checkboxes.forEach(cb => {
@@ -7261,6 +7265,11 @@ Thanks!
             selectedZips.push(cb.value);
           }
         });
+      }
+
+      // On first load, default to showing ALL (no filter)
+      if (isFirstLoad) {
+        allSelected = true;
       }
 
       // ZIP filter logic:
