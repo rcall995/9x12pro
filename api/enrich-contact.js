@@ -57,17 +57,19 @@ export default async function handler(req, res) {
     }
 
     // Step 6: Return enriched data
+    // NOTE: We DON'T return phone numbers from scraping - Google Places data is more reliable
+    // The scraper often finds wrong numbers (partner numbers, footer numbers, etc.)
     const enrichedData = {
       email: verifiedEmails[0] || '', // Primary email
       allEmails: verifiedEmails,
-      phone: allPhones[0] || '', // Primary phone (if found beyond Google Places)
-      allPhones: allPhones,
+      phone: '', // Don't scrape phones - keep Google's phone number instead
+      allPhones: [], // Don't provide alternative phones - causes confusion
       facebook: socialLinks.facebook || '',
       instagram: socialLinks.instagram || '',
       linkedin: socialLinks.linkedin || '',
       twitter: socialLinks.twitter || '',
       contactNames: contactNames,
-      enriched: !!(verifiedEmails.length || allPhones.length || Object.values(socialLinks).some(v => v)),
+      enriched: !!(verifiedEmails.length || Object.values(socialLinks).some(v => v)),
       source: '9x12pro-scraper',
       pagesScraped: contactPageUrl ? 2 : 1
     };

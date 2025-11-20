@@ -6686,7 +6686,8 @@ Thanks!
                   cached.cachedData[businessIndex] = {
                     ...cached.cachedData[businessIndex],
                     email: enrichedData.email || '',
-                    phone: enrichedData.phone || cached.cachedData[businessIndex].phone || '',
+                    // ALWAYS keep Google's phone number - more reliable than scraped data
+                    phone: cached.cachedData[businessIndex].phone || enrichedData.phone || '',
                     facebook: enrichedData.facebook || '',
                     instagram: enrichedData.instagram || '',
                     linkedin: enrichedData.linkedin || '',
@@ -6696,7 +6697,7 @@ Thanks!
                     enrichmentSource: '9x12pro-scraper',
                     pagesScraped: enrichedData.pagesScraped || 0,
                     contactScore: calculateContactScore({
-                      phone: enrichedData.phone || cached.cachedData[businessIndex].phone,
+                      phone: cached.cachedData[businessIndex].phone, // Use Google's phone for scoring
                       email: enrichedData.email,
                       website: cached.cachedData[businessIndex].website,
                       facebook: enrichedData.facebook,
@@ -6977,7 +6978,8 @@ Thanks!
                   cached.cachedData[businessIndex] = {
                     ...cached.cachedData[businessIndex],
                     email: enrichedData.email || '',
-                    phone: enrichedData.phone || cached.cachedData[businessIndex].phone || '',
+                    // ALWAYS keep Google's phone number - more reliable than scraped data
+                    phone: cached.cachedData[businessIndex].phone || enrichedData.phone || '',
                     facebook: enrichedData.facebook || '',
                     instagram: enrichedData.instagram || '',
                     linkedin: enrichedData.linkedin || '',
@@ -6987,7 +6989,7 @@ Thanks!
                     enrichmentSource: '9x12pro-scraper',
                     pagesScraped: enrichedData.pagesScraped || 0,
                     contactScore: calculateContactScore({
-                      phone: enrichedData.phone || cached.cachedData[businessIndex].phone,
+                      phone: cached.cachedData[businessIndex].phone, // Use Google's phone for scoring
                       email: enrichedData.email,
                       website: cached.cachedData[businessIndex].website,
                       facebook: enrichedData.facebook,
