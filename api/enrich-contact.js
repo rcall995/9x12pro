@@ -159,11 +159,36 @@ function extractEmails(html) {
 
 // Extract phone numbers from HTML
 function extractPhones(html) {
-  // Phone number patterns (US format)
+  // Look for phone numbers near contact keywords (higher priority)
+  const contextPatterns = [
+    /(?:phone|call|tel|contact|reach)[\s:]*(\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4})/gi,
+    /(?:phone|call|tel|contact|reach)[\s:]*(\+1[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4})/gi
+  ];
+
+  let priorityPhones = [];
+  for (const pattern of contextPatterns) {
+    const matches = [...html.matchAll(pattern)];
+    priorityPhones = priorityPhones.concat(matches.map(m => m[1]));
+  }
+
+  // If we found phones with context, prefer those
+  if (priorityPhones.length > 0) {
+    const normalized = priorityPhones.map(phone => phone.replace(/[^\d+()-.\s]/g, '').trim());
+    const valid = normalized.filter(phone => {
+      const digits = phone.replace(/\D/g, '');
+      // Must be 10 or 11 digits, and NOT start with 0 or 1
+      return (digits.length === 10 || digits.length === 11) &&
+             digits[0] !== '0' && digits[0] !== '1';
+    });
+    if (valid.length > 0) {
+      return [...new Set(valid)];
+    }
+  }
+
+  // Fallback: extract all phone-like patterns
   const patterns = [
-    /\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g,  // (123) 456-7890 or 123-456-7890
-    /\d{3}[-.\s]\d{3}[-.\s]\d{4}/g,          // 123.456.7890
-    /\+1[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g  // +1 (123) 456-7890
+    /\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g,
+    /\+1[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g
   ];
 
   let phones = [];
@@ -173,15 +198,20 @@ function extractPhones(html) {
   }
 
   // Normalize phone numbers
-  phones = phones.map(phone => {
-    // Remove common text around numbers
-    return phone.replace(/[^\d+()-.\s]/g, '').trim();
-  });
+  phones = phones.map(phone => phone.replace(/[^\d+()-.\s]/g, '').trim());
 
-  // Filter out obviously invalid numbers
+  // Filter out invalid numbers
   phones = phones.filter(phone => {
     const digits = phone.replace(/\D/g, '');
-    return digits.length === 10 || digits.length === 11; // Valid US phone
+    // Must be 10 or 11 digits, NOT start with 0 or 1, no repeating digits
+    if (digits.length !== 10 && digits.length !== 11) return false;
+    if (digits[0] === '0' || digits[0] === '1') return false;
+
+    // Filter out numbers like 1111111111, 0000000000, etc.
+    const uniqueDigits = new Set(digits.split(''));
+    if (uniqueDigits.size < 3) return false; // Too many repeating digits
+
+    return true;
   });
 
   return [...new Set(phones)]; // Remove duplicates
@@ -196,28 +226,56 @@ function extractSocialLinks(html, baseUrl) {
     twitter: ''
   };
 
-  // Facebook
-  const fbMatch = html.match(/(?:https?:\/\/)?(?:www\.)?facebook\.com\/[A-Za-z0-9._-]+/i);
-  if (fbMatch) {
-    links.facebook = fbMatch[0].startsWith('http') ? fbMatch[0] : 'https://' + fbMatch[0];
+  // Invalid/generic patterns to filter out
+  const invalidPatterns = {
+    facebook: ['profile.php', 'sharer.php', 'plugins', 'facebook.com/home', 'facebook.com/login'],
+    instagram: ['/static', '/accounts', '/explore', '/direct', 'instagram.com/p/'],
+    linkedin: ['/shareArticle', '/sharing', '/in/'],
+    twitter: ['/share', '/intent', '/widgets']
+  };
+
+  // Facebook - find all matches and filter
+  const fbMatches = html.match(/(?:https?:\/\/)?(?:www\.)?facebook\.com\/[A-Za-z0-9._-]+/gi) || [];
+  for (const match of fbMatches) {
+    const url = match.startsWith('http') ? match : 'https://' + match;
+    const isValid = !invalidPatterns.facebook.some(pattern => url.toLowerCase().includes(pattern));
+    if (isValid && url.split('/').length >= 4) { // Must have username/page
+      links.facebook = url;
+      break;
+    }
   }
 
-  // Instagram
-  const igMatch = html.match(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/[A-Za-z0-9._-]+/i);
-  if (igMatch) {
-    links.instagram = igMatch[0].startsWith('http') ? igMatch[0] : 'https://' + igMatch[0];
+  // Instagram - find all matches and filter
+  const igMatches = html.match(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/[A-Za-z0-9._-]+/gi) || [];
+  for (const match of igMatches) {
+    const url = match.startsWith('http') ? match : 'https://' + match;
+    const isValid = !invalidPatterns.instagram.some(pattern => url.toLowerCase().includes(pattern));
+    if (isValid && url.split('/').length >= 4) { // Must have username
+      links.instagram = url;
+      break;
+    }
   }
 
-  // LinkedIn
-  const liMatch = html.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/company\/[A-Za-z0-9._-]+/i);
-  if (liMatch) {
-    links.linkedin = liMatch[0].startsWith('http') ? liMatch[0] : 'https://' + liMatch[0];
+  // LinkedIn - find all matches and filter
+  const liMatches = html.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/company\/[A-Za-z0-9._-]+/gi) || [];
+  for (const match of liMatches) {
+    const url = match.startsWith('http') ? match : 'https://' + match;
+    const isValid = !invalidPatterns.linkedin.some(pattern => url.toLowerCase().includes(pattern));
+    if (isValid) {
+      links.linkedin = url;
+      break;
+    }
   }
 
-  // Twitter/X
-  const twMatch = html.match(/(?:https?:\/\/)?(?:www\.)?(?:twitter|x)\.com\/[A-Za-z0-9._-]+/i);
-  if (twMatch) {
-    links.twitter = twMatch[0].startsWith('http') ? twMatch[0] : 'https://' + twMatch[0];
+  // Twitter/X - find all matches and filter
+  const twMatches = html.match(/(?:https?:\/\/)?(?:www\.)?(?:twitter|x)\.com\/[A-Za-z0-9._-]+/gi) || [];
+  for (const match of twMatches) {
+    const url = match.startsWith('http') ? match : 'https://' + match;
+    const isValid = !invalidPatterns.twitter.some(pattern => url.toLowerCase().includes(pattern));
+    if (isValid && url.split('/').length >= 4) { // Must have username
+      links.twitter = url;
+      break;
+    }
   }
 
   return links;
