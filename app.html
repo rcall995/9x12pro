@@ -7400,12 +7400,15 @@ Thanks!
       // Check if we have any prospects at all
       if (Object.keys(categorizedProspects).length === 0 && prospectPoolState.manualProspects.length === 0) {
         container.innerHTML = `
-          <div class="text-center py-16 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-            <div class="text-6xl mb-4">🔍</div>
-            <h3 class="text-xl font-bold text-gray-700 mb-2">No prospects in your pool yet</h3>
-            <p class="text-gray-600 mb-6">Run a search from Lead Generation to populate your prospect pool</p>
-            <button onclick="switchTab('lead-generation')" class="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold">
-              Go to Lead Generation
+          <div class="text-center py-16 bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl border-2 border-dashed border-purple-300">
+            <div class="text-7xl mb-6 animate-pulse">🎯</div>
+            <h3 class="text-3xl font-black text-gray-900 mb-3">Your Prospect Pool is Empty</h3>
+            <p class="text-lg text-gray-600 mb-8 max-w-md mx-auto">
+              Use the <strong>Prospect Generator</strong> to discover businesses in your area.
+              They'll appear here for review before adding to your sales pipeline.
+            </p>
+            <button onclick="switchTab('lead-generation')" class="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 font-black text-lg shadow-xl transform hover:scale-105 transition">
+              🔍 Generate Prospects Now →
             </button>
           </div>
         `;
