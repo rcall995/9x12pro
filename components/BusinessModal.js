@@ -701,7 +701,16 @@ class BusinessModal {
   }
 }
 
-// Create global instance
-window.businessModal = new BusinessModal();
+// Initialize when DOM is ready
+function initBusinessModal() {
+  window.businessModal = new BusinessModal();
+  console.log('✅ Unified Business Modal loaded');
+}
 
-console.log('✅ Unified Business Modal loaded');
+// Wait for DOM to be ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initBusinessModal);
+} else {
+  // DOM already loaded
+  initBusinessModal();
+}

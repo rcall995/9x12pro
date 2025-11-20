@@ -176,44 +176,55 @@ class ToastManager {
   }
 }
 
-// Add show class animation
-const style = document.createElement('style');
-style.textContent = `
-  .toast-show {
-    opacity: 1 !important;
-    transform: translateX(0) !important;
-  }
-`;
-document.head.appendChild(style);
+// Initialize when DOM is ready
+function initToastSystem() {
+  // Add show class animation
+  const style = document.createElement('style');
+  style.textContent = `
+    .toast-show {
+      opacity: 1 !important;
+      transform: translateX(0) !important;
+    }
+  `;
+  document.head.appendChild(style);
 
-// Create global instance
-window.toastManager = new ToastManager();
+  // Create global instance
+  window.toastManager = new ToastManager();
 
-/**
- * Global convenience functions
- */
-window.showToast = (message, type = 'success', duration = 3000) => {
-  return window.toastManager.show(message, type, duration);
-};
+  /**
+   * Global convenience functions
+   */
+  window.showToast = (message, type = 'success', duration = 3000) => {
+    return window.toastManager.show(message, type, duration);
+  };
 
-window.showSuccess = (message, duration = 3000) => {
-  return window.toastManager.show(message, 'success', duration);
-};
+  window.showSuccess = (message, duration = 3000) => {
+    return window.toastManager.show(message, 'success', duration);
+  };
 
-window.showWarning = (message, duration = 3000) => {
-  return window.toastManager.show(message, 'warning', duration);
-};
+  window.showWarning = (message, duration = 3000) => {
+    return window.toastManager.show(message, 'warning', duration);
+  };
 
-window.showError = (message, duration = 4000) => {
-  return window.toastManager.show(message, 'error', duration);
-};
+  window.showError = (message, duration = 4000) => {
+    return window.toastManager.show(message, 'error', duration);
+  };
 
-window.showInfo = (message, duration = 3000) => {
-  return window.toastManager.show(message, 'info', duration);
-};
+  window.showInfo = (message, duration = 3000) => {
+    return window.toastManager.show(message, 'info', duration);
+  };
 
-window.dismissAllToasts = () => {
-  window.toastManager.dismissAll();
-};
+  window.dismissAllToasts = () => {
+    window.toastManager.dismissAll();
+  };
 
-console.log('✅ Toast notification system loaded');
+  console.log('✅ Toast notification system loaded');
+}
+
+// Wait for DOM to be ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initToastSystem);
+} else {
+  // DOM already loaded
+  initToastSystem();
+}
