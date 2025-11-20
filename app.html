@@ -513,6 +513,40 @@
       </button>
     </div>
   </header>
+
+  <!-- Workflow Breadcrumb -->
+  <div class="max-w-6xl mx-auto px-3 mt-4">
+    <div id="workflowBreadcrumb" class="bg-gradient-to-r from-indigo-50 to-purple-50 border-2 border-indigo-200 rounded-xl p-4 flex items-center justify-center gap-2 md:gap-4 text-sm md:text-base overflow-x-auto">
+      <div class="flex items-center gap-2 md:gap-4 whitespace-nowrap">
+        <button onclick="switchTab('lead-generation')" class="flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:bg-white hover:shadow-md group" id="breadcrumb-generator">
+          <span class="text-2xl">🔍</span>
+          <span class="font-bold text-gray-700 group-hover:text-indigo-600">Generator</span>
+        </button>
+        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+        </svg>
+        <button onclick="switchTab('prospects')" class="flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:bg-white hover:shadow-md group" id="breadcrumb-pool">
+          <span class="text-2xl">🎯</span>
+          <span class="font-bold text-gray-700 group-hover:text-indigo-600">Pool</span>
+        </button>
+        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+        </svg>
+        <button onclick="switchTab('pipeline')" class="flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:bg-white hover:shadow-md group" id="breadcrumb-pipeline">
+          <span class="text-2xl">📊</span>
+          <span class="font-bold text-gray-700 group-hover:text-indigo-600">Pipeline</span>
+        </button>
+        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+        </svg>
+        <button onclick="switchTab('clients')" class="flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:bg-white hover:shadow-md group" id="breadcrumb-clients">
+          <span class="text-2xl">👥</span>
+          <span class="font-bold text-gray-700 group-hover:text-indigo-600">Clients</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <main class="max-w-6xl mx-auto mt-6 px-3 pb-20">
     <div class="flex border-b border-gray-300 mb-6 overflow-x-auto" id="navTabs" style="scrollbar-width: thin;">
         <button data-tab="pipeline" class="tab-btn active px-3 md:px-4 py-2 text-xs md:text-sm whitespace-nowrap">
@@ -6123,12 +6157,9 @@ Thanks!
         // Just cache results - searchGooglePlaces already handled caching
         closeAutoPopulateModal();
 
-        toast(`✅ Found ${businesses.length} businesses! Go to Prospect Pool tab to review and add them.`, true);
-
-        // Switch to Prospect Pool
-        setTimeout(() => {
-          switchTab('prospects');
-        }, 1500);
+        // Show success modal with category breakdown
+        const categorizedResults = { [category]: businesses.length };
+        showProspectSuccessModal(categorizedResults, businesses.length);
 
       } catch(err) {
         console.error('Auto-populate error:', err);
@@ -6265,6 +6296,7 @@ Thanks!
         // Track all businesses found across all categories
         const allBusinesses = [];
         const seenPlaceIds = new Set();
+        const categorizedResults = {}; // Track counts per category
         let successfulSearches = 0;
         let failedSearches = 0;
 
@@ -6275,13 +6307,19 @@ Thanks!
 
             const businesses = await searchGooglePlaces(zipCode, category, radius);
 
+            let categoryCount = 0;
             // Deduplicate by place ID and filter out "not interested"
             businesses.forEach(business => {
               if (!seenPlaceIds.has(business.placeId) && !notInterestedState.placeIds.has(business.placeId)) {
                 seenPlaceIds.add(business.placeId);
                 allBusinesses.push(business);
+                categoryCount++;
               }
             });
+
+            if (categoryCount > 0) {
+              categorizedResults[category] = categoryCount;
+            }
 
             successfulSearches++;
 
@@ -6332,15 +6370,11 @@ Thanks!
         });
 
         // Just cache results - don't auto-add to prospecting
-        toast(`✅ Found ${allBusinesses.length} businesses! Go to Prospect Pool tab to review and add them.`, true);
-
         // Update API usage display
         updateQuickApiUsage();
 
-        // Automatically switch to Prospect Pool tab to review
-        setTimeout(() => {
-          switchTab('prospects');
-        }, 1500);
+        // Show success modal with category breakdown
+        showProspectSuccessModal(categorizedResults, allBusinesses.length);
 
       } catch(err) {
         console.error('Bulk auto-populate error:', err);
@@ -13645,6 +13679,9 @@ Thanks!
             }
         }
 
+        // Update breadcrumb active state
+        updateBreadcrumbHighlight(tabName);
+
         // Render template manager when clients tab is opened
         if (tabName === 'clients') {
             setTimeout(() => renderTemplateManager(), 100);
@@ -16628,6 +16665,129 @@ Thanks!
       }
     `;
     document.head.appendChild(style);
+
+    // ========== PROSPECT SUCCESS MODAL ==========
+    function showProspectSuccessModal(categorizedResults, totalCount) {
+      // Create modal if it doesn't exist
+      let modal = document.getElementById('prospectSuccessModal');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'prospectSuccessModal';
+        modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4';
+        modal.style.display = 'none';
+        document.body.appendChild(modal);
+      }
+
+      // Build category breakdown HTML
+      const categoryHTML = Object.entries(categorizedResults)
+        .map(([category, count]) => `
+          <div class="flex items-center justify-between py-2 border-b border-green-100">
+            <span class="text-gray-700 font-medium capitalize">${category}</span>
+            <span class="text-2xl font-black text-green-600">${count}</span>
+          </div>
+        `).join('');
+
+      modal.innerHTML = `
+        <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-8 relative animate-bounce-in">
+          <button onclick="closeProspectSuccessModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition">
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+            </svg>
+          </button>
+
+          <div class="text-center mb-6">
+            <div class="text-7xl mb-4">🎉</div>
+            <h3 class="text-4xl font-black text-gray-900 mb-2">Success!</h3>
+            <p class="text-xl text-gray-600">Found <span class="text-green-600 font-black">${totalCount}</span> businesses!</p>
+          </div>
+
+          <div class="bg-green-50 rounded-2xl p-6 mb-6">
+            <h4 class="text-lg font-bold text-gray-900 mb-4">Category Breakdown:</h4>
+            ${categoryHTML}
+          </div>
+
+          <div class="flex gap-3">
+            <button onclick="closeProspectSuccessModal(); switchTab('prospects');" class="flex-1 px-6 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 font-black text-lg shadow-xl transform hover:scale-105 transition">
+              Review Prospects →
+            </button>
+            <button onclick="closeProspectSuccessModal();" class="px-6 py-4 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-bold transition">
+              Generate More
+            </button>
+          </div>
+        </div>
+      `;
+
+      // Add bounce-in animation
+      const style = document.createElement('style');
+      style.textContent = `
+        @keyframes bounce-in {
+          0% { transform: scale(0.3); opacity: 0; }
+          50% { transform: scale(1.05); }
+          70% { transform: scale(0.9); }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-bounce-in {
+          animation: bounce-in 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+      `;
+      if (!document.getElementById('successModalStyle')) {
+        style.id = 'successModalStyle';
+        document.head.appendChild(style);
+      }
+
+      modal.style.display = 'flex';
+
+      // Close on backdrop click
+      modal.onclick = (e) => {
+        if (e.target === modal) {
+          closeProspectSuccessModal();
+        }
+      };
+
+      // Close on ESC key
+      const escHandler = (e) => {
+        if (e.key === 'Escape') {
+          closeProspectSuccessModal();
+          document.removeEventListener('keydown', escHandler);
+        }
+      };
+      document.addEventListener('keydown', escHandler);
+    }
+
+    function closeProspectSuccessModal() {
+      const modal = document.getElementById('prospectSuccessModal');
+      if (modal) {
+        modal.style.display = 'none';
+      }
+    }
+
+    // ========== BREADCRUMB NAVIGATION HIGHLIGHT ==========
+    function updateBreadcrumbHighlight(tabName) {
+      // Map tab names to breadcrumb IDs
+      const tabToBreadcrumb = {
+        'lead-generation': 'breadcrumb-generator',
+        'prospects': 'breadcrumb-pool',
+        'pipeline': 'breadcrumb-pipeline',
+        'clients': 'breadcrumb-clients'
+      };
+
+      // Remove active state from all breadcrumb buttons
+      document.querySelectorAll('[id^="breadcrumb-"]').forEach(btn => {
+        btn.classList.remove('bg-white', 'shadow-lg', 'ring-2', 'ring-indigo-500');
+        btn.classList.add('hover:bg-white', 'hover:shadow-md');
+      });
+
+      // Add active state to current step
+      const breadcrumbId = tabToBreadcrumb[tabName];
+      if (breadcrumbId) {
+        const activeBreadcrumb = document.getElementById(breadcrumbId);
+        if (activeBreadcrumb) {
+          activeBreadcrumb.classList.remove('hover:bg-white', 'hover:shadow-md');
+          activeBreadcrumb.classList.add('bg-white', 'shadow-lg', 'ring-2', 'ring-indigo-500');
+        }
+      }
+    }
+
   </script>
 </body>
 </html><!-- Force refresh 1762829270 -->
