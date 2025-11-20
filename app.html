@@ -444,7 +444,7 @@
     (function() {
       // Hide all tabs initially to prevent flash
       document.addEventListener('DOMContentLoaded', function() {
-        const savedTab = localStorage.getItem('9x12_active_tab') || 'pipeline';
+        const savedTab = localStorage.getItem('9x12_active_tab') || 'dashboard';
 
         // Hide all tabs and deactivate all buttons
         document.querySelectorAll('.tab-pane').forEach(pane => {
@@ -496,7 +496,7 @@
 
     <div class="flex items-center gap-2 md:gap-3">
       <!-- Auto-Save Status Indicator (Compact) -->
-      <div id="autoSaveStatus" class="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-gray-50 border">
+      <div id="autoSaveStatus" class="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-gray-50 border" style="display: none;">
         <span id="autoSaveIcon">✓</span>
         <span id="autoSaveText" class="hidden lg:inline">Saved</span>
       </div>
@@ -13612,9 +13612,14 @@ Thanks!
       // Initialize sales activity collapse state
       initSalesActivityState();
 
-      // Restore last active tab, or default to pipeline
-      const lastTab = localStorage.getItem('9x12_active_tab') || 'pipeline';
+      // Restore last active tab, or default to dashboard
+      const lastTab = localStorage.getItem('9x12_active_tab') || 'dashboard';
       switchTab(lastTab);
+
+      // If starting on dashboard, refresh it after a short delay
+      if (lastTab === 'dashboard') {
+        setTimeout(() => refreshDashboard(), 500);
+      }
 
       window.addEventListener('resize', () => renderLegend());
       bindUI();
@@ -17003,6 +17008,8 @@ Thanks!
 
     // Call these when switching to dashboard
     function refreshDashboard() {
+      renderGettingStartedChecklist();
+      renderContractsExpiring();
       renderDashboardStats();
       renderDashboardTasks();
       renderRecentActivity();
