@@ -6614,24 +6614,15 @@ Thanks!
         }
 
         // HYBRID AUTO-ENRICHMENT STRATEGY
-        // Phase 1: Show all results immediately (already done by searchGooglePlaces)
-        // Phase 2: Auto-enrich top 5 prospects in foreground (30 seconds)
-        // Phase 3: Enrich remaining in background (90 seconds)
-
+        // AUTO-ENRICHMENT - ENRICH ALL BUSINESSES
         const businessesWithWebsites = businesses.filter(b => b.website && !b.enriched);
-        console.log(`🎯 Found ${businessesWithWebsites.length} businesses with websites to enrich`);
+        console.log(`🎯 Enriching ${businessesWithWebsites.length} businesses...`);
 
         if (businessesWithWebsites.length > 0) {
-          // Split into top 5 (priority) and rest (background)
-          const top5 = businessesWithWebsites.slice(0, 5);
-          const remaining = businessesWithWebsites.slice(5);
-
-          btn.innerHTML = `🎯 Enriching top ${top5.length} prospects...`;
-
-          // Enrich top 5 in foreground (show progress)
-          for (let i = 0; i < top5.length; i++) {
-            const business = top5[i];
-            btn.innerHTML = `🎯 Enriching ${business.name}... (${i + 1}/${top5.length})`;
+          // Enrich ALL businesses with websites
+          for (let i = 0; i < businessesWithWebsites.length; i++) {
+            const business = businessesWithWebsites[i];
+            btn.innerHTML = `🎯 Enriching ${business.name}... (${i + 1}/${businessesWithWebsites.length})`;
 
             try {
               const enrichedData = await fetchSmartEnrichment(business.website, business.name);
@@ -6671,20 +6662,18 @@ Thanks!
                 }
               }
 
-              console.log(`✅ Enriched (${i + 1}/${top5.length}): ${business.name}`);
+              // Log progress
+              if ((i + 1) % 5 === 0 || i === businessesWithWebsites.length - 1) {
+                console.log(`✅ Enriched ${i + 1}/${businessesWithWebsites.length} businesses`);
+              }
             } catch (err) {
               console.error(`❌ Failed to enrich ${business.name}:`, err);
             }
           }
 
-          // Save enriched top 5 to cache
+          // Save all enriched data to cache
           await savePlacesCache();
-
-          // Queue remaining businesses for background enrichment
-          if (remaining.length > 0) {
-            console.log(`📋 Queueing ${remaining.length} businesses for background enrichment`);
-            enrichmentQueue.add(remaining);
-          }
+          console.log(`✅ Enrichment complete! ${businessesWithWebsites.length} businesses enriched.`);
         }
 
         // Just cache results - searchGooglePlaces already handled caching
@@ -6696,18 +6685,9 @@ Thanks!
 
         // Show enrichment status toast AFTER modal
         if (businessesWithWebsites.length > 0) {
-          const top5Count = Math.min(businessesWithWebsites.length, 5);
-          const remainingCount = Math.max(0, businessesWithWebsites.length - 5);
-
-          if (remainingCount > 0) {
-            setTimeout(() => {
-              toast(`🎯 Top ${top5Count} enriched! ${remainingCount} more enriching in background...`, true);
-            }, 500);
-          } else {
-            setTimeout(() => {
-              toast(`✅ All ${top5Count} prospects enriched!`, true);
-            }, 500);
-          }
+          setTimeout(() => {
+            toast(`✅ All ${businessesWithWebsites.length} prospects enriched with emails & social media!`, true);
+          }, 500);
         }
 
         // Refresh Prospect Pool to show enriched data
@@ -6924,21 +6904,16 @@ Thanks!
           business.alreadyExists = existingLeads.has(business.placeId);
         });
 
-        // HYBRID AUTO-ENRICHMENT STRATEGY FOR BULK SEARCH
-        // Enrich top 5 highest-scoring businesses across ALL categories
+        // AUTO-ENRICHMENT STRATEGY - ENRICH ALL BUSINESSES
         const businessesWithWebsites = allBusinesses.filter(b => b.website && !b.enriched);
 
         if (businessesWithWebsites.length > 0) {
-          // Sort by lead score (already sorted from searchGooglePlaces)
-          const top5 = businessesWithWebsites.slice(0, 5);
-          const remaining = businessesWithWebsites.slice(5);
+          console.log(`🎯 Enriching ${businessesWithWebsites.length} businesses...`);
 
-          btn.innerHTML = `🎯 Enriching top ${top5.length} prospects...`;
-
-          // Enrich top 5 in foreground
-          for (let i = 0; i < top5.length; i++) {
-            const business = top5[i];
-            btn.innerHTML = `🎯 Enriching ${business.name}... (${i + 1}/${top5.length})`;
+          // Enrich ALL businesses with websites
+          for (let i = 0; i < businessesWithWebsites.length; i++) {
+            const business = businessesWithWebsites[i];
+            btn.innerHTML = `🎯 Enriching ${business.name}... (${i + 1}/${businessesWithWebsites.length})`;
 
             try {
               const enrichedData = await fetchSmartEnrichment(business.website, business.name);
@@ -6977,19 +6952,19 @@ Thanks!
                   cached.cachedData[businessIndex].scoreCategory = getScoreCategory(cached.cachedData[businessIndex].leadScore);
                 }
               }
+
+              // Log progress
+              if ((i + 1) % 5 === 0 || i === businessesWithWebsites.length - 1) {
+                console.log(`✅ Enriched ${i + 1}/${businessesWithWebsites.length} businesses`);
+              }
             } catch (err) {
               console.error(`❌ Failed to enrich ${business.name}:`, err);
             }
           }
 
-          // Save enriched top 5 to cache
+          // Save all enriched data to cache
           await savePlacesCache();
-
-          // Queue remaining for background enrichment
-          if (remaining.length > 0) {
-            console.log(`📋 Queueing ${remaining.length} businesses for background enrichment`);
-            enrichmentQueue.add(remaining);
-          }
+          console.log(`✅ Enrichment complete! ${businessesWithWebsites.length} businesses enriched.`);
         }
 
         // Just cache results - don't auto-add to prospecting
@@ -7001,18 +6976,9 @@ Thanks!
 
         // Show enrichment status toast AFTER modal
         if (businessesWithWebsites.length > 0) {
-          const top5Count = Math.min(businessesWithWebsites.length, 5);
-          const remainingCount = Math.max(0, businessesWithWebsites.length - 5);
-
-          if (remainingCount > 0) {
-            setTimeout(() => {
-              toast(`🎯 Top ${top5Count} enriched! ${remainingCount} more enriching in background...`, true);
-            }, 500);
-          } else {
-            setTimeout(() => {
-              toast(`✅ All ${top5Count} prospects enriched!`, true);
-            }, 500);
-          }
+          setTimeout(() => {
+            toast(`✅ All ${businessesWithWebsites.length} prospects enriched with emails & social media!`, true);
+          }, 500);
         }
 
         // Refresh Prospect Pool to show enriched data if currently viewing it
