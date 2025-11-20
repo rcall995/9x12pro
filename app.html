@@ -16897,18 +16897,18 @@ Thanks!
 
     // ========== DASHBOARD STATS & ACTIVITY ==========
     function renderDashboardStats() {
-      // Count prospects in pool (prospect-list column in kanban)
+      // Count prospects in Pool only (prospect-list column - not yet contacted)
       const prospectsCount = (kanbanState.columns && kanbanState.columns['prospect-list']) ? kanbanState.columns['prospect-list'].length : 0;
       document.getElementById('statsProspects').textContent = prospectsCount;
 
-      // Count active leads in pipeline (columns 2-4)
+      // Count active leads in pipeline (columns 2-4 - actively pursuing)
       const leadsCount = (kanbanState.columns['to-contact'] || []).length +
                         (kanbanState.columns['in-progress'] || []).length +
                         (kanbanState.columns['committed'] || []).length;
       document.getElementById('statsLeads').textContent = leadsCount;
 
-      // Count campaigns
-      const campaignsCount = state.all ? state.all.length : 0;
+      // Count campaigns (all postcard campaigns)
+      const campaignsCount = (state && state.all && Array.isArray(state.all)) ? state.all.length : 0;
       document.getElementById('statsCampaigns').textContent = campaignsCount;
 
       // Count clients
@@ -16921,13 +16921,21 @@ Thanks!
       const countEl = document.getElementById('dashboardTasksCount');
       if (!container || !countEl) return;
 
+      // Check if tasksState exists and has tasks
+      if (!tasksState || !tasksState.tasks || !Array.isArray(tasksState.tasks)) {
+        countEl.textContent = '0 tasks due';
+        container.innerHTML = '<p class="text-gray-500 text-center py-4">No tasks yet</p>';
+        return;
+      }
+
       // Get today's date at midnight
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
       // Filter tasks that are due today or overdue
-      const todaysTasks = tasks.filter(task => {
+      const todaysTasks = tasksState.tasks.filter(task => {
         if (task.completed) return false;
+        if (!task.dueDate) return false;
         const dueDate = new Date(task.dueDate);
         dueDate.setHours(0, 0, 0, 0);
         return dueDate <= today;
