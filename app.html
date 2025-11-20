@@ -503,14 +503,6 @@
       <button id="btnManualSave" onclick="manualSaveNow()" class="px-2 py-1 bg-blue-600 text-white rounded-md text-xs hover:bg-blue-700 font-medium hidden">
         <span class="hidden sm:inline">☁️</span>
       </button>
-      <button onclick="openReportsModal()" class="px-2 py-1.5 md:px-3 bg-purple-600 text-white rounded-md text-xs md:text-sm hover:bg-purple-700">
-        <span class="hidden sm:inline">📊 Reports</span>
-        <span class="sm:hidden">📊</span>
-      </button>
-      <button onclick="openEmailModal()" class="px-2 py-1.5 md:px-3 bg-blue-600 text-white rounded-md text-xs md:text-sm hover:bg-blue-700">
-        <span class="hidden sm:inline">✉️ Email</span>
-        <span class="sm:hidden">✉️</span>
-      </button>
     </div>
   </header>
 
@@ -549,17 +541,25 @@
 
   <main class="max-w-6xl mx-auto mt-6 px-3 pb-20">
     <div class="flex border-b border-gray-300 mb-6 overflow-x-auto" id="navTabs" style="scrollbar-width: thin;">
-        <button data-tab="pipeline" class="tab-btn active px-3 md:px-4 py-2 text-xs md:text-sm whitespace-nowrap">
+        <button data-tab="dashboard" class="tab-btn active px-3 md:px-4 py-2 text-xs md:text-sm whitespace-nowrap">
             <span class="hidden sm:inline">🏠 Dashboard</span>
             <span class="sm:hidden">🏠</span>
+        </button>
+        <button data-tab="lead-generation" class="tab-btn px-3 md:px-4 py-2 text-xs md:text-sm whitespace-nowrap">
+            <span class="hidden sm:inline">🔍 Prospect Generator</span>
+            <span class="sm:hidden">🔍 Generate</span>
         </button>
         <button data-tab="prospects" class="tab-btn px-3 md:px-4 py-2 text-xs md:text-sm whitespace-nowrap">
             <span class="hidden sm:inline">🎯 Prospect Pool</span>
             <span class="sm:hidden">🎯 Pool</span>
         </button>
-        <button data-tab="lead-generation" class="tab-btn px-3 md:px-4 py-2 text-xs md:text-sm whitespace-nowrap">
-            <span class="hidden sm:inline">🔍 Prospect Generator</span>
-            <span class="sm:hidden">🔍 Generate</span>
+        <button data-tab="pipeline" class="tab-btn px-3 md:px-4 py-2 text-xs md:text-sm whitespace-nowrap">
+            <span class="hidden sm:inline">📊 Sales Pipeline</span>
+            <span class="sm:hidden">📊 Pipeline</span>
+        </button>
+        <button data-tab="tasks" class="tab-btn px-3 md:px-4 py-2 text-xs md:text-sm whitespace-nowrap">
+            <span class="hidden sm:inline">✅ Tasks</span>
+            <span class="sm:hidden">✅</span>
         </button>
         <button data-tab="manager" class="tab-btn px-3 md:px-4 py-2 text-xs md:text-sm whitespace-nowrap">
             <span class="hidden sm:inline">📮 Campaigns</span>
@@ -570,15 +570,163 @@
             <span class="sm:hidden">👥</span>
         </button>
         <button data-tab="admin" class="tab-btn px-3 md:px-4 py-2 text-xs md:text-sm whitespace-nowrap">
-            <span class="hidden sm:inline">💰 Reports</span>
-            <span class="sm:hidden">💰</span>
+            <span class="hidden sm:inline">📈 Reports</span>
+            <span class="sm:hidden">📈</span>
         </button>
         <div class="flex-grow"></div>
         <div id="quickControls" class="flex items-center gap-2"></div>
     </div>
     <div id="tabContent">
-       
-        <div data-content="pipeline" class="tab-pane active-pane">
+
+        <!-- SUPERCHARGED DASHBOARD TAB -->
+        <div data-content="dashboard" class="tab-pane active-pane">
+            <!-- HERO SECTION -->
+            <div class="bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 rounded-2xl shadow-2xl p-8 md:p-12 mb-8 text-white relative overflow-hidden">
+                <div class="absolute inset-0 opacity-10">
+                    <div class="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
+                    <div class="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
+                </div>
+
+                <div class="relative z-10">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span class="text-6xl">🎯</span>
+                        <div>
+                            <h2 class="text-5xl font-black tracking-tight">Command Center</h2>
+                            <p class="text-2xl text-blue-100 mt-2">Your Business at a Glance</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GETTING STARTED CHECKLIST (Full Width) -->
+            <div id="gettingStartedWidget" class="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl shadow-lg border-2 border-green-200 p-6 mb-8">
+                <div class="flex items-center gap-3 mb-4">
+                    <span class="text-4xl">🚀</span>
+                    <div class="flex-1">
+                        <h4 class="text-xl font-black text-gray-900">Getting Started</h4>
+                        <p class="text-sm text-gray-600" id="checklistProgress">0 of 5 complete</p>
+                    </div>
+                    <button onclick="dismissGettingStarted()" class="text-gray-400 hover:text-gray-600 transition" title="Dismiss">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="space-y-3" id="checklistItems">
+                    <!-- Dynamically populated by renderGettingStartedChecklist() -->
+                </div>
+            </div>
+
+            <!-- QUICK STATS CARDS -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                <!-- Prospects in Pool -->
+                <div class="bg-white rounded-xl shadow-lg border-2 border-teal-100 p-6 hover:shadow-xl transition-all">
+                    <div class="flex items-center gap-3 mb-2">
+                        <span class="text-3xl">🎯</span>
+                        <h5 class="text-sm font-bold text-gray-600">Prospects</h5>
+                    </div>
+                    <p id="statsProspects" class="text-4xl font-black text-teal-600">0</p>
+                    <p class="text-xs text-gray-500 mt-1">in Pool</p>
+                </div>
+
+                <!-- Active Leads -->
+                <div class="bg-white rounded-xl shadow-lg border-2 border-indigo-100 p-6 hover:shadow-xl transition-all">
+                    <div class="flex items-center gap-3 mb-2">
+                        <span class="text-3xl">📊</span>
+                        <h5 class="text-sm font-bold text-gray-600">Active Leads</h5>
+                    </div>
+                    <p id="statsLeads" class="text-4xl font-black text-indigo-600">0</p>
+                    <p class="text-xs text-gray-500 mt-1">in Pipeline</p>
+                </div>
+
+                <!-- Campaigns -->
+                <div class="bg-white rounded-xl shadow-lg border-2 border-purple-100 p-6 hover:shadow-xl transition-all">
+                    <div class="flex items-center gap-3 mb-2">
+                        <span class="text-3xl">📮</span>
+                        <h5 class="text-sm font-bold text-gray-600">Campaigns</h5>
+                    </div>
+                    <p id="statsCampaigns" class="text-4xl font-black text-purple-600">0</p>
+                    <p class="text-xs text-gray-500 mt-1">Active</p>
+                </div>
+
+                <!-- Active Clients -->
+                <div class="bg-white rounded-xl shadow-lg border-2 border-green-100 p-6 hover:shadow-xl transition-all">
+                    <div class="flex items-center gap-3 mb-2">
+                        <span class="text-3xl">👥</span>
+                        <h5 class="text-sm font-bold text-gray-600">Clients</h5>
+                    </div>
+                    <p id="statsClients" class="text-4xl font-black text-green-600">0</p>
+                    <p class="text-xs text-gray-500 mt-1">Active</p>
+                </div>
+            </div>
+
+            <!-- CONTRACT RENEWALS + TODAY'S TASKS (Side by side) -->
+            <div class="grid md:grid-cols-2 gap-6 mb-8">
+                <!-- CONTRACTS EXPIRING WIDGET -->
+                <div class="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl shadow-lg border-2 border-amber-200 p-6">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span class="text-4xl">📋</span>
+                        <div>
+                            <h4 class="text-xl font-black text-gray-900">Contract Renewals</h4>
+                            <p class="text-sm text-gray-600">Upcoming expiration dates</p>
+                        </div>
+                    </div>
+                    <div id="contractsExpiringList" class="space-y-3">
+                        <!-- Dynamically populated by renderContractsExpiring() -->
+                    </div>
+                </div>
+
+                <!-- TODAY'S TASKS -->
+                <div class="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl shadow-lg border-2 border-green-200 p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <span class="text-4xl">✅</span>
+                            <div>
+                                <h4 class="text-xl font-black text-gray-900">Today's Tasks</h4>
+                                <p class="text-sm text-gray-600" id="dashboardTasksCount">0 tasks due</p>
+                            </div>
+                        </div>
+                        <button onclick="switchTab('tasks')" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition">View All →</button>
+                    </div>
+                    <div id="dashboardTasksList" class="space-y-2 text-sm">
+                        <!-- Top 5 tasks dynamically populated -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- RECENT ACTIVITY FEED -->
+            <div class="bg-white rounded-2xl shadow-xl border-2 border-gray-100 p-6 md:p-8 mb-8">
+                <div class="flex items-center gap-3 mb-6">
+                    <span class="text-4xl">🎬</span>
+                    <div>
+                        <h4 class="text-2xl font-black text-gray-900">Recent Activity</h4>
+                        <p class="text-sm text-gray-500">Your latest actions across all areas</p>
+                    </div>
+                </div>
+                <div id="recentActivityFeed" class="space-y-3">
+                    <!-- Activity items dynamically populated -->
+                </div>
+            </div>
+
+            <!-- QUICK ACTIONS -->
+            <div class="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl shadow-lg border-2 border-indigo-200 p-8 text-center">
+                <h4 class="text-2xl font-black text-gray-900 mb-6">⚡ Quick Actions</h4>
+                <div class="flex flex-wrap justify-center gap-4">
+                    <button onclick="switchTab('lead-generation')" class="px-6 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all">
+                        🔍 Generate Prospects
+                    </button>
+                    <button onclick="switchTab('tasks'); openTaskModal();" class="px-6 py-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all">
+                        ➕ Add Task
+                    </button>
+                    <button onclick="switchTab('manager')" class="px-6 py-4 bg-gradient-to-r from-pink-600 to-rose-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all">
+                        📮 New Campaign
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- SALES PIPELINE TAB -->
+        <div data-content="pipeline" class="tab-pane hidden">
             <!-- HERO SECTION -->
             <div class="bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 rounded-2xl shadow-2xl p-8 md:p-12 mb-8 text-white relative overflow-hidden">
                 <div class="absolute inset-0 opacity-10">
