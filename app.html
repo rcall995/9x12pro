@@ -5823,7 +5823,7 @@ Thanks!
               radius: radiusMeters
             };
 
-            service.textSearch(request, (results, status) => {
+            service.textSearch(request, async (results, status) => {
               // Track API call for places search
               trackApiCall(1);
 
@@ -5988,7 +5988,7 @@ Thanks!
               type: category
             };
 
-            service.nearbySearch(request, (results, status) => {
+            service.nearbySearch(request, async (results, status) => {
               // Track API call for places search
               trackApiCall(1);
 
