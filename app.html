@@ -17366,29 +17366,29 @@ Thanks!
         `).join('');
 
       modal.innerHTML = `
-        <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-8 relative animate-bounce-in">
-          <button onclick="closeProspectSuccessModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-8 relative animate-bounce-in">
+          <button onclick="closeProspectSuccessModal()" class="sticky top-0 right-0 float-right text-gray-400 hover:text-gray-600 transition z-10 bg-white rounded-full p-1 -mt-2 -mr-2">
             <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
               <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
             </svg>
           </button>
 
           <div class="text-center mb-6">
-            <div class="text-7xl mb-4">🎉</div>
-            <h3 class="text-4xl font-black text-gray-900 mb-2">Success!</h3>
-            <p class="text-xl text-gray-600">Found <span class="text-green-600 font-black">${totalCount}</span> businesses!</p>
+            <div class="text-6xl mb-4">🎉</div>
+            <h3 class="text-3xl font-black text-gray-900 mb-2">Success!</h3>
+            <p class="text-lg text-gray-600">Found <span class="text-green-600 font-black">${totalCount}</span> businesses!</p>
           </div>
 
-          <div class="bg-green-50 rounded-2xl p-6 mb-6">
-            <h4 class="text-lg font-bold text-gray-900 mb-4">Category Breakdown:</h4>
+          <div class="bg-green-50 rounded-2xl p-4 mb-6 max-h-60 overflow-y-auto">
+            <h4 class="text-base font-bold text-gray-900 mb-3 sticky top-0 bg-green-50">Category Breakdown:</h4>
             ${categoryHTML}
           </div>
 
-          <div class="flex gap-3">
-            <button onclick="closeProspectSuccessModal(); switchTab('prospects');" class="flex-1 px-6 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 font-black text-lg shadow-xl transform hover:scale-105 transition">
+          <div class="flex gap-3 sticky bottom-0 bg-white pt-4">
+            <button onclick="closeProspectSuccessModal(); switchTab('prospects');" class="flex-1 px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 font-black text-base shadow-xl transform hover:scale-105 transition">
               Review Prospects →
             </button>
-            <button onclick="closeProspectSuccessModal();" class="px-6 py-4 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-bold transition">
+            <button onclick="closeProspectSuccessModal();" class="px-4 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-bold transition">
               Generate More
             </button>
           </div>
