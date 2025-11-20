@@ -5942,20 +5942,38 @@ Thanks!
                 const filteredOutCount = allBusinesses.length - businesses.length;
                 console.log(`✅ Found ${businesses.length} matching businesses for ${category} in ZIP ${zipCode} (filtered out ${filteredOutCount} from other ZIPs)`);
 
+                // Calculate lead scores for all businesses
+                const businessesWithScores = businesses.map(b => {
+                  const leadScore = calculateProspectScore(b);
+                  const scoreCategory = getScoreCategory(leadScore);
+                  return {
+                    ...b,
+                    leadScore,
+                    scoreCategory,
+                    contactScore: calculateContactScore(b),
+                    enriched: false
+                  };
+                });
+
+                // Sort by lead score (highest first)
+                businessesWithScores.sort((a, b) => b.leadScore - a.leadScore);
+
+                console.log(`🎯 Scored ${businessesWithScores.length} businesses (avg score: ${Math.round(businessesWithScores.reduce((sum, b) => sum + b.leadScore, 0) / businessesWithScores.length)})`);
+
                 // Cache results for 30 days
                 const cacheExpiry = new Date();
                 cacheExpiry.setDate(cacheExpiry.getDate() + 30);
 
                 placesCache.searches[cacheKey] = {
-                  placeIds: businesses.map(b => b.placeId),
-                  cachedData: businesses,
+                  placeIds: businessesWithScores.map(b => b.placeId),
+                  cachedData: businessesWithScores,
                   cachedUntil: cacheExpiry.toISOString(),
                   lastFetched: new Date().toISOString()
                 };
 
                 savePlacesCache();
 
-                resolve(businesses);
+                resolve(businessesWithScores);
               } else {
                 reject(new Error(`Places API error: ${status}`));
               }
@@ -6067,20 +6085,38 @@ Thanks!
                 const filteredOutCount = allBusinesses.length - businesses.length;
                 console.log(`✅ Found ${businesses.length} matching businesses for ${category} in ZIP ${zipCode} (filtered out ${filteredOutCount} from other ZIPs)`);
 
+                // Calculate lead scores for all businesses
+                const businessesWithScores = businesses.map(b => {
+                  const leadScore = calculateProspectScore(b);
+                  const scoreCategory = getScoreCategory(leadScore);
+                  return {
+                    ...b,
+                    leadScore,
+                    scoreCategory,
+                    contactScore: calculateContactScore(b),
+                    enriched: false
+                  };
+                });
+
+                // Sort by lead score (highest first)
+                businessesWithScores.sort((a, b) => b.leadScore - a.leadScore);
+
+                console.log(`🎯 Scored ${businessesWithScores.length} businesses (avg score: ${Math.round(businessesWithScores.reduce((sum, b) => sum + b.leadScore, 0) / businessesWithScores.length)})`);
+
                 // Cache results for 30 days
                 const cacheExpiry = new Date();
                 cacheExpiry.setDate(cacheExpiry.getDate() + 30);
 
                 placesCache.searches[cacheKey] = {
-                  placeIds: businesses.map(b => b.placeId),
-                  cachedData: businesses,
+                  placeIds: businessesWithScores.map(b => b.placeId),
+                  cachedData: businessesWithScores,
                   cachedUntil: cacheExpiry.toISOString(),
                   lastFetched: new Date().toISOString()
                 };
 
                 savePlacesCache();
 
-                resolve(businesses);
+                resolve(businessesWithScores);
               } else {
                 reject(new Error(`Places API error: ${status}`));
               }
@@ -6246,6 +6282,325 @@ Thanks!
       }
     }
 
+    /* ========= PROSPECT SCORING & ENRICHMENT QUEUE ========= */
+
+    /**
+     * Calculate Prospect Score (0-100)
+     * Determines how likely a business is to buy advertising
+     * Based on: business type, review count, rating, online presence
+     */
+    function calculateProspectScore(business) {
+      let score = 0;
+
+      // BASE SCORE: Business Type (0-30 points)
+      // Service businesses are more likely to advertise locally
+      const serviceTypes = ['plumber', 'electrician', 'hvac', 'roofing_contractor', 'general_contractor',
+                            'landscaper', 'lawn_care', 'restaurant', 'cafe', 'bakery',
+                            'hair_salon', 'beauty_salon', 'spa', 'gym', 'fitness',
+                            'auto_repair', 'car_repair', 'mechanic', 'dentist', 'chiropractor',
+                            'real_estate_agency', 'insurance_agency', 'lawyer', 'attorney'];
+
+      const types = business.types || [];
+      const isService = types.some(type =>
+        serviceTypes.some(serviceType => type.toLowerCase().includes(serviceType))
+      );
+      score += isService ? 30 : 15;
+
+      // REVIEW COUNT: Sweet Spot 20-200 (0-25 points)
+      // New enough to need growth, established enough to have budget
+      const reviews = business.userRatingsTotal || 0;
+      if (reviews >= 20 && reviews <= 200) score += 25;
+      else if (reviews >= 10 && reviews < 20) score += 15;
+      else if (reviews > 200 && reviews < 500) score += 10;
+      else if (reviews >= 500) score += 5; // Too established
+      else score += 5; // Too new
+
+      // RATING: 4.0-4.5 Sweet Spot (0-15 points)
+      // Good but not perfect - need to compete harder
+      const rating = business.rating || 0;
+      if (rating >= 4.0 && rating <= 4.5) score += 15;
+      else if (rating > 4.5 && rating < 5.0) score += 10;
+      else if (rating >= 3.5 && rating < 4.0) score += 8;
+      else score += 5;
+
+      // ONLINE PRESENCE: Has website (0-10 points)
+      if (business.website) score += 10;
+
+      // ENRICHED DATA BONUS: Has email or social (0-10 points)
+      if (business.email) score += 5;
+      if (business.facebook || business.instagram) score += 5;
+
+      // GAP OPPORTUNITY: Missing online pieces (0-10 points)
+      // Businesses without strong online presence need traditional marketing more
+      if (!business.website) score += 5;
+      if (!business.facebook && !business.instagram) score += 5;
+
+      return Math.min(score, 100); // Cap at 100
+    }
+
+    /**
+     * Calculate Contact Score (0-10)
+     * Measures how many contact methods are available
+     */
+    function calculateContactScore(business) {
+      let score = 0;
+
+      if (business.phone) score += 2;
+      if (business.email) score += 2;
+      if (business.website) score += 2;
+      if (business.facebook) score += 1;
+      if (business.instagram) score += 1;
+      if (business.linkedin) score += 1;
+      if (business.twitter) score += 1;
+
+      return Math.min(score, 10);
+    }
+
+    /**
+     * Get score category and badge
+     */
+    function getScoreCategory(score) {
+      if (score >= 80) return { label: 'HOT LEAD', emoji: '🔥', color: 'red' };
+      if (score >= 60) return { label: 'WARM LEAD', emoji: '⭐', color: 'orange' };
+      if (score >= 40) return { label: 'COLD LEAD', emoji: '❄️', color: 'blue' };
+      return { label: 'LOW PRIORITY', emoji: '💤', color: 'gray' };
+    }
+
+    /**
+     * EnrichmentQueue - Background enrichment processor
+     * Processes businesses in order of prospect score priority
+     */
+    class EnrichmentQueue {
+      constructor() {
+        this.queue = [];
+        this.processing = [];
+        this.completed = [];
+        this.failed = [];
+        this.concurrency = 3; // Process 3 at a time
+        this.isRunning = false;
+      }
+
+      /**
+       * Add businesses to enrichment queue
+       * Automatically sorts by priority score (high to low)
+       */
+      async add(businesses) {
+        // Sort by priority score (high to low)
+        const sorted = businesses
+          .filter(b => b.website && !b.enriched) // Only enrich businesses with websites that haven't been enriched
+          .map(b => ({
+            ...b,
+            leadScore: b.leadScore || calculateProspectScore(b)
+          }))
+          .sort((a, b) => b.leadScore - a.leadScore);
+
+        console.log(`📋 Adding ${sorted.length} businesses to enrichment queue (sorted by priority)`);
+
+        this.queue.push(...sorted);
+
+        if (!this.isRunning) {
+          this.processQueue();
+        }
+      }
+
+      /**
+       * Process queue with concurrency control
+       */
+      async processQueue() {
+        this.isRunning = true;
+
+        while (this.queue.length > 0 || this.processing.length > 0) {
+          // Start new enrichments up to concurrency limit
+          while (this.processing.length < this.concurrency && this.queue.length > 0) {
+            const business = this.queue.shift();
+            this.processing.push(business);
+            this.enrichOne(business); // Don't await - run in parallel
+          }
+
+          // Wait a bit before checking again
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        this.isRunning = false;
+        console.log(`✅ Enrichment queue completed: ${this.completed.length} successful, ${this.failed.length} failed`);
+      }
+
+      /**
+       * Enrich a single business
+       */
+      async enrichOne(business) {
+        try {
+          console.log(`🎯 Enriching: ${business.name} (Score: ${business.leadScore})`);
+
+          // Update UI to show enriching status
+          this.updateBusinessCard(business.placeId, { status: 'enriching' });
+
+          // Fetch enrichment data
+          const enrichedData = await fetchSmartEnrichment(business.website, business.name);
+
+          // Merge enriched data with existing business data
+          const enrichedBusiness = {
+            ...business,
+            email: enrichedData.email || business.email || '',
+            phone: enrichedData.phone || business.phone || '',
+            facebook: enrichedData.facebook || business.facebook || '',
+            instagram: enrichedData.instagram || business.instagram || '',
+            linkedin: enrichedData.linkedin || business.linkedin || '',
+            twitter: enrichedData.twitter || business.twitter || '',
+            contactNames: enrichedData.contactNames || [],
+            enriched: true,
+            enrichmentSource: '9x12pro-scraper',
+            pagesScraped: enrichedData.pagesScraped || 0,
+            contactScore: calculateContactScore({
+              phone: enrichedData.phone || business.phone,
+              email: enrichedData.email,
+              website: business.website,
+              facebook: enrichedData.facebook,
+              instagram: enrichedData.instagram,
+              linkedin: enrichedData.linkedin,
+              twitter: enrichedData.twitter
+            })
+          };
+
+          // Recalculate lead score with enriched data
+          enrichedBusiness.leadScore = calculateProspectScore(enrichedBusiness);
+
+          // Update UI with enriched data
+          this.updateBusinessCard(business.placeId, { status: 'enriched', data: enrichedBusiness });
+
+          // Move from processing to completed
+          this.processing = this.processing.filter(b => b.placeId !== business.placeId);
+          this.completed.push(enrichedBusiness);
+
+          console.log(`✅ Enriched: ${business.name} - Contact Score: ${enrichedBusiness.contactScore}/10`);
+
+        } catch (err) {
+          console.error(`❌ Enrichment failed for ${business.name}:`, err);
+
+          // Update UI to show failed status
+          this.updateBusinessCard(business.placeId, { status: 'failed' });
+
+          // Move from processing to failed
+          this.processing = this.processing.filter(b => b.placeId !== business.placeId);
+          this.failed.push(business);
+        }
+      }
+
+      /**
+       * Update business card in UI (both Prospect Pool and Kanban)
+       */
+      updateBusinessCard(placeId, update) {
+        // Update in Prospect Pool
+        const poolCard = document.querySelector(`.prospect-card[data-place-id="${placeId}"]`);
+        if (poolCard && update.status) {
+          const statusIndicator = poolCard.querySelector('.enrichment-status');
+          if (statusIndicator) {
+            if (update.status === 'enriching') {
+              statusIndicator.innerHTML = '<span class="text-xs text-blue-600">🎯 Enriching...</span>';
+            } else if (update.status === 'enriched' && update.data) {
+              // Update card with enriched data
+              this.renderEnrichedCard(poolCard, update.data);
+            } else if (update.status === 'failed') {
+              statusIndicator.innerHTML = '<span class="text-xs text-red-600">❌ Failed</span>';
+            }
+          }
+        }
+
+        // Update in Kanban if exists
+        const kanbanCard = document.querySelector(`.kanban-business-card[data-place-id="${placeId}"]`);
+        if (kanbanCard && update.status === 'enriched' && update.data) {
+          this.renderEnrichedKanbanCard(kanbanCard, update.data);
+        }
+
+        // Update in prospectPoolState
+        if (update.status === 'enriched' && update.data) {
+          const poolIndex = prospectPoolState.prospects.findIndex(p => p.placeId === placeId);
+          if (poolIndex !== -1) {
+            prospectPoolState.prospects[poolIndex] = update.data;
+          }
+        }
+      }
+
+      /**
+       * Render enriched prospect pool card
+       */
+      renderEnrichedCard(cardElement, business) {
+        const scoreCategory = getScoreCategory(business.leadScore);
+
+        // Update score badge
+        const scoreBadge = cardElement.querySelector('.score-badge');
+        if (scoreBadge) {
+          scoreBadge.innerHTML = `
+            <span class="text-${scoreCategory.color}-600 font-bold">${scoreCategory.emoji} ${scoreCategory.label}</span>
+            <span class="text-gray-600">Score: ${business.leadScore}/100</span>
+          `;
+        }
+
+        // Update enrichment status
+        const statusIndicator = cardElement.querySelector('.enrichment-status');
+        if (statusIndicator) {
+          statusIndicator.innerHTML = `
+            <span class="text-xs text-green-600">✅ Enriched</span>
+            <span class="text-xs text-gray-600">Contact Score: ${business.contactScore}/10</span>
+          `;
+        }
+
+        // Update contact methods
+        const contactMethods = cardElement.querySelector('.contact-methods');
+        if (contactMethods) {
+          let methods = [];
+          if (business.phone) methods.push(`<span title="Phone">☎️</span>`);
+          if (business.email) methods.push(`<span title="Email">✉️</span>`);
+          if (business.website) methods.push(`<span title="Website">🌐</span>`);
+          if (business.facebook) methods.push(`<span title="Facebook">📘</span>`);
+          if (business.instagram) methods.push(`<span title="Instagram">📷</span>`);
+          if (business.linkedin) methods.push(`<span title="LinkedIn">💼</span>`);
+          if (business.twitter) methods.push(`<span title="Twitter">🐦</span>`);
+
+          contactMethods.innerHTML = methods.join(' ');
+        }
+      }
+
+      /**
+       * Render enriched kanban card
+       */
+      renderEnrichedKanbanCard(cardElement, business) {
+        // Similar to renderEnrichedCard but for kanban layout
+        // Update any enriched data display in kanban cards
+        const contactInfo = cardElement.querySelector('.contact-info');
+        if (contactInfo && business.email) {
+          contactInfo.innerHTML += `<div class="text-xs text-gray-600">✉️ ${business.email}</div>`;
+        }
+      }
+
+      /**
+       * Get queue stats
+       */
+      getStats() {
+        return {
+          queued: this.queue.length,
+          processing: this.processing.length,
+          completed: this.completed.length,
+          failed: this.failed.length,
+          isRunning: this.isRunning
+        };
+      }
+
+      /**
+       * Clear queue
+       */
+      clear() {
+        this.queue = [];
+        this.processing = [];
+        this.completed = [];
+        this.failed = [];
+        this.isRunning = false;
+      }
+    }
+
+    // Global enrichment queue instance
+    const enrichmentQueue = new EnrichmentQueue();
+
     async function runAutoPopulate() {
       const zipCode = document.getElementById('autoPopZipCode').value.trim();
       const category = document.getElementById('autoPopCategory').value;
@@ -6278,12 +6633,94 @@ Thanks!
           return;
         }
 
+        // HYBRID AUTO-ENRICHMENT STRATEGY
+        // Phase 1: Show all results immediately (already done by searchGooglePlaces)
+        // Phase 2: Auto-enrich top 5 prospects in foreground (30 seconds)
+        // Phase 3: Enrich remaining in background (90 seconds)
+
+        const businessesWithWebsites = businesses.filter(b => b.website && !b.enriched);
+        console.log(`🎯 Found ${businessesWithWebsites.length} businesses with websites to enrich`);
+
+        if (businessesWithWebsites.length > 0) {
+          // Split into top 5 (priority) and rest (background)
+          const top5 = businessesWithWebsites.slice(0, 5);
+          const remaining = businessesWithWebsites.slice(5);
+
+          btn.innerHTML = `🎯 Enriching top ${top5.length} prospects...`;
+
+          // Enrich top 5 in foreground (show progress)
+          for (let i = 0; i < top5.length; i++) {
+            const business = top5[i];
+            btn.innerHTML = `🎯 Enriching ${business.name}... (${i + 1}/${top5.length})`;
+
+            try {
+              const enrichedData = await fetchSmartEnrichment(business.website, business.name);
+
+              // Update business in cache
+              const cacheKey = `${zipCode}-${category}`;
+              const cached = placesCache.searches[cacheKey];
+              if (cached && cached.cachedData) {
+                const businessIndex = cached.cachedData.findIndex(b => b.placeId === business.placeId);
+                if (businessIndex !== -1) {
+                  cached.cachedData[businessIndex] = {
+                    ...cached.cachedData[businessIndex],
+                    email: enrichedData.email || '',
+                    phone: enrichedData.phone || cached.cachedData[businessIndex].phone || '',
+                    facebook: enrichedData.facebook || '',
+                    instagram: enrichedData.instagram || '',
+                    linkedin: enrichedData.linkedin || '',
+                    twitter: enrichedData.twitter || '',
+                    contactNames: enrichedData.contactNames || [],
+                    enriched: true,
+                    enrichmentSource: '9x12pro-scraper',
+                    pagesScraped: enrichedData.pagesScraped || 0,
+                    contactScore: calculateContactScore({
+                      phone: enrichedData.phone || cached.cachedData[businessIndex].phone,
+                      email: enrichedData.email,
+                      website: cached.cachedData[businessIndex].website,
+                      facebook: enrichedData.facebook,
+                      instagram: enrichedData.instagram,
+                      linkedin: enrichedData.linkedin,
+                      twitter: enrichedData.twitter
+                    })
+                  };
+
+                  // Recalculate lead score with enriched data
+                  cached.cachedData[businessIndex].leadScore = calculateProspectScore(cached.cachedData[businessIndex]);
+                  cached.cachedData[businessIndex].scoreCategory = getScoreCategory(cached.cachedData[businessIndex].leadScore);
+                }
+              }
+
+              console.log(`✅ Enriched (${i + 1}/${top5.length}): ${business.name}`);
+            } catch (err) {
+              console.error(`❌ Failed to enrich ${business.name}:`, err);
+            }
+          }
+
+          // Save enriched top 5 to cache
+          await savePlacesCache();
+
+          // Queue remaining businesses for background enrichment
+          if (remaining.length > 0) {
+            console.log(`📋 Queueing ${remaining.length} businesses for background enrichment`);
+            enrichmentQueue.add(remaining);
+            toast(`🎯 Top ${top5.length} enriched! ${remaining.length} more enriching in background...`, true);
+          } else {
+            toast(`✅ All ${top5.length} prospects enriched!`, true);
+          }
+        }
+
         // Just cache results - searchGooglePlaces already handled caching
         closeAutoPopulateModal();
 
         // Show success modal with category breakdown
         const categorizedResults = { [category]: businesses.length };
         showProspectSuccessModal(categorizedResults, businesses.length);
+
+        // Refresh Prospect Pool to show enriched data
+        if (document.getElementById('tabProspectPool')?.classList.contains('active')) {
+          setTimeout(() => renderProspectPool(), 500);
+        }
 
       } catch(err) {
         console.error('Auto-populate error:', err);
@@ -6492,6 +6929,77 @@ Thanks!
         allBusinesses.forEach(business => {
           business.alreadyExists = existingLeads.has(business.placeId);
         });
+
+        // HYBRID AUTO-ENRICHMENT STRATEGY FOR BULK SEARCH
+        // Enrich top 5 highest-scoring businesses across ALL categories
+        const businessesWithWebsites = allBusinesses.filter(b => b.website && !b.enriched);
+
+        if (businessesWithWebsites.length > 0) {
+          // Sort by lead score (already sorted from searchGooglePlaces)
+          const top5 = businessesWithWebsites.slice(0, 5);
+          const remaining = businessesWithWebsites.slice(5);
+
+          btn.innerHTML = `🎯 Enriching top ${top5.length} prospects...`;
+
+          // Enrich top 5 in foreground
+          for (let i = 0; i < top5.length; i++) {
+            const business = top5[i];
+            btn.innerHTML = `🎯 Enriching ${business.name}... (${i + 1}/${top5.length})`;
+
+            try {
+              const enrichedData = await fetchSmartEnrichment(business.website, business.name);
+
+              // Update business in cache
+              const cacheKey = `${zipCode}-${business.category}`;
+              const cached = placesCache.searches[cacheKey];
+              if (cached && cached.cachedData) {
+                const businessIndex = cached.cachedData.findIndex(b => b.placeId === business.placeId);
+                if (businessIndex !== -1) {
+                  cached.cachedData[businessIndex] = {
+                    ...cached.cachedData[businessIndex],
+                    email: enrichedData.email || '',
+                    phone: enrichedData.phone || cached.cachedData[businessIndex].phone || '',
+                    facebook: enrichedData.facebook || '',
+                    instagram: enrichedData.instagram || '',
+                    linkedin: enrichedData.linkedin || '',
+                    twitter: enrichedData.twitter || '',
+                    contactNames: enrichedData.contactNames || [],
+                    enriched: true,
+                    enrichmentSource: '9x12pro-scraper',
+                    pagesScraped: enrichedData.pagesScraped || 0,
+                    contactScore: calculateContactScore({
+                      phone: enrichedData.phone || cached.cachedData[businessIndex].phone,
+                      email: enrichedData.email,
+                      website: cached.cachedData[businessIndex].website,
+                      facebook: enrichedData.facebook,
+                      instagram: enrichedData.instagram,
+                      linkedin: enrichedData.linkedin,
+                      twitter: enrichedData.twitter
+                    })
+                  };
+
+                  // Recalculate lead score with enriched data
+                  cached.cachedData[businessIndex].leadScore = calculateProspectScore(cached.cachedData[businessIndex]);
+                  cached.cachedData[businessIndex].scoreCategory = getScoreCategory(cached.cachedData[businessIndex].leadScore);
+                }
+              }
+            } catch (err) {
+              console.error(`❌ Failed to enrich ${business.name}:`, err);
+            }
+          }
+
+          // Save enriched top 5 to cache
+          await savePlacesCache();
+
+          // Queue remaining for background enrichment
+          if (remaining.length > 0) {
+            console.log(`📋 Queueing ${remaining.length} businesses for background enrichment`);
+            enrichmentQueue.add(remaining);
+            toast(`🎯 Top ${top5.length} enriched! ${remaining.length} more enriching in background...`, true);
+          } else {
+            toast(`✅ All ${top5.length} prospects enriched!`, true);
+          }
+        }
 
         // Just cache results - don't auto-add to prospecting
         // Update API usage display
@@ -7857,8 +8365,19 @@ Thanks!
                   rawMetadata.push(categoryName);
                 }
 
+                // Get lead score and category
+                const leadScore = prospect.leadScore || 0;
+                const scoreCategory = prospect.scoreCategory || getScoreCategory(leadScore);
+                const contactScore = prospect.contactScore || 0;
+
+                // Determine border color based on score
+                let borderColor = 'border-gray-200';
+                if (scoreCategory.color === 'red') borderColor = 'border-red-400';
+                else if (scoreCategory.color === 'orange') borderColor = 'border-orange-400';
+                else if (scoreCategory.color === 'blue') borderColor = 'border-blue-400';
+
                 return `
-                  <div class="border rounded-lg p-3 ${isDisabled ? 'bg-gray-50 opacity-60' : 'bg-white hover:shadow-md'} transition">
+                  <div class="prospect-card border-2 ${borderColor} rounded-lg p-3 ${isDisabled ? 'bg-gray-50 opacity-60' : 'bg-white hover:shadow-md'} transition" data-place-id="${prospectId}">
                     <div class="flex items-start gap-2" onclick="openProspectDetailModal(${JSON.stringify(prospect).replace(/"/g, '&quot;')}, 'prospect')">
                       <input
                         type="checkbox"
@@ -7869,16 +8388,35 @@ Thanks!
                         class="mt-1 w-4 h-4 text-indigo-600 rounded cursor-pointer flex-shrink-0"
                       />
                       <div class="flex-1 min-w-0 cursor-pointer">
+                        <!-- Lead Score Badge -->
+                        <div class="score-badge flex items-center justify-between mb-2">
+                          <span class="text-${scoreCategory.color}-600 font-bold text-xs">${scoreCategory.emoji} ${scoreCategory.label}</span>
+                          <span class="text-gray-600 text-xs">Score: ${leadScore}/100</span>
+                        </div>
+
                         <h5 class="font-semibold text-sm text-gray-900 truncate">${esc(displayName)}</h5>
                         ${rawDisplayLocation ? `<p class="text-xs text-gray-600 mt-0.5">${esc(rawDisplayLocation)}</p>` : ''}
                         ${addressToShow ? `<p class="text-xs text-gray-600 mt-0.5">📍 ${esc(addressToShow)}</p>` : ''}
                         ${rawMetadata.length > 0 ? `<p class="text-xs text-gray-500 mt-0.5">${rawMetadata.join(' • ')}</p>` : ''}
                         <div class="flex items-center gap-2 mt-1 text-xs text-gray-500">
                           ${prospect.rating ? `<span>⭐ ${prospect.rating}</span>` : ''}
+                          ${prospect.userRatingsTotal ? `<span>(${prospect.userRatingsTotal} reviews)</span>` : ''}
                           ${isDisabled ? '<span class="text-xs px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded">In System</span>' : ''}
                         </div>
+
+                        <!-- Enrichment Status -->
+                        <div class="enrichment-status mt-2">
+                          ${prospect.enriched ? `
+                            <span class="text-xs text-green-600">✅ Enriched</span>
+                            <span class="text-xs text-gray-600">• Contact Score: ${contactScore}/10</span>
+                          ` : `
+                            <span class="text-xs text-gray-500">⏳ Pending enrichment</span>
+                          `}
+                        </div>
+
+                        <!-- Contact Methods -->
                         ${rawContactIcons.length > 0 ? `
-                          <div class="flex gap-2 items-center mt-2 pt-2 border-t border-gray-200">
+                          <div class="contact-methods flex gap-2 items-center mt-2 pt-2 border-t border-gray-200">
                             ${rawContactIcons.join('')}
                           </div>
                         ` : ''}
