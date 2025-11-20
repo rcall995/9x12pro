@@ -6712,18 +6712,31 @@ Thanks!
           if (remaining.length > 0) {
             console.log(`📋 Queueing ${remaining.length} businesses for background enrichment`);
             enrichmentQueue.add(remaining);
-            toast(`🎯 Top ${top5.length} enriched! ${remaining.length} more enriching in background...`, true);
-          } else {
-            toast(`✅ All ${top5.length} prospects enriched!`, true);
           }
         }
 
         // Just cache results - searchGooglePlaces already handled caching
         closeAutoPopulateModal();
 
-        // Show success modal with category breakdown
+        // Show success modal with category breakdown (BEFORE enrichment toast)
         const categorizedResults = { [category]: businesses.length };
         showProspectSuccessModal(categorizedResults, businesses.length);
+
+        // Show enrichment status toast AFTER modal
+        if (businessesWithWebsites.length > 0) {
+          const top5Count = Math.min(businessesWithWebsites.length, 5);
+          const remainingCount = Math.max(0, businessesWithWebsites.length - 5);
+
+          if (remainingCount > 0) {
+            setTimeout(() => {
+              toast(`🎯 Top ${top5Count} enriched! ${remainingCount} more enriching in background...`, true);
+            }, 500);
+          } else {
+            setTimeout(() => {
+              toast(`✅ All ${top5Count} prospects enriched!`, true);
+            }, 500);
+          }
+        }
 
         // Refresh Prospect Pool to show enriched data
         if (document.getElementById('tabProspectPool')?.classList.contains('active')) {
@@ -7003,9 +7016,6 @@ Thanks!
           if (remaining.length > 0) {
             console.log(`📋 Queueing ${remaining.length} businesses for background enrichment`);
             enrichmentQueue.add(remaining);
-            toast(`🎯 Top ${top5.length} enriched! ${remaining.length} more enriching in background...`, true);
-          } else {
-            toast(`✅ All ${top5.length} prospects enriched!`, true);
           }
         }
 
@@ -7013,8 +7023,24 @@ Thanks!
         // Update API usage display
         updateQuickApiUsage();
 
-        // Show success modal with category breakdown
+        // Show success modal with category breakdown (BEFORE enrichment toast)
         showProspectSuccessModal(categorizedResults, allBusinesses.length);
+
+        // Show enrichment status toast AFTER modal
+        if (businessesWithWebsites.length > 0) {
+          const top5Count = Math.min(businessesWithWebsites.length, 5);
+          const remainingCount = Math.max(0, businessesWithWebsites.length - 5);
+
+          if (remainingCount > 0) {
+            setTimeout(() => {
+              toast(`🎯 Top ${top5Count} enriched! ${remainingCount} more enriching in background...`, true);
+            }, 500);
+          } else {
+            setTimeout(() => {
+              toast(`✅ All ${top5Count} prospects enriched!`, true);
+            }, 500);
+          }
+        }
 
       } catch(err) {
         console.error('Bulk auto-populate error:', err);
