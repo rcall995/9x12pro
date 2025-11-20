@@ -651,6 +651,10 @@ class BusinessModal {
       data.autoRenew = document.getElementById('contractAutoRenew').checked;
     }
 
+    // Determine success message before closing (preserve context)
+    const isUpdate = this.currentData.id ? true : false;
+    const context = this.currentContext;
+
     // Call save callback
     if (this.onSaveCallback) {
       this.onSaveCallback(data, this.selectedSpots);
@@ -659,10 +663,12 @@ class BusinessModal {
     // Close modal
     this.close();
 
-    // Show success message
-    showSuccess(this.currentContext === 'spot'
-      ? 'Spot updated successfully'
-      : `Client ${this.currentData.id ? 'updated' : 'added'} successfully`);
+    // Show success message (after close, so use saved context)
+    if (typeof showSuccess !== 'undefined') {
+      showSuccess(context === 'spot'
+        ? 'Spot updated successfully'
+        : `Client ${isUpdate ? 'updated' : 'added'} successfully`);
+    }
   }
 
   /**
