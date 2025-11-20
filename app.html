@@ -13606,7 +13606,7 @@ Thanks!
           }
         }
       } catch(e) {}
-      updateAutoSaveStatus(); // Initialize auto-save status indicator
+      // Don't call updateAutoSaveStatus() on page load - only show after actual saves
       updateQuickApiUsage(); // Initialize API usage display in prospecting section
 
       // Initialize sales activity collapse state
@@ -13616,9 +13616,9 @@ Thanks!
       const lastTab = localStorage.getItem('9x12_active_tab') || 'dashboard';
       switchTab(lastTab);
 
-      // If starting on dashboard, refresh it after a short delay
+      // If starting on dashboard, refresh it after data loads
       if (lastTab === 'dashboard') {
-        setTimeout(() => refreshDashboard(), 500);
+        setTimeout(() => refreshDashboard(), 1000);
       }
 
       window.addEventListener('resize', () => renderLegend());
@@ -16897,8 +16897,8 @@ Thanks!
 
     // ========== DASHBOARD STATS & ACTIVITY ==========
     function renderDashboardStats() {
-      // Count prospects in pool
-      const prospectsCount = prospectPoolState.prospects ? Object.keys(prospectPoolState.prospects).length : 0;
+      // Count prospects in pool (prospect-list column in kanban)
+      const prospectsCount = (kanbanState.columns && kanbanState.columns['prospect-list']) ? kanbanState.columns['prospect-list'].length : 0;
       document.getElementById('statsProspects').textContent = prospectsCount;
 
       // Count active leads in pipeline (columns 2-4)
