@@ -143,13 +143,32 @@ function extractEmails(html) {
   const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
   const emails = html.match(emailRegex) || [];
 
-  // Filter out common junk emails
+  // Filter out common junk emails and placeholder addresses
   const filtered = emails.filter(email => {
     const lower = email.toLowerCase();
+
+    // Generic placeholder patterns
+    if (lower === 'user@domain.com') return false;
+    if (lower === 'admin@domain.com') return false;
+    if (lower === 'email@domain.com') return false;
+    if (lower === 'info@domain.com') return false;
+    if (lower === 'contact@domain.com') return false;
+    if (lower === 'mail@domain.com') return false;
+    if (lower.startsWith('user@')) return false;
+    if (lower.startsWith('username@')) return false;
+    if (lower.startsWith('your@')) return false;
+    if (lower.startsWith('youremail@')) return false;
+    if (lower.startsWith('yourname@')) return false;
+
+    // Common template/example domains
     return !lower.includes('example.com') &&
+           !lower.includes('example.org') &&
            !lower.includes('yourmail.com') &&
            !lower.includes('youremail.com') &&
+           !lower.includes('yoursite.com') &&
+           !lower.includes('yourdomain.com') &&
            !lower.includes('email.com') &&
+           !lower.includes('domain.com') &&
            !lower.includes('sentry.io') &&
            !lower.includes('wixpress.com') &&
            !lower.includes('@2x.png') &&
@@ -282,9 +301,23 @@ function extractSocialLinks(html, baseUrl) {
   for (const match of fbMatches) {
     const url = match.startsWith('http') ? match : 'https://' + match;
     const isValid = !invalidPatterns.facebook.some(pattern => url.toLowerCase().includes(pattern));
+
     if (isValid && url.split('/').length >= 4) { // Must have username/page
-      links.facebook = url;
-      break;
+      // Extract the page name (last part of URL)
+      const pageName = url.split('/').pop().split('?')[0]; // Remove query params
+
+      // Skip if page name is:
+      // - Too short (< 3 chars) - likely generic
+      // - All numeric (years like '2008', IDs like '12345')
+      // - Common generic words
+      const isNumericOnly = /^\d+$/.test(pageName);
+      const isTooShort = pageName.length < 3;
+      const isGeneric = ['page', 'pages', 'home', 'index'].includes(pageName.toLowerCase());
+
+      if (!isNumericOnly && !isTooShort && !isGeneric) {
+        links.facebook = url;
+        break;
+      }
     }
   }
 
@@ -293,9 +326,16 @@ function extractSocialLinks(html, baseUrl) {
   for (const match of igMatches) {
     const url = match.startsWith('http') ? match : 'https://' + match;
     const isValid = !invalidPatterns.instagram.some(pattern => url.toLowerCase().includes(pattern));
+
     if (isValid && url.split('/').length >= 4) { // Must have username
-      links.instagram = url;
-      break;
+      const username = url.split('/').pop().split('?')[0];
+      const isNumericOnly = /^\d+$/.test(username);
+      const isTooShort = username.length < 3;
+
+      if (!isNumericOnly && !isTooShort) {
+        links.instagram = url;
+        break;
+      }
     }
   }
 
@@ -315,9 +355,16 @@ function extractSocialLinks(html, baseUrl) {
   for (const match of twMatches) {
     const url = match.startsWith('http') ? match : 'https://' + match;
     const isValid = !invalidPatterns.twitter.some(pattern => url.toLowerCase().includes(pattern));
+
     if (isValid && url.split('/').length >= 4) { // Must have username
-      links.twitter = url;
-      break;
+      const username = url.split('/').pop().split('?')[0];
+      const isNumericOnly = /^\d+$/.test(username);
+      const isTooShort = username.length < 2; // Twitter allows 2-char usernames
+
+      if (!isNumericOnly && !isTooShort) {
+        links.twitter = url;
+        break;
+      }
     }
   }
 
