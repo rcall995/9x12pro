@@ -728,7 +728,7 @@
         <!-- SALES PIPELINE TAB -->
         <div data-content="pipeline" class="tab-pane hidden">
             <!-- HERO SECTION -->
-            <div class="bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 rounded-2xl shadow-2xl p-8 md:p-12 mb-8 text-white relative overflow-hidden">
+            <div class="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 rounded-2xl shadow-2xl p-8 md:p-12 mb-8 text-white relative overflow-hidden">
                 <div class="absolute inset-0 opacity-10">
                     <div class="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
                     <div class="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
@@ -738,103 +738,79 @@
                     <div class="flex items-center gap-3 mb-4">
                         <span class="text-6xl">📊</span>
                         <div>
-                            <h2 class="text-5xl font-black tracking-tight">Sales Dashboard</h2>
-                            <p class="text-2xl text-blue-100 mt-2">Track Your Pipeline & Performance</p>
+                            <h2 class="text-5xl font-black tracking-tight">Sales Pipeline</h2>
+                            <p class="text-2xl text-purple-100 mt-2">Drag & Drop to Manage Your Deals</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- GETTING STARTED CHECKLIST + CONTRACTS EXPIRING (Side by side) -->
-            <div class="grid md:grid-cols-2 gap-6 mb-8">
-                <!-- GETTING STARTED CHECKLIST -->
-                <div id="gettingStartedWidget" class="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl shadow-lg border-2 border-green-200 p-6">
-                    <div class="flex items-center gap-3 mb-4">
-                        <span class="text-4xl">🚀</span>
-                        <div class="flex-1">
-                            <h4 class="text-xl font-black text-gray-900">Getting Started</h4>
-                            <p class="text-sm text-gray-600" id="checklistProgress">0 of 5 complete</p>
-                        </div>
-                        <button onclick="dismissGettingStarted()" class="text-gray-400 hover:text-gray-600 transition" title="Dismiss">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    <div class="space-y-3" id="checklistItems">
-                        <!-- Dynamically populated by renderGettingStartedChecklist() -->
-                    </div>
-                </div>
-
-                <!-- CONTRACTS EXPIRING WIDGET -->
-                <div class="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl shadow-lg border-2 border-amber-200 p-6">
-                    <div class="flex items-center gap-3 mb-4">
-                        <span class="text-4xl">📋</span>
+            <!-- SALES PIPELINE KANBAN -->
+            <div class="bg-white rounded-2xl shadow-xl border-2 border-indigo-100 p-6 md:p-8">
+                <div class="flex justify-between items-center mb-6 cursor-pointer" onclick="toggleSalesActivity()">
+                    <div class="flex items-center gap-3">
+                        <span class="text-4xl">🎯</span>
                         <div>
-                            <h4 class="text-xl font-black text-gray-900">Contract Renewals</h4>
-                            <p class="text-sm text-gray-600">Upcoming expiration dates</p>
+                            <h4 class="text-2xl font-black text-gray-900">Your Pipeline</h4>
+                            <p class="text-sm text-gray-500">Move cards between stages</p>
                         </div>
                     </div>
-                    <div id="contractsExpiringList" class="space-y-3">
-                        <!-- Dynamically populated by renderContractsExpiring() -->
+                    <button class="p-2 hover:bg-indigo-50 rounded-lg transition-colors">
+                        <svg id="salesActivityToggleIcon" class="w-6 h-6 transform transition-transform duration-200 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Daily Goal Progress - always visible -->
+                <div id="dailyGoalContainer">
+                    <!-- Daily goal dynamically populated -->
+                </div>
+
+                <!-- Collapsible Kanban Columns -->
+                <div id="salesActivityKanbanColumns" class="transition-all duration-300 ease-in-out overflow-hidden">
+                    <!-- Kanban columns dynamically populated -->
+                </div>
+            </div>
+        </div>
+
+        <!-- TASKS TAB -->
+        <div data-content="tasks" class="tab-pane hidden">
+            <!-- HERO SECTION -->
+            <div class="bg-gradient-to-br from-green-600 via-emerald-600 to-teal-600 rounded-2xl shadow-2xl p-8 md:p-12 mb-8 text-white relative overflow-hidden">
+                <div class="absolute inset-0 opacity-10">
+                    <div class="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
+                    <div class="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
+                </div>
+
+                <div class="relative z-10">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span class="text-6xl">✅</span>
+                        <div>
+                            <h2 class="text-5xl font-black tracking-tight">Tasks & Follow-Ups</h2>
+                            <p class="text-2xl text-green-100 mt-2">Stay on Top of Your To-Do List</p>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- CARDS IN PROGRESS SECTION -->
-            <div id="cardsInProgressSection" class="mb-8">
-                <!-- Dynamically populated by renderCardsInProgress() -->
-            </div>
-
-            <!-- MODERN CARD GRID -->
-            <div class="grid grid-cols-1 gap-8">
-
-                <!-- SALES PIPELINE KANBAN -->
-                <div class="bg-white rounded-2xl shadow-xl border-2 border-indigo-100 p-6 md:p-8 hover:shadow-2xl transition-all">
-                    <div class="flex justify-between items-center mb-6 cursor-pointer" onclick="toggleSalesActivity()">
-                        <div class="flex items-center gap-3">
-                            <span class="text-4xl">🎯</span>
-                            <div>
-                                <h4 class="text-2xl font-black text-gray-900">Sales Pipeline</h4>
-                                <p class="text-sm text-gray-500">Drag & drop to manage your deals</p>
-                            </div>
+            <!-- TASKS LIST -->
+            <div class="bg-white rounded-2xl shadow-xl border-2 border-green-100 p-6 md:p-8">
+                <div class="flex justify-between items-center mb-6">
+                    <div class="flex items-center gap-3">
+                        <span class="text-4xl">📝</span>
+                        <div>
+                            <h4 class="text-2xl font-black text-gray-900">All Tasks</h4>
+                            <p class="text-sm text-gray-500">Your complete task list</p>
                         </div>
-                        <button class="p-2 hover:bg-indigo-50 rounded-lg transition-colors">
-                            <svg id="salesActivityToggleIcon" class="w-6 h-6 transform transition-transform duration-200 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                            </svg>
-                        </button>
                     </div>
-
-                    <!-- Daily Goal Progress - always visible -->
-                    <div id="dailyGoalContainer">
-                        <!-- Daily goal dynamically populated -->
-                    </div>
-
-                    <!-- Collapsible Kanban Columns -->
-                    <div id="salesActivityKanbanColumns" class="transition-all duration-300 ease-in-out overflow-hidden">
-                        <!-- Kanban columns dynamically populated -->
-                    </div>
+                    <button onclick="openTaskModal()" class="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl text-sm font-bold hover:from-green-700 hover:to-emerald-700 shadow-lg transform hover:scale-105 transition-all">
+                        + Add Task
+                    </button>
                 </div>
-
-                <!-- TASKS & RENEWALS -->
-                <div class="bg-white rounded-2xl shadow-xl border-2 border-green-100 p-6 md:p-8 hover:shadow-2xl transition-all">
-                    <div class="flex justify-between items-center mb-6">
-                        <div class="flex items-center gap-3">
-                            <span class="text-4xl">✅</span>
-                            <div>
-                                <h4 class="text-2xl font-black text-gray-900">Tasks & Renewals</h4>
-                                <p class="text-sm text-gray-500">Stay on top of your follow-ups</p>
-                            </div>
-                        </div>
-                        <button onclick="openTaskModal()" class="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl text-sm font-bold hover:from-indigo-700 hover:to-purple-700 shadow-lg transform hover:scale-105 transition-all">
-                            + Add Task
-                        </button>
-                    </div>
-                    <p id="overdueText" class="text-sm text-gray-600 mb-4 font-medium">Loading...</p>
-                    <div id="taskList" class="space-y-3 text-sm">
-                        <!-- Tasks dynamically populated -->
-                    </div>
+                <p id="overdueText" class="text-sm text-gray-600 mb-4 font-medium">Loading...</p>
+                <div id="taskList" class="space-y-3 text-sm">
+                    <!-- Tasks dynamically populated -->
                 </div>
             </div>
         </div>
@@ -13830,6 +13806,11 @@ Thanks!
         // Update breadcrumb active state
         updateBreadcrumbHighlight(tabName);
 
+        // Refresh dashboard when switching to it
+        if (tabName === 'dashboard') {
+            setTimeout(() => refreshDashboard(), 100);
+        }
+
         // Render template manager when clients tab is opened
         if (tabName === 'clients') {
             setTimeout(() => renderTemplateManager(), 100);
@@ -16909,8 +16890,129 @@ Thanks!
       }
     }
 
+    // ========== DASHBOARD STATS & ACTIVITY ==========
+    function renderDashboardStats() {
+      // Count prospects in pool
+      const prospectsCount = prospectPoolState.prospects ? Object.keys(prospectPoolState.prospects).length : 0;
+      document.getElementById('statsProspects').textContent = prospectsCount;
+
+      // Count active leads in pipeline (columns 2-4)
+      const leadsCount = (kanbanState.columns['to-contact'] || []).length +
+                        (kanbanState.columns['in-progress'] || []).length +
+                        (kanbanState.columns['committed'] || []).length;
+      document.getElementById('statsLeads').textContent = leadsCount;
+
+      // Count campaigns
+      const campaignsCount = state.all ? state.all.length : 0;
+      document.getElementById('statsCampaigns').textContent = campaignsCount;
+
+      // Count clients
+      const clientsCount = crmState.clients ? Object.keys(crmState.clients).length : 0;
+      document.getElementById('statsClients').textContent = clientsCount;
+    }
+
+    function renderDashboardTasks() {
+      const container = document.getElementById('dashboardTasksList');
+      const countEl = document.getElementById('dashboardTasksCount');
+      if (!container || !countEl) return;
+
+      // Get today's date at midnight
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Filter tasks that are due today or overdue
+      const todaysTasks = tasks.filter(task => {
+        if (task.completed) return false;
+        const dueDate = new Date(task.dueDate);
+        dueDate.setHours(0, 0, 0, 0);
+        return dueDate <= today;
+      }).slice(0, 5); // Top 5 only
+
+      countEl.textContent = `${todaysTasks.length} task${todaysTasks.length !== 1 ? 's' : ''} due`;
+
+      if (todaysTasks.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-center py-4">No tasks due today!</p>';
+        return;
+      }
+
+      container.innerHTML = todaysTasks.map(task => {
+        const isOverdue = new Date(task.dueDate) < today;
+        return `
+          <div class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+            <input type="checkbox" onchange="toggleTaskComplete(${task.id})" ${task.completed ? 'checked' : ''} class="w-4 h-4" />
+            <span class="flex-1 ${task.completed ? 'line-through text-gray-400' : 'text-gray-800'}">${task.text}</span>
+            ${isOverdue ? '<span class="text-xs font-bold text-red-600">OVERDUE</span>' : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderRecentActivity() {
+      const container = document.getElementById('recentActivityFeed');
+      if (!container) return;
+
+      // Get recent activity from localStorage or generate placeholder
+      const recentActivity = JSON.parse(localStorage.getItem('recentActivity') || '[]');
+
+      if (recentActivity.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-8 text-gray-500">
+            <p class="text-lg mb-2">No recent activity yet</p>
+            <p class="text-sm">Your actions will appear here as you use the app</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = recentActivity.slice(0, 10).map(activity => `
+        <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+          <span class="text-2xl">${activity.icon}</span>
+          <div class="flex-1">
+            <p class="text-sm font-medium text-gray-800">${activity.message}</p>
+            <p class="text-xs text-gray-500">${activity.time}</p>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Helper to add activity to recent feed
+    function addActivity(icon, message) {
+      const recentActivity = JSON.parse(localStorage.getItem('recentActivity') || '[]');
+      const now = new Date();
+      const timeAgo = 'Just now';
+
+      recentActivity.unshift({
+        icon,
+        message,
+        time: timeAgo,
+        timestamp: now.toISOString()
+      });
+
+      // Keep only last 50 activities
+      if (recentActivity.length > 50) {
+        recentActivity.length = 50;
+      }
+
+      localStorage.setItem('recentActivity', JSON.stringify(recentActivity));
+
+      // Refresh if on dashboard
+      if (document.querySelector('[data-content="dashboard"]').classList.contains('active-pane')) {
+        renderRecentActivity();
+      }
+    }
+
+    // Call these when switching to dashboard
+    function refreshDashboard() {
+      renderDashboardStats();
+      renderDashboardTasks();
+      renderRecentActivity();
+    }
+
     // ========== BREADCRUMB NAVIGATION HIGHLIGHT ==========
     function updateBreadcrumbHighlight(tabName) {
+      const breadcrumbContainer = document.getElementById('workflowBreadcrumb');
+      if (!breadcrumbContainer) return;
+
       // Map tab names to breadcrumb IDs
       const tabToBreadcrumb = {
         'lead-generation': 'breadcrumb-generator',
@@ -16918,6 +17020,16 @@ Thanks!
         'pipeline': 'breadcrumb-pipeline',
         'clients': 'breadcrumb-clients'
       };
+
+      // Hide breadcrumb on non-workflow tabs
+      const workflowTabs = ['lead-generation', 'prospects', 'pipeline', 'clients'];
+      if (!workflowTabs.includes(tabName)) {
+        breadcrumbContainer.parentElement.style.display = 'none';
+        return;
+      }
+
+      // Show breadcrumb on workflow tabs
+      breadcrumbContainer.parentElement.style.display = 'block';
 
       // Remove active state from all breadcrumb buttons
       document.querySelectorAll('[id^="breadcrumb-"]').forEach(btn => {
