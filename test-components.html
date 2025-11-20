@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Component Testing - 9x12 Pro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Load components -->
+  <script src="components/Toast.js"></script>
+  <script src="components/BusinessModal.js"></script>
+  <script src="components/FilterBar.js"></script>
+</head>
+<body class="bg-gray-50 p-8">
+  <div class="max-w-6xl mx-auto">
+    <h1 class="text-3xl font-bold mb-8">🧪 Component Testing Dashboard</h1>
+
+    <!-- Toast System Tests -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+      <h2 class="text-xl font-bold mb-4">1. Toast Notification System</h2>
+      <div class="flex gap-3 flex-wrap">
+        <button onclick="showSuccess('This is a success message!')" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+          Test Success Toast
+        </button>
+        <button onclick="showError('This is an error message!')" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+          Test Error Toast
+        </button>
+        <button onclick="showWarning('This is a warning message!')" class="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700">
+          Test Warning Toast
+        </button>
+        <button onclick="showInfo('This is an info message!')" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+          Test Info Toast
+        </button>
+        <button onclick="testMultipleToasts()" class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700">
+          Test Multiple Toasts
+        </button>
+        <button onclick="dismissAllToasts()" class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">
+          Dismiss All
+        </button>
+      </div>
+      <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded text-sm">
+        ✅ All toast types should appear in bottom-right corner and auto-dismiss after 3-4 seconds.
+      </div>
+    </div>
+
+    <!-- Business Modal Tests -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+      <h2 class="text-xl font-bold mb-4">2. Business Modal Component</h2>
+      <div class="flex gap-3 flex-wrap">
+        <button onclick="testSpotModal()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+          Test Spot Modal
+        </button>
+        <button onclick="testClientModal()" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
+          Test Client Modal
+        </button>
+        <button onclick="testProspectModal()" class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700">
+          Test Prospect Modal
+        </button>
+        <button onclick="testMultipleSpots()" class="px-4 py-2 bg-pink-600 text-white rounded hover:bg-pink-700">
+          Test Multiple Spots
+        </button>
+      </div>
+      <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded text-sm">
+        ✅ Modal should open with context-appropriate fields. Try saving, closing with ESC, clicking backdrop.
+      </div>
+    </div>
+
+    <!-- FilterBar Tests -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+      <h2 class="text-xl font-bold mb-4">3. FilterBar Component</h2>
+
+      <!-- Test 1: Full featured filter -->
+      <div class="mb-6">
+        <h3 class="font-semibold mb-2">Full Featured Filter (with all options)</h3>
+        <div id="filterTest1"></div>
+      </div>
+
+      <!-- Test 2: Search only -->
+      <div class="mb-6">
+        <h3 class="font-semibold mb-2">Search Only Filter</h3>
+        <div id="filterTest2"></div>
+      </div>
+
+      <!-- Test 3: Date + Category -->
+      <div class="mb-6">
+        <h3 class="font-semibold mb-2">Date + Category Filter</h3>
+        <div id="filterTest3"></div>
+      </div>
+
+      <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded text-sm">
+        ✅ Filters should show active count badge. Try searching, changing filters, clearing all.
+      </div>
+    </div>
+
+    <!-- Console Output -->
+    <div class="bg-white rounded-lg shadow p-6">
+      <h2 class="text-xl font-bold mb-4">4. Console Output</h2>
+      <div class="bg-gray-900 text-green-400 p-4 rounded font-mono text-sm" id="consoleOutput">
+        Open browser DevTools console (F12) to see component logs and test results.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Mock client state for BusinessModal testing
+    window.clientsState = {
+      clients: [
+        { id: '1', name: 'Joe\'s Pizza', email: 'joe@joespizza.com', phone: '(555) 123-4567', category: 'Restaurant' },
+        { id: '2', name: 'ABC Plumbing', email: 'info@abcplumbing.com', phone: '(555) 234-5678', category: 'Plumbing' },
+        { id: '3', name: 'Smith Law Firm', email: 'contact@smithlaw.com', phone: '(555) 345-6789', category: 'Legal' }
+      ]
+    };
+
+    // Toast Tests
+    function testMultipleToasts() {
+      showSuccess('First toast!');
+      setTimeout(() => showInfo('Second toast!'), 500);
+      setTimeout(() => showWarning('Third toast!'), 1000);
+      setTimeout(() => showError('Fourth toast!'), 1500);
+    }
+
+    // Business Modal Tests
+    function testSpotModal() {
+      businessModal.open('spot', {
+        name: 'Test Business',
+        status: 'PAID',
+        price: 500
+      }, (data, spots) => {
+        console.log('Spot saved:', data, spots);
+        showSuccess('Spot data saved! Check console.');
+      }, [1, 2]);
+    }
+
+    function testClientModal() {
+      businessModal.open('client', {
+        name: 'Sample Client',
+        email: 'client@example.com',
+        phone: '(555) 999-8888',
+        category: 'Restaurant',
+        notes: 'This is a test client'
+      }, (data) => {
+        console.log('Client saved:', data);
+        showSuccess('Client data saved! Check console.');
+      });
+    }
+
+    function testProspectModal() {
+      businessModal.open('prospect', {
+        name: 'New Prospect',
+        address: '123 Main St, City, ST 12345',
+        phone: '(555) 777-6666'
+      }, (data) => {
+        console.log('Prospect saved:', data);
+        showSuccess('Prospect data saved! Check console.');
+      });
+    }
+
+    function testMultipleSpots() {
+      businessModal.open('spot', {
+        name: '',
+        status: 'AVAIL',
+        price: ''
+      }, (data, spots) => {
+        console.log('Multiple spots saved:', data, spots);
+        showSuccess(`${spots.length} spots updated! Check console.`);
+      }, [3, 4, 5, 6]);
+    }
+
+    // FilterBar Tests
+    document.addEventListener('DOMContentLoaded', () => {
+      // Test 1: Full featured
+      const filter1 = new FilterBar('filterTest1', {
+        showSearch: true,
+        showDate: true,
+        showCategory: true,
+        showStatus: true,
+        placeholder: 'Search businesses...',
+        categories: [
+          'Restaurant',
+          'HVAC',
+          'Plumbing',
+          'Electrician',
+          'Legal'
+        ],
+        statuses: [
+          'New',
+          'Contacted',
+          'Qualified',
+          'Not Interested'
+        ],
+        onFilter: (filters) => {
+          console.log('Filter 1 changed:', filters);
+        }
+      });
+
+      // Test 2: Search only
+      const filter2 = new FilterBar('filterTest2', {
+        showSearch: true,
+        placeholder: 'Search clients by name, email, or phone...',
+        onFilter: (filters) => {
+          console.log('Filter 2 changed:', filters);
+        }
+      });
+
+      // Test 3: Date + Category
+      const filter3 = new FilterBar('filterTest3', {
+        showDate: true,
+        showCategory: true,
+        categories: [
+          'January',
+          'February',
+          'March',
+          'April',
+          'May',
+          'June'
+        ],
+        onFilter: (filters) => {
+          console.log('Filter 3 changed:', filters);
+        }
+      });
+
+      console.log('✅ All components initialized successfully!');
+      console.log('Test the buttons above to verify functionality.');
+    });
+  </script>
+</body>
+</html>

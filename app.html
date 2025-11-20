@@ -37,6 +37,11 @@
   <script src="error-handler.js"></script>
   <script src="utils.js"></script>
 
+  <!-- New Modular Components -->
+  <script src="components/Toast.js"></script>
+  <script src="components/BusinessModal.js"></script>
+  <script src="components/FilterBar.js"></script>
+
   <!-- Google Maps JavaScript API with Places Library -->
   <script>
     // Use API key from config
@@ -8786,7 +8791,7 @@ Thanks!
       });
 
       if (!business) {
-        alert('Business not found');
+        showError('Business not found');
         return;
       }
 
@@ -8849,12 +8854,12 @@ Thanks!
       const message = document.getElementById('smsMessage').value.trim();
 
       if (!message) {
-        alert('Please enter a message');
+        showWarning('Please enter a message');
         return;
       }
 
       if (!currentSMSBusinessId) {
-        alert('No business selected');
+        showWarning('No business selected');
         return;
       }
 
@@ -8864,14 +8869,14 @@ Thanks!
       });
 
       if (!business) {
-        alert('Business not found');
+        showError('Business not found');
         return;
       }
 
       const phone = business.phone || '';
 
       if (!phone) {
-        alert('This business does not have a phone number on file');
+        showWarning('This business does not have a phone number on file');
         return;
       }
 
@@ -8890,9 +8895,9 @@ Thanks!
 
         // Copy phone and message to clipboard
         navigator.clipboard.writeText(`To: ${phone}\n\n${message}`).then(() => {
-          toast(`📋 Message copied! Google Voice opened in new tab.\n\nPaste to send to: ${phone}`, true);
+          showSuccess(`📋 Message copied! Google Voice opened in new tab. Paste to send to: ${phone}`);
         }).catch(() => {
-          alert(`Google Voice opened.\n\nSend to: ${phone}\n\nMessage: ${message}`);
+          showInfo(`Google Voice opened. Send to: ${phone}\n\nMessage: ${message}`);
         });
       }
 
@@ -8924,7 +8929,7 @@ Thanks!
       });
 
       if (!business) {
-        alert('Business not found');
+        showError('Business not found');
         return;
       }
 
@@ -8978,17 +8983,17 @@ Thanks!
       const message = document.getElementById('emailMessage').value.trim();
 
       if (!subject) {
-        alert('Please enter a subject');
+        showWarning('Please enter a subject');
         return;
       }
 
       if (!message) {
-        alert('Please enter a message');
+        showWarning('Please enter a message');
         return;
       }
 
       if (!currentEmailBusinessId) {
-        alert('No business selected');
+        showWarning('No business selected');
         return;
       }
 
@@ -8998,14 +9003,14 @@ Thanks!
       });
 
       if (!business) {
-        alert('Business not found');
+        showError('Business not found');
         return;
       }
 
       const email = business.email || '';
 
       if (!email) {
-        alert('This business does not have an email address on file');
+        showWarning('This business does not have an email address on file');
         return;
       }
 
@@ -9410,7 +9415,7 @@ Thanks!
       });
 
       if (!prospect) {
-        alert('Prospect not found');
+        showError('Prospect not found');
         return;
       }
 
@@ -9420,7 +9425,7 @@ Thanks!
       );
 
       if (existingClient) {
-        alert('This business is already in your Client Database');
+        showInfo('This business is already in your Client Database');
         return;
       }
 
