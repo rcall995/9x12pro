@@ -872,19 +872,21 @@
                 <!-- Content populated by JavaScript -->
             </div>
 
-            <!-- MODERN ACTION FOOTER -->
-            <div class="sticky bottom-4 mt-6 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl shadow-2xl border-2 border-emerald-300 p-6">
-                <div class="flex flex-col gap-4">
-                    <!-- Selection Count & Add Button -->
-                    <div class="flex flex-col md:flex-row justify-between items-center gap-4 bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-                        <div class="flex items-baseline gap-2">
-                            <span id="prospectPoolSelectedCount" class="text-4xl font-black text-white">0</span>
-                            <span class="text-lg text-white/90 font-medium">businesses selected</span>
-                        </div>
-                        <button id="btnAddFromPool" onclick="addFromProspectPool()" class="px-10 py-4 bg-white text-emerald-600 rounded-xl font-black text-lg hover:bg-emerald-50 shadow-2xl disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 transition-all" disabled>
-                            ➕ Add Selected to Pipeline
-                        </button>
+            <!-- COMPACT ACTION BAR - Only shows when businesses are selected -->
+            <div id="prospectPoolActionBar" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-40 transition-all duration-300" style="display: none;">
+                <div class="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-full shadow-2xl border-2 border-emerald-300 px-6 py-3 flex items-center gap-4">
+                    <div class="flex items-center gap-2 text-white">
+                        <span id="prospectPoolSelectedCount" class="text-2xl font-black">0</span>
+                        <span class="text-sm font-medium">selected</span>
                     </div>
+                    <button id="btnAddFromPool" onclick="addFromProspectPool()" class="px-6 py-2 bg-white text-emerald-600 rounded-full font-bold text-sm hover:bg-emerald-50 shadow-lg transform hover:scale-105 transition-all">
+                        ➕ Add to Pipeline
+                    </button>
+                    <button onclick="clearProspectPoolSelection()" class="text-white hover:text-emerald-100 transition-colors" title="Clear selection">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
                 </div>
             </div>
         </div>
@@ -8551,14 +8553,32 @@ Thanks!
     function updatePoolSelectedCount() {
       const countEl = document.getElementById('prospectPoolSelectedCount');
       const btnEl = document.getElementById('btnAddFromPool');
+      const actionBar = document.getElementById('prospectPoolActionBar');
+
+      const count = prospectPoolState.selectedIds.size;
 
       if (countEl) {
-        countEl.textContent = prospectPoolState.selectedIds.size;
+        countEl.textContent = count;
       }
 
       if (btnEl) {
-        btnEl.disabled = prospectPoolState.selectedIds.size === 0;
+        btnEl.disabled = count === 0;
       }
+
+      // Show/hide the action bar based on selection
+      if (actionBar) {
+        if (count > 0) {
+          actionBar.style.display = 'block';
+        } else {
+          actionBar.style.display = 'none';
+        }
+      }
+    }
+
+    function clearProspectPoolSelection() {
+      prospectPoolState.selectedIds.clear();
+      updatePoolSelectedCount();
+      renderProspectPool();
     }
 
     async function addFromProspectPool() {
