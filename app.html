@@ -6711,7 +6711,8 @@ Thanks!
         }
 
         // Refresh Prospect Pool to show enriched data
-        if (document.getElementById('tabProspectPool')?.classList.contains('active')) {
+        const prospectsTab = document.querySelector('[data-content="prospects"]');
+        if (prospectsTab && !prospectsTab.classList.contains('hidden')) {
           setTimeout(() => renderProspectPool(), 500);
         }
 
@@ -7012,6 +7013,12 @@ Thanks!
               toast(`✅ All ${top5Count} prospects enriched!`, true);
             }, 500);
           }
+        }
+
+        // Refresh Prospect Pool to show enriched data if currently viewing it
+        const prospectsTab = document.querySelector('[data-content="prospects"]');
+        if (prospectsTab && !prospectsTab.classList.contains('hidden')) {
+          setTimeout(() => renderProspectPool(), 500);
         }
 
       } catch(err) {
@@ -17368,7 +17375,7 @@ Thanks!
           </div>
 
           <div class="flex gap-3 sticky bottom-0 bg-white pt-4">
-            <button onclick="closeProspectSuccessModal(); switchTab('prospects');" class="flex-1 px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 font-black text-base shadow-xl transform hover:scale-105 transition">
+            <button onclick="closeProspectSuccessModal(); switchTab('prospects'); setTimeout(() => renderProspectPool(), 100);" class="flex-1 px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 font-black text-base shadow-xl transform hover:scale-105 transition">
               Review Prospects →
             </button>
             <button onclick="closeProspectSuccessModal();" class="px-4 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-bold transition">
