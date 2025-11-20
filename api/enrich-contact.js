@@ -159,10 +159,35 @@ function extractEmails(html) {
 
 // Extract phone numbers from HTML
 function extractPhones(html) {
+  // Valid area codes for different regions (helps filter junk)
+  const validAreaCodes = [
+    // New York
+    '212', '315', '332', '347', '516', '518', '585', '607', '631', '646', '680', '716', '718', '838', '845', '914', '917', '929', '934',
+    // Common US area codes
+    '201', '202', '203', '205', '206', '207', '208', '209', '210', '213', '214', '215', '216', '217', '218', '219', '220',
+    '224', '225', '228', '229', '231', '234', '239', '240', '248', '251', '252', '253', '254', '256', '260', '262', '267',
+    '269', '270', '272', '274', '276', '281', '301', '302', '303', '304', '305', '307', '308', '309', '310', '312', '313',
+    '314', '316', '317', '318', '319', '320', '321', '323', '325', '330', '331', '334', '336', '337', '339', '346', '351',
+    '352', '360', '361', '364', '380', '385', '386', '401', '402', '404', '405', '406', '407', '408', '409', '410', '412',
+    '413', '414', '415', '417', '419', '423', '424', '425', '430', '432', '434', '435', '440', '442', '443', '447', '458',
+    '463', '469', '470', '475', '478', '479', '480', '484', '501', '502', '503', '504', '505', '507', '508', '509', '510',
+    '512', '513', '515', '517', '520', '530', '531', '534', '539', '540', '541', '551', '559', '561', '562', '563', '564',
+    '567', '570', '571', '573', '574', '575', '580', '582', '601', '602', '603', '605', '606', '608', '609', '610', '612',
+    '614', '615', '616', '617', '618', '619', '620', '623', '626', '628', '629', '630', '636', '641', '646', '650', '651',
+    '657', '659', '660', '661', '662', '667', '669', '678', '681', '682', '689', '701', '702', '703', '704', '706', '707',
+    '708', '712', '713', '714', '715', '717', '719', '720', '724', '725', '727', '730', '731', '732', '734', '737', '740',
+    '743', '747', '754', '757', '760', '762', '763', '765', '769', '770', '772', '773', '774', '775', '779', '781', '785',
+    '786', '801', '802', '803', '804', '805', '806', '808', '810', '812', '813', '814', '815', '816', '817', '818', '828',
+    '830', '831', '832', '843', '845', '847', '848', '850', '854', '856', '857', '858', '859', '860', '862', '863', '864',
+    '865', '870', '872', '878', '901', '903', '904', '906', '907', '908', '909', '910', '912', '913', '914', '915', '916',
+    '917', '918', '919', '920', '925', '928', '929', '930', '931', '934', '936', '937', '938', '940', '941', '947', '949',
+    '951', '952', '954', '956', '959', '970', '971', '972', '973', '978', '979', '980', '984', '985', '989'
+  ];
+
   // Look for phone numbers near contact keywords (higher priority)
   const contextPatterns = [
-    /(?:phone|call|tel|contact|reach)[\s:]*(\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4})/gi,
-    /(?:phone|call|tel|contact|reach)[\s:]*(\+1[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4})/gi
+    /(?:phone|call|tel|contact|reach|fax)[\s:]*(\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4})/gi,
+    /(?:phone|call|tel|contact|reach|fax)[\s:]*(\+1[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4})/gi
   ];
 
   let priorityPhones = [];
@@ -171,14 +196,26 @@ function extractPhones(html) {
     priorityPhones = priorityPhones.concat(matches.map(m => m[1]));
   }
 
-  // If we found phones with context, prefer those
+  // Validate and return priority phones if found
   if (priorityPhones.length > 0) {
     const normalized = priorityPhones.map(phone => phone.replace(/[^\d+()-.\s]/g, '').trim());
     const valid = normalized.filter(phone => {
       const digits = phone.replace(/\D/g, '');
-      // Must be 10 or 11 digits, and NOT start with 0 or 1
-      return (digits.length === 10 || digits.length === 11) &&
-             digits[0] !== '0' && digits[0] !== '1';
+      if (digits.length !== 10 && digits.length !== 11) return false;
+
+      // Extract area code (first 3 digits after country code)
+      const areaCode = digits.length === 11 ? digits.substring(1, 4) : digits.substring(0, 3);
+      if (!validAreaCodes.includes(areaCode)) return false;
+
+      // No repeating patterns
+      const uniqueDigits = new Set(digits.split(''));
+      if (uniqueDigits.size < 4) return false;
+
+      // Not all sequential (1234567890)
+      const sequential = '0123456789';
+      if (sequential.includes(digits.substring(0, 5))) return false;
+
+      return true;
     });
     if (valid.length > 0) {
       return [...new Set(valid)];
@@ -197,19 +234,23 @@ function extractPhones(html) {
     phones = phones.concat(matches);
   }
 
-  // Normalize phone numbers
+  // Normalize and validate
   phones = phones.map(phone => phone.replace(/[^\d+()-.\s]/g, '').trim());
-
-  // Filter out invalid numbers
   phones = phones.filter(phone => {
     const digits = phone.replace(/\D/g, '');
-    // Must be 10 or 11 digits, NOT start with 0 or 1, no repeating digits
     if (digits.length !== 10 && digits.length !== 11) return false;
-    if (digits[0] === '0' || digits[0] === '1') return false;
 
-    // Filter out numbers like 1111111111, 0000000000, etc.
+    // Extract area code
+    const areaCode = digits.length === 11 ? digits.substring(1, 4) : digits.substring(0, 3);
+    if (!validAreaCodes.includes(areaCode)) return false;
+
+    // Uniqueness check
     const uniqueDigits = new Set(digits.split(''));
-    if (uniqueDigits.size < 3) return false; // Too many repeating digits
+    if (uniqueDigits.size < 4) return false;
+
+    // Not sequential
+    const sequential = '0123456789';
+    if (sequential.includes(digits.substring(0, 5))) return false;
 
     return true;
   });
