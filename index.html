@@ -512,21 +512,6 @@
     </div>
   </footer>
 
-  <!-- Core Utilities -->
-  <script src="config.js"></script>
-  <script src="error-handler.js"></script>
-  <script src="utils.js"></script>
-
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script>
-    // Use credentials from config
-    var supabaseClient = supabase.createClient(
-      window.APP_CONFIG.supabase.url,
-      window.APP_CONFIG.supabase.anonKey
-    );
-  </script>
-  <script src="auth-root.js"></script>
-
   <!-- Smooth scroll for anchor links -->
   <script>
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
