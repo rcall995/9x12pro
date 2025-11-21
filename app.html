@@ -4694,6 +4694,11 @@ Thanks!
       }
     }
 
+    // State for sequential email sending
+    let clientBulkEmailQueue = [];
+    let clientBulkEmailCurrentIndex = 0;
+    let clientBulkEmailTemplate = null;
+
     function clientBulkSendEmail() {
       const templateSelector = document.getElementById('clientBulkSendTemplateSelector');
       if (!templateSelector || !templateSelector.value) {
@@ -4714,55 +4719,91 @@ Thanks!
         return;
       }
 
-      const selectedCount = clientSelectionState.selectedIds.size;
-
-      // Collect all email addresses
-      const emailAddresses = [];
+      // Collect all clients with emails
+      const clientsWithEmails = [];
       clientSelectionState.selectedIds.forEach(clientId => {
         const client = crmState.clients[clientId];
         if (client && client.contact && client.contact.email) {
-          emailAddresses.push(client.contact.email);
+          clientsWithEmails.push(client);
         }
       });
 
-      if (emailAddresses.length === 0) {
+      if (clientsWithEmails.length === 0) {
         toast('⚠️ No clients with email addresses selected', false);
         return;
       }
 
-      if (confirm(`Send Email to ${emailAddresses.length} client${emailAddresses.length > 1 ? 's' : ''}?\n\nNote: All recipients will be in BCC (hidden from each other).`)) {
-        // Use first client's data for template variables
-        const firstClientId = Array.from(clientSelectionState.selectedIds)[0];
-        const firstClient = crmState.clients[firstClientId];
-
-        const data = {
-          businessName: firstClient.businessName,
-          contactName: firstClient.contact?.name || firstClient.businessName,
-          phone: firstClient.contact?.phone || '',
-          email: firstClient.contact?.email || '',
-          town: firstClient.address?.city || '',
-          zipCode: firstClient.address?.zipCode || ''
-        };
-
-        const filled = fillTemplateVariables(template, data);
-        const subject = filled.subject;
-        const body = filled.body;
-
-        // Create mailto link with BCC for all recipients
-        const bccList = emailAddresses.join(',');
-        window.open(`mailto:?bcc=${encodeURIComponent(bccList)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+      if (confirm(`Send personalized emails to ${clientsWithEmails.length} client${clientsWithEmails.length > 1 ? 's' : ''}?\n\nYou'll click through each email one at a time.`)) {
+        // Initialize queue
+        clientBulkEmailQueue = clientsWithEmails;
+        clientBulkEmailCurrentIndex = 0;
+        clientBulkEmailTemplate = template;
 
         // Track template usage
-        if (template) {
-          template.lastUsed = new Date().toISOString();
-          template.usageCount = (template.usageCount || 0) + emailAddresses.length;
-          saveUserTemplates();
-        }
+        template.lastUsed = new Date().toISOString();
+        template.usageCount = (template.usageCount || 0) + clientsWithEmails.length;
+        saveUserTemplates();
 
-        toast(`✅ Opened Email for ${emailAddresses.length} client${emailAddresses.length > 1 ? 's' : ''} (BCC)`, true);
+        // Open first email
+        openNextClientEmail();
+      }
+    }
 
-        // Clear selections
+    function openNextClientEmail() {
+      if (clientBulkEmailCurrentIndex >= clientBulkEmailQueue.length) {
+        // Done!
+        toast(`✅ Completed ${clientBulkEmailQueue.length} personalized email${clientBulkEmailQueue.length > 1 ? 's' : ''}`, true);
+        clientBulkEmailQueue = [];
+        clientBulkEmailCurrentIndex = 0;
+        clientBulkEmailTemplate = null;
         clearClientSelection();
+        return;
+      }
+
+      const client = clientBulkEmailQueue[clientBulkEmailCurrentIndex];
+      const template = clientBulkEmailTemplate;
+
+      // Fill template variables with this client's data
+      const data = {
+        businessName: client.businessName,
+        contactName: client.contact?.name || client.businessName,
+        phone: client.contact?.phone || '',
+        email: client.contact?.email || '',
+        town: client.address?.city || '',
+        zipCode: client.address?.zipCode || ''
+      };
+
+      const filled = fillTemplateVariables(template, data);
+      const subject = filled.subject;
+      const body = filled.body;
+
+      // Open mailto link
+      window.open(`mailto:${client.contact.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+
+      clientBulkEmailCurrentIndex++;
+
+      // Show progress and next button
+      const remaining = clientBulkEmailQueue.length - clientBulkEmailCurrentIndex;
+      if (remaining > 0) {
+        setTimeout(() => {
+          if (confirm(`Email ${clientBulkEmailCurrentIndex} of ${clientBulkEmailQueue.length} opened for ${client.businessName}.\n\n${remaining} more to go. Continue to next email?`)) {
+            openNextClientEmail();
+          } else {
+            toast(`⚠️ Stopped at ${clientBulkEmailCurrentIndex} of ${clientBulkEmailQueue.length}`, false);
+            clientBulkEmailQueue = [];
+            clientBulkEmailCurrentIndex = 0;
+            clientBulkEmailTemplate = null;
+          }
+        }, 500);
+      } else {
+        // Last one
+        setTimeout(() => {
+          toast(`✅ Completed all ${clientBulkEmailQueue.length} personalized email${clientBulkEmailQueue.length > 1 ? 's' : ''}!`, true);
+          clientBulkEmailQueue = [];
+          clientBulkEmailCurrentIndex = 0;
+          clientBulkEmailTemplate = null;
+          clearClientSelection();
+        }, 500);
       }
     }
 
