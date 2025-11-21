@@ -8689,12 +8689,35 @@ Thanks!
         return true;
       }
 
+      // Helper to check if a field has a valid value
+      const hasValue = (field) => field && field.trim() !== '' && field !== 'undefined' && field !== 'null';
+
       // Check each filter (AND logic - business must match ALL selected filters)
-      if (hasEmail && (!business.email || business.email.trim() === '')) return false;
-      if (hasPhone && (!business.phone || business.phone.trim() === '')) return false;
-      if (hasFacebook && (!business.facebook || business.facebook.trim() === '')) return false;
-      if (hasInstagram && (!business.instagram || business.instagram.trim() === '')) return false;
-      if (hasWebsite && (!business.website || business.website.trim() === '')) return false;
+      // Support both direct fields and nested contact object (for different data structures)
+      if (hasEmail) {
+        const email = business.email || business.contact?.email;
+        if (!hasValue(email)) return false;
+      }
+
+      if (hasPhone) {
+        const phone = business.phone || business.contact?.phone;
+        if (!hasValue(phone)) return false;
+      }
+
+      if (hasFacebook) {
+        const facebook = business.facebook || business.socialMedia?.facebook;
+        if (!hasValue(facebook)) return false;
+      }
+
+      if (hasInstagram) {
+        const instagram = business.instagram || business.socialMedia?.instagram;
+        if (!hasValue(instagram)) return false;
+      }
+
+      if (hasWebsite) {
+        const website = business.website;
+        if (!hasValue(website)) return false;
+      }
 
       return true;
     }
