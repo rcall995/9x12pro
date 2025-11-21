@@ -4516,21 +4516,72 @@ Thanks!
       } else {
         clientSelectionState.selectedIds.add(clientId);
       }
-      renderClientList();
+
+      // Update the checkbox visual state and card styling without full re-render
+      const checkbox = document.querySelector(`.client-checkbox[data-client-id="${clientId}"]`);
+      const card = document.querySelector(`.client-row[data-client-id="${clientId}"]`);
+
+      if (checkbox) {
+        checkbox.checked = clientSelectionState.selectedIds.has(clientId);
+      }
+
+      if (card) {
+        if (clientSelectionState.selectedIds.has(clientId)) {
+          card.classList.remove('border-gray-200');
+          card.classList.add('border-indigo-400', 'bg-indigo-50');
+        } else {
+          card.classList.remove('border-indigo-400', 'bg-indigo-50');
+          card.classList.add('border-gray-200');
+        }
+      }
+
+      updateClientBulkSendSection();
     }
 
     function selectAllClients() {
-      const visibleClients = Array.from(document.querySelectorAll('#clientList .client-row'))
+      // Look in the grid container, not the parent container
+      const visibleClients = Array.from(document.querySelectorAll('#clientListGrid .client-row'))
         .filter(el => el.style.display !== 'none')
         .map(el => el.dataset.clientId);
 
-      visibleClients.forEach(id => clientSelectionState.selectedIds.add(id));
-      renderClientList();
+      visibleClients.forEach(id => {
+        clientSelectionState.selectedIds.add(id);
+
+        // Update checkbox and card styling
+        const checkbox = document.querySelector(`.client-checkbox[data-client-id="${id}"]`);
+        const card = document.querySelector(`.client-row[data-client-id="${id}"]`);
+
+        if (checkbox) {
+          checkbox.checked = true;
+        }
+
+        if (card) {
+          card.classList.remove('border-gray-200');
+          card.classList.add('border-indigo-400', 'bg-indigo-50');
+        }
+      });
+
+      updateClientBulkSendSection();
     }
 
     function clearClientSelection() {
+      // Update all checkboxes and cards before clearing
+      clientSelectionState.selectedIds.forEach(id => {
+        const checkbox = document.querySelector(`.client-checkbox[data-client-id="${id}"]`);
+        const card = document.querySelector(`.client-row[data-client-id="${id}"]`);
+
+        if (checkbox) {
+          checkbox.checked = false;
+        }
+
+        if (card) {
+          card.classList.remove('border-indigo-400', 'bg-indigo-50');
+          card.classList.add('border-gray-200');
+        }
+      });
+
       clientSelectionState.selectedIds.clear();
-      renderClientList();
+      updateClientBulkSendSection();
     }
 
     function updateClientBulkSendSection() {
