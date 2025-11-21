@@ -4406,72 +4406,68 @@ Thanks!
 
       clients.sort((a, b) => a.businessName.localeCompare(b.businessName));
 
-      container.innerHTML = clients.map(client => {
-        const lastPurchase = client.history.length > 0
-          ? client.history[client.history.length - 1]
-          : null;
+      container.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          ${clients.map(client => {
+            const lastPurchase = client.history.length > 0
+              ? client.history[client.history.length - 1]
+              : null;
 
-        const hasPhone = client.contact && client.contact.phone;
-        const hasEmail = client.contact && client.contact.email;
-        const isSelected = clientSelectionState.selectedIds.has(client.id);
+            const hasPhone = client.contact && client.contact.phone;
+            const hasEmail = client.contact && client.contact.email;
+            const isSelected = clientSelectionState.selectedIds.has(client.id);
 
-        return `
-          <div class="client-row ${isSelected ? 'bg-indigo-50 border-indigo-300' : ''}"
-               data-client-id="${client.id}"
-               data-category="${client.category}"
-               data-business="${client.businessName.toLowerCase()}">
-            <div class="flex justify-between items-start gap-3">
-              <div class="flex items-start gap-3 flex-1">
-                <input
-                  type="checkbox"
-                  class="mt-1 h-5 w-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"
-                  ${isSelected ? 'checked' : ''}
-                  onchange="toggleClientSelection('${client.id}')"
-                  onclick="event.stopPropagation()"
-                />
-                <div class="flex-1" onclick="openClientModal('${client.id}')" style="cursor: pointer;">
-                  <div class="font-semibold text-gray-900">${esc(client.businessName)}</div>
-                  <div class="text-sm text-gray-600">${esc(client.category || 'Uncategorized')}</div>
-                  ${client.contact.name ? `<div class="text-sm text-gray-500">${esc(client.contact.name)} • ${esc(client.contact.phone || '')}</div>` : ''}
-                  ${hasEmail ? `<div class="text-xs text-gray-500">${esc(client.contact.email || '')}</div>` : ''}
+            return `
+              <div class="client-row bg-white border-2 ${isSelected ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200'} rounded-lg p-3 hover:shadow-md transition relative"
+                   data-client-id="${client.id}"
+                   data-category="${client.category}"
+                   data-business="${client.businessName.toLowerCase()}">
+
+                <!-- Checkbox in top-left corner -->
+                <div class="absolute top-2 left-2">
+                  <input
+                    type="checkbox"
+                    class="h-5 w-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"
+                    ${isSelected ? 'checked' : ''}
+                    onchange="toggleClientSelection('${client.id}')"
+                    onclick="event.stopPropagation()"
+                  />
                 </div>
-              </div>
-              <div class="flex flex-col gap-2">
-                <div class="text-right">
+
+                <!-- Revenue Badge in top-right corner -->
+                <div class="absolute top-2 right-2 text-right">
                   <div class="text-sm font-semibold text-green-600">${formatCurrency(client.lifetime.totalSpent)}</div>
                   <div class="text-xs text-gray-500">${client.lifetime.cardsBought} card${client.lifetime.cardsBought === 1 ? '' : 's'}</div>
                 </div>
-                <div class="flex gap-1.5 flex-wrap justify-end">
-                  ${hasPhone ? `
-                    <button onclick="event.stopPropagation(); openClientSMS('${client.id}')"
-                            class="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-                            title="Send SMS">
-                      📱 SMS
-                    </button>
-                  ` : ''}
-                  ${hasEmail ? `
-                    <button onclick="event.stopPropagation(); openClientEmail('${client.id}')"
-                            class="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
-                            title="Send Email">
-                      ✉️ Email
-                    </button>
-                  ` : ''}
+
+                <!-- Main content (clickable to open modal) -->
+                <div class="cursor-pointer pt-6 pb-2" onclick="openClientModal('${client.id}')">
+                  <h5 class="font-semibold text-sm text-gray-900 mb-1 pr-16">${esc(client.businessName)}</h5>
+                  <div class="text-xs text-gray-600 mb-1">${esc(client.category || 'Uncategorized')}</div>
+                  ${client.contact.name ? `<div class="text-xs text-gray-500">${esc(client.contact.name)}</div>` : ''}
+                  ${hasPhone ? `<div class="text-xs text-gray-500">📞 ${esc(client.contact.phone)}</div>` : ''}
+                  ${hasEmail ? `<div class="text-xs text-gray-500">✉️ ${esc(client.contact.email)}</div>` : ''}
+                </div>
+
+                <!-- Last purchase info -->
+                ${lastPurchase ? `
+                  <div class="mt-2 pt-2 border-t text-xs text-gray-500">
+                    Last: ${esc(lastPurchase.campaign)}
+                  </div>
+                ` : ''}
+
+                <!-- Action button -->
+                <div class="mt-2 pt-2 border-t">
                   <button onclick="event.stopPropagation(); moveClientToKanban('${client.id}')"
-                          class="px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700"
-                          title="Move to Kanban - To Contact column">
-                    📤 To Kanban
+                          class="w-full px-3 py-1.5 bg-purple-600 text-white rounded-md hover:bg-purple-700 font-semibold text-xs">
+                    📤 Move to Pipeline
                   </button>
                 </div>
               </div>
-            </div>
-            ${lastPurchase ? `
-              <div class="mt-2 pt-2 border-t text-xs text-gray-500">
-                Last: ${lastPurchase.campaign} (${lastPurchase.status})
-              </div>
-            ` : ''}
-          </div>
-        `;
-      }).join('');
+            `;
+          }).join('')}
+        </div>
+      `;
 
       updateClientBulkSendSection();
     }
