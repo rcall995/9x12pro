@@ -2071,15 +2071,28 @@
             <label class="text-sm font-medium text-gray-700 block mb-1">Contact Name</label>
             <input id="clientContactName" type="text" class="border rounded-md w-full p-2" placeholder="Adam Smith" />
           </div>
-          
+
+          <div>
+            <label class="text-sm font-medium text-gray-700 block mb-1">First Name</label>
+            <input id="clientFirstName" type="text" class="border rounded-md w-full p-2" placeholder="Adam" />
+          </div>
+
           <div>
             <label class="text-sm font-medium text-gray-700 block mb-1">Phone</label>
             <input id="clientPhone" type="tel" class="border rounded-md w-full p-2" placeholder="(555) 123-4567" />
           </div>
-          
+
           <div>
             <label class="text-sm font-medium text-gray-700 block mb-1">Email</label>
             <input id="clientEmail" type="email" class="border rounded-md w-full p-2" placeholder="adam@adamspizza.com" />
+          </div>
+
+          <div>
+            <label class="text-sm font-medium text-gray-700 block mb-1">Monthly Price</label>
+            <div class="relative">
+              <span class="absolute left-3 top-2 text-gray-500">$</span>
+              <input id="clientMonthlyPrice" type="number" step="50" class="border rounded-md w-full p-2 pl-7" placeholder="500" />
+            </div>
           </div>
         </div>
         
@@ -4296,10 +4309,12 @@ Thanks!
         category: data.category || "",
         contact: {
           name: data.contactName || "",
+          firstName: data.firstName || "",
           phone: data.phone || "",
           email: data.email || "",
           address: data.address || ""
         },
+        monthlyPrice: data.monthlyPrice || 0,
         history: data.history || [],
         interactions: data.interactions || [], // Interaction tracking: [{date, type, notes, nextFollowUp}]
         lifetime: {
@@ -4667,10 +4682,12 @@ Thanks!
             const data = {
               businessName: client.businessName,
               contactName: client.contact.name || client.businessName,
+              firstName: client.contact?.firstName || '',
               phone: client.contact.phone,
               email: client.contact.email || '',
               town: client.address?.city || '',
-              zipCode: client.address?.zipCode || ''
+              zipCode: client.address?.zipCode || '',
+              monthlyPrice: client.monthlyPrice ? `$${client.monthlyPrice}` : ''
             };
             const filled = fillTemplateVariables(template, data);
             const message = filled.body;
@@ -4767,10 +4784,12 @@ Thanks!
       const data = {
         businessName: client.businessName,
         contactName: client.contact?.name || client.businessName,
+        firstName: client.contact?.firstName || '',
         phone: client.contact?.phone || '',
         email: client.contact?.email || '',
         town: client.address?.city || '',
-        zipCode: client.address?.zipCode || ''
+        zipCode: client.address?.zipCode || '',
+        monthlyPrice: client.monthlyPrice ? `$${client.monthlyPrice}` : ''
       };
 
       const filled = fillTemplateVariables(template, data);
@@ -4839,10 +4858,12 @@ Thanks!
             const data = {
               businessName: client.businessName,
               contactName: client.contact.name || client.businessName,
+              firstName: client.contact?.firstName || '',
               phone: client.contact.phone,
               email: client.contact.email || '',
               town: client.address?.city || '',
-              zipCode: client.address?.zipCode || ''
+              zipCode: client.address?.zipCode || '',
+              monthlyPrice: client.monthlyPrice ? `$${client.monthlyPrice}` : ''
             };
             const filled = fillTemplateVariables(template, data);
             const message = filled.body;
@@ -4972,8 +4993,10 @@ Thanks!
         document.getElementById('clientBusinessName').value = client.businessName;
         document.getElementById('clientCategory').value = client.category;
         document.getElementById('clientContactName').value = client.contact.name;
+        document.getElementById('clientFirstName').value = client.contact.firstName || '';
         document.getElementById('clientPhone').value = client.contact.phone;
         document.getElementById('clientEmail').value = client.contact.email;
+        document.getElementById('clientMonthlyPrice').value = client.monthlyPrice || '';
         document.getElementById('clientNotes').value = client.notes;
         
         renderClientHistory(client);
@@ -5006,8 +5029,10 @@ Thanks!
         document.getElementById('clientCustomCategory').value = '';
         document.getElementById('clientCustomCategory').classList.add('hidden');
         document.getElementById('clientContactName').value = '';
+        document.getElementById('clientFirstName').value = '';
         document.getElementById('clientPhone').value = '';
         document.getElementById('clientEmail').value = '';
+        document.getElementById('clientMonthlyPrice').value = '';
         document.getElementById('clientNotes').value = '';
 
         // Reset contract fields
@@ -5111,8 +5136,10 @@ Thanks!
         businessName,
         category: category,
         contactName: document.getElementById('clientContactName').value,
+        firstName: document.getElementById('clientFirstName').value.trim(),
         phone: document.getElementById('clientPhone').value,
         email: document.getElementById('clientEmail').value,
+        monthlyPrice: parseFloat(document.getElementById('clientMonthlyPrice').value) || 0,
         notes: document.getElementById('clientNotes').value
       };
       
@@ -5125,8 +5152,10 @@ Thanks!
         client.businessName = clientData.businessName;
         client.category = clientData.category;
         client.contact.name = clientData.contactName;
+        client.contact.firstName = clientData.firstName;
         client.contact.phone = clientData.phone;
         client.contact.email = clientData.email;
+        client.monthlyPrice = clientData.monthlyPrice;
         client.notes = clientData.notes;
       }
 
