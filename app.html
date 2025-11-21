@@ -5769,7 +5769,8 @@ Thanks!
           body: MESSAGE_TEMPLATES.messenger.body,
           variables: ['businessName', 'town', 'yourName', 'yourPhone'],
           createdAt: new Date().toISOString(),
-          isDefault: true
+          usageCount: 0,
+          lastUsed: null
         },
         'default_email_prospect': {
           id: 'default_email_prospect',
@@ -5780,7 +5781,8 @@ Thanks!
           body: MESSAGE_TEMPLATES.email.body,
           variables: ['businessName', 'town', 'yourName', 'yourPhone', 'yourEmail'],
           createdAt: new Date().toISOString(),
-          isDefault: true
+          usageCount: 0,
+          lastUsed: null
         },
         'default_instagram': {
           id: 'default_instagram',
@@ -5791,7 +5793,8 @@ Thanks!
           body: MESSAGE_TEMPLATES.instagram.body,
           variables: ['businessName', 'town', 'yourName', 'yourPhone'],
           createdAt: new Date().toISOString(),
-          isDefault: true
+          usageCount: 0,
+          lastUsed: null
         },
         'default_followup': {
           id: 'default_followup',
@@ -5802,7 +5805,8 @@ Thanks!
           body: MESSAGE_TEMPLATES.followup.body,
           variables: ['businessName', 'town', 'date', 'yourName', 'yourPhone'],
           createdAt: new Date().toISOString(),
-          isDefault: true
+          usageCount: 0,
+          lastUsed: null
         },
         'default_invoice': {
           id: 'default_invoice',
@@ -5813,7 +5817,8 @@ Thanks!
           body: 'Hi {contactName},\n\nThis is a friendly reminder that your invoice for {campaign} is still pending.\n\nAmount Due: {amount}\n\nPlease let me know if you have any questions.\n\nBest regards',
           variables: ['businessName', 'contactName', 'campaign', 'amount'],
           createdAt: new Date().toISOString(),
-          isDefault: true
+          usageCount: 0,
+          lastUsed: null
         },
         'default_proof': {
           id: 'default_proof',
@@ -5824,7 +5829,8 @@ Thanks!
           body: 'Hi {contactName},\n\nGreat news! Your ad proof for {campaign} is ready for review.\n\nPlease review and let me know if you\'d like any changes.\n\nBest regards',
           variables: ['businessName', 'contactName', 'campaign'],
           createdAt: new Date().toISOString(),
-          isDefault: true
+          usageCount: 0,
+          lastUsed: null
         },
         'default_renewal': {
           id: 'default_renewal',
@@ -5835,7 +5841,8 @@ Thanks!
           body: 'Hi {contactName},\n\nI hope your campaign with us has been successful!\n\nWe\'re preparing our next mailing and would love to have you on board again.\n\nWould you like to renew your spot?\n\nBest regards',
           variables: ['businessName', 'contactName'],
           createdAt: new Date().toISOString(),
-          isDefault: true
+          usageCount: 0,
+          lastUsed: null
         },
         'default_thankyou': {
           id: 'default_thankyou',
@@ -5846,13 +5853,14 @@ Thanks!
           body: 'Hi {contactName},\n\nThank you for advertising with us on {campaign}!\n\nWe appreciate your business and look forward to working with you again.\n\nBest regards',
           variables: ['businessName', 'contactName', 'campaign'],
           createdAt: new Date().toISOString(),
-          isDefault: true
+          usageCount: 0,
+          lastUsed: null
         }
       };
 
       userTemplatesState.templates = defaultTemplates;
       saveUserTemplates(); // Save defaults to cloud
-      console.log('✅ Initialized with 8 default templates');
+      console.log('✅ Initialized with 8 starter templates');
     }
 
     async function saveUserTemplates() {
@@ -5954,11 +5962,6 @@ Thanks!
       const template = userTemplatesState.templates[id];
       if (!template) {
         toast('⚠️ Template not found', false);
-        return;
-      }
-
-      if (template.isDefault) {
-        toast('⚠️ Cannot delete default templates. Duplicate them instead.', false);
         return;
       }
 
