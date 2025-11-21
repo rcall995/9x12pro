@@ -715,20 +715,21 @@
 
             <!-- MESSAGE TEMPLATES MANAGER -->
             <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl shadow-lg border-2 border-blue-200 p-6 mb-8">
-                <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center justify-between mb-4 cursor-pointer" onclick="toggleDashboardTemplates()">
                     <div class="flex items-center gap-3">
                         <span class="text-4xl">📧</span>
                         <div>
                             <h4 class="text-xl font-black text-gray-900">Message Templates</h4>
-                            <p class="text-sm text-gray-600">Manage your outreach templates</p>
+                            <p class="text-sm text-gray-600">Manage your outreach templates - Click to expand</p>
                         </div>
+                        <span id="dashboardTemplatesToggleIcon" class="text-2xl ml-2 transition-transform">▶</span>
                     </div>
-                    <button onclick="openCreateTemplateModal()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-bold text-sm shadow-lg">
+                    <button onclick="event.stopPropagation(); openCreateTemplateModal()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-bold text-sm shadow-lg">
                         + New Template
                     </button>
                 </div>
 
-                <div class="space-y-4">
+                <div id="dashboardTemplatesContent" class="space-y-4 hidden">
                     <!-- Prospect Templates -->
                     <div class="bg-gradient-to-r from-teal-50 to-cyan-50 border-2 border-teal-200 rounded-xl p-4">
                         <h5 class="text-md font-bold text-gray-800 mb-3 flex items-center gap-2">
@@ -15362,7 +15363,10 @@ Thanks!
 
         // Refresh dashboard when switching to it
         if (tabName === 'dashboard') {
-            setTimeout(() => refreshDashboard(), 100);
+            setTimeout(() => {
+                refreshDashboard();
+                initializeDashboardTemplatesState();
+            }, 100);
         }
 
         // Render template manager when clients tab is opened
@@ -15397,6 +15401,46 @@ Thanks!
     // Alias for backward compatibility - now uses consolidated renderTemplateManager
     function renderDashboardTemplates() {
         renderTemplateManager();
+    }
+
+    // Toggle dashboard templates section visibility
+    function toggleDashboardTemplates() {
+        const content = document.getElementById('dashboardTemplatesContent');
+        const icon = document.getElementById('dashboardTemplatesToggleIcon');
+
+        if (content && icon) {
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                icon.textContent = '▼';
+                icon.style.transform = 'rotate(0deg)';
+                // Save preference
+                safeSetItem('dashboardTemplatesExpanded', 'true');
+            } else {
+                content.classList.add('hidden');
+                icon.textContent = '▶';
+                icon.style.transform = 'rotate(0deg)';
+                // Save preference
+                safeSetItem('dashboardTemplatesExpanded', 'false');
+            }
+        }
+    }
+
+    // Initialize dashboard templates collapsed state on load
+    function initializeDashboardTemplatesState() {
+        const expanded = safeGetItem('dashboardTemplatesExpanded');
+        const content = document.getElementById('dashboardTemplatesContent');
+        const icon = document.getElementById('dashboardTemplatesToggleIcon');
+
+        // Default to collapsed (hidden)
+        if (content && icon) {
+            if (expanded === 'true') {
+                content.classList.remove('hidden');
+                icon.textContent = '▼';
+            } else {
+                content.classList.add('hidden');
+                icon.textContent = '▶';
+            }
+        }
     }
 
     /* ========= QUICK SEND FUNCTIONS ========= */
