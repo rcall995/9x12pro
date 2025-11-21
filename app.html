@@ -4407,7 +4407,7 @@ Thanks!
       clients.sort((a, b) => a.businessName.localeCompare(b.businessName));
 
       container.innerHTML = `
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3" id="clientListGrid">
           ${clients.map(client => {
             const lastPurchase = client.history.length > 0
               ? client.history[client.history.length - 1]
@@ -4419,29 +4419,28 @@ Thanks!
 
             return `
               <div class="client-row bg-white border-2 ${isSelected ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200'} rounded-lg p-3 hover:shadow-md transition relative"
-                   data-client-id="${client.id}"
-                   data-category="${client.category}"
-                   data-business="${client.businessName.toLowerCase()}">
+                   data-client-id="${esc(client.id)}"
+                   data-category="${esc(client.category)}"
+                   data-business="${esc(client.businessName.toLowerCase())}">
 
                 <!-- Checkbox in top-left corner -->
                 <div class="absolute top-2 left-2">
                   <input
                     type="checkbox"
-                    class="h-5 w-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"
+                    class="client-checkbox h-5 w-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"
+                    data-client-id="${esc(client.id)}"
                     ${isSelected ? 'checked' : ''}
-                    onchange="toggleClientSelection('${client.id}')"
-                    onclick="event.stopPropagation()"
                   />
                 </div>
 
                 <!-- Revenue Badge in top-right corner -->
-                <div class="absolute top-2 right-2 text-right">
+                <div class="absolute top-2 right-2 text-right pointer-events-none">
                   <div class="text-sm font-semibold text-green-600">${formatCurrency(client.lifetime.totalSpent)}</div>
                   <div class="text-xs text-gray-500">${client.lifetime.cardsBought} card${client.lifetime.cardsBought === 1 ? '' : 's'}</div>
                 </div>
 
                 <!-- Main content (clickable to open modal) -->
-                <div class="cursor-pointer pt-6 pb-2" onclick="openClientModal('${client.id}')">
+                <div class="client-card-body cursor-pointer pt-6 pb-2" data-client-id="${esc(client.id)}">
                   <h5 class="font-semibold text-sm text-gray-900 mb-1 pr-16">${esc(client.businessName)}</h5>
                   <div class="text-xs text-gray-600 mb-1">${esc(client.category || 'Uncategorized')}</div>
                   ${client.contact.name ? `<div class="text-xs text-gray-500">${esc(client.contact.name)}</div>` : ''}
@@ -4458,8 +4457,8 @@ Thanks!
 
                 <!-- Action button -->
                 <div class="mt-2 pt-2 border-t">
-                  <button onclick="event.stopPropagation(); moveClientToKanban('${client.id}')"
-                          class="w-full px-3 py-1.5 bg-purple-600 text-white rounded-md hover:bg-purple-700 font-semibold text-xs">
+                  <button class="client-move-btn w-full px-3 py-1.5 bg-purple-600 text-white rounded-md hover:bg-purple-700 font-semibold text-xs"
+                          data-client-id="${esc(client.id)}">
                     📤 Move to Pipeline
                   </button>
                 </div>
@@ -4468,6 +4467,46 @@ Thanks!
           }).join('')}
         </div>
       `;
+
+      // Add event delegation for checkboxes
+      const gridElement = document.getElementById('clientListGrid');
+      if (gridElement) {
+        // Remove old listeners if any
+        const oldGrid = gridElement.cloneNode(true);
+        gridElement.parentNode.replaceChild(oldGrid, gridElement);
+
+        // Checkbox clicks
+        oldGrid.addEventListener('change', (e) => {
+          if (e.target.classList.contains('client-checkbox')) {
+            const clientId = e.target.getAttribute('data-client-id');
+            if (clientId) {
+              toggleClientSelection(clientId);
+            }
+          }
+        });
+
+        // Card body clicks (open modal)
+        oldGrid.addEventListener('click', (e) => {
+          const cardBody = e.target.closest('.client-card-body');
+          if (cardBody) {
+            const clientId = cardBody.getAttribute('data-client-id');
+            if (clientId) {
+              openClientModal(clientId);
+            }
+          }
+        });
+
+        // Move to pipeline button clicks
+        oldGrid.addEventListener('click', (e) => {
+          if (e.target.classList.contains('client-move-btn')) {
+            e.stopPropagation();
+            const clientId = e.target.getAttribute('data-client-id');
+            if (clientId) {
+              moveClientToKanban(clientId);
+            }
+          }
+        });
+      }
 
       updateClientBulkSendSection();
     }
