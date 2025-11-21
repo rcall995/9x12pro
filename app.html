@@ -6343,48 +6343,67 @@ Thanks!
     function calculateProspectScore(business) {
       let score = 0;
 
-      // BASE SCORE: Business Type (0-30 points)
-      // Service businesses are more likely to advertise locally
-      const serviceTypes = ['plumber', 'electrician', 'hvac', 'roofing_contractor', 'general_contractor',
-                            'landscaper', 'lawn_care', 'restaurant', 'cafe', 'bakery',
-                            'hair_salon', 'beauty_salon', 'spa', 'gym', 'fitness',
-                            'auto_repair', 'car_repair', 'mechanic', 'dentist', 'chiropractor',
-                            'real_estate_agency', 'insurance_agency', 'lawyer', 'attorney'];
+      // SIMPLIFIED LEAD SCORING - Based on real-world 9x12 sales experience
+      // Focus: Service businesses, established but not too big, missing online presence
+
+      // 1. BUSINESS TYPE (0-40 points) - Most important factor
+      // Service businesses with recurring customers are IDEAL for local advertising
+      const serviceTypes = [
+        'plumber', 'plumbing', 'electrician', 'electrical', 'hvac', 'heating', 'cooling', 'air_conditioning',
+        'roofing', 'roofer', 'contractor', 'general_contractor', 'remodeling',
+        'landscaper', 'landscaping', 'lawn_care', 'lawn_service', 'tree_service',
+        'pest_control', 'exterminator', 'cleaning_service', 'carpet_cleaning',
+        'painter', 'painting', 'flooring', 'tile', 'concrete',
+        'garage_door', 'window', 'gutter', 'siding',
+        'auto_repair', 'car_repair', 'mechanic', 'auto_body', 'tire',
+        'restaurant', 'cafe', 'bakery', 'pizza',
+        'hair_salon', 'beauty_salon', 'barber', 'spa', 'nail_salon',
+        'gym', 'fitness', 'yoga', 'massage',
+        'dentist', 'dental', 'chiropractor', 'physical_therapy',
+        'real_estate', 'insurance', 'lawyer', 'attorney', 'accountant'
+      ];
 
       const types = business.types || [];
       const isService = types.some(type =>
         serviceTypes.some(serviceType => type.toLowerCase().includes(serviceType))
       );
-      score += isService ? 30 : 15;
+      score += isService ? 40 : 10; // Big penalty for non-service businesses
 
-      // REVIEW COUNT: Sweet Spot 20-200 (0-25 points)
-      // New enough to need growth, established enough to have budget
+      // 2. REVIEW COUNT (0-30 points) - The SWEET SPOT
+      // 20-200 reviews = Established enough to have budget, small enough to need help
       const reviews = business.userRatingsTotal || 0;
-      if (reviews >= 20 && reviews <= 200) score += 25;
-      else if (reviews >= 10 && reviews < 20) score += 15;
-      else if (reviews > 200 && reviews < 500) score += 10;
-      else if (reviews >= 500) score += 5; // Too established
-      else score += 5; // Too new
+      if (reviews >= 20 && reviews <= 200) {
+        score += 30; // PERFECT - This is your target market
+      } else if (reviews >= 10 && reviews < 20) {
+        score += 20; // Good - Growing business
+      } else if (reviews > 200 && reviews < 500) {
+        score += 10; // Too established, probably has marketing figured out
+      } else if (reviews >= 500) {
+        score += 0; // Large chain, wrong target
+      } else {
+        score += 5; // Very new, might not have budget yet
+      }
 
-      // RATING: 4.0-4.5 Sweet Spot (0-15 points)
-      // Good but not perfect - need to compete harder
+      // 3. GAP OPPORTUNITY (0-20 points) - Missing online presence
+      // If they don't have strong digital, they NEED traditional marketing like postcards
+      const hasWebsite = !!business.website;
+      const hasSocial = !!(business.facebook || business.instagram);
+
+      if (!hasWebsite) score += 10; // No website = Big gap
+      if (!hasSocial) score += 10; // No social = Big gap
+
+      // 4. RATING (0-10 points) - Room for improvement
+      // 4.0-4.5 stars = Good but not great, need to compete harder
       const rating = business.rating || 0;
-      if (rating >= 4.0 && rating <= 4.5) score += 15;
-      else if (rating > 4.5 && rating < 5.0) score += 10;
-      else if (rating >= 3.5 && rating < 4.0) score += 8;
-      else score += 5;
-
-      // ONLINE PRESENCE: Has website (0-10 points)
-      if (business.website) score += 10;
-
-      // ENRICHED DATA BONUS: Has email or social (0-10 points)
-      if (business.email) score += 5;
-      if (business.facebook || business.instagram) score += 5;
-
-      // GAP OPPORTUNITY: Missing online pieces (0-10 points)
-      // Businesses without strong online presence need traditional marketing more
-      if (!business.website) score += 5;
-      if (!business.facebook && !business.instagram) score += 5;
+      if (rating >= 4.0 && rating <= 4.5) {
+        score += 10; // Perfect - They're good but have competition pressure
+      } else if (rating >= 3.5 && rating < 4.0) {
+        score += 8; // Lower rating = Need to win back customers
+      } else if (rating > 4.5) {
+        score += 5; // High rating is good, but less urgency
+      } else {
+        score += 0; // Very low or no rating
+      }
 
       return Math.min(score, 100); // Cap at 100
     }
