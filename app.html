@@ -4694,7 +4694,7 @@ Thanks!
       }
     }
 
-    async function clientBulkSendEmail() {
+    function clientBulkSendEmail() {
       const templateSelector = document.getElementById('clientBulkSendTemplateSelector');
       if (!templateSelector || !templateSelector.value) {
         toast('⚠️ Please select a template first', false);
@@ -4716,47 +4716,50 @@ Thanks!
 
       const selectedCount = clientSelectionState.selectedIds.size;
 
-      if (confirm(`Send Email to ${selectedCount} selected client${selectedCount > 1 ? 's' : ''}?\n\nThis will open your email client for each contact with a short delay between windows.`)) {
-        let successCount = 0;
-        const clientsArray = Array.from(clientSelectionState.selectedIds);
-
-        // Loop through clients with delays between each window.open()
-        for (let i = 0; i < clientsArray.length; i++) {
-          const clientId = clientsArray[i];
-          const client = crmState.clients[clientId];
-
-          if (client && client.contact && client.contact.email) {
-            // Fill template variables
-            const data = {
-              businessName: client.businessName,
-              contactName: client.contact.name || client.businessName,
-              phone: client.contact.phone || '',
-              email: client.contact.email,
-              town: client.address?.city || '',
-              zipCode: client.address?.zipCode || ''
-            };
-            const filled = fillTemplateVariables(template, data);
-            const subject = filled.subject;
-            const body = filled.body;
-
-            window.open(`mailto:${client.contact.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
-            successCount++;
-
-            // Wait 500ms before opening next window (except for last one)
-            if (i < clientsArray.length - 1) {
-              await new Promise(resolve => setTimeout(resolve, 500));
-            }
-          }
+      // Collect all email addresses
+      const emailAddresses = [];
+      clientSelectionState.selectedIds.forEach(clientId => {
+        const client = crmState.clients[clientId];
+        if (client && client.contact && client.contact.email) {
+          emailAddresses.push(client.contact.email);
         }
+      });
+
+      if (emailAddresses.length === 0) {
+        toast('⚠️ No clients with email addresses selected', false);
+        return;
+      }
+
+      if (confirm(`Send Email to ${emailAddresses.length} client${emailAddresses.length > 1 ? 's' : ''}?\n\nNote: All recipients will be in BCC (hidden from each other).`)) {
+        // Use first client's data for template variables
+        const firstClientId = Array.from(clientSelectionState.selectedIds)[0];
+        const firstClient = crmState.clients[firstClientId];
+
+        const data = {
+          businessName: firstClient.businessName,
+          contactName: firstClient.contact?.name || firstClient.businessName,
+          phone: firstClient.contact?.phone || '',
+          email: firstClient.contact?.email || '',
+          town: firstClient.address?.city || '',
+          zipCode: firstClient.address?.zipCode || ''
+        };
+
+        const filled = fillTemplateVariables(template, data);
+        const subject = filled.subject;
+        const body = filled.body;
+
+        // Create mailto link with BCC for all recipients
+        const bccList = emailAddresses.join(',');
+        window.open(`mailto:?bcc=${encodeURIComponent(bccList)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
 
         // Track template usage
         if (template) {
           template.lastUsed = new Date().toISOString();
-          template.usageCount = (template.usageCount || 0) + selectedCount;
+          template.usageCount = (template.usageCount || 0) + emailAddresses.length;
           saveUserTemplates();
         }
 
-        toast(`✅ Opened Email for ${successCount} client${successCount > 1 ? 's' : ''}`, true);
+        toast(`✅ Opened Email for ${emailAddresses.length} client${emailAddresses.length > 1 ? 's' : ''} (BCC)`, true);
 
         // Clear selections
         clearClientSelection();
