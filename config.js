@@ -22,6 +22,18 @@
       apiKey: window.ENV_GOOGLE_MAPS_API_KEY || "AIzaSyCNzXL-8UT-JI1Dy9wBN14KtH-UDMbeOlo"
     },
 
+    // Facebook API Configuration (disabled - not currently in use)
+    // If you decide to implement Facebook Login in the future:
+    // 1. NEVER put appSecret in client-side code (use server-side only)
+    // 2. Only store appId here (safe to expose publicly)
+    // 3. Store appSecret in Vercel environment variables for API routes
+    facebook: {
+      enabled: false,
+      appId: "", // Disabled until needed
+      version: "v18.0",
+      permissions: ['email', 'public_profile']
+    },
+
     // App Configuration
     app: {
       version: "2025-01-14-v23",
