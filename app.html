@@ -402,6 +402,10 @@
       opacity: 0.5;
       border: 1px dashed #4f46e5;
     }
+    .task-row.drag-over {
+      border-top: 3px solid #4f46e5 !important;
+      padding-top: 4px;
+    }
     .task-row.completed {
       opacity: 0.6;
     }
@@ -442,6 +446,14 @@
       background-color: #f9fafb;
       border-color: #d1d5db;
       box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    /* Command Center Tab Styles */
+    .cc-tab-content {
+      display: block;
+    }
+    .cc-tab-content.hidden {
+      display: none;
     }
   </style>
 </head>
@@ -701,6 +713,60 @@
                 </div>
             </div>
 
+            <!-- MESSAGE TEMPLATES MANAGER -->
+            <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl shadow-lg border-2 border-blue-200 p-6 mb-8">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <span class="text-4xl">📧</span>
+                        <div>
+                            <h4 class="text-xl font-black text-gray-900">Message Templates</h4>
+                            <p class="text-sm text-gray-600">Manage your outreach templates</p>
+                        </div>
+                    </div>
+                    <button onclick="openCreateTemplateModal()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-bold text-sm shadow-lg">
+                        + New Template
+                    </button>
+                </div>
+
+                <div class="space-y-4">
+                    <!-- Prospect Templates -->
+                    <div class="bg-gradient-to-r from-teal-50 to-cyan-50 border-2 border-teal-200 rounded-xl p-4">
+                        <h5 class="text-md font-bold text-gray-800 mb-3 flex items-center gap-2">
+                            <span class="text-xl">🎯</span>
+                            <span>Prospect Templates</span>
+                            <span id="dashboardProspectTemplateCount" class="text-xs font-bold text-teal-600 bg-teal-100 px-3 py-1 rounded-full">(0)</span>
+                        </h5>
+                        <div id="dashboardProspectTemplatesList" class="space-y-2">
+                            <!-- Dynamically populated -->
+                        </div>
+                    </div>
+
+                    <!-- Client Templates -->
+                    <div class="bg-gradient-to-r from-purple-50 to-fuchsia-50 border-2 border-purple-200 rounded-xl p-4">
+                        <h5 class="text-md font-bold text-gray-800 mb-3 flex items-center gap-2">
+                            <span class="text-xl">👥</span>
+                            <span>Client Templates</span>
+                            <span id="dashboardClientTemplateCount" class="text-xs font-bold text-purple-600 bg-purple-100 px-3 py-1 rounded-full">(0)</span>
+                        </h5>
+                        <div id="dashboardClientTemplatesList" class="space-y-2">
+                            <!-- Dynamically populated -->
+                        </div>
+                    </div>
+
+                    <!-- Follow-up Templates -->
+                    <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-4">
+                        <h5 class="text-md font-bold text-gray-800 mb-3 flex items-center gap-2">
+                            <span class="text-xl">🔄</span>
+                            <span>Follow-up Templates</span>
+                            <span id="dashboardFollowupTemplateCount" class="text-xs font-bold text-blue-600 bg-blue-100 px-3 py-1 rounded-full">(0)</span>
+                        </h5>
+                        <div id="dashboardFollowupTemplatesList" class="space-y-2">
+                            <!-- Dynamically populated -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- RECENT ACTIVITY FEED -->
             <div class="bg-white rounded-2xl shadow-xl border-2 border-gray-100 p-6 md:p-8 mb-8">
                 <div class="flex items-center gap-3 mb-6">
@@ -777,6 +843,43 @@
                 <!-- Collapsible Kanban Columns -->
                 <div id="salesActivityKanbanColumns" class="transition-all duration-300 ease-in-out overflow-hidden">
                     <!-- Kanban columns dynamically populated -->
+                </div>
+            </div>
+
+            <!-- QUICK SEND (appears when prospects selected) -->
+            <div id="bulkSendSection" class="hidden bg-gradient-to-br from-green-50 to-teal-50 rounded-2xl shadow-xl border-2 border-green-300 p-6 md:p-8 mt-8">
+                <div class="flex items-center gap-3 mb-6">
+                    <span class="text-4xl">📤</span>
+                    <div>
+                        <h4 class="text-2xl font-black text-gray-900">Quick Send</h4>
+                        <p class="text-sm text-gray-500">Send messages to <span id="bulkSendCount" class="font-bold text-green-600">(0 selected)</span> prospects</p>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-sm font-bold text-gray-700 block mb-2">Select Template</label>
+                        <select id="bulkSendTemplateSelector" class="border-2 border-gray-300 rounded-lg p-3 w-full bg-white text-sm font-medium">
+                            <option value="">— Choose a template —</option>
+                        </select>
+                    </div>
+
+                    <div id="bulkSendPreview" class="hidden p-4 bg-white rounded-lg border-2 border-gray-200">
+                        <p class="text-xs font-bold text-gray-500 mb-2">Preview</p>
+                        <p id="bulkSendPreviewText" class="text-sm text-gray-700 whitespace-pre-wrap"></p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <button id="btnBulkSendSMS" onclick="bulkSendSMS()" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-lg" disabled>
+                            📱 SMS
+                        </button>
+                        <button id="btnBulkSendGoogleVoice" onclick="bulkSendGoogleVoice()" class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-lg" disabled>
+                            📞 Google Voice
+                        </button>
+                        <button id="btnBulkSendEmail" onclick="bulkSendEmail()" class="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-lg" disabled>
+                            📧 Email
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1241,6 +1344,24 @@
                         </button>
                     </div>
 
+                    <!-- Search & Filter Bar -->
+                    <div class="mb-4 flex gap-3">
+                        <input
+                            id="templateSearch"
+                            type="text"
+                            placeholder="🔍 Search templates by name, type, or variables..."
+                            class="flex-1 p-3 border-2 border-indigo-200 rounded-lg font-medium focus:border-indigo-500 focus:ring focus:ring-indigo-200 transition-all"
+                            onkeyup="filterTemplates()"
+                        />
+                        <select id="templateTypeFilter" class="border-2 border-indigo-200 rounded-lg p-3 text-sm font-bold bg-white" onchange="filterTemplates()">
+                            <option value="">All Types</option>
+                            <option value="email">📧 Email</option>
+                            <option value="sms">📱 SMS</option>
+                            <option value="messenger">📘 Messenger</option>
+                            <option value="instagram">📷 Instagram</option>
+                        </select>
+                    </div>
+
                     <!-- Template Categories -->
                     <div class="space-y-4">
                         <!-- Prospect Templates -->
@@ -1512,6 +1633,21 @@
           <input id="editPrice" type="number" step="50" class="border rounded-md w-full p-2 pl-7" placeholder="500" />
         </div>
         <p class="text-xs text-gray-500 mt-1">Price for this specific ad spot</p>
+      </div>
+      <div id="editImageSection" class="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+        <label class="text-sm font-medium text-gray-700 block mb-2">Ad Image</label>
+        <div id="editImagePreview" class="hidden mb-3">
+          <img id="editImageThumb" src="" alt="Ad preview" class="w-full h-32 object-cover rounded-md border border-gray-300" />
+        </div>
+        <div class="flex gap-2">
+          <button type="button" id="btnUploadAdImage" onclick="uploadAdImageFromModal()" class="flex-1 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium">
+            📷 Upload Ad Image
+          </button>
+          <button type="button" id="btnRemoveAdImage" onclick="removeAdImageFromModal()" class="hidden px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm font-medium">
+            🗑️ Remove
+          </button>
+        </div>
+        <p class="text-xs text-gray-500 mt-2">Upload your Canva design (PNG, JPG - max 5MB)</p>
       </div>
       <div class="flex justify-end gap-2">
         <button id="btnCancelEdit" class="px-3 py-1.5 border rounded-md bg-gray-100 hover:bg-gray-200">Cancel</button>
@@ -2499,21 +2635,26 @@
         <div>
           <label class="text-sm font-medium text-gray-700 block mb-1">Message Body *</label>
           <textarea id="templateBody" rows="8" class="border rounded-md w-full p-2 font-mono text-sm" placeholder="Hi {contactName},&#10;&#10;Just wanted to reach out..." required></textarea>
-          <p class="text-xs text-gray-500 mt-1">💡 Use {variableName} for placeholders (e.g., {businessName}, {contactName}, {amount})</p>
+          <div class="flex items-center justify-between mt-1">
+            <p class="text-xs text-gray-500">💡 Use {variableName} for placeholders</p>
+            <button type="button" onclick="showVariableMenu(event)" class="text-xs px-3 py-1 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 font-medium">
+              ➕ Insert Variable
+            </button>
+          </div>
         </div>
 
         <!-- Variable Helper -->
         <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
-          <div class="text-xs font-semibold text-blue-900 mb-2">📝 Available Variables:</div>
-          <div class="grid grid-cols-2 gap-2 text-xs text-blue-800">
-            <div><code class="bg-blue-100 px-1 rounded">{businessName}</code> - Business name</div>
-            <div><code class="bg-blue-100 px-1 rounded">{contactName}</code> - Contact person</div>
-            <div><code class="bg-blue-100 px-1 rounded">{phone}</code> - Phone number</div>
-            <div><code class="bg-blue-100 px-1 rounded">{email}</code> - Email address</div>
-            <div><code class="bg-blue-100 px-1 rounded">{town}</code> - City/Town</div>
-            <div><code class="bg-blue-100 px-1 rounded">{zipCode}</code> - ZIP code</div>
-            <div><code class="bg-blue-100 px-1 rounded">{campaign}</code> - Campaign name</div>
-            <div><code class="bg-blue-100 px-1 rounded">{amount}</code> - Dollar amount</div>
+          <div class="text-xs font-semibold text-blue-900 mb-2">📝 Available Variables (click to insert):</div>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <button type="button" onclick="insertVariable('businessName')" class="text-left bg-blue-100 text-blue-800 px-2 py-1 rounded hover:bg-blue-200 transition">{businessName} - Business name</button>
+            <button type="button" onclick="insertVariable('contactName')" class="text-left bg-blue-100 text-blue-800 px-2 py-1 rounded hover:bg-blue-200 transition">{contactName} - Contact person</button>
+            <button type="button" onclick="insertVariable('phone')" class="text-left bg-blue-100 text-blue-800 px-2 py-1 rounded hover:bg-blue-200 transition">{phone} - Phone number</button>
+            <button type="button" onclick="insertVariable('email')" class="text-left bg-blue-100 text-blue-800 px-2 py-1 rounded hover:bg-blue-200 transition">{email} - Email address</button>
+            <button type="button" onclick="insertVariable('town')" class="text-left bg-blue-100 text-blue-800 px-2 py-1 rounded hover:bg-blue-200 transition">{town} - City/Town</button>
+            <button type="button" onclick="insertVariable('zipCode')" class="text-left bg-blue-100 text-blue-800 px-2 py-1 rounded hover:bg-blue-200 transition">{zipCode} - ZIP code</button>
+            <button type="button" onclick="insertVariable('campaign')" class="text-left bg-blue-100 text-blue-800 px-2 py-1 rounded hover:bg-blue-200 transition">{campaign} - Campaign name</button>
+            <button type="button" onclick="insertVariable('amount')" class="text-left bg-blue-100 text-blue-800 px-2 py-1 rounded hover:bg-blue-200 transition">{amount} - Dollar amount</button>
           </div>
         </div>
 
@@ -3721,8 +3862,9 @@ Thanks!
     }
     
     function isOverdue(dateStr) {
-      const due = new Date(dateStr);
-      due.setHours(0, 0, 0, 0);
+      // Parse date in LOCAL timezone (not UTC) to avoid timezone issues
+      const parts = dateStr.split('-');
+      const due = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       return due < today; // Only overdue if BEFORE today (not today itself)
@@ -5185,10 +5327,15 @@ Thanks!
             initializeDefaultTemplates();
           }
         }
+
+        // Populate bulk send dropdown after templates are loaded
+        populateBulkSendTemplates();
       } catch(e) {
         console.error('Error loading user templates:', e);
         // Initialize with defaults on error
         initializeDefaultTemplates();
+        // Still try to populate dropdown
+        populateBulkSendTemplates();
       }
     }
 
@@ -5326,6 +5473,7 @@ Thanks!
         variables: Array.from(variablesSet),
         createdAt: new Date().toISOString(),
         lastUsed: null,
+        usageCount: 0,  // New: Track usage
         isDefault: false
       };
 
@@ -5365,26 +5513,49 @@ Thanks!
       return userTemplatesState.templates[id];
     }
 
+    function editTemplate(id) {
+      const template = userTemplatesState.templates[id];
+      if (!template) {
+        toast('⚠️ Template not found', false);
+        return;
+      }
+
+      // For default templates, duplicate first then edit
+      if (template.isDefault) {
+        const duplicate = duplicateTemplate(id);
+        if (duplicate) {
+          openEditTemplateModal(duplicate.id);
+        }
+      } else {
+        // Open the edit template modal with the template ID
+        openEditTemplateModal(id);
+      }
+    }
+
     function deleteTemplate(id) {
-      if (!userTemplatesState.templates[id]) {
-        console.error('Template not found:', id);
-        return false;
+      const template = userTemplatesState.templates[id];
+      if (!template) {
+        toast('⚠️ Template not found', false);
+        return;
       }
 
-      // Don't allow deleting default templates
-      if (userTemplatesState.templates[id].isDefault) {
-        toast('⚠️ Cannot delete default templates', false);
-        return false;
+      if (template.isDefault) {
+        toast('⚠️ Cannot delete default templates. Duplicate them instead.', false);
+        return;
       }
 
-      delete userTemplatesState.templates[id];
-      saveUserTemplates();
-      return true;
+      if (confirm(`Are you sure you want to delete "${template.name}"?\n\nThis action cannot be undone.`)) {
+        delete userTemplatesState.templates[id];
+        saveUserTemplates();
+        renderTemplateManager();
+        populateBulkSendTemplates();
+        toast('✅ Template deleted', true);
+      }
     }
 
     function duplicateTemplate(id) {
       if (!userTemplatesState.templates[id]) {
-        console.error('Template not found:', id);
+        toast('⚠️ Template not found', false);
         return null;
       }
 
@@ -5397,11 +5568,15 @@ Thanks!
         name: original.name + ' (Copy)',
         createdAt: new Date().toISOString(),
         lastUsed: null,
+        usageCount: 0,  // New: Track usage
         isDefault: false
       };
 
       userTemplatesState.templates[newId] = duplicate;
       saveUserTemplates();
+      renderTemplateManager();
+      populateBulkSendTemplates();
+      toast('✅ Template duplicated', true);
       return duplicate;
     }
 
@@ -7309,6 +7484,11 @@ Thanks!
       selectedIds: new Set()
     };
 
+    // To Contact selection state for bulk messaging
+    let toContactSelectionState = {
+      selectedIds: new Set()
+    };
+
     // Business Categories State
     let businessCategories = [
       { value: "auto_body_shop", label: "Auto Body Shop" },
@@ -7721,6 +7901,43 @@ Thanks!
       renderKanban();
 
       toast(`Selected ${prospectingSelectionState.selectedIds.size} prospects`, true);
+    }
+
+    // Toggle selection of a prospect in To Contact column for bulk messaging
+    function toggleToContactSelection(leadId) {
+      if (toContactSelectionState.selectedIds.has(leadId)) {
+        toContactSelectionState.selectedIds.delete(leadId);
+      } else {
+        toContactSelectionState.selectedIds.add(leadId);
+      }
+      updateBulkSendSection();
+      renderKanban();
+    }
+
+    // Update bulk send section visibility and content
+    function updateBulkSendSection() {
+      const bulkSection = document.getElementById('bulkSendSection');
+      const bulkCount = document.getElementById('bulkSendCount');
+      const btnSMS = document.getElementById('btnBulkSendSMS');
+      const btnGoogleVoice = document.getElementById('btnBulkSendGoogleVoice');
+      const btnEmail = document.getElementById('btnBulkSendEmail');
+
+      if (!bulkSection || !bulkCount) return;
+
+      const selectedCount = toContactSelectionState.selectedIds.size;
+
+      if (selectedCount > 0) {
+        bulkSection.classList.remove('hidden');
+        bulkCount.textContent = `(${selectedCount} selected)`;
+        if (btnSMS) btnSMS.disabled = false;
+        if (btnGoogleVoice) btnGoogleVoice.disabled = false;
+        if (btnEmail) btnEmail.disabled = false;
+      } else {
+        bulkSection.classList.add('hidden');
+        if (btnSMS) btnSMS.disabled = true;
+        if (btnGoogleVoice) btnGoogleVoice.disabled = true;
+        if (btnEmail) btnEmail.disabled = true;
+      }
     }
 
     // Update visibility of "Move Selected to Pool" button
@@ -10413,9 +10630,10 @@ Thanks!
 
     // Convert Prospect to Client Function
     function convertProspectToClient(leadId, columnName) {
-      // Find the prospect in the specified column
+      // Find the prospect in the specified column - use string comparison for floating point IDs
       const prospect = (kanbanState.columns[columnName] || []).find(item => {
-        return typeof item === 'object' && item.id === leadId;
+        if (typeof item !== 'object' || !item) return false;
+        return String(item.id) === String(leadId);
       });
 
       if (!prospect) {
@@ -10754,20 +10972,28 @@ Thanks!
 
     let currentEditingTemplateId = null;
 
-    function renderTemplateManager() {
-      const prospectList = document.getElementById('prospectTemplatesList');
-      const clientList = document.getElementById('clientTemplatesList');
-      const followupList = document.getElementById('followupTemplatesList');
+    function renderTemplateManager(filteredTemplates = null) {
+      // Support both Dashboard and Clients tab template lists
+      const prospectList = document.getElementById('prospectTemplatesList') || document.getElementById('dashboardProspectTemplatesList');
+      const clientList = document.getElementById('clientTemplatesList') || document.getElementById('dashboardClientTemplatesList');
+      const followupList = document.getElementById('followupTemplatesList') || document.getElementById('dashboardFollowupTemplatesList');
 
-      const prospectCount = document.getElementById('prospectTemplateCount');
-      const clientCount = document.getElementById('clientTemplateCount');
-      const followupCount = document.getElementById('followupTemplateCount');
+      const prospectCount = document.getElementById('prospectTemplateCount') || document.getElementById('dashboardProspectTemplateCount');
+      const clientCount = document.getElementById('clientTemplateCount') || document.getElementById('dashboardClientTemplateCount');
+      const followupCount = document.getElementById('followupTemplateCount') || document.getElementById('dashboardFollowupTemplateCount');
 
-      if (!prospectList || !clientList || !followupList) return;
+      // Use filtered templates if provided, otherwise get all
+      let prospectTemplates, clientTemplates, followupTemplates;
 
-      const prospectTemplates = getTemplatesByCategory('prospect');
-      const clientTemplates = getTemplatesByCategory('client');
-      const followupTemplates = getTemplatesByCategory('followup');
+      if (filteredTemplates) {
+        prospectTemplates = filteredTemplates.filter(t => t.category === 'prospect');
+        clientTemplates = filteredTemplates.filter(t => t.category === 'client');
+        followupTemplates = filteredTemplates.filter(t => t.category === 'followup');
+      } else {
+        prospectTemplates = getTemplatesByCategory('prospect');
+        clientTemplates = getTemplatesByCategory('client');
+        followupTemplates = getTemplatesByCategory('followup');
+      }
 
       // Update counts
       if (prospectCount) prospectCount.textContent = `(${prospectTemplates.length})`;
@@ -10775,19 +11001,66 @@ Thanks!
       if (followupCount) followupCount.textContent = `(${followupTemplates.length})`;
 
       // Render prospect templates
-      prospectList.innerHTML = prospectTemplates.length === 0
-        ? '<div class="text-sm text-gray-500 italic">No templates yet. Click "+ New Template" to create one.</div>'
-        : prospectTemplates.map(t => renderTemplateCard(t)).join('');
+      if (prospectList) {
+        prospectList.innerHTML = prospectTemplates.length === 0
+          ? '<div class="text-sm text-gray-500 italic">No templates yet. Click "+ New Template" to create one.</div>'
+          : prospectTemplates.map(t => renderTemplateCard(t)).join('');
+      }
 
       // Render client templates
-      clientList.innerHTML = clientTemplates.length === 0
-        ? '<div class="text-sm text-gray-500 italic">No templates yet. Click "+ New Template" to create one.</div>'
-        : clientTemplates.map(t => renderTemplateCard(t)).join('');
+      if (clientList) {
+        clientList.innerHTML = clientTemplates.length === 0
+          ? '<div class="text-sm text-gray-500 italic">No templates yet. Click "+ New Template" to create one.</div>'
+          : clientTemplates.map(t => renderTemplateCard(t)).join('');
+      }
 
       // Render followup templates
-      followupList.innerHTML = followupTemplates.length === 0
-        ? '<div class="text-sm text-gray-500 italic">No templates yet. Click "+ New Template" to create one.</div>'
-        : followupTemplates.map(t => renderTemplateCard(t)).join('');
+      if (followupList) {
+        followupList.innerHTML = followupTemplates.length === 0
+          ? '<div class="text-sm text-gray-500 italic">No templates yet. Click "+ New Template" to create one.</div>'
+          : followupTemplates.map(t => renderTemplateCard(t)).join('');
+      }
+    }
+
+    function filterTemplates() {
+      const searchInput = document.getElementById('templateSearch');
+      const typeFilter = document.getElementById('templateTypeFilter');
+
+      if (!searchInput) {
+        // If search elements don't exist, just render normally
+        renderTemplateManager();
+        return;
+      }
+
+      const searchTerm = searchInput.value.toLowerCase().trim();
+      const selectedType = typeFilter ? typeFilter.value : '';
+
+      // Get all templates
+      const allTemplates = Object.values(userTemplatesState.templates || {});
+
+      // Filter templates
+      const filtered = allTemplates.filter(template => {
+        // Type filter
+        if (selectedType && template.type !== selectedType) {
+          return false;
+        }
+
+        // Search filter
+        if (searchTerm) {
+          const matchesName = template.name.toLowerCase().includes(searchTerm);
+          const matchesType = template.type.toLowerCase().includes(searchTerm);
+          const matchesSubject = template.subject && template.subject.toLowerCase().includes(searchTerm);
+          const matchesBody = template.body.toLowerCase().includes(searchTerm);
+          const matchesVariables = template.variables.some(v => v.toLowerCase().includes(searchTerm));
+
+          return matchesName || matchesType || matchesSubject || matchesBody || matchesVariables;
+        }
+
+        return true;
+      });
+
+      // Render with filtered templates
+      renderTemplateManager(filtered);
     }
 
     function renderTemplateCard(template) {
@@ -10801,17 +11074,28 @@ Thanks!
       const icon = typeIcons[template.type] || '📝';
       const isDefault = template.isDefault ? '<span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Default</span>' : '';
 
+      // Format usage stats
+      const usageCount = template.usageCount || 0;
+      const lastUsed = template.lastUsed;
+      let lastUsedText = '';
+      if (lastUsed) {
+        const daysAgo = Math.floor((Date.now() - new Date(lastUsed).getTime()) / (1000 * 60 * 60 * 24));
+        lastUsedText = daysAgo === 0 ? 'Today' : daysAgo === 1 ? 'Yesterday' : `${daysAgo} days ago`;
+      }
+
       return `
         <div class="flex items-center justify-between p-3 bg-gray-50 border rounded-lg hover:bg-gray-100 transition-colors">
           <div class="flex-1">
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
               <span>${icon}</span>
               <span class="font-medium text-gray-900">${esc(template.name)}</span>
               ${isDefault}
+              ${usageCount > 0 ? `<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">${usageCount} use${usageCount > 1 ? 's' : ''}</span>` : ''}
             </div>
             ${template.subject ? `<div class="text-xs text-gray-600 mt-1">Subject: ${esc(template.subject)}</div>` : ''}
             <div class="text-xs text-gray-500 mt-1">
               ${template.variables.length > 0 ? `Variables: ${template.variables.map(v => `{${v}}`).join(', ')}` : 'No variables'}
+              ${lastUsedText ? ` • Last used: ${lastUsedText}` : ''}
             </div>
           </div>
           <div class="flex items-center gap-2">
@@ -10895,6 +11179,70 @@ Thanks!
       document.getElementById('templateModal').setAttribute('aria-hidden', 'true');
       currentEditingTemplateId = null;
     }
+
+    function insertVariable(variableName) {
+      const bodyTextarea = document.getElementById('templateBody');
+      const subjectInput = document.getElementById('templateSubject');
+
+      // Determine which field has focus or use body as default
+      const activeElement = document.activeElement;
+      let targetField = bodyTextarea;
+
+      if (activeElement && activeElement.id === 'templateSubject') {
+        targetField = subjectInput;
+      }
+
+      // Insert variable at cursor position
+      const start = targetField.selectionStart;
+      const end = targetField.selectionEnd;
+      const text = targetField.value;
+      const variable = `{${variableName}}`;
+
+      targetField.value = text.substring(0, start) + variable + text.substring(end);
+
+      // Move cursor after inserted variable
+      const newCursorPos = start + variable.length;
+      targetField.setSelectionRange(newCursorPos, newCursorPos);
+      targetField.focus();
+
+      // Auto-update preview
+      debounceAutoPreview();
+    }
+
+    function showVariableMenu(event) {
+      // This function can be expanded later to show a dropdown menu
+      // For now, the variable buttons are always visible in the helper section
+      const helperSection = event.target.closest('.space-y-4').querySelector('.bg-blue-50');
+      if (helperSection) {
+        helperSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+
+    // Auto-preview functionality with debounce
+    let autoPreviewTimeout = null;
+    function debounceAutoPreview() {
+      clearTimeout(autoPreviewTimeout);
+      autoPreviewTimeout = setTimeout(() => {
+        const body = document.getElementById('templateBody')?.value;
+        if (body && body.length > 10) {
+          updateTemplatePreview();
+        }
+      }, 1000); // 1 second debounce
+    }
+
+    // Add auto-preview on body changes
+    document.addEventListener('DOMContentLoaded', function() {
+      const bodyField = document.getElementById('templateBody');
+      const subjectField = document.getElementById('templateSubject');
+
+      if (bodyField) {
+        bodyField.addEventListener('input', debounceAutoPreview);
+      }
+
+      if (subjectField) {
+        subjectField.addEventListener('input', debounceAutoPreview);
+      }
+    });
 
     function updateTemplatePreview() {
       const name = document.getElementById('templateName').value;
@@ -11625,6 +11973,7 @@ Thanks!
 
               // Standard display for other columns
               const isCloudSyncSelected = cloudSyncSelection.selectedIds.has(leadId);
+              const isToContactSelected = toContactSelectionState.selectedIds.has(leadId);
 
               return `
                 <div class="kanban-item text-xs p-2 bg-white border rounded" data-item-id="${leadId}" data-column="${col.key}" ondblclick="openProspectDetailModal(${typeof item === 'object' ? JSON.stringify(item).replace(/"/g, '&quot;') : '{}'}, 'kanban')">
@@ -11636,6 +11985,14 @@ Thanks!
                         onchange="toggleProspectForSync(${leadId})"
                         onclick="event.stopPropagation()"
                         class="mt-0.5 w-4 h-4 text-blue-600 rounded cursor-pointer flex-shrink-0"
+                      />
+                    ` : col.key === 'to-contact' && typeof item === 'object' ? `
+                      <input
+                        type="checkbox"
+                        ${isToContactSelected ? 'checked' : ''}
+                        onchange="toggleToContactSelection(${leadId})"
+                        onclick="event.stopPropagation()"
+                        class="mt-0.5 w-4 h-4 text-purple-600 rounded cursor-pointer flex-shrink-0"
                       />
                     ` : `
                       <div class="drag-handle text-gray-400 hover:text-gray-600 cursor-grab flex-shrink-0 px-1" title="Drag to move">⋮⋮</div>
@@ -11651,6 +12008,21 @@ Thanks!
                       <button onclick="deleteLead('${col.key}', ${leadId}, event)" class="text-red-600 hover:text-red-800 text-sm cursor-pointer" title="Delete">🗑</button>
                     </div>
                   </div>
+                  ${col.key === 'to-contact' && typeof item === 'object' ? (() => {
+                    // Build contact icons for to-contact column
+                    const contactIcons = [];
+                    if (item.phone) contactIcons.push(`<a href="tel:${esc(item.phone)}" class="text-lg hover:text-blue-600" title="📞 ${esc(item.phone)}">📞</a>`);
+                    if (item.website) contactIcons.push(`<a href="${esc(ensureHttps(item.website))}" target="_blank" class="text-lg hover:text-blue-600" title="🌐 ${esc(item.website)}">🌐</a>`);
+                    if (item.email) contactIcons.push(`<a href="mailto:${esc(item.email)}" class="text-lg hover:text-blue-600" title="✉️ ${esc(item.email)}">✉️</a>`);
+                    if (item.facebook) contactIcons.push(`<a href="${esc(ensureHttps(item.facebook))}" target="_blank" class="text-lg hover:text-blue-600" title="Facebook">📘</a>`);
+                    if (item.instagram) contactIcons.push(`<a href="${esc(ensureHttps(item.instagram))}" target="_blank" class="text-lg hover:text-blue-600" title="Instagram">📷</a>`);
+
+                    return contactIcons.length > 0 ? `
+                      <div class="flex gap-2 items-center justify-center py-2 mt-2 border-t border-gray-200">
+                        ${contactIcons.join('')}
+                      </div>
+                    ` : '';
+                  })() : ''}
                   ${col.key === 'to-contact' ? `
                     <div class="mt-2 pt-2 border-t border-gray-200 space-y-2">
                       <div class="flex gap-2">
@@ -12079,27 +12451,36 @@ Thanks!
       const container = document.getElementById('taskList');
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
+
       // Filter: hide completed tasks that are overdue
-      const visibleTasks = tasksState.tasks.filter(task => {
+      let visibleTasks = tasksState.tasks.filter(task => {
         if (task.completed) {
-          const dueDate = new Date(task.dueDate);
-          dueDate.setHours(0, 0, 0, 0);
+          // Parse in local timezone to avoid UTC issues
+          const parts = task.dueDate.split('-');
+          const dueDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
           return dueDate >= today; // Only show completed if not overdue
         }
         return true;
       });
-      
+
+      // Auto-sort by due date (earliest first)
+      visibleTasks.sort((a, b) => {
+        const dateA = new Date(a.dueDate);
+        const dateB = new Date(b.dueDate);
+        return dateA - dateB;
+      });
+
       if (visibleTasks.length === 0) {
         container.innerHTML = '<p class="text-sm text-gray-500 text-center py-4">All tasks complete!</p>';
         document.getElementById('overdueText').textContent = 'All tasks complete';
         document.getElementById('overdueText').className = 'text-sm text-green-600 mb-2';
         return;
       }
-      
+
       container.innerHTML = visibleTasks.map(task => {
-        const dueDate = new Date(task.dueDate);
-        dueDate.setHours(0, 0, 0, 0);
+        // Parse in local timezone to avoid UTC issues
+        const parts = task.dueDate.split('-');
+        const dueDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
         const overdueClass = dueDate < today && !task.completed ? 'overdue' : '';
         const completedClass = task.completed ? 'completed' : '';
 
@@ -12123,8 +12504,9 @@ Thanks!
       // Update overdue count
       const incompleteTasks = visibleTasks.filter(t => !t.completed);
       const overdueCount = incompleteTasks.filter(t => {
-        const dueDate = new Date(t.dueDate);
-        dueDate.setHours(0, 0, 0, 0);
+        // Parse in local timezone to avoid UTC issues
+        const parts = t.dueDate.split('-');
+        const dueDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
         return dueDate < today;
       }).length;
       
@@ -12145,25 +12527,52 @@ Thanks!
     
     function setupTaskDrag() {
       const taskList = document.getElementById('taskList');
-      
+
       taskList.querySelectorAll('.task-row').forEach(row => {
         row.addEventListener('dragstart', e => {
           draggedTask = row;
           row.classList.add('dragging');
         });
-        
+
         row.addEventListener('dragend', e => {
           row.classList.remove('dragging');
+          // Remove all drag-over indicators
+          document.querySelectorAll('.task-row.drag-over').forEach(el => {
+            el.classList.remove('drag-over');
+          });
           draggedTask = null;
         });
+
+        // Add dragover to show blue line indicator
+        row.addEventListener('dragover', e => {
+          e.preventDefault();
+          if (draggedTask && draggedTask !== row) {
+            // Remove previous drag-over
+            document.querySelectorAll('.task-row.drag-over').forEach(el => {
+              el.classList.remove('drag-over');
+            });
+            // Add to current target
+            row.classList.add('drag-over');
+          }
+        });
+
+        row.addEventListener('dragleave', e => {
+          row.classList.remove('drag-over');
+        });
       });
-      
+
       taskList.addEventListener('dragover', e => {
         e.preventDefault();
       });
-      
+
       taskList.addEventListener('drop', e => {
         e.preventDefault();
+
+        // Remove all drag-over indicators
+        document.querySelectorAll('.task-row.drag-over').forEach(el => {
+          el.classList.remove('drag-over');
+        });
+
         if (draggedTask) {
           const afterElement = getDragAfterElement(taskList, e.clientY);
           if (afterElement == null) {
@@ -12172,18 +12581,36 @@ Thanks!
             taskList.insertBefore(draggedTask, afterElement);
           }
 
-          // Persist the new order
+          // Get the dragged task's ID and new position
+          const draggedTaskId = parseInt(draggedTask.dataset.taskId);
+          const draggedTaskObj = tasksState.tasks.find(t => t.id === draggedTaskId);
+
+          // Get new order from DOM
           const newOrder = Array.from(taskList.querySelectorAll('.task-row')).map(row => {
             const taskId = parseInt(row.dataset.taskId);
             return tasksState.tasks.find(t => t.id === taskId);
           }).filter(t => t != null);
 
+          // Check if task was moved to a different date position
+          if (afterElement) {
+            const targetDate = afterElement.dataset.dueDate;
+            const draggedDate = draggedTask.dataset.dueDate;
+
+            if (targetDate && draggedDate && targetDate !== draggedDate) {
+              // Task dragged to a different date - update the date
+              if (confirm(`Change task due date from ${draggedDate} to ${targetDate}?`)) {
+                draggedTaskObj.dueDate = targetDate;
+                toast('Task date updated', true);
+              }
+            }
+          }
+
           tasksState.tasks = newOrder;
           saveTasks();
-          toast('Task order saved', true);
+          updateTasksDisplay(); // Re-render to show updated date and sorting
         }
       });
-      
+
       function getDragAfterElement(container, y) {
         const draggableElements = [...container.querySelectorAll('.task-row:not(.dragging)')];
         return draggableElements.reduce((closest, child) => {
@@ -12726,14 +13153,24 @@ Thanks!
         event.preventDefault();
       }
 
-      // Normalize ID type (handle both string and number)
-      const numericLeadId = typeof leadId === 'string' ? parseFloat(leadId) : leadId;
-
       const items = kanbanState.columns[column] || [];
-      const index = items.findIndex(item => {
+
+      // Find by ID - convert both to strings for comparison to avoid floating point precision issues
+      const index = items.findIndex((item, idx) => {
         if (typeof item === 'string') return false;
-        const itemId = typeof item.id === 'string' ? parseFloat(item.id) : item.id;
-        return itemId === numericLeadId;
+        if (!item) return false;
+
+        // Convert both IDs to strings for comparison (handles floating point precision)
+        const leadIdStr = String(leadId);
+        const itemIdStr = String(item.id);
+
+        // Check if item.id matches (string comparison)
+        if (item.id !== undefined && itemIdStr === leadIdStr) {
+          return true;
+        }
+
+        // Fallback: check if leadId matches the array index
+        return idx === leadId || String(idx) === leadIdStr;
       });
 
       if (index === -1) {
@@ -12767,17 +13204,28 @@ Thanks!
         event.preventDefault();
       }
 
-      // Normalize ID type (handle both string and number)
-      const numericLeadId = typeof leadId === 'string' ? parseFloat(leadId) : leadId;
-
       const items = kanbanState.columns['prospect-list'] || [];
-      const index = items.findIndex(item => {
+
+      // Find by ID - convert both to strings for comparison to avoid floating point precision issues
+      let index = items.findIndex((item, idx) => {
         if (typeof item === 'string') return false;
-        const itemId = typeof item.id === 'string' ? parseFloat(item.id) : item.id;
-        return itemId === numericLeadId;
+        if (!item) return false;
+
+        // Convert both IDs to strings for comparison (handles floating point precision)
+        const leadIdStr = String(leadId);
+        const itemIdStr = String(item.id);
+
+        // Check if item.id matches (string comparison)
+        if (item.id !== undefined && itemIdStr === leadIdStr) {
+          return true;
+        }
+
+        // Fallback: check if leadId matches the array index
+        return idx === leadId || String(idx) === leadIdStr;
       });
 
       if (index === -1) {
+        console.error("Prospect not found. leadId:", leadId, "type:", typeof leadId, "Available items:", items.map((item, idx) => ({idx, id: item?.id, idType: typeof item?.id, name: item?.businessName})));
         toast("Prospect not found", false);
         return;
       }
@@ -12801,7 +13249,10 @@ Thanks!
       prospectingSelectionState.selectedIds.delete(leadId);
 
       await saveKanban(); // Save kanban without this prospect
-      await saveProspectPoolState(); // Save pool with this prospect
+      // Save pool with this prospect
+      await saveToCloud('manualProspects', prospectPoolState.manualProspects).catch(e => {
+        console.warn('Failed to save manual prospects to cloud:', e);
+      });
       renderKanban();
       renderProspectPool();
       toast(`"${prospectName}" moved back to Prospect Pool`, true);
@@ -12943,13 +13394,23 @@ Thanks!
         event.preventDefault();
       }
 
-      // Find lead in to-contact column
+      // Find lead in to-contact column - use string comparison for floating point IDs
       const items = kanbanState.columns['to-contact'] || [];
-      const numericLeadId = typeof leadId === 'string' ? parseFloat(leadId) : leadId;
-      const index = items.findIndex(item => {
+      const index = items.findIndex((item, idx) => {
         if (typeof item === 'string') return false;
-        const itemId = typeof item.id === 'string' ? parseFloat(item.id) : item.id;
-        return itemId === numericLeadId;
+        if (!item) return false;
+
+        // Convert both IDs to strings for comparison (handles floating point precision)
+        const leadIdStr = String(leadId);
+        const itemIdStr = String(item.id);
+
+        // Check if item.id matches (string comparison)
+        if (item.id !== undefined && itemIdStr === leadIdStr) {
+          return true;
+        }
+
+        // Fallback: check if leadId matches the array index
+        return idx === leadId || String(idx) === leadIdStr;
       });
 
       if (index === -1) {
@@ -14494,6 +14955,8 @@ Thanks!
             renderCardsInProgress();
             renderGettingStartedChecklist();
             renderContractsExpiring();
+            // Populate bulk send templates
+            setTimeout(() => populateBulkSendTemplates(), 100);
         } else if (tabName === 'clients') {
             renderClientList();
         } else if (tabName === 'admin') {
@@ -14507,7 +14970,227 @@ Thanks!
             renderProspectPool();
         }
     }
-    
+
+    /* ========= TEMPLATE MANAGEMENT FUNCTIONS ========= */
+
+    // Alias for backward compatibility - now uses consolidated renderTemplateManager
+    function renderDashboardTemplates() {
+        renderTemplateManager();
+    }
+
+    /* ========= QUICK SEND FUNCTIONS ========= */
+
+    function populateBulkSendTemplates() {
+        const templates = Object.values(userTemplatesState.templates || {});
+
+        // Populate bulk send template selector
+        const bulkSelector = document.getElementById('bulkSendTemplateSelector');
+        if (bulkSelector) {
+            bulkSelector.innerHTML = '<option value="">— Choose a template —</option>' +
+                templates.map(t => `<option value="${t.id}">[${t.type.toUpperCase()}] ${t.name}</option>`).join('');
+
+            // Add event listener for template preview
+            bulkSelector.onchange = function() {
+                const previewDiv = document.getElementById('bulkSendPreview');
+                const previewText = document.getElementById('bulkSendPreviewText');
+
+                if (this.value && previewDiv && previewText) {
+                    const template = userTemplatesState.templates[this.value];
+                    if (template) {
+                        previewText.textContent = template.body;
+                        previewDiv.classList.remove('hidden');
+                    } else {
+                        previewDiv.classList.add('hidden');
+                    }
+                } else if (previewDiv) {
+                    previewDiv.classList.add('hidden');
+                }
+            };
+        }
+    }
+
+
+    function bulkSendSMS() {
+        const templateSelector = document.getElementById('bulkSendTemplateSelector');
+        if (!templateSelector || !templateSelector.value) {
+            toast('⚠️ Please select a template first', false);
+            return;
+        }
+
+        const templateId = templateSelector.value;
+        const template = userTemplatesState.templates[templateId];
+
+        if (!template) {
+            toast('⚠️ Template not found', false);
+            return;
+        }
+
+        if (template.type !== 'sms') {
+            toast('⚠️ Please select an SMS template', false);
+            return;
+        }
+
+        const selectedCount = toContactSelectionState.selectedIds.size;
+
+        if (confirm(`Send SMS to ${selectedCount} selected prospect${selectedCount > 1 ? 's' : ''}?\n\nThis will open your SMS app for each contact.`)) {
+            let successCount = 0;
+            const toContactColumn = kanbanState.columns['to-contact'] || [];
+
+            toContactSelectionState.selectedIds.forEach(leadId => {
+                const prospect = toContactColumn.find(item => (item.id || item) === leadId);
+                if (prospect && typeof prospect === 'object' && prospect.phone) {
+                    // Fill template variables
+                    const filled = fillTemplateVariables(template, prospect);
+                    const message = filled.body;
+
+                    window.open(`sms:${prospect.phone}?body=${encodeURIComponent(message)}`, '_blank');
+                    successCount++;
+                }
+            });
+
+            // Track template usage
+            if (template) {
+                template.lastUsed = new Date().toISOString();
+                template.usageCount = (template.usageCount || 0) + selectedCount;
+                saveUserTemplates();
+            }
+
+            toast(`✅ Opened SMS for ${successCount} prospect${successCount > 1 ? 's' : ''}`, true);
+
+            // Clear selections
+            toContactSelectionState.selectedIds.clear();
+            updateBulkSendSection();
+            renderKanban();
+        }
+    }
+
+    function bulkSendEmail() {
+        const templateSelector = document.getElementById('bulkSendTemplateSelector');
+        if (!templateSelector || !templateSelector.value) {
+            toast('⚠️ Please select a template first', false);
+            return;
+        }
+
+        const templateId = templateSelector.value;
+        const template = userTemplatesState.templates[templateId];
+
+        if (!template) {
+            toast('⚠️ Template not found', false);
+            return;
+        }
+
+        if (template.type !== 'email') {
+            toast('⚠️ Please select an Email template', false);
+            return;
+        }
+
+        const selectedCount = toContactSelectionState.selectedIds.size;
+
+        if (confirm(`Send Email to ${selectedCount} selected prospect${selectedCount > 1 ? 's' : ''}?\n\nThis will open your email client for each contact.`)) {
+            let successCount = 0;
+            const toContactColumn = kanbanState.columns['to-contact'] || [];
+
+            toContactSelectionState.selectedIds.forEach(leadId => {
+                const prospect = toContactColumn.find(item => (item.id || item) === leadId);
+                if (prospect && typeof prospect === 'object' && prospect.email) {
+                    // Fill template variables
+                    const filled = fillTemplateVariables(template, prospect);
+                    const subject = filled.subject;
+                    const body = filled.body;
+
+                    window.open(`mailto:${prospect.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+                    successCount++;
+                }
+            });
+
+            // Track template usage
+            if (template) {
+                template.lastUsed = new Date().toISOString();
+                template.usageCount = (template.usageCount || 0) + selectedCount;
+                saveUserTemplates();
+            }
+
+            toast(`✅ Opened Email for ${successCount} prospect${successCount > 1 ? 's' : ''}`, true);
+
+            // Clear selections
+            toContactSelectionState.selectedIds.clear();
+            updateBulkSendSection();
+            renderKanban();
+        }
+    }
+
+    function bulkSendGoogleVoice() {
+        const templateSelector = document.getElementById('bulkSendTemplateSelector');
+        if (!templateSelector || !templateSelector.value) {
+            toast('⚠️ Please select a template first', false);
+            return;
+        }
+
+        const templateId = templateSelector.value;
+        const template = userTemplatesState.templates[templateId];
+
+        if (!template) {
+            toast('⚠️ Template not found', false);
+            return;
+        }
+
+        if (template.type !== 'sms') {
+            toast('⚠️ Please select an SMS template (Google Voice uses SMS format)', false);
+            return;
+        }
+
+        const selectedCount = toContactSelectionState.selectedIds.size;
+
+        if (confirm(`Send via Google Voice to ${selectedCount} selected prospect${selectedCount > 1 ? 's' : ''}?\n\nThis will:\n1. Copy the message to your clipboard\n2. Open Google Voice for each contact\n3. You can paste (Ctrl+V) the message and send`)) {
+            let successCount = 0;
+            const toContactColumn = kanbanState.columns['to-contact'] || [];
+
+            toContactSelectionState.selectedIds.forEach(leadId => {
+                const prospect = toContactColumn.find(item => (item.id || item) === leadId);
+                if (prospect && typeof prospect === 'object' && prospect.phone) {
+                    // Fill template variables
+                    const filled = fillTemplateVariables(template, prospect);
+                    const message = filled.body;
+
+                    // Google Voice web URL - opens to messages with phone number
+                    // Note: Message body pre-fill is not supported by Google Voice web interface
+                    // User will need to paste or type the message
+                    const cleanPhone = prospect.phone.replace(/\D/g, ''); // Remove non-digits
+
+                    // Format: +1 for US numbers
+                    const formattedPhone = cleanPhone.length === 10 ? `+1${cleanPhone}` : `+${cleanPhone}`;
+
+                    // Open Google Voice with the phone number - opens conversation
+                    const googleVoiceUrl = `https://voice.google.com/u/0/messages?itemId=${formattedPhone}`;
+
+                    // Copy message to clipboard so user can easily paste
+                    navigator.clipboard.writeText(message).then(() => {
+                        console.log('Message copied to clipboard');
+                    }).catch(err => {
+                        console.warn('Could not copy to clipboard:', err);
+                    });
+
+                    window.open(googleVoiceUrl, '_blank');
+                    successCount++;
+                }
+            });
+
+            // Track template usage
+            if (template) {
+                template.lastUsed = new Date().toISOString();
+                template.usageCount = (template.usageCount || 0) + selectedCount;
+                saveUserTemplates();
+            }
+
+            toast(`✅ Message copied! Opened Google Voice for ${successCount} prospect${successCount > 1 ? 's' : ''}. Paste with Ctrl+V`, true);
+
+            // Clear selections
+            toContactSelectionState.selectedIds.clear();
+            updateBulkSendSection();
+            renderKanban();
+        }
+    }
+
     /* ========= LOAD CAMPAIGNS ========= */
     async function loadCampaigns(restoreMailerId = null) {
       try {
@@ -14895,7 +15578,13 @@ Thanks!
           state.initial[`Spot_${s}`] = `${long}:${name}`;
         }
       }
-      
+
+      // Load ad images from cloud storage
+      loadAdImagesFromCloud(m.Mailer_ID).then(() => {
+        // Re-render after images are loaded
+        renderAll();
+      });
+
       // Load colors: use postcard data if available, otherwise fall back to localStorage
       if (m.Postcard_BG) {
         stagedColors.Postcard_BG = m.Postcard_BG;
@@ -15467,8 +16156,37 @@ Thanks!
 
         const priceBadge = createTextNodeTag('div', formatCurrency(price), 'price-badge');
         el.appendChild(priceBadge);
+
+        // Add camera icon badge if this spot has an ad image
+        const spotKey = `Spot_${spotNum}`;
+        if (state.availability[spotKey]?.adImage) {
+          const cameraBadge = createTextNodeTag('div', '📷', 'camera-badge');
+          cameraBadge.style.cssText = 'position: absolute; top: 6px; right: 8px; font-size: 0.9rem; background: rgba(59, 130, 246, 0.9); color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold;';
+          cameraBadge.title = 'Has ad image';
+          el.appendChild(cameraBadge);
+        }
       }
       
+      // Add ad image if it exists (for non-Available spots)
+      if (longStatus !== "Available" && spots.length > 0) {
+        const spotNum = spots[0];
+        const spotKey = `Spot_${spotNum}`;
+        const adImage = state.availability[spotKey]?.adImage;
+
+        if (adImage) {
+          const imgContainer = document.createElement('div');
+          imgContainer.className = 'ad-image-preview';
+          imgContainer.style.cssText = 'position: absolute; top: 35px; left: 8px; right: 8px; bottom: 35px; background-size: cover; background-position: center; background-repeat: no-repeat; border-radius: 6px; opacity: 0.9;';
+          imgContainer.style.backgroundImage = `url(${adImage})`;
+          imgContainer.title = 'Click to view full size';
+          imgContainer.onclick = (e) => {
+            e.stopPropagation();
+            viewAdImage(adImage, name);
+          };
+          el.appendChild(imgContainer);
+        }
+      }
+
       // Add overlay edit button if selected
       // When multiple spots are selected, only show button on the first (lowest numbered) spot
       if (selected) {
@@ -15655,6 +16373,29 @@ Thanks!
         }
       }
 
+      // Show/hide image preview based on whether spot has an ad image
+      const firstSpot = sel[0];
+      const spotKey = `Spot_${firstSpot}`;
+      const adImage = state.availability[spotKey]?.adImage;
+
+      const imagePreview = document.getElementById('editImagePreview');
+      const imageThumb = document.getElementById('editImageThumb');
+      const uploadBtn = document.getElementById('btnUploadAdImage');
+      const removeBtn = document.getElementById('btnRemoveAdImage');
+
+      if (adImage) {
+        // Show preview and remove button
+        imageThumb.src = adImage;
+        imagePreview.classList.remove('hidden');
+        uploadBtn.textContent = '📷 Change Ad Image';
+        removeBtn.classList.remove('hidden');
+      } else {
+        // Hide preview and remove button
+        imagePreview.classList.add('hidden');
+        uploadBtn.textContent = '📷 Upload Ad Image';
+        removeBtn.classList.add('hidden');
+      }
+
       const modal = document.getElementById("editModal");
       modal.style.display = "flex";
       modal.setAttribute('aria-hidden', 'false');
@@ -15819,7 +16560,291 @@ Thanks!
       // Save immediately to database (no delay)
       saveToSheet();
     }
-    
+
+    // Upload Ad Image for a spot
+    function uploadAdImage(spotNum) {
+      // Create file input
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.style.display = 'none';
+
+      input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Validate file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+          toast('⚠️ Image too large. Please use an image under 5MB.', false);
+          return;
+        }
+
+        // Show loading toast
+        toast('📤 Uploading image...', true);
+
+        try {
+          // Convert to base64 for storage
+          const reader = new FileReader();
+          reader.onload = async (event) => {
+            const base64Image = event.target.result;
+
+            // Store in state.availability
+            const spotKey = `Spot_${spotNum}`;
+            if (!state.availability[spotKey]) {
+              state.availability[spotKey] = { name: "", status: "Available" };
+            }
+            state.availability[spotKey].adImage = base64Image;
+
+            // Save ad images to cloud separately (they don't go in spot columns)
+            await saveAdImagesToCloud();
+
+            // Re-render to show image
+            renderAll();
+            toast('✅ Ad image uploaded successfully!', true);
+          };
+
+          reader.onerror = () => {
+            toast('❌ Failed to read image file', false);
+          };
+
+          reader.readAsDataURL(file);
+        } catch (error) {
+          console.error('Error uploading ad image:', error);
+          toast('❌ Failed to upload image', false);
+        }
+      };
+
+      // Trigger file picker
+      document.body.appendChild(input);
+      input.click();
+      document.body.removeChild(input);
+    }
+
+    // Save ad images to cloud storage
+    async function saveAdImagesToCloud() {
+      if (!state.current) return;
+
+      const adImages = {};
+      const mailerId = state.current.Mailer_ID;
+
+      // Collect all ad images for this campaign
+      for (let i = 1; i <= 18; i++) {
+        const spotKey = `Spot_${i}`;
+        const adImage = state.availability[spotKey]?.adImage;
+        if (adImage) {
+          adImages[spotKey] = adImage;
+        }
+      }
+
+      // Save to cloud with mailer-specific key
+      const storageKey = `adImages_${mailerId}`;
+      try {
+        await saveToCloud(storageKey, adImages);
+        console.log(`✅ Saved ${Object.keys(adImages).length} ad images for ${mailerId}`);
+      } catch (error) {
+        console.error('Failed to save ad images to cloud:', error);
+        toast('⚠️ Ad image saved locally but cloud sync failed', false);
+      }
+    }
+
+    // Load ad images from cloud storage
+    async function loadAdImagesFromCloud(mailerId) {
+      if (!mailerId) return;
+
+      const storageKey = `adImages_${mailerId}`;
+      try {
+        const adImages = await loadFromCloud(storageKey);
+        if (adImages && typeof adImages === 'object') {
+          // Restore ad images to state.availability
+          Object.keys(adImages).forEach(spotKey => {
+            if (!state.availability[spotKey]) {
+              state.availability[spotKey] = { name: "", status: "Available" };
+            }
+            state.availability[spotKey].adImage = adImages[spotKey];
+          });
+          console.log(`✅ Loaded ${Object.keys(adImages).length} ad images for ${mailerId}`);
+        }
+      } catch (error) {
+        console.log(`ℹ️ No ad images found for ${mailerId} (this is normal for campaigns without ads)`);
+      }
+    }
+
+    // Remove ad image from a spot
+    async function removeAdImage(spotNum) {
+      const spotKey = `Spot_${spotNum}`;
+      const businessName = state.availability[spotKey]?.name || `Spot ${spotNum}`;
+
+      if (!confirm(`Remove ad image for "${businessName}"?`)) {
+        return;
+      }
+
+      // Remove from state
+      if (state.availability[spotKey]) {
+        delete state.availability[spotKey].adImage;
+      }
+
+      // Save to cloud
+      toast('🗑️ Removing ad image...', true);
+      await saveAdImagesToCloud();
+
+      // Re-render to show change
+      renderAll();
+      toast('✅ Ad image removed', true);
+    }
+
+    // Upload ad image from the Edit Modal
+    function uploadAdImageFromModal() {
+      const sel = [...state.selected].sort((a,b)=>a-b);
+      if (!sel.length) return;
+
+      const spotNum = sel[0];
+
+      // Create file input
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.style.display = 'none';
+
+      input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Validate file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+          toast('⚠️ Image too large. Please use an image under 5MB.', false);
+          return;
+        }
+
+        // Show loading toast
+        toast('📤 Uploading image...', true);
+
+        try {
+          // Convert to base64 for storage
+          const reader = new FileReader();
+          reader.onload = async (event) => {
+            const base64Image = event.target.result;
+
+            // Store in state.availability
+            const spotKey = `Spot_${spotNum}`;
+            if (!state.availability[spotKey]) {
+              state.availability[spotKey] = { name: "", status: "Available" };
+            }
+            state.availability[spotKey].adImage = base64Image;
+
+            // Update modal preview
+            const imagePreview = document.getElementById('editImagePreview');
+            const imageThumb = document.getElementById('editImageThumb');
+            const uploadBtn = document.getElementById('btnUploadAdImage');
+            const removeBtn = document.getElementById('btnRemoveAdImage');
+
+            imageThumb.src = base64Image;
+            imagePreview.classList.remove('hidden');
+            uploadBtn.textContent = '📷 Change Ad Image';
+            removeBtn.classList.remove('hidden');
+
+            // Save ad images to cloud separately (they don't go in spot columns)
+            await saveAdImagesToCloud();
+
+            // Re-render cards to show image
+            renderAll();
+            toast('✅ Ad image uploaded successfully!', true);
+          };
+
+          reader.onerror = () => {
+            toast('❌ Failed to read image file', false);
+          };
+
+          reader.readAsDataURL(file);
+        } catch (error) {
+          console.error('Error uploading ad image:', error);
+          toast('❌ Failed to upload image', false);
+        }
+      };
+
+      // Trigger file picker
+      document.body.appendChild(input);
+      input.click();
+      document.body.removeChild(input);
+    }
+
+    // Remove ad image from the Edit Modal
+    async function removeAdImageFromModal() {
+      const sel = [...state.selected].sort((a,b)=>a-b);
+      if (!sel.length) return;
+
+      const spotNum = sel[0];
+      const spotKey = `Spot_${spotNum}`;
+      const businessName = state.availability[spotKey]?.name || `Spot ${spotNum}`;
+
+      if (!confirm(`Remove ad image for "${businessName}"?`)) {
+        return;
+      }
+
+      // Remove from state
+      if (state.availability[spotKey]) {
+        delete state.availability[spotKey].adImage;
+      }
+
+      // Update modal UI
+      const imagePreview = document.getElementById('editImagePreview');
+      const uploadBtn = document.getElementById('btnUploadAdImage');
+      const removeBtn = document.getElementById('btnRemoveAdImage');
+
+      imagePreview.classList.add('hidden');
+      uploadBtn.textContent = '📷 Upload Ad Image';
+      removeBtn.classList.add('hidden');
+
+      // Save to cloud
+      toast('🗑️ Removing ad image...', true);
+      await saveAdImagesToCloud();
+
+      // Re-render to show change
+      renderAll();
+      toast('✅ Ad image removed', true);
+    }
+
+    // View full-size ad image
+    function viewAdImage(imageUrl, businessName = '') {
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 10000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;';
+
+      const header = document.createElement('div');
+      header.style.cssText = 'color: white; font-size: 18px; font-weight: bold; margin-bottom: 15px; text-align: center;';
+      header.textContent = businessName ? `${businessName} - Ad Preview` : 'Ad Preview';
+
+      const img = document.createElement('img');
+      img.src = imageUrl;
+      img.style.cssText = 'max-width: 90%; max-height: 80vh; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);';
+
+      const closeBtn = document.createElement('button');
+      closeBtn.textContent = '✕ Close';
+      closeBtn.style.cssText = 'margin-top: 15px; padding: 10px 24px; background: white; color: black; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px;';
+      closeBtn.onclick = () => document.body.removeChild(modal);
+
+      modal.appendChild(header);
+      modal.appendChild(img);
+      modal.appendChild(closeBtn);
+
+      modal.onclick = (e) => {
+        if (e.target === modal) {
+          document.body.removeChild(modal);
+        }
+      };
+
+      document.body.appendChild(modal);
+
+      // Close on Escape key
+      const escHandler = (e) => {
+        if (e.key === 'Escape') {
+          if (document.body.contains(modal)) {
+            document.body.removeChild(modal);
+          }
+          document.removeEventListener('keydown', escHandler);
+        }
+      };
+      document.addEventListener('keydown', escHandler);
+    }
+
     function toShortKey(longLabel){
       switch(longLabel){
         case "Reserved": return "RESERVED";
@@ -17623,8 +18648,9 @@ Thanks!
       const todaysTasks = tasksState.tasks.filter(task => {
         if (task.completed) return false;
         if (!task.dueDate) return false;
-        const dueDate = new Date(task.dueDate);
-        dueDate.setHours(0, 0, 0, 0);
+        // Parse in local timezone to avoid UTC issues
+        const parts = task.dueDate.split('-');
+        const dueDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
         return dueDate <= today;
       }).slice(0, 5); // Top 5 only
 
@@ -17636,8 +18662,9 @@ Thanks!
       }
 
       container.innerHTML = todaysTasks.map(task => {
-        const taskDate = new Date(task.dueDate);
-        taskDate.setHours(0, 0, 0, 0);
+        // Parse in local timezone to avoid UTC issues
+        const parts = task.dueDate.split('-');
+        const taskDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
         const isOverdue = taskDate < today; // Only overdue if BEFORE today (not today itself)
         return `
           <div class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
@@ -17709,6 +18736,7 @@ Thanks!
       renderContractsExpiring();
       renderDashboardStats();
       renderDashboardTasks();
+      renderDashboardTemplates();
       renderRecentActivity();
     }
 
