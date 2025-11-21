@@ -3722,8 +3722,10 @@ Thanks!
     
     function isOverdue(dateStr) {
       const due = new Date(dateStr);
+      due.setHours(0, 0, 0, 0);
       const today = new Date();
-      return due < today;
+      today.setHours(0, 0, 0, 0);
+      return due < today; // Only overdue if BEFORE today (not today itself)
     }
     
     function updateTaskDate(input) {
