@@ -5747,6 +5747,9 @@ Thanks!
           }
         }
 
+        // Migrate old templates: remove isDefault flag
+        migrateTemplates();
+
         // Populate bulk send dropdown after templates are loaded
         populateBulkSendTemplates();
       } catch(e) {
@@ -5755,6 +5758,26 @@ Thanks!
         initializeDefaultTemplates();
         // Still try to populate dropdown
         populateBulkSendTemplates();
+      }
+    }
+
+    // Migration function to remove isDefault flag from existing templates
+    function migrateTemplates() {
+      let migrated = false;
+      Object.keys(userTemplatesState.templates).forEach(templateId => {
+        const template = userTemplatesState.templates[templateId];
+        if (template.isDefault === true) {
+          delete template.isDefault;
+          // Ensure usage tracking fields exist
+          if (template.usageCount === undefined) template.usageCount = 0;
+          if (template.lastUsed === undefined) template.lastUsed = null;
+          migrated = true;
+        }
+      });
+
+      if (migrated) {
+        console.log('🔄 Migrated templates: removed isDefault flags');
+        saveUserTemplates();
       }
     }
 
@@ -11494,7 +11517,6 @@ Thanks!
       };
 
       const icon = typeIcons[template.type] || '📝';
-      const isDefault = template.isDefault ? '<span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Default</span>' : '';
 
       // Format usage stats
       const usageCount = template.usageCount || 0;
@@ -11511,7 +11533,6 @@ Thanks!
             <div class="flex items-center gap-2 flex-wrap">
               <span>${icon}</span>
               <span class="font-medium text-gray-900">${esc(template.name)}</span>
-              ${isDefault}
               ${usageCount > 0 ? `<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">${usageCount} use${usageCount > 1 ? 's' : ''}</span>` : ''}
             </div>
             ${template.subject ? `<div class="text-xs text-gray-600 mt-1">Subject: ${esc(template.subject)}</div>` : ''}
@@ -11521,20 +11542,12 @@ Thanks!
             </div>
           </div>
           <div class="flex items-center gap-2">
-            ${!template.isDefault ? `
-              <button onclick="openEditTemplateModal('${template.id}')" class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                Edit
-              </button>
-            ` : `
-              <button onclick="duplicateAndEditTemplate('${template.id}')" class="px-3 py-1.5 text-sm bg-gray-600 text-white rounded-md hover:bg-gray-700">
-                Duplicate
-              </button>
-            `}
-            ${!template.isDefault ? `
-              <button onclick="confirmDeleteTemplate('${template.id}')" class="px-3 py-1.5 text-sm bg-red-50 text-red-600 border border-red-200 rounded-md hover:bg-red-100">
-                Delete
-              </button>
-            ` : ''}
+            <button onclick="openEditTemplateModal('${template.id}')" class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">
+              Edit
+            </button>
+            <button onclick="confirmDeleteTemplate('${template.id}')" class="px-3 py-1.5 text-sm bg-red-50 text-red-600 border border-red-200 rounded-md hover:bg-red-100">
+              Delete
+            </button>
           </div>
         </div>
       `;
