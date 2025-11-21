@@ -633,7 +633,7 @@
                         <h5 class="text-sm font-bold text-gray-600">Prospects</h5>
                     </div>
                     <p id="statsProspects" class="text-4xl font-black text-teal-600">0</p>
-                    <p class="text-xs text-gray-500 mt-1">in Pool</p>
+                    <p class="text-xs text-gray-500 mt-1">In Pipeline</p>
                 </div>
 
                 <!-- Active Leads -->
@@ -17574,8 +17574,10 @@ Thanks!
                         (kanbanState.columns['committed'] || []).length;
       document.getElementById('statsLeads').textContent = leadsCount;
 
-      // Count campaigns (all postcard campaigns)
-      const campaignsCount = (state && state.all && Array.isArray(state.all)) ? state.all.length : 0;
+      // Count campaigns (active postcard campaigns from campaignState)
+      const campaignsCount = (campaignState && campaignState.campaigns && Array.isArray(campaignState.campaigns))
+        ? campaignState.campaigns.filter(c => c.status === 'active' || c.status === 'running').length
+        : 0;
       document.getElementById('statsCampaigns').textContent = campaignsCount;
 
       // Count clients
@@ -17616,7 +17618,9 @@ Thanks!
       }
 
       container.innerHTML = todaysTasks.map(task => {
-        const isOverdue = new Date(task.dueDate) < today;
+        const taskDate = new Date(task.dueDate);
+        taskDate.setHours(0, 0, 0, 0);
+        const isOverdue = taskDate < today; // Only overdue if BEFORE today (not today itself)
         return `
           <div class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
             <input type="checkbox" onchange="toggleTaskComplete(${task.id})" ${task.completed ? 'checked' : ''} class="w-4 h-4" />
