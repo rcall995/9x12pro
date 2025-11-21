@@ -17574,10 +17574,26 @@ Thanks!
                         (kanbanState.columns['committed'] || []).length;
       document.getElementById('statsLeads').textContent = leadsCount;
 
-      // Count campaigns (active postcard campaigns from campaignState)
-      const campaignsCount = (campaignState && campaignState.campaigns && Array.isArray(campaignState.campaigns))
-        ? campaignState.campaigns.filter(c => c.status === 'active' || c.status === 'running').length
-        : 0;
+      // Count campaigns (postcards with at least 1 reserved/filled ad spot)
+      let campaignsCount = 0;
+      if (state && state.mailers && Array.isArray(state.mailers)) {
+        campaignsCount = state.mailers.filter(postcard => {
+          // Check if postcard has any spots that are not "Available"
+          const availability = postcard.availability || {};
+          for (let i = 1; i <= 10; i++) {
+            const spotStatus = availability[`Spot_${i}`] || postcard[`Spot_${i}`] || "Available";
+            // Count if spot is anything other than "Available"
+            if (typeof spotStatus === 'string' && spotStatus !== "Available") {
+              return true; // Has at least one reserved/filled spot
+            }
+            // Handle object format: { name: "Business", status: "Reserved" }
+            if (typeof spotStatus === 'object' && spotStatus.status && spotStatus.status !== "Available") {
+              return true;
+            }
+          }
+          return false; // No reserved spots
+        }).length;
+      }
       document.getElementById('statsCampaigns').textContent = campaignsCount;
 
       // Count clients
