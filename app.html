@@ -1179,18 +1179,16 @@
                     </div>
                 </div>
 
-                <!-- RIGHT: Save Changes -->
+                <!-- RIGHT: Auto-Save Status -->
                 <div class="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl shadow-2xl border-2 border-green-300 p-6 text-white">
                     <div class="flex items-center gap-2 mb-4">
-                        <span class="text-3xl">💾</span>
-                        <div class="text-xl font-black">Save Changes</div>
+                        <span class="text-3xl">☁️</span>
+                        <div class="text-xl font-black">Auto-Save Active</div>
                     </div>
-                    <button id="btnSaveCommit"
-                        class="w-full px-6 py-4 rounded-xl bg-white text-green-600 hover:bg-green-50 opacity-50 cursor-not-allowed font-black text-base shadow-xl transition-all transform hover:scale-105"
-                        disabled>
-                        ✅ Commit to Database
-                    </button>
-                    <p class="text-sm text-center text-green-100 mt-3 font-medium">Saves all changes to Supabase</p>
+                    <div class="bg-white/20 backdrop-blur rounded-xl p-4">
+                        <p class="text-sm font-medium text-center">✨ All changes save automatically</p>
+                        <p class="text-xs text-white/90 text-center mt-2">No manual saving required!</p>
+                    </div>
                 </div>
             </div>
             <div class="side-wrap mb-12" id="frontWrap">
@@ -4165,11 +4163,11 @@ Thanks!
       saveExpenses();
 
       updateFinancialDashboard();
-      toast("Expenses saved");
       closeExpenseModal();
       state.dirty = true;
       updateToolbar();
-      scheduleAutoSave(); // Trigger auto-save
+      // Save immediately to database
+      saveToSheet();
     }
     
     /* ========= CRM FUNCTIONS ========= */
@@ -15806,9 +15804,8 @@ Thanks!
         );
         renderClientList();
       }
-      
+
       state.dirty = true;
-      toast("Saved locally");
 
       // Clear selection immediately after save
       state.selected.clear();
@@ -15816,7 +15813,9 @@ Thanks!
       closeEditModal();
       renderAll();
       updateFinancialDashboard();
-      scheduleAutoSave(); // Trigger auto-save
+
+      // Save immediately to database (no delay)
+      saveToSheet();
     }
     
     function toShortKey(longLabel){
@@ -15889,10 +15888,10 @@ Thanks!
 
       applyStagedColors();
       closePostcardModal();
-      toast('Postcard colors saved successfully!', true);
       state.dirty = true;
       updateToolbar();
-      scheduleAutoSave(); // Trigger auto-save
+      // Save immediately to database
+      saveToSheet();
     }
     
     /* ========= SORT MODAL ========= */
