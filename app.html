@@ -975,6 +975,36 @@
               </div>
             </div>
 
+            <!-- CONTACT DATA FILTER -->
+            <div class="bg-white border rounded-lg p-4 mb-6">
+              <h3 class="text-sm font-bold text-gray-700 mb-3">Filter by Contact Information</h3>
+              <div class="flex flex-wrap gap-2">
+                <label class="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg cursor-pointer transition-colors">
+                  <input type="checkbox" id="filterHasEmail" onchange="applyProspectPoolFilters()" class="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-gray-300 rounded">
+                  <span class="text-sm font-medium text-gray-700">📧 Has Email</span>
+                </label>
+                <label class="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg cursor-pointer transition-colors">
+                  <input type="checkbox" id="filterHasPhone" onchange="applyProspectPoolFilters()" class="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-gray-300 rounded">
+                  <span class="text-sm font-medium text-gray-700">📱 Has Phone</span>
+                </label>
+                <label class="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg cursor-pointer transition-colors">
+                  <input type="checkbox" id="filterHasFacebook" onchange="applyProspectPoolFilters()" class="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-gray-300 rounded">
+                  <span class="text-sm font-medium text-gray-700">📘 Has Facebook</span>
+                </label>
+                <label class="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg cursor-pointer transition-colors">
+                  <input type="checkbox" id="filterHasInstagram" onchange="applyProspectPoolFilters()" class="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-gray-300 rounded">
+                  <span class="text-sm font-medium text-gray-700">📷 Has Instagram</span>
+                </label>
+                <label class="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg cursor-pointer transition-colors">
+                  <input type="checkbox" id="filterHasWebsite" onchange="applyProspectPoolFilters()" class="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-gray-300 rounded">
+                  <span class="text-sm font-medium text-gray-700">🌐 Has Website</span>
+                </label>
+                <button onclick="clearContactFilters()" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 transition-colors">
+                  Clear Filters
+                </button>
+              </div>
+            </div>
+
             <div id="prospectPoolStats" class="grid grid-cols-4 gap-4 mb-6">
                 <!-- Stats populated by JavaScript -->
             </div>
@@ -8632,6 +8662,43 @@ Thanks!
       renderProspectPool();
     }
 
+    // Contact data filter functions
+    function applyProspectPoolFilters() {
+      renderProspectPool();
+    }
+
+    function clearContactFilters() {
+      document.getElementById('filterHasEmail').checked = false;
+      document.getElementById('filterHasPhone').checked = false;
+      document.getElementById('filterHasFacebook').checked = false;
+      document.getElementById('filterHasInstagram').checked = false;
+      document.getElementById('filterHasWebsite').checked = false;
+      renderProspectPool();
+    }
+
+    // Helper function to check if business matches contact filters
+    function matchesContactFilters(business) {
+      const hasEmail = document.getElementById('filterHasEmail')?.checked;
+      const hasPhone = document.getElementById('filterHasPhone')?.checked;
+      const hasFacebook = document.getElementById('filterHasFacebook')?.checked;
+      const hasInstagram = document.getElementById('filterHasInstagram')?.checked;
+      const hasWebsite = document.getElementById('filterHasWebsite')?.checked;
+
+      // If no filters are selected, show all
+      if (!hasEmail && !hasPhone && !hasFacebook && !hasInstagram && !hasWebsite) {
+        return true;
+      }
+
+      // Check each filter (AND logic - business must match ALL selected filters)
+      if (hasEmail && (!business.email || business.email.trim() === '')) return false;
+      if (hasPhone && (!business.phone || business.phone.trim() === '')) return false;
+      if (hasFacebook && (!business.facebook || business.facebook.trim() === '')) return false;
+      if (hasInstagram && (!business.instagram || business.instagram.trim() === '')) return false;
+      if (hasWebsite && (!business.website || business.website.trim() === '')) return false;
+
+      return true;
+    }
+
     // Store search term to preserve during re-renders
     var prospectPoolSearchTerm = '';
 
@@ -8769,6 +8836,11 @@ Thanks!
               return; // Skip if this business's actual ZIP doesn't match filter
             }
 
+            // Filter by contact data
+            if (!matchesContactFilters(business)) {
+              return; // Skip if business doesn't match contact filters
+            }
+
             categorizedProspects[category].push({
               ...business,
               zipCode: searchedZipCode, // Keep track of which search found this
@@ -8882,6 +8954,10 @@ Thanks!
           if (!prospect.movedToPoolDate) return true; // Show if no date (legacy)
           const movedDate = new Date(prospect.movedToPoolDate);
           return movedDate >= cutoffDate;
+        })
+        .filter(prospect => {
+          // Filter by contact data
+          return matchesContactFilters(prospect);
         })
         .forEach(prospect => {
           // Skip duplicates (prevent same placeId from appearing twice)
