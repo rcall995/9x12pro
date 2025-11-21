@@ -4694,7 +4694,7 @@ Thanks!
       }
     }
 
-    function clientBulkSendEmail() {
+    async function clientBulkSendEmail() {
       const templateSelector = document.getElementById('clientBulkSendTemplateSelector');
       if (!templateSelector || !templateSelector.value) {
         toast('⚠️ Please select a template first', false);
@@ -4716,11 +4716,15 @@ Thanks!
 
       const selectedCount = clientSelectionState.selectedIds.size;
 
-      if (confirm(`Send Email to ${selectedCount} selected client${selectedCount > 1 ? 's' : ''}?\n\nThis will open your email client for each contact.`)) {
+      if (confirm(`Send Email to ${selectedCount} selected client${selectedCount > 1 ? 's' : ''}?\n\nThis will open your email client for each contact with a short delay between windows.`)) {
         let successCount = 0;
+        const clientsArray = Array.from(clientSelectionState.selectedIds);
 
-        clientSelectionState.selectedIds.forEach(clientId => {
+        // Loop through clients with delays between each window.open()
+        for (let i = 0; i < clientsArray.length; i++) {
+          const clientId = clientsArray[i];
           const client = crmState.clients[clientId];
+
           if (client && client.contact && client.contact.email) {
             // Fill template variables
             const data = {
@@ -4737,8 +4741,13 @@ Thanks!
 
             window.open(`mailto:${client.contact.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
             successCount++;
+
+            // Wait 500ms before opening next window (except for last one)
+            if (i < clientsArray.length - 1) {
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
           }
-        });
+        }
 
         // Track template usage
         if (template) {
