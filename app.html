@@ -15613,52 +15613,53 @@ Thanks!
       lastFocusedElementBeforeModal = document.activeElement;
       const sel = [...state.selected].sort((a,b)=>a-b);
 
+      // Populate client dropdown
+      populateClientDropdown();
+
       // Get pricing for this postcard (new system)
       const mailerId = state.current.Mailer_ID;
       const pricing = productionState.pricing[mailerId] || null;
 
-      let spotData = {};
-
       if (sel.length === 1){
         const s = state.availability[`Spot_${sel[0]}`] || {name:"", status:"Available"};
-        spotData.name = s.name || "";
-        spotData.status = toShortKey(s.status);
+        document.getElementById("editName").value = s.name || "";
+        document.getElementById("editStatus").value = toShortKey(s.status);
 
         // Use new pricing system or fall back to old spot pricing
         const priceKey = normalizePriceKey(mailerId, sel[0]);
         const oldPrice = productionState.spotPricing[priceKey];
         if (oldPrice) {
-          spotData.price = oldPrice;
+          document.getElementById("editPrice").value = oldPrice;
         } else if (pricing && pricing.singleAd) {
-          spotData.price = pricing.singleAd;
+          document.getElementById("editPrice").value = pricing.singleAd;
         } else {
-          spotData.price = ""; // Empty instead of $500 default
+          document.getElementById("editPrice").value = ""; // Empty instead of $500 default
         }
       } else {
         const [a,b] = sel;
         const A = state.availability[`Spot_${a}`] || {name:"", status:"Available"}, B = state.availability[`Spot_${b}`] || {name:"", status:"Available"};
         const nm = (A.name && B.name && A.name.toLowerCase()===B.name.toLowerCase()) ? A.name : (A.name || B.name || "");
         const st = nm ? (A.status!=="Available" ? A.status : (B.status!=="Available"?B.status:"Proof In Progress")) : "Available";
-        spotData.name = nm;
-        spotData.status = toShortKey(st);
+        document.getElementById("editName").value = nm;
+        document.getElementById("editStatus").value = toShortKey(st);
 
         // Use new pricing system for double ad or fall back to old spot pricing
         const priceKey = normalizePriceKey(mailerId, a);
         const oldPrice = productionState.spotPricing[priceKey];
         if (oldPrice) {
-          spotData.price = oldPrice;
+          document.getElementById("editPrice").value = oldPrice;
         } else if (pricing && pricing.doubleAd) {
-          spotData.price = pricing.doubleAd;
+          document.getElementById("editPrice").value = pricing.doubleAd;
         } else {
-          spotData.price = ""; // Empty instead of $500 default
+          document.getElementById("editPrice").value = ""; // Empty instead of $500 default
         }
       }
 
-      // Use new BusinessModal instead of old editModal
-      businessModal.open('spot', spotData, (data, selectedSpots) => {
-        // This callback handles the save
-        applyEditModalWithData(data, selectedSpots);
-      }, sel);
+      const modal = document.getElementById("editModal");
+      modal.style.display = "flex";
+      modal.setAttribute('aria-hidden', 'false');
+      trapModalFocus(modal);
+      document.getElementById("editName").focus();
     }
 
     // New function to handle save from BusinessModal
@@ -16060,7 +16061,7 @@ Thanks!
       for (let i=1;i<=18;i++){
         const key=`Spot_${i}`;
         const cur = state.availability[key] || {name:"", status:"Available"};
-        const human = cur.name ? `${cur.status}:${cur.name}` : "";
+        const human = cur.name ? `${cur.status}: ${cur.name}` : ""; // FIX: Added space after colon to match save format
         if ((state.initial[key]||"") !== human) n++;
       }
       return n;
@@ -16073,7 +16074,7 @@ Thanks!
         const cur=state.availability[key] || {name:"", status:"Available"};
         const human = cur.name ? `${cur.status}: ${cur.name}` : "Available";
         const initial = state.initial[key] || "";
-        const humanCompare = cur.name ? `${cur.status}:${cur.name}` : "";
+        const humanCompare = cur.name ? `${cur.status}: ${cur.name}` : ""; // FIX: Added space after colon to match output format
         if (initial !== humanCompare) {
           out[key] = cur.name ? `${cur.status}: ${cur.name}` : "Available";
         }
