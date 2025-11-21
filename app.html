@@ -8678,11 +8678,23 @@ Thanks!
 
     // Helper function to check if business matches contact filters
     function matchesContactFilters(business) {
-      const hasEmail = document.getElementById('filterHasEmail')?.checked;
-      const hasPhone = document.getElementById('filterHasPhone')?.checked;
-      const hasFacebook = document.getElementById('filterHasFacebook')?.checked;
-      const hasInstagram = document.getElementById('filterHasInstagram')?.checked;
-      const hasWebsite = document.getElementById('filterHasWebsite')?.checked;
+      // Get filter checkboxes - return true if they don't exist yet (during initial load)
+      const emailFilter = document.getElementById('filterHasEmail');
+      const phoneFilter = document.getElementById('filterHasPhone');
+      const facebookFilter = document.getElementById('filterHasFacebook');
+      const instagramFilter = document.getElementById('filterHasInstagram');
+      const websiteFilter = document.getElementById('filterHasWebsite');
+
+      // If filter elements don't exist yet, show all (during initial render)
+      if (!emailFilter || !phoneFilter || !facebookFilter || !instagramFilter || !websiteFilter) {
+        return true;
+      }
+
+      const hasEmail = emailFilter.checked;
+      const hasPhone = phoneFilter.checked;
+      const hasFacebook = facebookFilter.checked;
+      const hasInstagram = instagramFilter.checked;
+      const hasWebsite = websiteFilter.checked;
 
       // If no filters are selected, show all
       if (!hasEmail && !hasPhone && !hasFacebook && !hasInstagram && !hasWebsite) {
@@ -8690,7 +8702,12 @@ Thanks!
       }
 
       // Helper to check if a field has a valid value
-      const hasValue = (field) => field && field.trim() !== '' && field !== 'undefined' && field !== 'null';
+      const hasValue = (field) => {
+        if (!field) return false;
+        if (typeof field !== 'string') return false;
+        const trimmed = field.trim();
+        return trimmed !== '' && trimmed !== 'undefined' && trimmed !== 'null';
+      };
 
       // Check each filter (AND logic - business must match ALL selected filters)
       // Support both direct fields and nested contact object (for different data structures)
