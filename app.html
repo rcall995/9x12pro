@@ -9398,10 +9398,13 @@ Thanks!
 
     // Toggle selection of a prospect in To Contact column for bulk messaging
     function toggleToContactSelection(leadId) {
-      if (toContactSelectionState.selectedIds.has(leadId)) {
-        toContactSelectionState.selectedIds.delete(leadId);
+      // Ensure consistent type - convert to string for comparison
+      const id = String(leadId);
+
+      if (toContactSelectionState.selectedIds.has(id)) {
+        toContactSelectionState.selectedIds.delete(id);
       } else {
-        toContactSelectionState.selectedIds.add(leadId);
+        toContactSelectionState.selectedIds.add(id);
       }
       updateBulkSendSection();
       renderKanban();
@@ -17128,7 +17131,8 @@ Thanks!
             const toContactColumn = kanbanState.columns['to-contact'] || [];
 
             toContactSelectionState.selectedIds.forEach(leadId => {
-                const prospect = toContactColumn.find(item => (item.id || item) === leadId);
+                // Ensure consistent string comparison
+                const prospect = toContactColumn.find(item => String(item.id || item) === String(leadId));
                 if (prospect && typeof prospect === 'object' && prospect.phone) {
                     // Fill template variables
                     const filled = fillTemplateVariables(template, prospect);
@@ -17181,8 +17185,15 @@ Thanks!
             let successCount = 0;
             const toContactColumn = kanbanState.columns['to-contact'] || [];
 
+            console.log('🔵 Bulk Email - Selected IDs:', Array.from(toContactSelectionState.selectedIds));
+            console.log('🔵 Bulk Email - To Contact Column:', toContactColumn.map(item => ({ id: item.id, name: item.businessName })));
+
             toContactSelectionState.selectedIds.forEach(leadId => {
-                const prospect = toContactColumn.find(item => (item.id || item) === leadId);
+                // Ensure consistent string comparison
+                const prospect = toContactColumn.find(item => String(item.id || item) === String(leadId));
+
+                console.log('🔵 Looking for leadId:', leadId, 'Found:', prospect ? prospect.businessName : 'NOT FOUND');
+
                 if (prospect && typeof prospect === 'object' && prospect.email) {
                     // Fill template variables
                     const filled = fillTemplateVariables(template, prospect);
@@ -17191,6 +17202,9 @@ Thanks!
 
                     window.open(`mailto:${prospect.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
                     successCount++;
+                    console.log('✅ Opened email for:', prospect.businessName);
+                } else if (prospect && !prospect.email) {
+                    console.warn('⚠️ No email for:', prospect.businessName);
                 }
             });
 
@@ -17237,7 +17251,8 @@ Thanks!
             const toContactColumn = kanbanState.columns['to-contact'] || [];
 
             toContactSelectionState.selectedIds.forEach(leadId => {
-                const prospect = toContactColumn.find(item => (item.id || item) === leadId);
+                // Ensure consistent string comparison
+                const prospect = toContactColumn.find(item => String(item.id || item) === String(leadId));
                 if (prospect && typeof prospect === 'object' && prospect.phone) {
                     // Fill template variables
                     const filled = fillTemplateVariables(template, prospect);
