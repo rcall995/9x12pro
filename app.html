@@ -7209,37 +7209,45 @@ Thanks!
 
                 // Fetch phone and website details for each business (required for enrichment)
                 console.log(`📞 Fetching contact details for ${businesses.length} businesses...`);
-                const businessesWithDetails = await Promise.all(
-                  businesses.map(async (b) => {
-                    try {
-                      const details = await fetchPlaceDetails(b.placeId);
 
-                      // Extract email and social media from website (scrapes actual HTML links!)
-                      const extractedEmail = await extractEmailFromWebsite(details.website);
-                      const socialMedia = await extractSocialMediaFromWebsite(details.website);
+                // Process businesses sequentially with small delays to avoid overwhelming CORS proxy
+                const businessesWithDetails = [];
+                for (let i = 0; i < businesses.length; i++) {
+                  const b = businesses[i];
+                  try {
+                    console.log(`📇 Processing ${i + 1}/${businesses.length}: ${b.name}`);
+                    const details = await fetchPlaceDetails(b.placeId);
 
-                      return {
-                        ...b,
-                        phone: details.phone || b.phone || '',
-                        website: details.website || b.website || '',
-                        email: extractedEmail || details.email || '',
-                        priceLevel: details.priceLevel || 0,
-                        reviewCount: details.reviewCount || b.userRatingsTotal || 0,
-                        description: details.description || '',
-                        ownerName: details.ownerName || '',
-                        googleMapsUrl: details.googleMapsUrl || '',
-                        // Extract REAL social media links from website HTML (no guessing!)
-                        instagram: socialMedia.instagram || '',
-                        facebook: socialMedia.facebook || '',
-                        linkedin: socialMedia.linkedin || '',
-                        twitter: socialMedia.twitter || ''
-                      };
-                    } catch (err) {
-                      console.warn(`Failed to fetch details for ${b.name}:`, err);
-                      return b; // Return original if details fetch fails
+                    // Extract email and social media from website (scrapes actual HTML links!)
+                    const extractedEmail = await extractEmailFromWebsite(details.website);
+                    const socialMedia = await extractSocialMediaFromWebsite(details.website);
+
+                    businessesWithDetails.push({
+                      ...b,
+                      phone: details.phone || b.phone || '',
+                      website: details.website || b.website || '',
+                      email: extractedEmail || details.email || '',
+                      priceLevel: details.priceLevel || 0,
+                      reviewCount: details.reviewCount || b.userRatingsTotal || 0,
+                      description: details.description || '',
+                      ownerName: details.ownerName || '',
+                      googleMapsUrl: details.googleMapsUrl || '',
+                      // Extract REAL social media links from website HTML (no guessing!)
+                      instagram: socialMedia.instagram || '',
+                      facebook: socialMedia.facebook || '',
+                      linkedin: socialMedia.linkedin || '',
+                      twitter: socialMedia.twitter || ''
+                    });
+
+                    // Small delay between requests to avoid overwhelming proxy
+                    if (i < businesses.length - 1) {
+                      await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
                     }
-                  })
-                );
+                  } catch (err) {
+                    console.warn(`Failed to fetch details for ${b.name}:`, err);
+                    businessesWithDetails.push(b); // Return original if details fetch fails
+                  }
+                }
 
                 console.log(`✅ Fetched details for ${businessesWithDetails.length} businesses`);
 
@@ -7390,37 +7398,45 @@ Thanks!
 
                 // Fetch phone and website details for each business (required for enrichment)
                 console.log(`📞 Fetching contact details for ${businesses.length} businesses...`);
-                const businessesWithDetails = await Promise.all(
-                  businesses.map(async (b) => {
-                    try {
-                      const details = await fetchPlaceDetails(b.placeId);
 
-                      // Extract email and social media from website (scrapes actual HTML links!)
-                      const extractedEmail = await extractEmailFromWebsite(details.website);
-                      const socialMedia = await extractSocialMediaFromWebsite(details.website);
+                // Process businesses sequentially with small delays to avoid overwhelming CORS proxy
+                const businessesWithDetails = [];
+                for (let i = 0; i < businesses.length; i++) {
+                  const b = businesses[i];
+                  try {
+                    console.log(`📇 Processing ${i + 1}/${businesses.length}: ${b.name}`);
+                    const details = await fetchPlaceDetails(b.placeId);
 
-                      return {
-                        ...b,
-                        phone: details.phone || b.phone || '',
-                        website: details.website || b.website || '',
-                        email: extractedEmail || details.email || '',
-                        priceLevel: details.priceLevel || 0,
-                        reviewCount: details.reviewCount || b.userRatingsTotal || 0,
-                        description: details.description || '',
-                        ownerName: details.ownerName || '',
-                        googleMapsUrl: details.googleMapsUrl || '',
-                        // Extract REAL social media links from website HTML (no guessing!)
-                        instagram: socialMedia.instagram || '',
-                        facebook: socialMedia.facebook || '',
-                        linkedin: socialMedia.linkedin || '',
-                        twitter: socialMedia.twitter || ''
-                      };
-                    } catch (err) {
-                      console.warn(`Failed to fetch details for ${b.name}:`, err);
-                      return b; // Return original if details fetch fails
+                    // Extract email and social media from website (scrapes actual HTML links!)
+                    const extractedEmail = await extractEmailFromWebsite(details.website);
+                    const socialMedia = await extractSocialMediaFromWebsite(details.website);
+
+                    businessesWithDetails.push({
+                      ...b,
+                      phone: details.phone || b.phone || '',
+                      website: details.website || b.website || '',
+                      email: extractedEmail || details.email || '',
+                      priceLevel: details.priceLevel || 0,
+                      reviewCount: details.reviewCount || b.userRatingsTotal || 0,
+                      description: details.description || '',
+                      ownerName: details.ownerName || '',
+                      googleMapsUrl: details.googleMapsUrl || '',
+                      // Extract REAL social media links from website HTML (no guessing!)
+                      instagram: socialMedia.instagram || '',
+                      facebook: socialMedia.facebook || '',
+                      linkedin: socialMedia.linkedin || '',
+                      twitter: socialMedia.twitter || ''
+                    });
+
+                    // Small delay between requests to avoid overwhelming proxy
+                    if (i < businesses.length - 1) {
+                      await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
                     }
-                  })
-                );
+                  } catch (err) {
+                    console.warn(`Failed to fetch details for ${b.name}:`, err);
+                    businessesWithDetails.push(b); // Return original if details fetch fails
+                  }
+                }
 
                 console.log(`✅ Fetched details for ${businessesWithDetails.length} businesses`);
 
@@ -7779,7 +7795,7 @@ Thanks!
         const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout (increased since sequential)
 
         const response = await fetch(proxyUrl, {
           signal: controller.signal
@@ -7793,6 +7809,7 @@ Thanks!
         }
 
         const html = await response.text();
+        console.log(`📄 Fetched ${html.length} characters of HTML from ${url}`);
 
         // Social media link patterns (look for actual href links in HTML)
         // Updated to handle various formats: usernames, numeric IDs, profile URLs, page URLs
@@ -7806,6 +7823,8 @@ Thanks!
         const instagramMatches = Array.from(html.matchAll(instagramPattern));
         const linkedinMatches = Array.from(html.matchAll(linkedinPattern));
         const twitterMatches = Array.from(html.matchAll(twitterPattern));
+
+        console.log(`🔍 Found ${facebookMatches.length} Facebook, ${instagramMatches.length} Instagram, ${linkedinMatches.length} LinkedIn, ${twitterMatches.length} Twitter links`);
 
         // Filter out common non-business pages (share buttons, generic pages, etc.)
         const excludePatterns = [
@@ -7832,10 +7851,22 @@ Thanks!
 
         // Log what we found
         const foundPlatforms = [];
-        if (facebook) foundPlatforms.push('Facebook');
-        if (instagram) foundPlatforms.push('Instagram');
-        if (linkedin) foundPlatforms.push('LinkedIn');
-        if (twitter) foundPlatforms.push('Twitter/X');
+        if (facebook) {
+          foundPlatforms.push('Facebook');
+          console.log(`  ✓ Facebook: ${facebook}`);
+        }
+        if (instagram) {
+          foundPlatforms.push('Instagram');
+          console.log(`  ✓ Instagram: ${instagram}`);
+        }
+        if (linkedin) {
+          foundPlatforms.push('LinkedIn');
+          console.log(`  ✓ LinkedIn: ${linkedin}`);
+        }
+        if (twitter) {
+          foundPlatforms.push('Twitter/X');
+          console.log(`  ✓ Twitter: ${twitter}`);
+        }
 
         if (foundPlatforms.length > 0) {
           console.log(`✅ Found social media: ${foundPlatforms.join(', ')}`);
