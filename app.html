@@ -7551,7 +7551,7 @@ Thanks!
           for (const match of matches) {
             const email = match[1] || match[0];
 
-            // Filter out common non-business emails
+            // Filter out common non-business emails and generic placeholders
             const invalidDomains = [
               'example.com',
               'domain.com',
@@ -7561,12 +7561,47 @@ Thanks!
               'google.com',
               'twitter.com',
               'linkedin.com',
-              'instagram.com'
+              'instagram.com',
+              'wix.com',
+              'squarespace.com',
+              'wordpress.com'
+            ];
+
+            // Filter out generic/placeholder email prefixes
+            const genericPrefixes = [
+              'office@',
+              'info@',
+              'contact@',
+              'admin@',
+              'support@',
+              'sales@',
+              'hello@',
+              'mail@',
+              'email@',
+              'noreply@',
+              'no-reply@',
+              'webmaster@',
+              'postmaster@'
             ];
 
             const domain = email.split('@')[1];
-            if (!invalidDomains.some(d => domain.includes(d))) {
-              emails.add(email.toLowerCase());
+            const lowerEmail = email.toLowerCase();
+
+            // Skip if domain is invalid
+            if (invalidDomains.some(d => domain && domain.includes(d))) {
+              return;
+            }
+
+            // Skip if it's a generic placeholder (only if it matches exactly)
+            // But allow them if they're on the business's own domain
+            const isGenericPrefix = genericPrefixes.some(prefix => lowerEmail.startsWith(prefix));
+
+            // Allow generic prefixes if the domain looks like a business domain
+            // (not a generic email provider like gmail, yahoo, etc.)
+            const isBusinessDomain = !['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'aol.com'].includes(domain);
+
+            if (!isGenericPrefix || isBusinessDomain) {
+              emails.add(lowerEmail);
             }
           }
         }
@@ -10120,13 +10155,13 @@ Thanks!
 
                 // Build compact clickable icon display for raw prospects
                 const rawContactIcons = [];
-                if (rawPhone) rawContactIcons.push(`<a href="tel:${esc(rawPhone)}" onclick="event.stopPropagation()" class="text-lg hover:scale-125 transition-transform" title="📞 Call ${esc(rawPhone)}">📞</a>`);
-                if (rawWebsite) rawContactIcons.push(`<a href="${esc(ensureHttps(rawWebsite))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="🌐 Visit Website">🌐</a>`);
-                if (rawEmail) rawContactIcons.push(`<a href="mailto:${esc(rawEmail)}" onclick="event.stopPropagation()" class="text-lg hover:scale-125 transition-transform" title="✉️ Email ${esc(rawEmail)}">✉️</a>`);
-                if (rawFacebook) rawContactIcons.push(`<a href="${esc(ensureHttps(rawFacebook))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="📘 Facebook">📘</a>`);
-                if (rawInstagram) rawContactIcons.push(`<a href="${esc(ensureHttps(rawInstagram))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="📷 Instagram">📷</a>`);
-                if (rawLinkedIn) rawContactIcons.push(`<a href="${esc(ensureHttps(rawLinkedIn))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="💼 LinkedIn">💼</a>`);
-                if (rawTwitter) rawContactIcons.push(`<a href="${esc(ensureHttps(rawTwitter))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="🐦 Twitter">🐦</a>`);
+                if (rawPhone) rawContactIcons.push(`<a href="tel:${esc(rawPhone)}" onclick="event.stopPropagation()" class="text-lg hover:scale-125 transition-transform" title="📞 ${esc(rawPhone)}">📞</a>`);
+                if (rawWebsite) rawContactIcons.push(`<a href="${esc(ensureHttps(rawWebsite))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="🌐 ${esc(rawWebsite)}">🌐</a>`);
+                if (rawEmail) rawContactIcons.push(`<a href="mailto:${esc(rawEmail)}" onclick="event.stopPropagation()" class="text-lg hover:scale-125 transition-transform" title="✉️ ${esc(rawEmail)}">✉️</a>`);
+                if (rawFacebook) rawContactIcons.push(`<a href="${esc(ensureHttps(rawFacebook))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="📘 ${esc(rawFacebook)}">📘</a>`);
+                if (rawInstagram) rawContactIcons.push(`<a href="${esc(ensureHttps(rawInstagram))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="📷 ${esc(rawInstagram)}">📷</a>`);
+                if (rawLinkedIn) rawContactIcons.push(`<a href="${esc(ensureHttps(rawLinkedIn))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="💼 ${esc(rawLinkedIn)}">💼</a>`);
+                if (rawTwitter) rawContactIcons.push(`<a href="${esc(ensureHttps(rawTwitter))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="🐦 ${esc(rawTwitter)}">🐦</a>`);
 
                 // Build metadata line (category only, since ZIP is shown above)
                 const rawMetadata = [];
