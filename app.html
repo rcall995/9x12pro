@@ -2833,7 +2833,10 @@
 
         <div>
           <label class="text-sm font-medium text-gray-700 block mb-1">Category *</label>
-          <input id="manualBusinessCategory" type="text" class="border rounded-md w-full p-2" placeholder="e.g., Restaurant, Hair Salon, Auto Repair" required />
+          <select id="manualBusinessCategory" class="border rounded-md w-full p-2 bg-white" required>
+            <option value="">Select category...</option>
+            <!-- Categories populated dynamically from businessCategories -->
+          </select>
         </div>
 
         <div>
@@ -9102,6 +9105,17 @@ Thanks!
         ).join('');
         businessCategorySelect.innerHTML = `<option value="">Select category...</option>${options}`;
         if (currentValue) businessCategorySelect.value = currentValue;
+      }
+
+      // Update manual business category dropdown
+      const manualBusinessCategorySelect = document.getElementById('manualBusinessCategory');
+      if (manualBusinessCategorySelect) {
+        const currentValue = manualBusinessCategorySelect.value;
+        const options = businessCategories.map(cat =>
+          `<option value="${esc(cat.label)}">${esc(cat.label)}</option>`
+        ).join('');
+        manualBusinessCategorySelect.innerHTML = `<option value="">Select category...</option>${options}`;
+        if (currentValue) manualBusinessCategorySelect.value = currentValue;
       }
 
       // Update client filter dropdown
