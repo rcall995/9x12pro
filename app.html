@@ -7036,10 +7036,25 @@ Thanks!
                   businesses.map(async (b) => {
                     try {
                       const details = await fetchPlaceDetails(b.placeId);
+
+                      // Guess and verify social media links
+                      const guessedSocial = guessSocialMediaLinks(b.name, details.website);
+                      const verifiedSocial = await verifyAndFilterSocialLinks(guessedSocial);
+
                       return {
                         ...b,
                         phone: details.phone || b.phone || '',
-                        website: details.website || b.website || ''
+                        website: details.website || b.website || '',
+                        priceLevel: details.priceLevel || 0,
+                        reviewCount: details.reviewCount || b.userRatingsTotal || 0,
+                        description: details.description || '',
+                        ownerName: details.ownerName || '',
+                        googleMapsUrl: details.googleMapsUrl || '',
+                        // Add ONLY verified social media links
+                        instagram: details.instagram || verifiedSocial.instagram || '',
+                        facebook: details.facebook || verifiedSocial.facebook || '',
+                        linkedin: details.linkedin || verifiedSocial.linkedin || '',
+                        twitter: details.twitter || verifiedSocial.twitter || ''
                       };
                     } catch (err) {
                       console.warn(`Failed to fetch details for ${b.name}:`, err);
@@ -7201,10 +7216,25 @@ Thanks!
                   businesses.map(async (b) => {
                     try {
                       const details = await fetchPlaceDetails(b.placeId);
+
+                      // Guess and verify social media links
+                      const guessedSocial = guessSocialMediaLinks(b.name, details.website);
+                      const verifiedSocial = await verifyAndFilterSocialLinks(guessedSocial);
+
                       return {
                         ...b,
                         phone: details.phone || b.phone || '',
-                        website: details.website || b.website || ''
+                        website: details.website || b.website || '',
+                        priceLevel: details.priceLevel || 0,
+                        reviewCount: details.reviewCount || b.userRatingsTotal || 0,
+                        description: details.description || '',
+                        ownerName: details.ownerName || '',
+                        googleMapsUrl: details.googleMapsUrl || '',
+                        // Add ONLY verified social media links
+                        instagram: details.instagram || verifiedSocial.instagram || '',
+                        facebook: details.facebook || verifiedSocial.facebook || '',
+                        linkedin: details.linkedin || verifiedSocial.linkedin || '',
+                        twitter: details.twitter || verifiedSocial.twitter || ''
                       };
                     } catch (err) {
                       console.warn(`Failed to fetch details for ${b.name}:`, err);
@@ -7271,25 +7301,67 @@ Thanks!
           service.getDetails(
             {
               placeId: placeId,
-              fields: ['formatted_phone_number', 'international_phone_number', 'website', 'opening_hours', 'url']
+              fields: [
+                'formatted_phone_number',
+                'international_phone_number',
+                'website',
+                'url',
+                'price_level',
+                'user_ratings_total',
+                'editorial_summary',
+                'reviews'
+              ]
             },
             (place, status) => {
               if (status === google.maps.places.PlacesServiceStatus.OK) {
                 const hasData = !!(place.formatted_phone_number || place.international_phone_number || place.website);
+
+                // Extract owner/contact name from reviews (sometimes mentioned)
+                let ownerName = '';
+                if (place.reviews && place.reviews.length > 0) {
+                  // Look for owner responses or mentions in reviews
+                  for (const review of place.reviews) {
+                    if (review.author_name && review.author_name.includes('Owner')) {
+                      ownerName = review.author_name.replace('Owner', '').trim();
+                      break;
+                    }
+                  }
+                }
+
                 resolve({
                   phone: place.formatted_phone_number || place.international_phone_number || '',
                   website: place.website || '',
-                  email: '', // Google Places doesn't provide emails
-                  facebook: '', // Google Places doesn't provide social media
-                  instagram: '',
+                  email: '', // Will be enriched from website scraping
+                  facebook: '', // Will be enriched from website scraping
+                  instagram: '', // Will be enriched from website scraping
+                  linkedin: '',
+                  twitter: '',
                   googleMapsUrl: place.url || '',
-                  openingHours: place.opening_hours?.weekday_text || [],
-                  enriched: hasData, // Mark as enriched if we got phone or website
-                  cost: 0 // Google Places is free
+                  priceLevel: place.price_level || 0, // 0-4 scale ($ to $$$$)
+                  reviewCount: place.user_ratings_total || 0,
+                  description: place.editorial_summary?.overview || '',
+                  ownerName: ownerName,
+                  enriched: hasData,
+                  cost: 0
                 });
               } else {
                 // Don't reject - just return empty data
-                resolve({ phone: '', website: '', email: '', facebook: '', instagram: '', googleMapsUrl: '', openingHours: [], enriched: false, cost: 0 });
+                resolve({
+                  phone: '',
+                  website: '',
+                  email: '',
+                  facebook: '',
+                  instagram: '',
+                  linkedin: '',
+                  twitter: '',
+                  googleMapsUrl: '',
+                  priceLevel: 0,
+                  reviewCount: 0,
+                  description: '',
+                  ownerName: '',
+                  enriched: false,
+                  cost: 0
+                });
               }
             }
           );
@@ -7298,6 +7370,100 @@ Thanks!
         console.error('Error fetching place details:', err);
         return { phone: '', website: '', email: '', facebook: '', instagram: '', googleMapsUrl: '', openingHours: [], enriched: false, cost: 0 };
       }
+    }
+
+    // Smart Social Media Guessing - FREE, client-side only
+    // Generates probable social media URLs based on business name and website
+    function guessSocialMediaLinks(businessName, website) {
+      // Clean business name for social media handles
+      const cleanName = businessName
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '') // Remove special chars
+        .replace(/\s+/g, ''); // Remove spaces
+
+      // Try to extract domain name as alternative handle
+      let domainHandle = '';
+      if (website) {
+        try {
+          const url = new URL(website.startsWith('http') ? website : `https://${website}`);
+          domainHandle = url.hostname
+            .replace('www.', '')
+            .replace(/\.(com|net|org|co|ca|us)$/i, '')
+            .replace(/[^a-z0-9]/g, '');
+        } catch (e) {
+          // Invalid URL, skip domain extraction
+        }
+      }
+
+      // Common variations to try
+      const handles = [
+        cleanName, // adamspizza
+        domainHandle, // adamspizza (from adamspizza.com)
+        businessName.toLowerCase().replace(/\s+/g, ''), // adams pizza -> adamspizza
+        businessName.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ''), // adam's pizza -> adamspizza
+      ].filter(h => h && h.length > 0); // Remove empty
+
+      // Remove duplicates
+      const uniqueHandles = [...new Set(handles)];
+
+      // Generate probable URLs
+      return {
+        instagram: uniqueHandles.map(h => `https://instagram.com/${h}`),
+        facebook: uniqueHandles.map(h => `https://facebook.com/${h}`),
+        twitter: uniqueHandles.map(h => `https://twitter.com/${h}`),
+        linkedin: uniqueHandles.map(h => `https://linkedin.com/company/${h}`)
+      };
+    }
+
+    // Verify if a social media URL actually exists
+    // Uses HEAD request to check without downloading content
+    async function verifySocialMediaUrl(url) {
+      try {
+        // Use fetch with no-cors mode to avoid CORS issues
+        // This will return opaque response but we can check if it loads
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+
+        const response = await fetch(url, {
+          method: 'HEAD',
+          mode: 'no-cors',
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        // In no-cors mode, we get an opaque response
+        // If it doesn't throw, the URL likely exists
+        return true;
+
+      } catch (error) {
+        // URL doesn't exist or timed out
+        return false;
+      }
+    }
+
+    // Verify all guessed social media links and return only valid ones
+    async function verifyAndFilterSocialLinks(guessedLinks) {
+      const verified = {
+        instagram: '',
+        facebook: '',
+        linkedin: '',
+        twitter: ''
+      };
+
+      // Check each platform's variations in order of likelihood
+      for (const [platform, urls] of Object.entries(guessedLinks)) {
+        for (const url of urls) {
+          const isValid = await verifySocialMediaUrl(url);
+          if (isValid) {
+            verified[platform] = url;
+            console.log(`✅ Found valid ${platform}: ${url}`);
+            break; // Stop checking variations once we find a valid one
+          }
+        }
+      }
+
+      return verified;
     }
 
     // 9x12Pro Smart Enrichment - Our custom website scraper
@@ -9738,6 +9904,20 @@ Thanks!
                   const enrichedScoreCategory = getScoreCategory(enrichedLeadScore);
                   const enrichedContactScore = prospect.contactScore || calculateContactScore(prospect);
 
+                  // Price level display
+                  const priceLevel = prospect.priceLevel || 0;
+                  const priceLevelDisplay = priceLevel > 0 ? '$'.repeat(priceLevel) : '';
+
+                  // Owner name display
+                  const ownerDisplay = prospect.ownerName ? `<div class="text-xs text-gray-600 mb-1">👤 Owner: ${esc(prospect.ownerName)}</div>` : '';
+
+                  // Review count with rating
+                  const reviewDisplay = displayRating ? `<div class="flex items-center gap-2 mb-2 text-xs text-gray-700">
+                    <span class="font-semibold">⭐ ${displayRating}</span>
+                    ${prospect.reviewCount ? `<span class="text-gray-500">(${prospect.reviewCount.toLocaleString()} reviews)</span>` : ''}
+                    ${priceLevelDisplay ? `<span class="text-green-600 font-bold">${priceLevelDisplay}</span>` : ''}
+                  </div>` : '';
+
                   return `
                     <div class="bg-white border-2 ${hasContact ? 'border-green-400' : 'border-gray-200'} rounded-lg p-3 hover:shadow-md transition cursor-pointer relative" onclick="openClientModalForProspect('${prospect.id}')">
                       <!-- Contact Score Badge (top-right) -->
@@ -9750,8 +9930,10 @@ Thanks!
                       <h5 class="font-semibold text-sm text-gray-900 mb-1 pr-20">${esc(prospect.businessName)}</h5>
                       ${displayLocation ? `<p class="text-xs text-gray-600 mt-0.5 mb-2">${esc(displayLocation)}</p>` : ''}
                       ${displayAddress ? `<p class="text-xs text-gray-600 mb-2">📍 ${esc(displayAddress)}</p>` : ''}
+                      ${ownerDisplay}
                       ${metadata.length > 0 ? `<p class="text-xs text-gray-500 mb-2">${metadata.join(' • ')}</p>` : ''}
-                      ${displayRating ? `<div class="flex items-center gap-2 mb-2 text-xs text-gray-500"><span>⭐ ${displayRating}</span></div>` : ''}
+                      ${reviewDisplay}
+                      ${prospect.description ? `<p class="text-xs text-gray-600 italic mb-2">"${esc(prospect.description.substring(0, 80))}${prospect.description.length > 80 ? '...' : ''}"</p>` : ''}
                       ${prospect.followUpDate ? `<div class="text-xs text-purple-600 font-medium mb-2">📅 ${prospect.followUpDate}</div>` : ''}
                       ${contactIcons.length > 0 ? `
                         <div class="flex gap-2 items-center justify-center py-2 mb-2 border-t border-gray-200">
