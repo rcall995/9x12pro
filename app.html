@@ -9499,20 +9499,26 @@ Thanks!
             newLead = {
               id: Date.now() + Math.random(),
               businessName: business.businessName || business.name,
-              contactName: '',
+              contactName: business.contactName || '',
               phone: business.phone || '',
               email: business.email || '',
               estimatedValue: 500,
               notes: business.notes || `Manually added business\nAddress: ${business.address}\nTown: ${business.town}`,
               source: 'manual',
-              placeId: business.id, // Use the manual ID as placeId for tracking
+              placeId: business.id || business.placeId, // Use the manual ID or placeId for tracking
               website: business.website || '',
-              facebook: '',
-              instagram: '',
+              facebook: business.facebook || '',
+              instagram: business.instagram || '',
+              linkedin: business.linkedin || '',
+              twitter: business.twitter || '',
               category: business.category || 'other',
               zipCode: business.zipCode || null,
+              actualZip: business.actualZip || null,
+              town: business.town || business.actualCity || state.current?.Town,
+              address: business.address || '',
+              rating: business.rating || 0,
+              userRatingsTotal: business.userRatingsTotal || 0,
               mailerId: currentMailerId,
-              town: business.town || state.current?.Town,
               addedDate: new Date().toISOString(),
               interactions: []
             };
@@ -9586,6 +9592,11 @@ Thanks!
               twitter: details.twitter || '',
               category: business.category || 'other',
               zipCode: business.zipCode || null,
+              actualZip: business.actualZip || null,
+              town: business.actualCity || state.current?.Town,
+              address: business.address || '',
+              rating: business.rating || 0,
+              userRatingsTotal: business.userRatingsTotal || 0,
               mailerId: currentMailerId,
               addedDate: new Date().toISOString(),
               interactions: []
