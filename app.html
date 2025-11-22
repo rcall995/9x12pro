@@ -7795,10 +7795,11 @@ Thanks!
         const html = await response.text();
 
         // Social media link patterns (look for actual href links in HTML)
-        const facebookPattern = /href=["'](https?:\/\/(?:www\.)?facebook\.com\/[a-zA-Z0-9._-]+)["']/gi;
-        const instagramPattern = /href=["'](https?:\/\/(?:www\.)?instagram\.com\/[a-zA-Z0-9._]+)["']/gi;
-        const linkedinPattern = /href=["'](https?:\/\/(?:www\.)?linkedin\.com\/(?:company|in)\/[a-zA-Z0-9._-]+)["']/gi;
-        const twitterPattern = /href=["'](https?:\/\/(?:www\.)?(?:twitter\.com|x\.com)\/[a-zA-Z0-9._]+)["']/gi;
+        // Updated to handle various formats: usernames, numeric IDs, profile URLs, page URLs
+        const facebookPattern = /href=["'](https?:\/\/(?:www\.)?facebook\.com\/(?:profile\.php\?id=)?[a-zA-Z0-9._\-\/]+?)["']/gi;
+        const instagramPattern = /href=["'](https?:\/\/(?:www\.)?instagram\.com\/[a-zA-Z0-9._]+\/?)["']/gi;
+        const linkedinPattern = /href=["'](https?:\/\/(?:www\.)?linkedin\.com\/(?:company|in)\/[a-zA-Z0-9._\-]+\/?)["']/gi;
+        const twitterPattern = /href=["'](https?:\/\/(?:www\.)?(?:twitter\.com|x\.com)\/[a-zA-Z0-9._]+\/?)["']/gi;
 
         // Extract links
         const facebookMatches = Array.from(html.matchAll(facebookPattern));
@@ -7806,11 +7807,28 @@ Thanks!
         const linkedinMatches = Array.from(html.matchAll(linkedinPattern));
         const twitterMatches = Array.from(html.matchAll(twitterPattern));
 
-        // Get first match for each platform (most likely to be the business's official page)
-        const facebook = facebookMatches.length > 0 ? facebookMatches[0][1] : '';
-        const instagram = instagramMatches.length > 0 ? instagramMatches[0][1] : '';
-        const linkedin = linkedinMatches.length > 0 ? linkedinMatches[0][1] : '';
-        const twitter = twitterMatches.length > 0 ? twitterMatches[0][1] : '';
+        // Filter out common non-business pages (share buttons, generic pages, etc.)
+        const excludePatterns = [
+          /facebook\.com\/sharer/i,
+          /facebook\.com\/share/i,
+          /facebook\.com\/pages/i,
+          /instagram\.com\/explore/i,
+          /instagram\.com\/accounts/i,
+          /twitter\.com\/share/i,
+          /twitter\.com\/intent/i,
+          /linkedin\.com\/shareArticle/i,
+          /linkedin\.com\/sharing/i
+        ];
+
+        const isValidLink = (url) => {
+          return !excludePatterns.some(pattern => pattern.test(url));
+        };
+
+        // Get first valid match for each platform (most likely to be the business's official page)
+        const facebook = facebookMatches.find(m => isValidLink(m[1]))?.[1] || '';
+        const instagram = instagramMatches.find(m => isValidLink(m[1]))?.[1] || '';
+        const linkedin = linkedinMatches.find(m => isValidLink(m[1]))?.[1] || '';
+        const twitter = twitterMatches.find(m => isValidLink(m[1]))?.[1] || '';
 
         // Log what we found
         const foundPlatforms = [];
