@@ -2125,8 +2125,73 @@
               <input id="clientMonthlyPrice" type="number" step="50" class="border rounded-md w-full p-2 pl-7" placeholder="500" />
             </div>
           </div>
+
+          <div>
+            <label class="text-sm font-medium text-gray-700 block mb-1">Client Status</label>
+            <select id="clientStatus" class="border rounded-md w-full p-2 bg-white">
+              <option value="active">✅ Active - Currently advertising</option>
+              <option value="paused">⏸️ Paused - Temporary break</option>
+              <option value="inactive">❌ Inactive - Not advertising</option>
+            </select>
+          </div>
         </div>
-        
+
+        <!-- Active Months Calendar -->
+        <div class="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+          <label class="text-sm font-semibold text-blue-900 block mb-2">📅 Active Months (for seasonal businesses)</label>
+          <p class="text-xs text-gray-600 mb-3">Select which months this client wants to advertise (e.g., landscapers skip winter):</p>
+          <div class="grid grid-cols-12 gap-2">
+            <label class="flex flex-col items-center cursor-pointer">
+              <input type="checkbox" id="activeMonth0" class="h-4 w-4 text-blue-600 rounded mb-1" checked />
+              <span class="text-xs font-medium">J</span>
+            </label>
+            <label class="flex flex-col items-center cursor-pointer">
+              <input type="checkbox" id="activeMonth1" class="h-4 w-4 text-blue-600 rounded mb-1" checked />
+              <span class="text-xs font-medium">F</span>
+            </label>
+            <label class="flex flex-col items-center cursor-pointer">
+              <input type="checkbox" id="activeMonth2" class="h-4 w-4 text-blue-600 rounded mb-1" checked />
+              <span class="text-xs font-medium">M</span>
+            </label>
+            <label class="flex flex-col items-center cursor-pointer">
+              <input type="checkbox" id="activeMonth3" class="h-4 w-4 text-blue-600 rounded mb-1" checked />
+              <span class="text-xs font-medium">A</span>
+            </label>
+            <label class="flex flex-col items-center cursor-pointer">
+              <input type="checkbox" id="activeMonth4" class="h-4 w-4 text-blue-600 rounded mb-1" checked />
+              <span class="text-xs font-medium">M</span>
+            </label>
+            <label class="flex flex-col items-center cursor-pointer">
+              <input type="checkbox" id="activeMonth5" class="h-4 w-4 text-blue-600 rounded mb-1" checked />
+              <span class="text-xs font-medium">J</span>
+            </label>
+            <label class="flex flex-col items-center cursor-pointer">
+              <input type="checkbox" id="activeMonth6" class="h-4 w-4 text-blue-600 rounded mb-1" checked />
+              <span class="text-xs font-medium">J</span>
+            </label>
+            <label class="flex flex-col items-center cursor-pointer">
+              <input type="checkbox" id="activeMonth7" class="h-4 w-4 text-blue-600 rounded mb-1" checked />
+              <span class="text-xs font-medium">A</span>
+            </label>
+            <label class="flex flex-col items-center cursor-pointer">
+              <input type="checkbox" id="activeMonth8" class="h-4 w-4 text-blue-600 rounded mb-1" checked />
+              <span class="text-xs font-medium">S</span>
+            </label>
+            <label class="flex flex-col items-center cursor-pointer">
+              <input type="checkbox" id="activeMonth9" class="h-4 w-4 text-blue-600 rounded mb-1" checked />
+              <span class="text-xs font-medium">O</span>
+            </label>
+            <label class="flex flex-col items-center cursor-pointer">
+              <input type="checkbox" id="activeMonth10" class="h-4 w-4 text-blue-600 rounded mb-1" checked />
+              <span class="text-xs font-medium">N</span>
+            </label>
+            <label class="flex flex-col items-center cursor-pointer">
+              <input type="checkbox" id="activeMonth11" class="h-4 w-4 text-blue-600 rounded mb-1" checked />
+              <span class="text-xs font-medium">D</span>
+            </label>
+          </div>
+        </div>
+
         <div>
           <label class="text-sm font-medium text-gray-700 block mb-1">Notes</label>
           <textarea id="clientNotes" rows="3" class="border rounded-md w-full p-2" placeholder="Special requests, preferences, etc."></textarea>
@@ -4348,6 +4413,8 @@ Thanks!
           address: data.address || ""
         },
         monthlyPrice: data.monthlyPrice || 0,
+        status: data.status || "active", // active, paused, inactive
+        activeMonths: data.activeMonths || [true, true, true, true, true, true, true, true, true, true, true, true], // J F M A M J J A S O N D
         history: data.history || [],
         interactions: data.interactions || [], // Interaction tracking: [{date, type, notes, nextFollowUp}]
         lifetime: {
@@ -4490,7 +4557,11 @@ Thanks!
                 <!-- Main content (clickable to open modal) -->
                 <div class="client-card-body cursor-pointer pt-6 pb-2 flex-1" data-client-id="${esc(client.id)}">
                   <h5 class="font-semibold text-sm text-gray-900 mb-1 pr-16">${esc(client.businessName)}</h5>
-                  <div class="text-xs text-gray-600 mb-1">${esc(client.category || 'Uncategorized')}</div>
+                  <div class="flex items-center gap-2 mb-1">
+                    <div class="text-xs text-gray-600">${esc(client.category || 'Uncategorized')}</div>
+                    ${client.status === 'paused' ? '<span class="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">⏸️ Paused</span>' : ''}
+                    ${client.status === 'inactive' ? '<span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">❌ Inactive</span>' : ''}
+                  </div>
                   ${client.contact.name ? `<div class="text-xs text-gray-500">👤 ${esc(client.contact.name)}</div>` : ''}
                   ${client.contact.firstName ? `<div class="text-xs text-gray-500 font-medium">✨ ${esc(client.contact.firstName)}</div>` : ''}
                   ${hasPhone ? `<div class="text-xs text-gray-500">📞 ${esc(client.contact.phone)}</div>` : ''}
@@ -5032,8 +5103,15 @@ Thanks!
         document.getElementById('clientPhone').value = client.contact.phone;
         document.getElementById('clientEmail').value = client.contact.email;
         document.getElementById('clientMonthlyPrice').value = client.monthlyPrice || '';
+        document.getElementById('clientStatus').value = client.status || 'active';
         document.getElementById('clientNotes').value = client.notes;
-        
+
+        // Load active months
+        const activeMonths = client.activeMonths || [true, true, true, true, true, true, true, true, true, true, true, true];
+        for (let i = 0; i < 12; i++) {
+          document.getElementById(`activeMonth${i}`).checked = activeMonths[i];
+        }
+
         renderClientHistory(client);
         
         document.getElementById('clientLifetimeSpent').textContent = formatCurrency(client.lifetime.totalSpent);
@@ -5068,7 +5146,13 @@ Thanks!
         document.getElementById('clientPhone').value = '';
         document.getElementById('clientEmail').value = '';
         document.getElementById('clientMonthlyPrice').value = '';
+        document.getElementById('clientStatus').value = 'active';
         document.getElementById('clientNotes').value = '';
+
+        // Reset active months (all checked by default)
+        for (let i = 0; i < 12; i++) {
+          document.getElementById(`activeMonth${i}`).checked = true;
+        }
 
         // Reset contract fields
         document.getElementById('hasContract').checked = false;
@@ -5166,6 +5250,12 @@ Thanks!
       const clientId = document.getElementById('clientId').value;
       const isNew = !clientId;
 
+      // Collect active months
+      const activeMonths = [];
+      for (let i = 0; i < 12; i++) {
+        activeMonths.push(document.getElementById(`activeMonth${i}`).checked);
+      }
+
       const clientData = {
         id: clientId || undefined,
         businessName,
@@ -5175,6 +5265,8 @@ Thanks!
         phone: document.getElementById('clientPhone').value,
         email: document.getElementById('clientEmail').value,
         monthlyPrice: parseFloat(document.getElementById('clientMonthlyPrice').value) || 0,
+        status: document.getElementById('clientStatus').value,
+        activeMonths: activeMonths,
         notes: document.getElementById('clientNotes').value
       };
       
@@ -5191,6 +5283,8 @@ Thanks!
         client.contact.phone = clientData.phone;
         client.contact.email = clientData.email;
         client.monthlyPrice = clientData.monthlyPrice;
+        client.status = clientData.status;
+        client.activeMonths = clientData.activeMonths;
         client.notes = clientData.notes;
       }
 
