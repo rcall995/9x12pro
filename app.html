@@ -12493,6 +12493,8 @@ Thanks!
                 if (item.email) contactIcons.push(`<a href="mailto:${esc(item.email)}" class="text-lg hover:text-blue-600" title="✉️ ${esc(item.email)}">✉️</a>`);
                 if (item.facebook) contactIcons.push(`<a href="${esc(ensureHttps(item.facebook))}" target="_blank" class="text-lg hover:text-blue-600" title="Facebook">📘</a>`);
                 if (item.instagram) contactIcons.push(`<a href="${esc(ensureHttps(item.instagram))}" target="_blank" class="text-lg hover:text-blue-600" title="Instagram">📷</a>`);
+                if (item.linkedin) contactIcons.push(`<a href="${esc(ensureHttps(item.linkedin))}" target="_blank" class="text-lg hover:text-blue-600" title="LinkedIn">💼</a>`);
+                if (item.twitter) contactIcons.push(`<a href="${esc(ensureHttps(item.twitter))}" target="_blank" class="text-lg hover:text-blue-600" title="Twitter">🐦</a>`);
 
                 return `
                   <div class="kanban-item text-xs p-2 bg-white border rounded ${hasContact ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'}" data-item-id="${leadId}" data-column="${col.key}" ondblclick="openProspectDetailModal(${JSON.stringify(item).replace(/"/g, '&quot;')}, 'kanban')">
@@ -12578,6 +12580,8 @@ Thanks!
                     if (item.email) contactIcons.push(`<a href="mailto:${esc(item.email)}" class="text-lg hover:text-blue-600" title="✉️ ${esc(item.email)}">✉️</a>`);
                     if (item.facebook) contactIcons.push(`<a href="${esc(ensureHttps(item.facebook))}" target="_blank" class="text-lg hover:text-blue-600" title="Facebook">📘</a>`);
                     if (item.instagram) contactIcons.push(`<a href="${esc(ensureHttps(item.instagram))}" target="_blank" class="text-lg hover:text-blue-600" title="Instagram">📷</a>`);
+                    if (item.linkedin) contactIcons.push(`<a href="${esc(ensureHttps(item.linkedin))}" target="_blank" class="text-lg hover:text-blue-600" title="LinkedIn">💼</a>`);
+                    if (item.twitter) contactIcons.push(`<a href="${esc(ensureHttps(item.twitter))}" target="_blank" class="text-lg hover:text-blue-600" title="Twitter">🐦</a>`);
 
                     return contactIcons.length > 0 ? `
                       <div class="flex gap-2 items-center justify-center py-2 mt-2 border-t border-gray-200">
