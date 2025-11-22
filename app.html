@@ -2812,6 +2812,19 @@
     <div class="modal" style="max-width: 600px;">
       <h3 class="text-lg font-bold mb-4">➕ Add Business Manually</h3>
 
+      <!-- Google Places Lookup -->
+      <div class="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 mb-4">
+        <label class="text-sm font-semibold text-blue-900 block mb-2">🔍 Quick Lookup (Optional)</label>
+        <p class="text-xs text-gray-600 mb-3">Search for a business to auto-fill details from Google Places:</p>
+        <div class="flex gap-2">
+          <input id="googlePlacesLookup" type="text" class="flex-1 border rounded-md p-2" placeholder="Search business name + city..." />
+          <button type="button" onclick="lookupBusinessOnGoogle()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium whitespace-nowrap">
+            🔍 Search
+          </button>
+        </div>
+        <p id="lookupStatus" class="text-xs text-gray-500 mt-2"></p>
+      </div>
+
       <form id="addManualBusinessForm" class="space-y-4">
         <div>
           <label class="text-sm font-medium text-gray-700 block mb-1">Business Name *</label>
@@ -5552,8 +5565,6 @@ Thanks!
         document.getElementById('clientId').value = '';
         document.getElementById('clientBusinessName').value = '';
         document.getElementById('clientCategory').value = '';
-        document.getElementById('clientCustomCategory').value = '';
-        document.getElementById('clientCustomCategory').classList.add('hidden');
         document.getElementById('clientContactName').value = '';
         document.getElementById('clientFirstName').value = '';
         document.getElementById('clientPhone').value = '';
@@ -12559,6 +12570,99 @@ Thanks!
       const modal = document.getElementById('addManualBusinessModal');
       modal.style.display = 'none';
       modal.setAttribute('aria-hidden', 'true');
+    }
+
+    async function lookupBusinessOnGoogle() {
+      const searchQuery = document.getElementById('googlePlacesLookup').value.trim();
+      const statusEl = document.getElementById('lookupStatus');
+
+      if (!searchQuery) {
+        statusEl.textContent = '⚠️ Please enter a business name to search';
+        statusEl.className = 'text-xs text-orange-600 mt-2';
+        return;
+      }
+
+      statusEl.textContent = '🔍 Searching Google Places...';
+      statusEl.className = 'text-xs text-blue-600 mt-2';
+
+      try {
+        const service = new google.maps.places.PlacesService(document.createElement('div'));
+
+        const request = {
+          query: searchQuery,
+          fields: ['name', 'formatted_address', 'formatted_phone_number', 'website', 'types']
+        };
+
+        service.textSearch(request, (results, status) => {
+          if (status === google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
+            const place = results[0];
+
+            // Get detailed information
+            service.getDetails({ placeId: place.place_id, fields: ['name', 'formatted_address', 'formatted_phone_number', 'website', 'types', 'address_components'] }, (details, detailsStatus) => {
+              if (detailsStatus === google.maps.places.PlacesServiceStatus.OK) {
+                // Auto-fill form fields
+                document.getElementById('manualBusinessName').value = details.name || '';
+
+                // Extract address components
+                let city = '', zip = '', address = '';
+                if (details.address_components) {
+                  for (const component of details.address_components) {
+                    if (component.types.includes('locality')) {
+                      city = component.long_name;
+                    } else if (component.types.includes('postal_code')) {
+                      zip = component.short_name;
+                    } else if (component.types.includes('street_number') || component.types.includes('route')) {
+                      address += component.long_name + ' ';
+                    }
+                  }
+                }
+
+                document.getElementById('manualBusinessAddress').value = address.trim() || details.formatted_address || '';
+                document.getElementById('manualBusinessTown').value = city;
+                document.getElementById('manualBusinessZip').value = zip;
+                document.getElementById('manualBusinessPhone').value = details.formatted_phone_number || '';
+                document.getElementById('manualBusinessWebsite').value = details.website || '';
+
+                // Guess category from types
+                if (details.types && details.types.length > 0) {
+                  const categoryMap = {
+                    'restaurant': 'Restaurant',
+                    'food': 'Restaurant',
+                    'cafe': 'Cafe',
+                    'hair_care': 'Hair Salon',
+                    'beauty_salon': 'Beauty Salon',
+                    'car_repair': 'Auto Repair',
+                    'lawyer': 'Legal Services',
+                    'doctor': 'Medical',
+                    'dentist': 'Dental',
+                    'plumber': 'Plumbing',
+                    'electrician': 'Electrical',
+                    'real_estate_agency': 'Real Estate',
+                    'gym': 'Fitness'
+                  };
+
+                  for (const type of details.types) {
+                    if (categoryMap[type]) {
+                      document.getElementById('manualBusinessCategory').value = categoryMap[type];
+                      break;
+                    }
+                  }
+                }
+
+                statusEl.textContent = `✅ Found: ${details.name}! Review and submit below.`;
+                statusEl.className = 'text-xs text-green-600 mt-2 font-medium';
+              }
+            });
+          } else {
+            statusEl.textContent = '❌ No results found. Try a different search or fill manually.';
+            statusEl.className = 'text-xs text-red-600 mt-2';
+          }
+        });
+      } catch (error) {
+        console.error('Google Places lookup error:', error);
+        statusEl.textContent = '❌ Lookup failed. Please fill in manually.';
+        statusEl.className = 'text-xs text-red-600 mt-2';
+      }
     }
 
     // Handle form submission
