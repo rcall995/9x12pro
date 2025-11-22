@@ -17203,7 +17203,7 @@ Thanks!
 
         const selectedCount = toContactSelectionState.selectedIds.size;
 
-        if (confirm(`Send Email to ${selectedCount} selected prospect${selectedCount > 1 ? 's' : ''}?\n\nThis will open your email client for each contact with a delay between each.`)) {
+        if (confirm(`Send Email to ${selectedCount} selected prospect${selectedCount > 1 ? 's' : ''}?\n\nYou'll be prompted before each email.`)) {
             const toContactColumn = kanbanState.columns['to-contact'] || [];
             const selectedIds = Array.from(toContactSelectionState.selectedIds);
 
@@ -17213,11 +17213,11 @@ Thanks!
             let successCount = 0;
             let currentIndex = 0;
 
-            // Process emails sequentially with delay
+            // Process emails sequentially with user confirmation
             const processNextEmail = () => {
                 if (currentIndex >= selectedIds.length) {
                     // All done - show final toast
-                    toast(`✅ Opened Email for ${successCount} of ${selectedCount} prospect${successCount > 1 ? 's' : ''}`, true);
+                    toast(`✅ Sent to ${successCount} of ${selectedCount} prospect${successCount > 1 ? 's' : ''}`, true);
 
                     // Track template usage
                     if (template) {
@@ -17244,21 +17244,25 @@ Thanks!
                     const subject = filled.subject;
                     const body = filled.body;
 
-                    // Show progress toast
-                    toast(`📧 Opening email ${currentIndex + 1} of ${selectedCount}: ${prospect.businessName}`, true);
+                    // Prompt user before opening each email
+                    const userConfirm = confirm(`Email ${currentIndex + 1} of ${selectedCount}\n\nSend to: ${prospect.businessName}\nEmail: ${prospect.email}\n\nClick OK to open email, or Cancel to skip.`);
 
-                    window.open(`mailto:${prospect.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
-                    successCount++;
-                    console.log('✅ Opened email for:', prospect.businessName);
+                    if (userConfirm) {
+                        window.open(`mailto:${prospect.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+                        successCount++;
+                        console.log('✅ Opened email for:', prospect.businessName);
+                    } else {
+                        console.log('⏭️ User skipped:', prospect.businessName);
+                    }
                 } else if (prospect && !prospect.email) {
                     console.warn('⚠️ No email for:', prospect.businessName);
-                    toast(`⚠️ Skipping ${prospect.businessName} - no email address`, false);
+                    alert(`⚠️ ${prospect.businessName} has no email address. Skipping.`);
                 }
 
                 currentIndex++;
 
-                // Wait 2 seconds before next email to avoid popup blocker
-                setTimeout(processNextEmail, 2000);
+                // Continue to next email immediately (user controls timing with confirm dialog)
+                processNextEmail();
             };
 
             // Start processing
