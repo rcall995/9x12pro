@@ -4491,9 +4491,11 @@ Thanks!
                 <div class="client-card-body cursor-pointer pt-6 pb-2 flex-1" data-client-id="${esc(client.id)}">
                   <h5 class="font-semibold text-sm text-gray-900 mb-1 pr-16">${esc(client.businessName)}</h5>
                   <div class="text-xs text-gray-600 mb-1">${esc(client.category || 'Uncategorized')}</div>
-                  ${client.contact.name ? `<div class="text-xs text-gray-500">${esc(client.contact.name)}</div>` : ''}
+                  ${client.contact.name ? `<div class="text-xs text-gray-500">👤 ${esc(client.contact.name)}</div>` : ''}
+                  ${client.contact.firstName ? `<div class="text-xs text-gray-500 font-medium">✨ ${esc(client.contact.firstName)}</div>` : ''}
                   ${hasPhone ? `<div class="text-xs text-gray-500">📞 ${esc(client.contact.phone)}</div>` : ''}
                   ${hasEmail ? `<div class="text-xs text-gray-500">✉️ ${esc(client.contact.email)}</div>` : ''}
+                  ${client.monthlyPrice ? `<div class="text-xs font-semibold text-green-600">💰 ${formatCurrency(client.monthlyPrice)}/mo</div>` : ''}
 
                   <!-- Last purchase info -->
                   ${lastPurchase ? `
@@ -5315,13 +5317,15 @@ Thanks!
         return;
       }
       
-      const headers = ['Business Name', 'Category', 'Contact Name', 'Phone', 'Email', 'Lifetime Spent', 'Cards Bought', 'Notes'];
+      const headers = ['Business Name', 'Category', 'Contact Name', 'First Name', 'Phone', 'Email', 'Monthly Price', 'Lifetime Spent', 'Cards Bought', 'Notes'];
       const rows = clients.map(c => [
         c.businessName,
         c.category,
         c.contact.name,
+        c.contact.firstName || '',
         c.contact.phone,
         c.contact.email,
+        c.monthlyPrice || 0,
         c.lifetime.totalSpent,
         c.lifetime.cardsBought,
         c.notes
@@ -5430,9 +5434,11 @@ Thanks!
               category: row['category'] || '',
               contact: {
                 name: row['contact name'] || '',
+                firstName: row['first name'] || '',
                 phone: row['phone'] || '',
                 email: row['email'] || ''
               },
+              monthlyPrice: parseFloat(row['monthly price']) || 0,
               lifetime: {
                 totalSpent: parseFloat(row['lifetime spent']) || 0,
                 cardsBought: parseInt(row['cards bought']) || 0
