@@ -7661,6 +7661,51 @@ Thanks!
       return verified;
     }
 
+    // Fetch website HTML with fallback CORS proxies
+    async function fetchWithFallbackProxies(url, timeout = 10000) {
+      // List of CORS proxies to try (in order)
+      const proxies = [
+        (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+        (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+        (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
+      ];
+
+      for (let i = 0; i < proxies.length; i++) {
+        const proxyUrl = proxies[i](url);
+        const proxyName = ['allorigins.win', 'corsproxy.io', 'codetabs.com'][i];
+
+        try {
+          console.log(`🌐 Trying proxy ${i + 1}/${proxies.length} (${proxyName}) for: ${url}`);
+
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+          const response = await fetch(proxyUrl, {
+            signal: controller.signal
+          });
+
+          clearTimeout(timeoutId);
+
+          if (response.ok) {
+            const html = await response.text();
+            console.log(`✅ Success with ${proxyName} - fetched ${html.length} bytes`);
+            return html;
+          } else {
+            console.warn(`❌ ${proxyName} returned status ${response.status}`);
+          }
+        } catch (err) {
+          if (err.name === 'AbortError') {
+            console.warn(`⏱️ ${proxyName} timeout after ${timeout}ms`);
+          } else {
+            console.warn(`❌ ${proxyName} error: ${err.message}`);
+          }
+        }
+      }
+
+      // All proxies failed
+      throw new Error('All CORS proxies failed');
+    }
+
     // Extract email from website using CORS proxy
     async function extractEmailFromWebsite(websiteUrl) {
       if (!websiteUrl) return '';
@@ -7671,24 +7716,8 @@ Thanks!
 
         console.log(`📧 Attempting to extract email from: ${url}`);
 
-        // Use a CORS proxy to fetch the website content
-        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-
-        const response = await fetch(proxyUrl, {
-          signal: controller.signal
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-          console.warn(`Failed to fetch website: ${response.status}`);
-          return '';
-        }
-
-        const html = await response.text();
+        // Use fallback CORS proxies to fetch the website content
+        const html = await fetchWithFallbackProxies(url, 10000);
 
         // Email regex patterns (ordered by specificity)
         const emailPatterns = [
@@ -7791,25 +7820,8 @@ Thanks!
 
         console.log(`🔗 Attempting to extract social media from: ${url}`);
 
-        // Use a CORS proxy to fetch the website content
-        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout (increased since sequential)
-
-        const response = await fetch(proxyUrl, {
-          signal: controller.signal
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-          console.warn(`Failed to fetch website: ${response.status}`);
-          return { facebook: '', instagram: '', linkedin: '', twitter: '' };
-        }
-
-        const html = await response.text();
-        console.log(`📄 Fetched ${html.length} characters of HTML from ${url}`);
+        // Use fallback CORS proxies to fetch the website content
+        const html = await fetchWithFallbackProxies(url, 10000);
 
         // Social media link patterns (look for actual href links in HTML)
         // Updated to handle various formats: usernames, numeric IDs, profile URLs, page URLs
