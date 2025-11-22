@@ -7214,13 +7214,8 @@ Thanks!
                     try {
                       const details = await fetchPlaceDetails(b.placeId);
 
-                      // Guess and verify social media links (run in parallel with email)
-                      const guessedSocial = guessSocialMediaLinks(b.name, details.website);
-
-                      const [verifiedSocial, extractedEmail] = await Promise.all([
-                        verifyAndFilterSocialLinks(guessedSocial),
-                        extractEmailFromWebsite(details.website)
-                      ]);
+                      // Extract email from website only (social media guessing disabled - too many false positives)
+                      const extractedEmail = await extractEmailFromWebsite(details.website);
 
                       return {
                         ...b,
@@ -7232,11 +7227,12 @@ Thanks!
                         description: details.description || '',
                         ownerName: details.ownerName || '',
                         googleMapsUrl: details.googleMapsUrl || '',
-                        // Add ONLY verified social media links
-                        instagram: details.instagram || verifiedSocial.instagram || '',
-                        facebook: details.facebook || verifiedSocial.facebook || '',
-                        linkedin: details.linkedin || verifiedSocial.linkedin || '',
-                        twitter: details.twitter || verifiedSocial.twitter || ''
+                        // Social media auto-detection disabled (too many fake URLs)
+                        // Use CSV export/import to manually add verified social media links
+                        instagram: '',
+                        facebook: '',
+                        linkedin: '',
+                        twitter: ''
                       };
                     } catch (err) {
                       console.warn(`Failed to fetch details for ${b.name}:`, err);
@@ -7399,13 +7395,8 @@ Thanks!
                     try {
                       const details = await fetchPlaceDetails(b.placeId);
 
-                      // Guess and verify social media links (run in parallel with email)
-                      const guessedSocial = guessSocialMediaLinks(b.name, details.website);
-
-                      const [verifiedSocial, extractedEmail] = await Promise.all([
-                        verifyAndFilterSocialLinks(guessedSocial),
-                        extractEmailFromWebsite(details.website)
-                      ]);
+                      // Extract email from website only (social media guessing disabled - too many false positives)
+                      const extractedEmail = await extractEmailFromWebsite(details.website);
 
                       return {
                         ...b,
@@ -7417,11 +7408,12 @@ Thanks!
                         description: details.description || '',
                         ownerName: details.ownerName || '',
                         googleMapsUrl: details.googleMapsUrl || '',
-                        // Add ONLY verified social media links
-                        instagram: details.instagram || verifiedSocial.instagram || '',
-                        facebook: details.facebook || verifiedSocial.facebook || '',
-                        linkedin: details.linkedin || verifiedSocial.linkedin || '',
-                        twitter: details.twitter || verifiedSocial.twitter || ''
+                        // Social media auto-detection disabled (too many fake URLs)
+                        // Use CSV export/import to manually add verified social media links
+                        instagram: '',
+                        facebook: '',
+                        linkedin: '',
+                        twitter: ''
                       };
                     } catch (err) {
                       console.warn(`Failed to fetch details for ${b.name}:`, err);
