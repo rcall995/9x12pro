@@ -4743,12 +4743,42 @@ Thanks!
                     ${client.status === 'inactive' ? '<span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-md font-medium">❌ Inactive</span>' : ''}
                   </div>
 
+                  <!-- Owner name (if available from enrichment) -->
+                  ${client.ownerName ? `<div class="text-xs text-gray-600 mb-1">👤 Owner: ${esc(client.ownerName)}</div>` : ''}
+
+                  <!-- Rating and Review Count (if available) -->
+                  ${client.rating || client.reviewCount ? `
+                    <div class="flex items-center gap-2 mb-2 text-xs text-gray-700">
+                      ${client.rating ? `<span class="font-semibold">⭐ ${client.rating}</span>` : ''}
+                      ${client.reviewCount ? `<span class="text-gray-500">(${client.reviewCount.toLocaleString()} reviews)</span>` : ''}
+                      ${client.priceLevel && client.priceLevel > 0 ? `<span class="text-green-600 font-bold">${'$'.repeat(client.priceLevel)}</span>` : ''}
+                    </div>
+                  ` : ''}
+
+                  <!-- Business Description (if available) -->
+                  ${client.description ? `<p class="text-xs text-gray-600 italic mb-2">"${esc(client.description.substring(0, 60))}${client.description.length > 60 ? '...' : ''}"</p>` : ''}
+
                   <!-- Contact Info Section -->
                   <div class="space-y-1 mb-2">
                     ${client.contact.firstName ? `<div class="text-sm text-gray-700 font-medium">👤 ${esc(client.contact.firstName)}${client.contact.name && client.contact.name !== client.contact.firstName ? ` (${esc(client.contact.name)})` : ''}</div>` : (client.contact.name ? `<div class="text-sm text-gray-600">👤 ${esc(client.contact.name)}</div>` : '')}
                     ${hasPhone ? `<div class="text-xs text-gray-600">📞 ${esc(client.contact.phone)}</div>` : ''}
                     ${hasEmail ? `<div class="text-xs text-gray-600 truncate">✉️ ${esc(client.contact.email)}</div>` : ''}
                   </div>
+
+                  <!-- Social Media Icons (if available) -->
+                  ${(() => {
+                    const socialIcons = [];
+                    if (client.website) socialIcons.push(`<a href="${esc(ensureHttps(client.website))}" onclick="event.stopPropagation()" target="_blank" class="text-base hover:scale-125 transition-transform" title="🌐 ${esc(client.website)}">🌐</a>`);
+                    if (client.instagram) socialIcons.push(`<a href="${esc(ensureHttps(client.instagram))}" onclick="event.stopPropagation()" target="_blank" class="text-base hover:scale-125 transition-transform" title="📷 ${esc(client.instagram)}">📷</a>`);
+                    if (client.facebook) socialIcons.push(`<a href="${esc(ensureHttps(client.facebook))}" onclick="event.stopPropagation()" target="_blank" class="text-base hover:scale-125 transition-transform" title="📘 ${esc(client.facebook)}">📘</a>`);
+                    if (client.linkedin) socialIcons.push(`<a href="${esc(ensureHttps(client.linkedin))}" onclick="event.stopPropagation()" target="_blank" class="text-base hover:scale-125 transition-transform" title="💼 ${esc(client.linkedin)}">💼</a>`);
+                    if (client.twitter) socialIcons.push(`<a href="${esc(ensureHttps(client.twitter))}" onclick="event.stopPropagation()" target="_blank" class="text-base hover:scale-125 transition-transform" title="🐦 ${esc(client.twitter)}">🐦</a>`);
+                    return socialIcons.length > 0 ? `
+                      <div class="flex gap-2 items-center py-1 mb-2 border-t border-gray-200 pt-2">
+                        ${socialIcons.join('')}
+                      </div>
+                    ` : '';
+                  })()}
 
                   <!-- Monthly Price (more prominent if set) -->
                   ${client.monthlyPrice ? `<div class="text-sm font-bold text-green-600 bg-green-50 px-2 py-1 rounded-md inline-block mb-2">💰 ${formatCurrency(client.monthlyPrice)}/month</div>` : ''}
@@ -7037,14 +7067,19 @@ Thanks!
                     try {
                       const details = await fetchPlaceDetails(b.placeId);
 
-                      // Guess and verify social media links
+                      // Guess and verify social media links (run in parallel with email)
                       const guessedSocial = guessSocialMediaLinks(b.name, details.website);
-                      const verifiedSocial = await verifyAndFilterSocialLinks(guessedSocial);
+
+                      const [verifiedSocial, extractedEmail] = await Promise.all([
+                        verifyAndFilterSocialLinks(guessedSocial),
+                        extractEmailFromWebsite(details.website)
+                      ]);
 
                       return {
                         ...b,
                         phone: details.phone || b.phone || '',
                         website: details.website || b.website || '',
+                        email: extractedEmail || details.email || '',
                         priceLevel: details.priceLevel || 0,
                         reviewCount: details.reviewCount || b.userRatingsTotal || 0,
                         description: details.description || '',
@@ -7217,14 +7252,19 @@ Thanks!
                     try {
                       const details = await fetchPlaceDetails(b.placeId);
 
-                      // Guess and verify social media links
+                      // Guess and verify social media links (run in parallel with email)
                       const guessedSocial = guessSocialMediaLinks(b.name, details.website);
-                      const verifiedSocial = await verifyAndFilterSocialLinks(guessedSocial);
+
+                      const [verifiedSocial, extractedEmail] = await Promise.all([
+                        verifyAndFilterSocialLinks(guessedSocial),
+                        extractEmailFromWebsite(details.website)
+                      ]);
 
                       return {
                         ...b,
                         phone: details.phone || b.phone || '',
                         website: details.website || b.website || '',
+                        email: extractedEmail || details.email || '',
                         priceLevel: details.priceLevel || 0,
                         reviewCount: details.reviewCount || b.userRatingsTotal || 0,
                         description: details.description || '',
@@ -7464,6 +7504,91 @@ Thanks!
       }
 
       return verified;
+    }
+
+    // Extract email from website using CORS proxy
+    async function extractEmailFromWebsite(websiteUrl) {
+      if (!websiteUrl) return '';
+
+      try {
+        // Ensure URL has protocol
+        const url = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`;
+
+        console.log(`📧 Attempting to extract email from: ${url}`);
+
+        // Use a CORS proxy to fetch the website content
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
+        const response = await fetch(proxyUrl, {
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          console.warn(`Failed to fetch website: ${response.status}`);
+          return '';
+        }
+
+        const html = await response.text();
+
+        // Email regex patterns (ordered by specificity)
+        const emailPatterns = [
+          // mailto: links
+          /mailto:([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi,
+          // Email addresses in text
+          /\b[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+\b/gi
+        ];
+
+        const emails = new Set();
+
+        // Try each pattern
+        for (const pattern of emailPatterns) {
+          const matches = html.matchAll(pattern);
+          for (const match of matches) {
+            const email = match[1] || match[0];
+
+            // Filter out common non-business emails
+            const invalidDomains = [
+              'example.com',
+              'domain.com',
+              'email.com',
+              'sentry.io',
+              'facebook.com',
+              'google.com',
+              'twitter.com',
+              'linkedin.com',
+              'instagram.com'
+            ];
+
+            const domain = email.split('@')[1];
+            if (!invalidDomains.some(d => domain.includes(d))) {
+              emails.add(email.toLowerCase());
+            }
+          }
+        }
+
+        // Return first found email (most likely to be legitimate)
+        const emailArray = Array.from(emails);
+        if (emailArray.length > 0) {
+          console.log(`✅ Found email: ${emailArray[0]}`);
+          return emailArray[0];
+        }
+
+        console.log(`❌ No email found on website`);
+        return '';
+
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          console.warn(`Email extraction timeout for ${websiteUrl}`);
+        } else {
+          console.warn(`Email extraction error for ${websiteUrl}:`, error.message);
+        }
+        return '';
+      }
     }
 
     // 9x12Pro Smart Enrichment - Our custom website scraper
@@ -9867,13 +9992,13 @@ Thanks!
 
                   // Build compact clickable icon display (matching kanban style)
                   const contactIcons = [];
-                  if (prospect.phone) contactIcons.push(`<a href="tel:${esc(prospect.phone)}" onclick="event.stopPropagation()" class="text-lg hover:scale-125 transition-transform" title="📞 Call ${esc(prospect.phone)}">📞</a>`);
-                  if (prospect.website) contactIcons.push(`<a href="${esc(ensureHttps(prospect.website))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="🌐 Visit Website">🌐</a>`);
-                  if (prospect.email) contactIcons.push(`<a href="mailto:${esc(prospect.email)}" onclick="event.stopPropagation()" class="text-lg hover:scale-125 transition-transform" title="✉️ Email ${esc(prospect.email)}">✉️</a>`);
-                  if (prospect.facebook) contactIcons.push(`<a href="${esc(ensureHttps(prospect.facebook))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="📘 Facebook">📘</a>`);
-                  if (prospect.instagram) contactIcons.push(`<a href="${esc(ensureHttps(prospect.instagram))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="📷 Instagram">📷</a>`);
-                  if (prospect.linkedin) contactIcons.push(`<a href="${esc(ensureHttps(prospect.linkedin))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="💼 LinkedIn">💼</a>`);
-                  if (prospect.twitter) contactIcons.push(`<a href="${esc(ensureHttps(prospect.twitter))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="🐦 Twitter">🐦</a>`);
+                  if (prospect.phone) contactIcons.push(`<a href="tel:${esc(prospect.phone)}" onclick="event.stopPropagation()" class="text-lg hover:scale-125 transition-transform" title="📞 ${esc(prospect.phone)}">📞</a>`);
+                  if (prospect.website) contactIcons.push(`<a href="${esc(ensureHttps(prospect.website))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="🌐 ${esc(prospect.website)}">🌐</a>`);
+                  if (prospect.email) contactIcons.push(`<a href="mailto:${esc(prospect.email)}" onclick="event.stopPropagation()" class="text-lg hover:scale-125 transition-transform" title="✉️ ${esc(prospect.email)}">✉️</a>`);
+                  if (prospect.facebook) contactIcons.push(`<a href="${esc(ensureHttps(prospect.facebook))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="📘 ${esc(prospect.facebook)}">📘</a>`);
+                  if (prospect.instagram) contactIcons.push(`<a href="${esc(ensureHttps(prospect.instagram))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="📷 ${esc(prospect.instagram)}">📷</a>`);
+                  if (prospect.linkedin) contactIcons.push(`<a href="${esc(ensureHttps(prospect.linkedin))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="💼 ${esc(prospect.linkedin)}">💼</a>`);
+                  if (prospect.twitter) contactIcons.push(`<a href="${esc(ensureHttps(prospect.twitter))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="🐦 ${esc(prospect.twitter)}">🐦</a>`);
 
                   // Extract address and rating from notes if not available as separate fields
                   let displayAddress = prospect.address || '';
