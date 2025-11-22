@@ -6526,26 +6526,114 @@ Thanks!
     }
 
     function fillTemplateVariables(template, data) {
-      let subject = template.subject;
-      let body = template.body;
+      let subject = template.subject || '';
+      let body = template.body || '';
 
-      // Replace all variables with data
-      template.variables.forEach(variable => {
-        const regex = new RegExp(`\\{${variable}\\}`, 'g');
-        const value = data[variable] || `{${variable}}`;
-        subject = subject.replace(regex, value);
-        body = body.replace(regex, value);
+      // Replace all variables with data (new {VARIABLE} format)
+      if (template.variables && Array.isArray(template.variables)) {
+        template.variables.forEach(variable => {
+          const regex = new RegExp(`\\{${variable}\\}`, 'g');
+          const value = data[variable] || `{${variable}}`;
+          subject = subject.replace(regex, value);
+          body = body.replace(regex, value);
+        });
+      }
+
+      // EXPANDED VARIABLE REPLACEMENT - Both [VARIABLE] and {VARIABLE} formats
+      const variableMap = {
+        // Business info
+        'BUSINESS_NAME': data.businessName || data.name || '',
+        'COMPANY': data.businessName || data.name || '',
+        'BUSINESS': data.businessName || data.name || '',
+
+        // Contact person info
+        'FIRST_NAME': data.firstName || data.contactName?.split(' ')[0] || '',
+        'LAST_NAME': data.lastName || data.contactName?.split(' ').slice(1).join(' ') || '',
+        'CONTACT_NAME': data.contactName || data.firstName || '',
+        'FULL_NAME': data.contactName || (data.firstName && data.lastName ? `${data.firstName} ${data.lastName}` : data.firstName || ''),
+        'OWNER_NAME': data.ownerName || data.contactName || '',
+
+        // Business details
+        'INDUSTRY': data.industry || data.category || '',
+        'CATEGORY': data.category || data.industry || '',
+        'WEBSITE': data.website || '',
+        'PHONE': data.phone || '',
+        'EMAIL': data.email || '',
+
+        // Location
+        'ADDRESS': data.address || '',
+        'STREET': data.address || '',
+        'CITY': data.city || data.town || '',
+        'TOWN': data.town || data.city || '',
+        'STATE': data.state || '',
+        'ZIP': data.zipCode || data.zip || '',
+        'ZIP_CODE': data.zipCode || data.zip || '',
+        'LOCATION': data.city || data.town || data.zipCode || '',
+
+        // Pricing
+        'PRICE': data.price || data.amount || '',
+        'AMOUNT': data.amount || data.price || '',
+        'COST': data.price || data.amount || '',
+        'DISCOUNT': data.discount || '',
+
+        // Campaign info
+        'CAMPAIGN': data.campaign || '',
+        'MAILER': data.campaign || '',
+
+        // User info (sender)
+        'YOUR_NAME': data.yourName || '',
+        'YOUR_PHONE': data.yourPhone || '',
+        'YOUR_EMAIL': data.yourEmail || '',
+        'YOUR_COMPANY': data.yourCompany || '',
+        'YOUR_WEBSITE': data.yourWebsite || '',
+
+        // Date/time
+        'DATE': new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+        'SHORT_DATE': new Date().toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }),
+        'MONTH': new Date().toLocaleDateString('en-US', { month: 'long' }),
+        'YEAR': new Date().getFullYear().toString(),
+        'DAY': new Date().toLocaleDateString('en-US', { weekday: 'long' })
+      };
+
+      // Replace both {VARIABLE} and [VARIABLE] formats
+      Object.keys(variableMap).forEach(key => {
+        const value = variableMap[key];
+        // Replace {VARIABLE} format
+        const curlyRegex = new RegExp(`\\{${key}\\}`, 'g');
+        subject = subject.replace(curlyRegex, value);
+        body = body.replace(curlyRegex, value);
+        // Replace [VARIABLE] format
+        const bracketRegex = new RegExp(`\\[${key}\\]`, 'g');
+        subject = subject.replace(bracketRegex, value);
+        body = body.replace(bracketRegex, value);
       });
 
-      // Also replace old-style [VARIABLE] format for backward compatibility
-      body = body.replace(/\[BUSINESS_NAME\]/g, data.businessName || data.name || '[BUSINESS_NAME]');
-      body = body.replace(/\[TOWN\]/g, data.town || data.zipCode || '[TOWN]');
-      body = body.replace(/\[YOUR_NAME\]/g, data.yourName || '[YOUR_NAME]');
-      body = body.replace(/\[YOUR_PHONE\]/g, data.yourPhone || '[YOUR_PHONE]');
-      body = body.replace(/\[YOUR_EMAIL\]/g, data.yourEmail || '[YOUR_EMAIL]');
-      body = body.replace(/\[DATE\]/g, new Date().toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }));
-
       return { subject, body };
+    }
+
+    // Detect unfilled variables in template text
+    function detectMissingVariables(text) {
+      const missing = [];
+
+      // Match {VARIABLE} format
+      const curlyMatches = text.match(/\{([A-Z_]+)\}/g) || [];
+      curlyMatches.forEach(match => {
+        const varName = match.slice(1, -1); // Remove { and }
+        if (!missing.includes(varName)) {
+          missing.push(varName);
+        }
+      });
+
+      // Match [VARIABLE] format
+      const bracketMatches = text.match(/\[([A-Z_]+)\]/g) || [];
+      bracketMatches.forEach(match => {
+        const varName = match.slice(1, -1); // Remove [ and ]
+        if (!missing.includes(varName)) {
+          missing.push(varName);
+        }
+      });
+
+      return missing;
     }
 
     async function loadPlacesCache() {
@@ -11860,10 +11948,37 @@ Thanks!
                 </select>
               </div>
               <div id="quickTemplatePreview" class="hidden">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Preview:</label>
-                <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <div class="flex justify-between items-center mb-2">
+                  <label class="block text-sm font-medium text-gray-700">Preview:</label>
+                  <button id="btnEditTemplate" onclick="toggleTemplateEdit()" class="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium">
+                    ✏️ Edit Message
+                  </button>
+                </div>
+
+                <!-- Read-only preview -->
+                <div id="templateReadOnlyView" class="bg-gray-50 border border-gray-200 rounded-lg p-4">
                   <div id="quickTemplatePreviewSubject" class="font-semibold text-gray-900 mb-2"></div>
                   <pre id="quickTemplatePreviewBody" class="text-sm text-gray-700 whitespace-pre-wrap font-sans max-h-64 overflow-y-auto"></pre>
+                </div>
+
+                <!-- Editable view (hidden by default) -->
+                <div id="templateEditView" class="hidden space-y-3">
+                  <div id="editSubjectContainer" class="hidden">
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Subject:</label>
+                    <input id="editTemplateSubject" type="text" class="w-full border border-gray-300 rounded-md p-2 text-sm" placeholder="Email subject...">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Message:</label>
+                    <textarea id="editTemplateBody" rows="8" class="w-full border border-gray-300 rounded-md p-2 text-sm font-sans" placeholder="Message body..."></textarea>
+                  </div>
+                  <div class="flex gap-2">
+                    <button onclick="saveTemplateEdits()" class="flex-1 px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium">
+                      ✓ Save Edits
+                    </button>
+                    <button onclick="cancelTemplateEdits()" class="flex-1 px-3 py-2 bg-gray-400 text-white rounded-md hover:bg-gray-500 text-sm font-medium">
+                      ✕ Cancel
+                    </button>
+                  </div>
                 </div>
               </div>
               <div class="flex gap-3 pt-4">
@@ -11909,20 +12024,56 @@ Thanks!
         return;
       }
 
-      // Prepare data
+      // Prepare data with EXPANDED fields
       const data = {
+        // Business info
         businessName: client.businessName || '',
-        contactName: client.contact?.name || '',
-        phone: client.contact?.phone || '',
-        email: client.contact?.email || '',
-        town: client.town || '',
+        name: client.businessName || '',
+
+        // Contact person info
+        contactName: client.contact?.name || client.ownerName || '',
+        firstName: client.contact?.firstName || (client.contact?.name?.split(' ')[0]) || '',
+        lastName: client.contact?.lastName || (client.contact?.name?.split(' ').slice(1).join(' ')) || '',
+        ownerName: client.ownerName || client.contact?.name || '',
+
+        // Business details
+        industry: client.industry || client.category || '',
+        category: client.category || client.industry || '',
+        website: client.website || '',
+        phone: client.contact?.phone || client.phone || '',
+        email: client.contact?.email || client.email || '',
+
+        // Location
+        address: client.address || '',
+        city: client.city || client.town || '',
+        town: client.town || client.city || '',
+        state: client.state || '',
         zipCode: client.zipCode || '',
-        campaign: state.current?.mailerName || '',
+        zip: client.zipCode || '',
+
+        // Pricing
+        price: client.pricing?.finalPrice ? `$${client.pricing.finalPrice}` : '',
         amount: client.pricing?.finalPrice ? `$${client.pricing.finalPrice}` : '',
+        discount: client.pricing?.discount || '',
+
+        // Campaign info
+        campaign: state.current?.mailerName || '',
+
+        // User info (TODO: Get from user settings)
+        yourName: '',
+        yourPhone: '',
+        yourEmail: '',
+        yourCompany: '',
+        yourWebsite: '',
+
+        // Date
         date: new Date().toLocaleDateString()
       };
 
       const filled = fillTemplateVariables(template, data);
+
+      // Detect missing variables
+      const missingVars = detectMissingVariables(filled.subject + ' ' + filled.body);
 
       // Show preview
       const previewSubject = document.getElementById('quickTemplatePreviewSubject');
@@ -11936,11 +12087,153 @@ Thanks!
       }
 
       previewBody.textContent = filled.body;
+
+      // Show warning if there are missing variables
+      let warningDiv = document.getElementById('templateWarning');
+      if (missingVars.length > 0) {
+        if (!warningDiv) {
+          warningDiv = document.createElement('div');
+          warningDiv.id = 'templateWarning';
+          previewContainer.insertBefore(warningDiv, previewContainer.firstChild);
+        }
+        warningDiv.className = 'bg-yellow-50 border border-yellow-300 rounded-md p-3 mb-3';
+        warningDiv.innerHTML = `
+          <div class="flex items-start gap-2">
+            <span class="text-yellow-600 text-lg">⚠️</span>
+            <div class="flex-1">
+              <div class="font-semibold text-yellow-900 text-sm">Missing Information</div>
+              <div class="text-yellow-800 text-xs mt-1">
+                The following variables are not filled: <strong>${missingVars.join(', ')}</strong>
+                <br>Please review the message carefully before sending.
+              </div>
+            </div>
+          </div>
+        `;
+        sendButton.textContent = `⚠️ Send Anyway (${missingVars.length} missing)`;
+        sendButton.className = 'flex-1 px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 font-medium';
+      } else {
+        if (warningDiv) warningDiv.remove();
+        sendButton.textContent = sendType === 'sms' ? '📱 Send SMS' : '✉️ Send Email';
+        sendButton.className = 'flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-medium';
+      }
+
       previewContainer.classList.remove('hidden');
       sendButton.disabled = false;
 
-      // Store selected template
+      // Store selected template and data for editing
       window.currentQuickTemplateSelected = template;
+      window.currentQuickTemplateData = data;
+      window.currentQuickTemplateFilled = filled;
+    }
+
+    // Toggle between read-only preview and editable mode
+    function toggleTemplateEdit() {
+      const readOnlyView = document.getElementById('templateReadOnlyView');
+      const editView = document.getElementById('templateEditView');
+      const editButton = document.getElementById('btnEditTemplate');
+      const editSubject = document.getElementById('editTemplateSubject');
+      const editBody = document.getElementById('editTemplateBody');
+      const subjectContainer = document.getElementById('editSubjectContainer');
+
+      if (!window.currentQuickTemplateFilled) return;
+
+      const sendType = window.currentQuickTemplateSendType;
+
+      // Show edit view
+      readOnlyView.classList.add('hidden');
+      editView.classList.remove('hidden');
+      editButton.classList.add('hidden');
+
+      // Populate edit fields
+      if (sendType === 'email' && window.currentQuickTemplateFilled.subject) {
+        subjectContainer.classList.remove('hidden');
+        editSubject.value = window.currentQuickTemplateFilled.subject;
+      } else {
+        subjectContainer.classList.add('hidden');
+      }
+      editBody.value = window.currentQuickTemplateFilled.body;
+
+      // Focus on body
+      editBody.focus();
+    }
+
+    // Save edits to the template
+    function saveTemplateEdits() {
+      const editSubject = document.getElementById('editTemplateSubject');
+      const editBody = document.getElementById('editTemplateBody');
+      const sendType = window.currentQuickTemplateSendType;
+
+      if (!editBody.value.trim()) {
+        toast('Message cannot be empty', false);
+        return;
+      }
+
+      // Update the filled template with edited content
+      window.currentQuickTemplateFilled = {
+        subject: sendType === 'email' ? editSubject.value : '',
+        body: editBody.value
+      };
+
+      // Update read-only preview
+      const previewSubject = document.getElementById('quickTemplatePreviewSubject');
+      const previewBody = document.getElementById('quickTemplatePreviewBody');
+
+      if (sendType === 'email' && editSubject.value) {
+        previewSubject.textContent = editSubject.value;
+        previewSubject.style.display = 'block';
+      } else {
+        previewSubject.style.display = 'none';
+      }
+      previewBody.textContent = editBody.value;
+
+      // Check for missing variables after editing
+      const missingVars = detectMissingVariables(editSubject.value + ' ' + editBody.value);
+      const sendButton = document.getElementById('btnSendQuickTemplate');
+      let warningDiv = document.getElementById('templateWarning');
+
+      if (missingVars.length > 0) {
+        if (!warningDiv) {
+          warningDiv = document.createElement('div');
+          warningDiv.id = 'templateWarning';
+          const previewContainer = document.getElementById('quickTemplatePreview');
+          previewContainer.insertBefore(warningDiv, previewContainer.firstChild);
+        }
+        warningDiv.className = 'bg-yellow-50 border border-yellow-300 rounded-md p-3 mb-3';
+        warningDiv.innerHTML = `
+          <div class="flex items-start gap-2">
+            <span class="text-yellow-600 text-lg">⚠️</span>
+            <div class="flex-1">
+              <div class="font-semibold text-yellow-900 text-sm">Missing Information</div>
+              <div class="text-yellow-800 text-xs mt-1">
+                The following variables are not filled: <strong>${missingVars.join(', ')}</strong>
+                <br>Please review the message carefully before sending.
+              </div>
+            </div>
+          </div>
+        `;
+        sendButton.textContent = `⚠️ Send Anyway (${missingVars.length} missing)`;
+        sendButton.className = 'flex-1 px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 font-medium';
+      } else {
+        if (warningDiv) warningDiv.remove();
+        sendButton.textContent = sendType === 'sms' ? '📱 Send SMS' : '✉️ Send Email';
+        sendButton.className = 'flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-medium';
+      }
+
+      // Switch back to read-only view
+      cancelTemplateEdits();
+
+      toast('✓ Message updated', true);
+    }
+
+    // Cancel editing and return to read-only view
+    function cancelTemplateEdits() {
+      const readOnlyView = document.getElementById('templateReadOnlyView');
+      const editView = document.getElementById('templateEditView');
+      const editButton = document.getElementById('btnEditTemplate');
+
+      editView.classList.add('hidden');
+      readOnlyView.classList.remove('hidden');
+      editButton.classList.remove('hidden');
     }
 
     async function sendQuickTemplateFromPicker(clientId, sendType) {
@@ -11952,20 +12245,13 @@ Thanks!
         return;
       }
 
-      // Prepare data
-      const data = {
-        businessName: client.businessName || '',
-        contactName: client.contact?.name || '',
-        phone: client.contact?.phone || '',
-        email: client.contact?.email || '',
-        town: client.town || '',
-        zipCode: client.zipCode || '',
-        campaign: state.current?.mailerName || '',
-        amount: client.pricing?.finalPrice ? `$${client.pricing.finalPrice}` : '',
-        date: new Date().toLocaleDateString()
-      };
+      // Use the filled template (which may have been edited by user)
+      const filled = window.currentQuickTemplateFilled;
 
-      const filled = fillTemplateVariables(template, data);
+      if (!filled || !filled.body) {
+        toast('No message to send', false);
+        return;
+      }
 
       // Send based on type
       if (sendType === 'sms') {
@@ -11989,7 +12275,7 @@ Thanks!
         await logClientInteraction(clientId, 'sms', `Sent SMS - Template: ${template.name}`);
 
       } else if (sendType === 'email') {
-        const mailtoLink = `mailto:${client.contact.email}?subject=${encodeURIComponent(filled.subject)}&body=${encodeURIComponent(filled.body)}`;
+        const mailtoLink = `mailto:${client.contact.email}?subject=${encodeURIComponent(filled.subject || '')}&body=${encodeURIComponent(filled.body)}`;
         window.location.href = mailtoLink;
 
         // Log interaction
