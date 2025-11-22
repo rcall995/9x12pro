@@ -120,6 +120,124 @@
         .modal{max-height:95vh;border-radius:.5rem;padding:.75rem}
         .modal-backdrop{padding:.5rem}
     }
+
+    /* Mobile Touch Optimization */
+    @media (max-width: 768px) {
+      /* Larger touch targets for buttons */
+      button, .btn, input[type="button"], input[type="submit"] {
+        min-height: 44px !important;
+        min-width: 44px !important;
+        padding: 12px 16px !important;
+        font-size: 16px !important; /* Prevents iOS zoom on input focus */
+      }
+
+      /* Larger touch targets for checkboxes */
+      input[type="checkbox"] {
+        min-width: 24px !important;
+        min-height: 24px !important;
+      }
+
+      /* Kanban columns stack vertically on mobile */
+      .kanban-board {
+        flex-direction: column !important;
+        gap: 16px !important;
+      }
+
+      .kanban-column {
+        width: 100% !important;
+        min-width: 100% !important;
+      }
+
+      /* Larger drag handles on mobile */
+      .kanban-item .drag-handle {
+        padding-left: 32px !important;
+        min-height: 44px !important;
+        display: flex;
+        align-items: center;
+      }
+
+      .kanban-item .drag-handle::before {
+        font-size: 18px !important;
+        left: 6px !important;
+      }
+
+      /* Better card spacing on mobile */
+      .kanban-item {
+        margin-bottom: 12px !important;
+        padding: 12px !important;
+      }
+
+      /* Client cards responsive */
+      .client-row {
+        min-height: 180px !important;
+      }
+
+      /* Hide some labels on mobile, show icons only */
+      .hide-on-mobile {
+        display: none !important;
+      }
+
+      /* Single column grid on mobile */
+      .grid-cols-1.md\\:grid-cols-2.lg\\:grid-cols-3 {
+        grid-template-columns: 1fr !important;
+      }
+
+      /* Prospect pool cards */
+      .prospect-card {
+        padding: 12px !important;
+      }
+
+      /* Better modal sizing on mobile */
+      .modal {
+        max-width: 100% !important;
+        margin: 8px !important;
+      }
+
+      /* Prevent horizontal scroll */
+      body {
+        overflow-x: hidden;
+      }
+
+      /* Improve form inputs on mobile */
+      input[type="text"],
+      input[type="email"],
+      input[type="tel"],
+      input[type="number"],
+      select,
+      textarea {
+        font-size: 16px !important; /* Prevents iOS zoom */
+        min-height: 44px !important;
+      }
+    }
+
+    /* Tablet optimization */
+    @media (min-width: 769px) and (max-width: 1024px) {
+      .kanban-column {
+        min-width: 280px !important;
+      }
+
+      .grid-cols-1.md\\:grid-cols-2.lg\\:grid-cols-3 {
+        grid-template-columns: repeat(2, 1fr) !important;
+      }
+    }
+
+    /* Smooth scrolling for better mobile UX */
+    html {
+      scroll-behavior: smooth;
+    }
+
+    /* Better touch feedback */
+    button:active, .btn:active, .kanban-item:active {
+      transform: scale(0.98);
+      transition: transform 0.1s ease;
+    }
+
+    /* Pull-to-refresh hint */
+    @media (max-width: 768px) {
+      body {
+        overscroll-behavior-y: contain;
+      }
+    }
     
     /* OVERLAY EDIT BUTTON - appears on top of selected card */
     .card-edit-overlay {
@@ -151,8 +269,20 @@
       background: rgba(29, 78, 216, 0.95);
     }
     
-    .toast{position:fixed;bottom:22px;right:22px;z-index:50;padding:.6rem .9rem;border-radius:.6rem;color:#fff;box-shadow:0 10px 20px rgba(0,0,0,.2)}
+    .toast{position:fixed;bottom:22px;right:22px;z-index:9999;padding:.6rem .9rem;border-radius:.6rem;color:#fff;box-shadow:0 10px 20px rgba(0,0,0,.2);font-size:14px;max-width:90vw}
     .toast-ok{background:#059669}.toast-warn{background:#b45309}
+    @media (max-width: 768px) {
+      .toast {
+        bottom: 80px !important; /* Avoid overlapping with mobile nav if added */
+        left: 50% !important;
+        right: auto !important;
+        transform: translateX(-50%);
+        min-width: 200px;
+        text-align: center;
+        font-size: 16px !important;
+        padding: 12px 20px !important;
+      }
+    }
     @media print{#legendArea,.toast{display:none!important}}
     #legendGrid{
       display:flex;
@@ -282,6 +412,19 @@
         background-color: white;
         box-shadow: 0 -2px 5px rgba(0,0,0,0.05);
     }
+    @media (max-width: 768px) {
+      .tab-btn {
+        min-height: 48px !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px !important; /* Larger emoji icons on mobile */
+      }
+      .tab-btn.active {
+        border-bottom: 3px solid #4f46e5 !important;
+        transform: translateY(-2px);
+      }
+    }
     .dashboard-widget {
         background-color: white;
         border-radius: 0.5rem;
@@ -359,26 +502,68 @@
     }
     .kanban-item .drag-handle {
       cursor: grab !important;
+      position: relative;
+      padding-left: 24px; /* Make room for grip icon */
+    }
+    .kanban-item .drag-handle::before {
+      content: '⋮⋮';
+      position: absolute;
+      left: 4px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 14px;
+      color: #9ca3af;
+      letter-spacing: -2px;
+      opacity: 0.6;
+      transition: opacity 0.2s ease;
+    }
+    .kanban-item:hover .drag-handle::before {
+      opacity: 1;
+      color: #6366f1;
     }
     .kanban-item .drag-handle:active {
       cursor: grabbing !important;
     }
     .kanban-item.dragging {
-      opacity: 0.3;
+      opacity: 0.5;
       cursor: grabbing !important;
-      border: 2px dashed #4f46e5 !important;
-      background-color: #f0f0f0 !important;
+      transform: rotate(3deg) scale(1.05);
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+      color: white !important;
+      box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4) !important;
+      border: 2px solid #4f46e5 !important;
+      transition: all 0.2s ease;
+      z-index: 1000;
+    }
+    .kanban-item.dragging * {
+      color: white !important;
     }
     .kanban-item.dragging .drag-handle {
       cursor: grabbing !important;
     }
+    .kanban-item.dragging .drag-handle::before {
+      color: rgba(255,255,255,0.8);
+    }
     .kanban-item.drag-over {
-      border-top: 3px solid #4f46e5 !important;
-      padding-top: 4px;
+      border-top: 4px dashed #4f46e5 !important;
+      padding-top: 8px;
+      background: linear-gradient(to bottom, rgba(79, 70, 229, 0.1) 0%, transparent 100%) !important;
+      animation: pulse-border 1s ease-in-out infinite;
+    }
+    @keyframes pulse-border {
+      0%, 100% { border-top-color: #4f46e5; }
+      50% { border-top-color: #818cf8; }
     }
     .kanban-column.drag-over-column {
-      background-color: #eef2ff;
-      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(79, 70, 229, 0.08) 0%, rgba(79, 70, 229, 0.02) 100%);
+      border: 2px dashed #4f46e5 !important;
+      border-radius: 12px;
+      box-shadow: inset 0 0 0 2px rgba(79, 70, 229, 0.2);
+      animation: column-glow 1.5s ease-in-out infinite;
+    }
+    @keyframes column-glow {
+      0%, 100% { box-shadow: inset 0 0 0 2px rgba(79, 70, 229, 0.2), 0 0 20px rgba(79, 70, 229, 0.1); }
+      50% { box-shadow: inset 0 0 0 2px rgba(79, 70, 229, 0.4), 0 0 30px rgba(79, 70, 229, 0.2); }
     }
     .card > div:not(.spot-label):not(.status-badge):not(.selected-pill):not(.price-badge):not(.card-edit-overlay) {
       overflow: hidden;
@@ -13183,9 +13368,197 @@ Thanks!
             toast(`Moved to ${columnTitles[toColumn] || toColumn}`);
           }
         };
+
+        // Add mobile touch support for drag-and-drop
+        let touchStartX, touchStartY, touchMoveX, touchMoveY;
+        let isTouchDragging = false;
+        let touchClone = null;
+
+        item.addEventListener('touchstart', function(e) {
+          // Only allow touch drag from drag handle
+          let element = e.target;
+          let isDragHandle = false;
+
+          while (element && element !== this) {
+            if (element.classList && element.classList.contains('drag-handle')) {
+              isDragHandle = true;
+              break;
+            }
+            element = element.parentElement;
+          }
+
+          if (!isDragHandle) return;
+
+          touchStartX = e.touches[0].clientX;
+          touchStartY = e.touches[0].clientY;
+          isTouchDragging = false;
+
+          // Add slight delay to distinguish tap from drag
+          setTimeout(() => {
+            if (Math.abs(e.touches[0].clientX - touchStartX) > 5 ||
+                Math.abs(e.touches[0].clientY - touchStartY) > 5) {
+              isTouchDragging = true;
+            }
+          }, 100);
+        }, { passive: true });
+
+        item.addEventListener('touchmove', function(e) {
+          if (!isTouchDragging) return;
+
+          e.preventDefault(); // Prevent scrolling while dragging
+
+          touchMoveX = e.touches[0].clientX;
+          touchMoveY = e.touches[0].clientY;
+
+          if (!draggedItem) {
+            draggedItem = this;
+            this.classList.add('dragging');
+
+            // Create visual clone for touch dragging
+            touchClone = this.cloneNode(true);
+            touchClone.style.position = 'fixed';
+            touchClone.style.zIndex = '10000';
+            touchClone.style.pointerEvents = 'none';
+            touchClone.style.width = this.offsetWidth + 'px';
+            touchClone.style.opacity = '0.8';
+            touchClone.classList.add('dragging');
+            document.body.appendChild(touchClone);
+          }
+
+          // Move clone with finger
+          if (touchClone) {
+            touchClone.style.left = (touchMoveX - (this.offsetWidth / 2)) + 'px';
+            touchClone.style.top = (touchMoveY - 30) + 'px';
+          }
+
+          // Highlight drop zone under finger
+          const elementUnder = document.elementFromPoint(touchMoveX, touchMoveY);
+          if (elementUnder) {
+            const columnUnder = elementUnder.closest('.kanban-column');
+            const itemUnder = elementUnder.closest('.kanban-item:not(.dragging)');
+
+            // Remove previous highlights
+            document.querySelectorAll('.kanban-item.drag-over').forEach(el => {
+              el.classList.remove('drag-over');
+            });
+            document.querySelectorAll('.kanban-column.drag-over-column').forEach(el => {
+              el.classList.remove('drag-over-column');
+            });
+
+            // Add highlights
+            if (itemUnder && itemUnder !== draggedItem) {
+              itemUnder.classList.add('drag-over');
+            } else if (columnUnder) {
+              columnUnder.classList.add('drag-over-column');
+            }
+          }
+        }, { passive: false });
+
+        item.addEventListener('touchend', async function(e) {
+          if (!isTouchDragging || !draggedItem) {
+            isTouchDragging = false;
+            return;
+          }
+
+          e.preventDefault();
+
+          // Find element under touch point
+          const elementUnder = document.elementFromPoint(touchMoveX, touchMoveY);
+          const targetColumn = elementUnder?.closest('.kanban-column');
+          const targetItem = elementUnder?.closest('.kanban-item:not(.dragging)');
+
+          // Clean up visual clone
+          if (touchClone) {
+            touchClone.remove();
+            touchClone = null;
+          }
+
+          // Clean up highlights
+          document.querySelectorAll('.kanban-item.drag-over').forEach(el => {
+            el.classList.remove('drag-over');
+          });
+          document.querySelectorAll('.kanban-column.drag-over-column').forEach(el => {
+            el.classList.remove('drag-over-column');
+          });
+          this.classList.remove('dragging');
+
+          if (!targetColumn) {
+            draggedItem = null;
+            isTouchDragging = false;
+            return;
+          }
+
+          const fromColumn = draggedItem.dataset.column;
+          const toColumn = targetColumn.dataset.column;
+          const itemId = draggedItem.dataset.itemId;
+
+          // Find and move the item
+          const fromItems = kanbanState.columns[fromColumn] || [];
+          const fromIdx = fromItems.findIndex(item => {
+            if (typeof item === 'string') return false;
+            return String(item.id) === String(itemId);
+          });
+
+          if (fromIdx > -1) {
+            const itemToMove = fromItems[fromIdx];
+            fromItems.splice(fromIdx, 1);
+
+            if (!kanbanState.columns[toColumn]) {
+              kanbanState.columns[toColumn] = [];
+            }
+
+            const toItems = kanbanState.columns[toColumn];
+
+            // If dropped on specific item, insert before it
+            if (targetItem) {
+              const targetItemId = targetItem.dataset.itemId;
+              const targetIdx = toItems.findIndex(item => {
+                if (typeof item === 'string') return false;
+                return String(item.id) === String(targetItemId);
+              });
+              if (targetIdx > -1) {
+                toItems.splice(targetIdx, 0, itemToMove);
+              } else {
+                toItems.push(itemToMove);
+              }
+            } else {
+              toItems.push(itemToMove);
+            }
+
+            // Track daily goal
+            const businessName = typeof itemToMove === 'string' ? itemToMove : (itemToMove.businessName || 'Unnamed Business');
+            const forwardColumns = ['in-progress', 'committed'];
+
+            if (fromColumn === 'to-contact' && forwardColumns.includes(toColumn)) {
+              incrementDailyGoal(businessName);
+            } else if (forwardColumns.includes(fromColumn) && toColumn === 'to-contact') {
+              decrementDailyGoal(businessName);
+            }
+
+            // Save and render
+            try {
+              await saveKanban();
+              renderKanban();
+            } catch (err) {
+              console.error('Error saving kanban after touch move:', err);
+              renderKanban();
+            }
+
+            const columnTitles = {
+              'prospect-list': '1. Prospect List',
+              'to-contact': '2. To Contact',
+              'in-progress': '3. In Progress',
+              'committed': '4. Committed'
+            };
+            toast(`Moved to ${columnTitles[toColumn] || toColumn}`);
+          }
+
+          draggedItem = null;
+          isTouchDragging = false;
+        }, { passive: false });
       });
     }
-    
+
     /* ========= TASKS FUNCTIONS ========= */
     
     async function loadTasks() {
