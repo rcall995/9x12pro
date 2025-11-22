@@ -4184,7 +4184,18 @@ Thanks!
     }
     
     function toggleTaskComplete(checkbox) {
+      // Handle case where checkbox might be an event instead of an element
+      if (!checkbox || typeof checkbox.closest !== 'function') {
+        console.error('toggleTaskComplete called with invalid checkbox:', checkbox);
+        return;
+      }
+
       const row = checkbox.closest('.task-row');
+      if (!row) {
+        console.error('Could not find task-row for checkbox');
+        return;
+      }
+
       const taskId = row.dataset.taskId;
       const task = tasksState.tasks.find(t => t.id == taskId);
       if (task) {
