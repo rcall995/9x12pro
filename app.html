@@ -9537,36 +9537,54 @@ Thanks!
             };
             console.log('🔵 Created newLead:', newLead);
           } else {
-            // Handle Google Places businesses (needs API fetch)
-            btn.textContent = `⏳ Fetching contact details... (${i + 1}/${selectedBusinesses.length})`;
+            // Handle Google Places businesses
+            // IMPORTANT: Use existing data from business object if already available (from cache)
+            btn.textContent = `⏳ Processing... (${i + 1}/${selectedBusinesses.length})`;
 
-            let details = { phone: '', website: '', email: '', facebook: '', instagram: '', source: 'google-places' };
+            // Start with data already in the business object (may be enriched from previous scraping)
+            let details = {
+              phone: business.phone || '',
+              website: business.website || '',
+              email: business.email || '',
+              facebook: business.facebook || '',
+              instagram: business.instagram || '',
+              linkedin: business.linkedin || '',
+              twitter: business.twitter || '',
+              contactNames: [],
+              source: business.source || 'google-places',
+              enriched: business.enriched || false
+            };
 
-            // Step 1: Get basic info from Google Places API (free)
-            if (business.placeId) {
-              details = await fetchPlaceDetails(business.placeId);
+            // Step 1: Only fetch from API if we don't have basic data yet
+            if (business.placeId && !details.phone && !details.website) {
+              btn.textContent = `⏳ Fetching details... (${i + 1}/${selectedBusinesses.length})`;
+              const apiDetails = await fetchPlaceDetails(business.placeId);
+              // Merge API data (don't overwrite existing enriched data)
+              details.phone = details.phone || apiDetails.phone || '';
+              details.website = details.website || apiDetails.website || '';
             }
 
-            // Step 2: Check if user wants Smart Enrichment
+            // Step 2: Check if user wants Smart Enrichment AND we don't have enriched data yet
             const enableSmartEnrichment = document.getElementById('enableSmartEnrichment')?.checked;
+            const needsEnrichment = !details.email && !details.facebook && !details.instagram;
 
-            if (enableSmartEnrichment && details.website) {
+            if (enableSmartEnrichment && details.website && needsEnrichment) {
               // Use our custom scraper to find emails, social media, etc.
               btn.textContent = `🎯 Smart enriching... (${i + 1}/${selectedBusinesses.length})`;
               const enrichedData = await fetchSmartEnrichment(details.website, business.name);
 
-              // Merge enriched data with Google Places data
+              // Merge enriched data (preserve existing data)
               details = {
                 phone: details.phone || enrichedData.phone || '',
                 website: details.website || '',
-                email: enrichedData.email || '',
-                facebook: enrichedData.facebook || '',
-                instagram: enrichedData.instagram || '',
-                linkedin: enrichedData.linkedin || '',
-                twitter: enrichedData.twitter || '',
+                email: details.email || enrichedData.email || '',
+                facebook: details.facebook || enrichedData.facebook || '',
+                instagram: details.instagram || enrichedData.instagram || '',
+                linkedin: details.linkedin || enrichedData.linkedin || '',
+                twitter: details.twitter || enrichedData.twitter || '',
                 contactNames: enrichedData.contactNames || [],
-                source: enrichedData.enriched ? '9x12pro-scraper' : 'google-places',
-                enriched: enrichedData.enriched,
+                source: enrichedData.enriched ? '9x12pro-scraper' : details.source,
+                enriched: enrichedData.enriched || details.enriched,
                 pagesScraped: enrichedData.pagesScraped
               };
             }
