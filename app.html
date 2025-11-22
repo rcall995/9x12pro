@@ -8271,15 +8271,15 @@ Thanks!
           await saveToCloud('manualProspects', prospectPoolState.manualProspects).catch(e => console.warn('Failed to save deduplicated manual prospects:', e));
         }
 
-        // Auto-cleanup: Run once to fix isEnriched flag and remove town field
-        const hasRunCleanup = localStorage.getItem('hasRunProspectPoolCleanup_v3');
+        // Auto-cleanup: Run once to remove town field (v4 - preserves isEnriched)
+        const hasRunCleanup = localStorage.getItem('hasRunProspectPoolCleanup_v4');
         console.log('🔍 Checking cleanup status:', hasRunCleanup ? 'Already run' : 'Need to run');
         console.log('🔍 Manual prospects count:', prospectPoolState.manualProspects.length);
 
         if (!hasRunCleanup) {
-          console.log('🔧 Running one-time prospect pool cleanup (v3 - remove town field)...');
+          console.log('🔧 Running one-time prospect pool cleanup (v4 - remove town field, preserve enrichment)...');
           await cleanupProspectPoolEnrichment();
-          localStorage.setItem('hasRunProspectPoolCleanup_v3', 'true');
+          localStorage.setItem('hasRunProspectPoolCleanup_v4', 'true');
           console.log('✅ One-time cleanup complete. Will not run again.');
         } else {
           console.log('⏭️ Cleanup already completed previously.');
@@ -8301,36 +8301,49 @@ Thanks!
       }
     }
 
-    // One-time cleanup: Set isEnriched to false and remove town field from all prospect pool items
+    // One-time cleanup: Remove town field and restore enrichment flags
+    // v4: Intelligently restore isEnriched flag based on actual enrichment data
     async function cleanupProspectPoolEnrichment() {
-      console.log('🧹 Starting prospect pool cleanup...');
+      console.log('🧹 Starting prospect pool cleanup v4...');
       console.log(`Total items before cleanup: ${prospectPoolState.manualProspects.length}`);
 
-      let updatedCount = 0;
       let townFieldsRemoved = 0;
+      let enrichmentRestored = 0;
       prospectPoolState.manualProspects = prospectPoolState.manualProspects.map(prospect => {
         let needsUpdate = false;
         const updated = { ...prospect };
-
-        if (prospect.isEnriched !== false) {
-          updated.isEnriched = false;
-          needsUpdate = true;
-          updatedCount++;
-        }
 
         // Remove town field (campaign name should not be stored in prospect data)
         if (prospect.town) {
           delete updated.town;
           needsUpdate = true;
           townFieldsRemoved++;
-          console.log(`🗑️ Removed town field from: ${prospect.businessName || prospect.name} (was: "${prospect.town}")`);
+          console.log(`🗑️ Removed town field from: ${prospect.businessName || prospect.name}`);
+        }
+
+        // RESTORE isEnriched flag if prospect has enrichment data
+        // Check if prospect has email, social media, or came from kanban
+        const hasEnrichmentData = !!(
+          prospect.email ||
+          prospect.facebook ||
+          prospect.instagram ||
+          prospect.linkedin ||
+          prospect.twitter ||
+          prospect.contactName
+        );
+
+        if (hasEnrichmentData && prospect.isEnriched !== true) {
+          updated.isEnriched = true;
+          needsUpdate = true;
+          enrichmentRestored++;
+          console.log(`✅ Restored isEnriched flag for: ${prospect.businessName || prospect.name}`);
         }
 
         return needsUpdate ? updated : prospect;
       });
 
-      console.log(`✅ Updated ${updatedCount} prospects to isEnriched: false`);
       console.log(`✅ Removed town field from ${townFieldsRemoved} prospects`);
+      console.log(`✅ Restored isEnriched flag for ${enrichmentRestored} prospects with enrichment data`);
 
       // Save to cloud and localStorage
       await saveManualProspects();
@@ -8338,8 +8351,8 @@ Thanks!
       // Re-render prospect pool
       renderProspectPool();
 
-      toast(`🧹 Cleaned up ${updatedCount} prospect pool items`, true);
-      console.log('✅ Cleanup complete! All prospect pool items now show checkbox interface.');
+      toast(`🧹 Restored enrichment data for ${enrichmentRestored} prospects`, true);
+      console.log('✅ Cleanup complete! Enrichment data restored.');
     }
 
     // Expose cleanup function globally (can be called from console)
