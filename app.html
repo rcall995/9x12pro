@@ -8395,60 +8395,171 @@ Thanks!
 
     // Business Categories State
     let businessCategories = [
+      // AUTOMOTIVE
       { value: "auto_body_shop", label: "Auto Body Shop" },
-      { value: "car_wash", label: "Auto Detailing" },
+      { value: "auto_detailing", label: "Auto Detailing" },
+      { value: "auto_glass", label: "Auto Glass Repair" },
       { value: "car_repair", label: "Auto Repair" },
-      { value: "bakery", label: "Bakery" },
-      { value: "bar", label: "Bar/Pub" },
-      { value: "beauty_salon", label: "Beauty/Spa" },
-      { value: "bowling_alley", label: "Bowling Alley" },
-      { value: "cafe", label: "Cafe" },
       { value: "car_dealer", label: "Car Dealer" },
       { value: "car_wash", label: "Car Wash" },
+      { value: "motorcycle_dealer", label: "Motorcycle Dealer" },
+      { value: "rv_dealer", label: "RV Dealer" },
+      { value: "tire_shop", label: "Tire Shop" },
+      { value: "towing_service", label: "Towing Service" },
+      { value: "truck_repair", label: "Truck Repair" },
+
+      // CONSTRUCTION & CONTRACTORS
+      { value: "cabinet_maker", label: "Cabinet Maker" },
+      { value: "carpenter", label: "Carpenter" },
+      { value: "concrete_contractor", label: "Concrete Contractor" },
+      { value: "deck_builder", label: "Deck Builder" },
+      { value: "drywall_contractor", label: "Drywall Contractor" },
+      { value: "electrician", label: "Electrician" },
+      { value: "fence_contractor", label: "Fence Installation" },
+      { value: "flooring_contractor", label: "Flooring Contractor" },
+      { value: "foundation_repair", label: "Foundation Repair" },
+      { value: "general_contractor", label: "General Contractor" },
+      { value: "gutter_service", label: "Gutter Installation/Repair" },
+      { value: "handyman", label: "Handyman" },
+      { value: "hvac_contractor", label: "HVAC" },
+      { value: "insulation_contractor", label: "Insulation Contractor" },
+      { value: "kitchen_remodeling", label: "Kitchen & Bath Remodeling" },
+      { value: "masonry", label: "Masonry" },
+      { value: "painter", label: "Painter" },
+      { value: "plumber", label: "Plumber" },
+      { value: "roofing_contractor", label: "Roofer" },
+      { value: "siding_contractor", label: "Siding Contractor" },
+      { value: "waterproofing", label: "Waterproofing" },
+      { value: "window_installation", label: "Window Installation" },
+
+      // FOOD & BEVERAGE
+      { value: "bakery", label: "Bakery" },
+      { value: "bar", label: "Bar/Pub" },
+      { value: "bbq_restaurant", label: "BBQ Restaurant" },
+      { value: "cafe", label: "Cafe/Coffee Shop" },
       { value: "meal_delivery", label: "Catering" },
+      { value: "food_truck", label: "Food Truck" },
+      { value: "ice_cream_shop", label: "Ice Cream Shop" },
+      { value: "pizza", label: "Pizzeria" },
+      { value: "restaurant", label: "Restaurant" },
+
+      // HEALTH & MEDICAL
+      { value: "acupuncture", label: "Acupuncture" },
       { value: "chiropractor", label: "Chiropractor" },
-      { value: "cleaning", label: "Cleaning Service" },
-      { value: "general_contractor", label: "Contractor" },
-      { value: "school", label: "Daycare" },
-      { value: "laundry", label: "Dry Cleaner" },
       { value: "dentist", label: "Dentist" },
       { value: "doctor", label: "Doctor/Physician" },
-      { value: "electrician", label: "Electrician" },
+      { value: "hearing_aid", label: "Hearing Aid Provider" },
+      { value: "medical_spa", label: "Medical Spa" },
+      { value: "mental_health", label: "Mental Health Services" },
+      { value: "optometrist", label: "Optometrist" },
+      { value: "pediatrician", label: "Pediatrician" },
+      { value: "pharmacy", label: "Pharmacy" },
+      { value: "physiotherapist", label: "Physical Therapy" },
+      { value: "senior_care", label: "Senior Care/Assisted Living" },
+      { value: "urgent_care", label: "Urgent Care" },
+      { value: "veterinary_care", label: "Veterinarian" },
+
+      // HOME & OUTDOOR SERVICES
+      { value: "cleaning", label: "Cleaning Service" },
+      { value: "gutter_cleaning", label: "Gutter Cleaning" },
+      { value: "home_inspection", label: "Home Inspection" },
+      { value: "junk_removal", label: "Junk Removal" },
+      { value: "landscaping", label: "Landscaping" },
+      { value: "lawn_care", label: "Lawn Care/Mowing" },
+      { value: "locksmith", label: "Locksmith" },
+      { value: "moving_company", label: "Moving Company" },
+      { value: "pest_control", label: "Pest Control" },
+      { value: "pool_service", label: "Pool Service & Repair" },
+      { value: "pressure_washing", label: "Pressure Washing" },
+      { value: "septic_service", label: "Septic Service" },
+      { value: "tree_service", label: "Tree Service" },
+      { value: "well_drilling", label: "Well Drilling & Repair" },
+      { value: "window_cleaning", label: "Window Washing" },
+
+      // REGIONAL: NORTHERN STATES (Snow/Winter)
+      { value: "firewood_delivery", label: "Firewood Delivery" },
+      { value: "heating_oil", label: "Heating Oil Delivery" },
+      { value: "ice_dam_removal", label: "Ice Dam Removal" },
+      { value: "snowplowing", label: "Snow Plowing" },
+      { value: "snow_removal", label: "Snow Removal" },
+
+      // REGIONAL: SOUTHERN/COASTAL (Hurricane/Tropical)
+      { value: "hurricane_shutters", label: "Hurricane Shutters" },
+      { value: "storm_cleanup", label: "Storm Cleanup & Restoration" },
+
+      // REGIONAL: SOUTHWEST (Desert/Arid)
+      { value: "desert_landscaping", label: "Desert Landscaping/Xeriscaping" },
+      { value: "irrigation_systems", label: "Irrigation Systems" },
+
+      // REGIONAL: COASTAL (Marine)
+      { value: "boat_repair", label: "Boat Repair & Service" },
+      { value: "dock_builder", label: "Dock & Pier Construction" },
+      { value: "marina", label: "Marina" },
+
+      // PERSONAL SERVICES
+      { value: "barber", label: "Barber Shop" },
+      { value: "beauty_salon", label: "Beauty Salon" },
+      { value: "day_spa", label: "Day Spa" },
+      { value: "dog_grooming", label: "Dog Grooming" },
+      { value: "dry_cleaning", label: "Dry Cleaner" },
+      { value: "gym", label: "Gym/Fitness Center" },
+      { value: "hair_care", label: "Hair Salon" },
+      { value: "laundromat", label: "Laundromat" },
+      { value: "massage_therapy", label: "Massage Therapy" },
+      { value: "nail_salon", label: "Nail Salon" },
+      { value: "personal_trainer", label: "Personal Trainer" },
+      { value: "tanning_salon", label: "Tanning Salon" },
+      { value: "tattoo_shop", label: "Tattoo Shop" },
+      { value: "yoga_studio", label: "Yoga Studio" },
+
+      // PROFESSIONAL SERVICES
+      { value: "accountant", label: "Accountant/CPA" },
+      { value: "attorney", label: "Attorney/Lawyer" },
+      { value: "financial_advisor", label: "Financial Advisor" },
+      { value: "insurance_agency", label: "Insurance Agency" },
+      { value: "marketing_agency", label: "Marketing Agency" },
+      { value: "photographer", label: "Photography" },
+      { value: "printing_service", label: "Printing Service" },
+      { value: "real_estate_agency", label: "Real Estate" },
+      { value: "tax_service", label: "Tax Preparation" },
+      { value: "web_design", label: "Web Design" },
+
+      // RETAIL
+      { value: "antique_store", label: "Antique Store" },
+      { value: "bicycle_store", label: "Bicycle Shop" },
+      { value: "boat_dealer", label: "Boat Dealer" },
+      { value: "boutique", label: "Boutique" },
+      { value: "furniture_store", label: "Furniture Store" },
+      { value: "garden_center", label: "Garden Center/Nursery" },
+      { value: "gun_shop", label: "Gun Shop" },
+      { value: "hardware_store", label: "Hardware Store" },
+      { value: "jewelry_store", label: "Jewelry Store" },
+      { value: "liquor_store", label: "Liquor Store" },
+      { value: "mattress_store", label: "Mattress Store" },
+      { value: "pet_store", label: "Pet Store" },
+      { value: "sporting_goods", label: "Sporting Goods" },
+      { value: "thrift_store", label: "Thrift Store" },
+
+      // RECREATION & ENTERTAINMENT
+      { value: "bowling_alley", label: "Bowling Alley" },
+      { value: "golf_course", label: "Golf Course" },
+      { value: "mini_golf", label: "Mini Golf" },
+      { value: "movie_theater", label: "Movie Theater" },
+
+      // EDUCATION & CHILDCARE
+      { value: "dance_studio", label: "Dance Studio" },
+      { value: "daycare", label: "Daycare/Preschool" },
+      { value: "martial_arts", label: "Martial Arts Studio" },
+      { value: "music_school", label: "Music School" },
+      { value: "tutoring", label: "Tutoring Service" },
+
+      // OTHER SERVICES
+      { value: "event_planning", label: "Event Planning" },
       { value: "florist", label: "Florist" },
       { value: "funeral_home", label: "Funeral Home" },
-      { value: "furniture_store", label: "Furniture Store" },
-      { value: "gym", label: "Gym" },
-      { value: "hair_care", label: "Hair Salon" },
-      { value: "hardware_store", label: "Hardware Store" },
-      { value: "home_goods_store", label: "Home Remodeling" },
-      { value: "plumber", label: "HVAC" },
-      { value: "insurance_agency", label: "Insurance" },
-      { value: "jewelry_store", label: "Jewelry Store" },
-      { value: "landscaping", label: "Landscaping" },
-      { value: "laundry", label: "Laundromat" },
-      { value: "liquor_store", label: "Liquor Store" },
-      { value: "locksmith", label: "Locksmith" },
-      { value: "spa", label: "Massage Therapy" },
-      { value: "moving_company", label: "Moving Company" },
-      { value: "optometrist", label: "Optometrist" },
-      { value: "painter", label: "Painter" },
-      { value: "pediatrician", label: "Pediatrician" },
-      { value: "pest_control", label: "Pest Control" },
-      { value: "pet_store", label: "Pet Store" },
-      { value: "photographer", label: "Photography" },
-      { value: "physiotherapist", label: "Physical Therapy" },
-      { value: "pizza", label: "Pizzeria" },
-      { value: "plumber", label: "Plumber" },
-      { value: "real_estate_agency", label: "Real Estate" },
-      { value: "restaurant", label: "Restaurant" },
-      { value: "roofing_contractor", label: "Roofer" },
+      { value: "hotel", label: "Hotel/Motel" },
       { value: "storage", label: "Storage Facility" },
-      { value: "tattoo_shop", label: "Tattoo Shop" },
-      { value: "car_repair", label: "Tire Shop" },
-      { value: "tree_service", label: "Tree Service" },
-      { value: "veterinary_care", label: "Veterinarian" },
-      { value: "marketing_agency", label: "Web Design/Marketing" },
-      { value: "window_cleaning", label: "Window Washing" }
+      { value: "wedding_venue", label: "Wedding Venue" }
     ];
 
     // Load business categories from cloud/localStorage
@@ -8456,12 +8567,12 @@ Thanks!
       try {
         const cloudData = await loadFromCloud('businessCategories');
 
-        // ONE-TIME MIGRATION: Force update to new category list with medical categories
-        const CATEGORY_VERSION = '2025-01-14-v2';
+        // ONE-TIME MIGRATION: Force update to comprehensive nationwide category list
+        const CATEGORY_VERSION = '2025-01-22-v3';
         const currentVersion = localStorage.getItem('categoryVersion');
 
         if (currentVersion !== CATEGORY_VERSION) {
-          console.log('🔄 Migrating to new business categories (53 categories - added Doctor & Pediatrician)');
+          console.log('🔄 Migrating to new business categories (160+ categories - comprehensive nationwide coverage with regional specialties)');
           // Use the new default categories
           businessCategories.sort((a, b) => a.label.localeCompare(b.label));
           await saveToCloud('businessCategories', businessCategories);
@@ -8521,6 +8632,17 @@ Thanks!
         ).join('');
         clientCategorySelect.innerHTML = `<option value="">Select category...</option>${options}`;
         if (currentValue) clientCategorySelect.value = currentValue;
+      }
+
+      // Update business modal category dropdown (unified modal)
+      const businessCategorySelect = document.getElementById('businessCategory');
+      if (businessCategorySelect) {
+        const currentValue = businessCategorySelect.value;
+        const options = businessCategories.map(cat =>
+          `<option value="${esc(cat.label)}">${esc(cat.label)}</option>`
+        ).join('');
+        businessCategorySelect.innerHTML = `<option value="">Select category...</option>${options}`;
+        if (currentValue) businessCategorySelect.value = currentValue;
       }
 
       // Update client filter dropdown

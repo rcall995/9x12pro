@@ -96,21 +96,8 @@ class BusinessModal {
                   <label class="text-sm font-medium text-gray-700 block mb-1">Category</label>
                   <select id="businessCategory" class="border rounded-md w-full p-2 bg-white">
                     <option value="">Select category...</option>
-                    <option value="Restaurant">Restaurant</option>
-                    <option value="HVAC">HVAC</option>
-                    <option value="Plumbing">Plumbing</option>
-                    <option value="Electrician">Electrician</option>
-                    <option value="Legal">Legal</option>
-                    <option value="Medical">Medical</option>
-                    <option value="Real Estate">Real Estate</option>
-                    <option value="Home Services">Home Services</option>
-                    <option value="Automotive">Automotive</option>
-                    <option value="Retail">Retail</option>
-                    <option value="Fitness">Fitness</option>
-                    <option value="Beauty & Salon">Beauty & Salon</option>
-                    <option value="Other">Other (Specify)</option>
+                    <!-- Categories populated dynamically from businessCategories array -->
                   </select>
-                  <input id="customCategory" type="text" class="border rounded-md w-full p-2 mt-2 hidden" placeholder="Enter custom category..." />
                 </div>
 
                 <div>
