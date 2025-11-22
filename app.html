@@ -2044,6 +2044,20 @@
                 <span id="goalTotalRevenue" class="text-lg font-bold text-green-700">$0.00</span>
               </div>
             </div>
+
+            <div class="border-t border-gray-300 pt-3 mt-3">
+              <div class="flex justify-between items-center">
+                <span class="text-sm font-medium text-gray-700">Less: Total Expenses:</span>
+                <span id="goalTotalExpenses" class="text-sm font-medium text-red-600">$0.00</span>
+              </div>
+            </div>
+
+            <div class="border-t border-blue-300 pt-3 mt-3">
+              <div class="flex justify-between items-center">
+                <span class="text-sm font-bold text-blue-900">Profit:</span>
+                <span id="goalProfit" class="text-lg font-bold text-blue-700">$0.00</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -2122,24 +2136,30 @@
             <label class="text-sm font-medium text-gray-700 block mb-1">Printing Cost</label>
             <div class="relative">
               <span class="absolute left-3 top-2 text-gray-500">$</span>
-              <input id="expensePrinting" type="number" step="10" class="border rounded-md w-full p-2 pl-7" placeholder="0" />
+              <input id="expensePrinting" type="number" step="10" class="border rounded-md w-full p-2 pl-7" placeholder="0" oninput="updateExpenseTotal()" />
             </div>
+          </div>
+
+          <div>
+            <label class="text-sm font-medium text-gray-700 block mb-1">Address Count</label>
+            <input id="expenseAddressCount" type="number" step="100" class="border rounded-md w-full p-2" placeholder="0" oninput="calculateEDDMPostage()" />
+            <p class="text-xs text-gray-500 mt-1"># of addresses mailed</p>
           </div>
 
           <div>
             <label class="text-sm font-medium text-gray-700 block mb-1">Postage Cost (EDDM)</label>
             <div class="relative">
               <span class="absolute left-3 top-2 text-gray-500">$</span>
-              <input id="expensePostage" type="number" step="10" class="border rounded-md w-full p-2 pl-7" placeholder="0" />
+              <input id="expensePostage" type="number" step="10" class="border rounded-md w-full p-2 pl-7" placeholder="0" oninput="updateExpenseTotal()" readonly />
             </div>
-            <p class="text-xs text-gray-500 mt-1">~$0.20-0.23 per piece</p>
+            <p class="text-xs text-gray-500 mt-1">$0.247 × address count</p>
           </div>
 
           <div>
             <label class="text-sm font-medium text-gray-700 block mb-1">Design/Labor Cost</label>
             <div class="relative">
               <span class="absolute left-3 top-2 text-gray-500">$</span>
-              <input id="expenseDesign" type="number" step="10" class="border rounded-md w-full p-2 pl-7" placeholder="0" />
+              <input id="expenseDesign" type="number" step="10" class="border rounded-md w-full p-2 pl-7" placeholder="0" oninput="updateExpenseTotal()" />
             </div>
           </div>
 
@@ -2147,7 +2167,7 @@
             <label class="text-sm font-medium text-gray-700 block mb-1">Misc/Other Costs</label>
             <div class="relative">
               <span class="absolute left-3 top-2 text-gray-500">$</span>
-              <input id="expenseMisc" type="number" step="10" class="border rounded-md w-full p-2 pl-7" placeholder="0" />
+              <input id="expenseMisc" type="number" step="10" class="border rounded-md w-full p-2 pl-7" placeholder="0" oninput="updateExpenseTotal()" />
             </div>
           </div>
         </div>
@@ -3287,7 +3307,7 @@
             <label class="text-sm font-medium block mb-1">Format</label>
             <select id="newPostcardSize" class="border rounded-md p-2 w-full bg-white">
               <option value="9x12">9×12 (12" wide × 9" tall)</option>
-              <option value="6x12">6.5×12 (12" wide × 6.5" tall)</option>
+              <option value="6.5x12">6.5×12 (12" wide × 6.5" tall)</option>
             </select>
           </div>
         </div>
@@ -4487,18 +4507,19 @@ Thanks!
         toast("Please select a postcard first", false);
         return;
       }
-      
+
       const modal = document.getElementById("expenseModal");
       const mailerId = state.current.Mailer_ID;
       const expenses = productionState.expenses[mailerId] || { ...DEFAULT_EXPENSES };
-      
+
       document.getElementById("expensePrinting").value = expenses.printing || DEFAULT_EXPENSES.printing;
       document.getElementById("expensePostage").value = expenses.postage || DEFAULT_EXPENSES.postage;
       document.getElementById("expenseDesign").value = expenses.design || DEFAULT_EXPENSES.design;
       document.getElementById("expenseMisc").value = expenses.misc || DEFAULT_EXPENSES.misc;
-      
+      document.getElementById("expenseAddressCount").value = expenses.addressCount || 0;
+
       updateExpenseTotal();
-      
+
       lastFocusedElementBeforeModal = document.activeElement;
       modal.style.display = "flex";
       modal.setAttribute('aria-hidden', 'false');
@@ -4519,9 +4540,17 @@ Thanks!
       const postage = parseFloat(document.getElementById("expensePostage").value) || 0;
       const design = parseFloat(document.getElementById("expenseDesign").value) || 0;
       const misc = parseFloat(document.getElementById("expenseMisc").value) || 0;
-      
+
       const total = printing + postage + design + misc;
       document.getElementById("expenseTotal").textContent = formatCurrency(total);
+    }
+
+    function calculateEDDMPostage() {
+      const addressCount = parseFloat(document.getElementById("expenseAddressCount").value) || 0;
+      const postageCost = addressCount * 0.247;
+
+      document.getElementById("expensePostage").value = postageCost.toFixed(2);
+      updateExpenseTotal();
     }
     
     async function loadExpenses() {
@@ -4562,7 +4591,8 @@ Thanks!
         printing: parseFloat(document.getElementById("expensePrinting").value) || 0,
         postage: parseFloat(document.getElementById("expensePostage").value) || 0,
         design: parseFloat(document.getElementById("expenseDesign").value) || 0,
-        misc: parseFloat(document.getElementById("expenseMisc").value) || 0
+        misc: parseFloat(document.getElementById("expenseMisc").value) || 0,
+        addressCount: parseFloat(document.getElementById("expenseAddressCount").value) || 0
       };
 
       saveExpenses();
@@ -16013,6 +16043,25 @@ Thanks!
       document.getElementById("goalDoubleTotal").textContent = formatCurrency(doubleTotal);
       document.getElementById("goalBannerTotal").textContent = formatCurrency(bannerTotal);
       document.getElementById("goalTotalRevenue").textContent = formatCurrency(total);
+
+      // Calculate expenses and profit
+      if (state.current) {
+        const mailerId = state.current.Mailer_ID;
+        const expenses = productionState.expenses[mailerId] || { printing: 0, postage: 0, design: 0, misc: 0 };
+        const totalExpenses = (expenses.printing || 0) + (expenses.postage || 0) + (expenses.design || 0) + (expenses.misc || 0);
+        const profit = total - totalExpenses;
+
+        document.getElementById("goalTotalExpenses").textContent = formatCurrency(totalExpenses);
+        document.getElementById("goalProfit").textContent = formatCurrency(profit);
+
+        // Color profit based on positive/negative
+        const profitElement = document.getElementById("goalProfit");
+        if (profit >= 0) {
+          profitElement.className = "text-lg font-bold text-blue-700";
+        } else {
+          profitElement.className = "text-lg font-bold text-red-700";
+        }
+      }
     }
 
     function openPricingModal() {
