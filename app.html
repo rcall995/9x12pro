@@ -7214,8 +7214,9 @@ Thanks!
                     try {
                       const details = await fetchPlaceDetails(b.placeId);
 
-                      // Extract email from website only (social media guessing disabled - too many false positives)
+                      // Extract email and social media from website (scrapes actual HTML links!)
                       const extractedEmail = await extractEmailFromWebsite(details.website);
+                      const socialMedia = await extractSocialMediaFromWebsite(details.website);
 
                       return {
                         ...b,
@@ -7227,12 +7228,11 @@ Thanks!
                         description: details.description || '',
                         ownerName: details.ownerName || '',
                         googleMapsUrl: details.googleMapsUrl || '',
-                        // Social media auto-detection disabled (too many fake URLs)
-                        // Use CSV export/import to manually add verified social media links
-                        instagram: '',
-                        facebook: '',
-                        linkedin: '',
-                        twitter: ''
+                        // Extract REAL social media links from website HTML (no guessing!)
+                        instagram: socialMedia.instagram || '',
+                        facebook: socialMedia.facebook || '',
+                        linkedin: socialMedia.linkedin || '',
+                        twitter: socialMedia.twitter || ''
                       };
                     } catch (err) {
                       console.warn(`Failed to fetch details for ${b.name}:`, err);
@@ -7395,8 +7395,9 @@ Thanks!
                     try {
                       const details = await fetchPlaceDetails(b.placeId);
 
-                      // Extract email from website only (social media guessing disabled - too many false positives)
+                      // Extract email and social media from website (scrapes actual HTML links!)
                       const extractedEmail = await extractEmailFromWebsite(details.website);
+                      const socialMedia = await extractSocialMediaFromWebsite(details.website);
 
                       return {
                         ...b,
@@ -7408,12 +7409,11 @@ Thanks!
                         description: details.description || '',
                         ownerName: details.ownerName || '',
                         googleMapsUrl: details.googleMapsUrl || '',
-                        // Social media auto-detection disabled (too many fake URLs)
-                        // Use CSV export/import to manually add verified social media links
-                        instagram: '',
-                        facebook: '',
-                        linkedin: '',
-                        twitter: ''
+                        // Extract REAL social media links from website HTML (no guessing!)
+                        instagram: socialMedia.instagram || '',
+                        facebook: socialMedia.facebook || '',
+                        linkedin: socialMedia.linkedin || '',
+                        twitter: socialMedia.twitter || ''
                       };
                     } catch (err) {
                       console.warn(`Failed to fetch details for ${b.name}:`, err);
@@ -7762,6 +7762,78 @@ Thanks!
           console.warn(`Email extraction error for ${websiteUrl}:`, error.message);
         }
         return '';
+      }
+    }
+
+    // Extract social media links from website HTML (REAL links only, no guessing!)
+    async function extractSocialMediaFromWebsite(websiteUrl) {
+      if (!websiteUrl) return { facebook: '', instagram: '', linkedin: '', twitter: '' };
+
+      try {
+        // Ensure URL has protocol
+        const url = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`;
+
+        console.log(`🔗 Attempting to extract social media from: ${url}`);
+
+        // Use a CORS proxy to fetch the website content
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
+        const response = await fetch(proxyUrl, {
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          console.warn(`Failed to fetch website: ${response.status}`);
+          return { facebook: '', instagram: '', linkedin: '', twitter: '' };
+        }
+
+        const html = await response.text();
+
+        // Social media link patterns (look for actual href links in HTML)
+        const facebookPattern = /href=["'](https?:\/\/(?:www\.)?facebook\.com\/[a-zA-Z0-9._-]+)["']/gi;
+        const instagramPattern = /href=["'](https?:\/\/(?:www\.)?instagram\.com\/[a-zA-Z0-9._]+)["']/gi;
+        const linkedinPattern = /href=["'](https?:\/\/(?:www\.)?linkedin\.com\/(?:company|in)\/[a-zA-Z0-9._-]+)["']/gi;
+        const twitterPattern = /href=["'](https?:\/\/(?:www\.)?(?:twitter\.com|x\.com)\/[a-zA-Z0-9._]+)["']/gi;
+
+        // Extract links
+        const facebookMatches = Array.from(html.matchAll(facebookPattern));
+        const instagramMatches = Array.from(html.matchAll(instagramPattern));
+        const linkedinMatches = Array.from(html.matchAll(linkedinPattern));
+        const twitterMatches = Array.from(html.matchAll(twitterPattern));
+
+        // Get first match for each platform (most likely to be the business's official page)
+        const facebook = facebookMatches.length > 0 ? facebookMatches[0][1] : '';
+        const instagram = instagramMatches.length > 0 ? instagramMatches[0][1] : '';
+        const linkedin = linkedinMatches.length > 0 ? linkedinMatches[0][1] : '';
+        const twitter = twitterMatches.length > 0 ? twitterMatches[0][1] : '';
+
+        // Log what we found
+        const foundPlatforms = [];
+        if (facebook) foundPlatforms.push('Facebook');
+        if (instagram) foundPlatforms.push('Instagram');
+        if (linkedin) foundPlatforms.push('LinkedIn');
+        if (twitter) foundPlatforms.push('Twitter/X');
+
+        if (foundPlatforms.length > 0) {
+          console.log(`✅ Found social media: ${foundPlatforms.join(', ')}`);
+        } else {
+          console.log(`❌ No social media links found on website`);
+        }
+
+        return { facebook, instagram, linkedin, twitter };
+
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          console.warn(`Social media extraction timeout for ${websiteUrl}`);
+        } else {
+          console.warn(`Social media extraction error for ${websiteUrl}:`, error.message);
+        }
+        return { facebook: '', instagram: '', linkedin: '', twitter: '' };
       }
     }
 
