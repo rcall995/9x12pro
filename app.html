@@ -1271,14 +1271,14 @@
                         <!-- ZIP Code Input -->
                         <div class="bg-white/20 backdrop-blur-md rounded-xl px-6 py-4 border-2 border-white/30 shadow-lg">
                             <div class="text-sm text-purple-100 mb-1 font-semibold">📍 Location</div>
-                            <label class="text-xs text-purple-200 block mb-1">Zip Code *</label>
+                            <label class="text-xs text-purple-200 block mb-1">ZIP Codes (comma separated) *</label>
                             <input
                                 id="bulkPopZipCode"
                                 type="text"
-                                maxlength="5"
-                                placeholder="14072"
-                                class="w-32 px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white text-center font-bold text-xl placeholder-purple-200 focus:outline-none focus:ring-2 focus:ring-white/50"
+                                placeholder="14072, 14221, 14225"
+                                class="w-64 px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white text-center font-bold text-lg placeholder-purple-200 focus:outline-none focus:ring-2 focus:ring-white/50"
                             />
+                            <p class="text-xs text-purple-200 mt-1">Enter multiple ZIPs to search (saves API calls!)</p>
                         </div>
                         <!-- API Usage -->
                         <div class="bg-white/20 backdrop-blur-md rounded-xl px-6 py-4 border-2 border-white/30 shadow-lg">
@@ -8434,12 +8434,22 @@ Thanks!
         toast('Cleared previous searches', true);
       }
 
-      const zipCode = document.getElementById('bulkPopZipCode').value.trim();
+      const zipCodeInput = document.getElementById('bulkPopZipCode').value.trim();
       const radius = 5000; // Default ~3 miles (search radius removed from UI)
 
+      // Parse multiple ZIP codes (comma-separated)
+      const zipCodes = zipCodeInput.split(',').map(z => z.trim()).filter(z => z);
+
       // Validation
-      if (!zipCode || !/^\d{5}$/.test(zipCode)) {
-        toast('Please enter a valid 5-digit zip code', false);
+      if (zipCodes.length === 0) {
+        toast('Please enter at least one ZIP code', false);
+        return;
+      }
+
+      // Validate all ZIP codes are 5 digits
+      const invalidZips = zipCodes.filter(z => !/^\d{5}$/.test(z));
+      if (invalidZips.length > 0) {
+        toast(`Invalid ZIP code(s): ${invalidZips.join(', ')}. Must be 5 digits.`, false);
         return;
       }
 
@@ -8471,48 +8481,50 @@ Thanks!
       btn.innerHTML = '⏳ Searching...';
 
       try {
-        // Track all businesses found across all categories
+        // Track all businesses found across all categories and ZIP codes
         const allBusinesses = [];
         const seenPlaceIds = new Set();
         const categorizedResults = {}; // Track counts per category
         let successfulSearches = 0;
         let failedSearches = 0;
+        const totalSearches = zipCodes.length * selectedCategories.length;
 
-        // Search each category
-        for (const category of selectedCategories) {
-          try {
-            btn.innerHTML = `⏳ Searching ${category}... (${successfulSearches + failedSearches + 1}/${selectedCategories.length})`;
+        // Search each ZIP code and category combination
+        for (const zipCode of zipCodes) {
+          for (const category of selectedCategories) {
+            try {
+              const currentSearch = successfulSearches + failedSearches + 1;
+              btn.innerHTML = `⏳ Searching ${category} in ${zipCode}... (${currentSearch}/${totalSearches})`;
 
-            const businesses = await searchGooglePlaces(zipCode, category, radius);
+              const businesses = await searchGooglePlaces(zipCode, category, radius);
 
-            let categoryCount = 0;
-            // Deduplicate by place ID and filter out "not interested"
-            businesses.forEach(business => {
-              if (!seenPlaceIds.has(business.placeId) && !notInterestedState.placeIds.has(business.placeId)) {
-                seenPlaceIds.add(business.placeId);
-                allBusinesses.push(business);
-                categoryCount++;
+              let categoryCount = 0;
+              // Deduplicate by place ID and filter out "not interested"
+              businesses.forEach(business => {
+                if (!seenPlaceIds.has(business.placeId) && !notInterestedState.placeIds.has(business.placeId)) {
+                  seenPlaceIds.add(business.placeId);
+                  allBusinesses.push(business);
+                  categoryCount++;
+                }
+              });
+
+              if (categoryCount > 0) {
+                categorizedResults[category] = (categorizedResults[category] || 0) + categoryCount;
               }
-            });
 
-            if (categoryCount > 0) {
-              categorizedResults[category] = categoryCount;
-            }
+              successfulSearches++;
 
-            successfulSearches++;
-
-            // Small delay between requests to be polite to the API
-            if (selectedCategories.length > 1) {
+              // Small delay between requests to be polite to the API
               await new Promise(resolve => setTimeout(resolve, 500));
+            } catch (err) {
+              console.error(`Failed to search category ${category} in ${zipCode}:`, err);
+              failedSearches++;
             }
-          } catch (err) {
-            console.error(`Failed to search category ${category}:`, err);
-            failedSearches++;
           }
         }
 
         if (allBusinesses.length === 0) {
-          toast(`Searched ${selectedCategories.length} categories. No new businesses found in this area.`, false);
+          toast(`Searched ${selectedCategories.length} categories in ${zipCodes.length} ZIP code${zipCodes.length > 1 ? 's' : ''}. No new businesses found.`, false);
           btn.disabled = false;
           btn.innerHTML = originalText;
           updateQuickApiUsage();
