@@ -5347,6 +5347,53 @@ Thanks!
       document.getElementById('contractTotalValue').textContent = formatCurrency(total);
     }
 
+    // Helper function to open client modal for a prospect (converts prospect data to client format)
+    function openClientModalForProspect(prospectData) {
+      // Check if this prospect already exists as a client (by business name)
+      const existingClient = Object.values(crmState.clients).find(c =>
+        c.businessName && prospectData.businessName &&
+        c.businessName.toLowerCase() === prospectData.businessName.toLowerCase()
+      );
+
+      if (existingClient) {
+        // Open existing client
+        openClientModal(existingClient.id);
+        return;
+      }
+
+      // Open modal in "new client" mode with prospect data pre-filled
+      const modal = document.getElementById('clientModal');
+      const title = document.getElementById('clientModalTitle');
+      const deleteBtn = document.getElementById('btnDeleteClient');
+      const historySection = document.getElementById('clientHistorySection');
+
+      title.textContent = 'New Client (from Prospect)';
+      deleteBtn.classList.add('hidden');
+      historySection.classList.add('hidden');
+
+      // Pre-fill with prospect data
+      document.getElementById('clientId').value = '';
+      document.getElementById('clientBusinessName').value = prospectData.businessName || prospectData.name || '';
+      document.getElementById('clientCategory').value = prospectData.category || '';
+      document.getElementById('clientContactName').value = prospectData.contactName || '';
+      document.getElementById('clientFirstName').value = prospectData.firstName || '';
+      document.getElementById('clientPhone').value = prospectData.phone || '';
+      document.getElementById('clientEmail').value = prospectData.email || '';
+      document.getElementById('clientAddress').value = prospectData.address || '';
+      document.getElementById('clientWebsite').value = prospectData.website || '';
+      document.getElementById('clientMonthlyPrice').value = '';
+      document.getElementById('clientStatus').value = 'active';
+      document.getElementById('clientNotes').value = prospectData.notes || `Found via ${prospectData.source || 'Prospect Generator'}`;
+
+      // Set active months to all checked
+      for (let i = 0; i < 12; i++) {
+        document.getElementById(`activeMonth${i}`).checked = true;
+      }
+
+      // Show modal
+      modal.style.display = 'flex';
+    }
+
     function openClientModal(clientId = null) {
       const modal = document.getElementById('clientModal');
       const title = document.getElementById('clientModalTitle');
@@ -9534,7 +9581,7 @@ Thanks!
                   const enrichedContactScore = prospect.contactScore || calculateContactScore(prospect);
 
                   return `
-                    <div class="bg-white border-2 ${hasContact ? 'border-green-400' : 'border-gray-200'} rounded-lg p-3 hover:shadow-md transition cursor-pointer relative" onclick="openProspectDetailModal(${JSON.stringify(prospect).replace(/"/g, '&quot;')}, 'prospect')">
+                    <div class="bg-white border-2 ${hasContact ? 'border-green-400' : 'border-gray-200'} rounded-lg p-3 hover:shadow-md transition cursor-pointer relative" onclick="openClientModalForProspect(${JSON.stringify(prospect).replace(/"/g, '&quot;')})">
                       <!-- Contact Score Badge (top-right) -->
                       <div class="absolute top-2 right-2">
                         <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">
@@ -9636,7 +9683,7 @@ Thanks!
 
                 return `
                   <div class="prospect-card border-2 border-gray-200 rounded-lg p-3 ${isDisabled ? 'bg-gray-50 opacity-60' : 'bg-white hover:shadow-md'} transition" data-place-id="${prospectId}">
-                    <div class="flex items-start gap-2" onclick="openProspectDetailModal(${JSON.stringify(prospect).replace(/"/g, '&quot;')}, 'prospect')">
+                    <div class="flex items-start gap-2" onclick="openClientModalForProspect(${JSON.stringify(prospect).replace(/"/g, '&quot;')})">
                       <input
                         type="checkbox"
                         ${isSelected ? 'checked' : ''}
@@ -12902,7 +12949,7 @@ Thanks!
                 if (item.twitter) contactIcons.push(`<a href="${esc(ensureHttps(item.twitter))}" target="_blank" class="text-lg hover:text-blue-600" title="Twitter">🐦</a>`);
 
                 return `
-                  <div class="kanban-item text-xs p-2 bg-white border rounded ${hasContact ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'}" data-item-id="${leadId}" data-column="${col.key}" ondblclick="openProspectDetailModal(${JSON.stringify(item).replace(/"/g, '&quot;')}, 'kanban')">
+                  <div class="kanban-item text-xs p-2 bg-white border rounded ${hasContact ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'}" data-item-id="${leadId}" data-column="${col.key}" ondblclick="openClientModalForProspect(${JSON.stringify(item).replace(/"/g, '&quot;')})">
                     <div class="flex justify-between items-start gap-2 mb-2">
                       ${cloudSyncSelection.showSyncUI ? `
                         <input
@@ -12926,7 +12973,7 @@ Thanks!
                         ${item.zipCode ? `<div class="text-xs text-gray-500 font-medium mt-0.5">📍 ${esc(item.zipCode)}</div>` : ''}
                       </div>
                       <div class="flex gap-1 flex-shrink-0">
-                        <button onclick="event.stopPropagation(); openProspectDetailModal(${JSON.stringify(item).replace(/"/g, '&quot;')}, 'kanban')" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View Details">👁</button>
+                        <button onclick="event.stopPropagation(); openClientModalForProspect(${JSON.stringify(item).replace(/"/g, '&quot;')})" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View/Edit Business">👁</button>
                         <button onclick="openContactLaterModal(${leadId}, event)" class="text-purple-600 hover:text-purple-800 text-sm cursor-pointer" title="Contact Later">📅</button>
                         <button onclick="moveProspectBackToPool(${leadId}, event)" class="text-orange-600 hover:text-orange-800 text-sm cursor-pointer" title="Send back to Pool">🗑</button>
                       </div>
@@ -12945,7 +12992,7 @@ Thanks!
               const isToContactSelected = toContactSelectionState.selectedIds.has(leadId);
 
               return `
-                <div class="kanban-item text-xs p-2 bg-white border rounded" data-item-id="${leadId}" data-column="${col.key}" ondblclick="openProspectDetailModal(${typeof item === 'object' ? JSON.stringify(item).replace(/"/g, '&quot;') : '{}'}, 'kanban')">
+                <div class="kanban-item text-xs p-2 bg-white border rounded" data-item-id="${leadId}" data-column="${col.key}" ondblclick="${typeof item === 'object' ? `openClientModalForProspect(${JSON.stringify(item).replace(/"/g, '&quot;')})` : ''}">
                   <div class="flex justify-between items-start gap-2">
                     ${cloudSyncSelection.showSyncUI && typeof item === 'object' ? `
                       <input
@@ -12971,7 +13018,7 @@ Thanks!
                       ${typeof item === 'object' && item.zipCode ? `<div class="text-xs text-gray-500 font-medium mt-0.5">📍 ${esc(item.zipCode)}</div>` : ''}
                     </div>
                     <div class="flex gap-1 flex-shrink-0">
-                      ${typeof item === 'object' ? `<button onclick="event.stopPropagation(); openProspectDetailModal(${JSON.stringify(item).replace(/"/g, '&quot;')}, 'kanban')" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View Details">👁</button>` : ''}
+                      ${typeof item === 'object' ? `<button onclick="event.stopPropagation(); openClientModalForProspect(${JSON.stringify(item).replace(/"/g, '&quot;')})" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View/Edit Business">👁</button>` : ''}
                       <button onclick="openContactLaterModal(${leadId}, event)" class="text-purple-600 hover:text-purple-800 text-sm cursor-pointer" title="Contact Later">📅</button>
                       <button onclick="editLead('${col.key}', ${leadId}, event)" class="text-blue-600 hover:text-blue-800 text-sm cursor-pointer" title="Edit">✎</button>
                       <button onclick="deleteLead('${col.key}', ${leadId}, event)" class="text-red-600 hover:text-red-800 text-sm cursor-pointer" title="Delete">🗑</button>
@@ -13373,6 +13420,7 @@ Thanks!
         let touchStartX, touchStartY, touchMoveX, touchMoveY;
         let isTouchDragging = false;
         let touchClone = null;
+        let touchStartTime = 0;
 
         item.addEventListener('touchstart', function(e) {
           // Only allow touch drag from drag handle
@@ -13391,19 +13439,24 @@ Thanks!
 
           touchStartX = e.touches[0].clientX;
           touchStartY = e.touches[0].clientY;
+          touchStartTime = Date.now();
           isTouchDragging = false;
-
-          // Add slight delay to distinguish tap from drag
-          setTimeout(() => {
-            if (Math.abs(e.touches[0].clientX - touchStartX) > 5 ||
-                Math.abs(e.touches[0].clientY - touchStartY) > 5) {
-              isTouchDragging = true;
-            }
-          }, 100);
         }, { passive: true });
 
         item.addEventListener('touchmove', function(e) {
-          if (!isTouchDragging) return;
+          // Check if we've moved enough to start dragging
+          if (!isTouchDragging) {
+            const deltaX = Math.abs(e.touches[0].clientX - touchStartX);
+            const deltaY = Math.abs(e.touches[0].clientY - touchStartY);
+            const timeDelta = Date.now() - touchStartTime;
+
+            // Start dragging if moved >10px or held for >150ms
+            if ((deltaX > 10 || deltaY > 10) && timeDelta > 50) {
+              isTouchDragging = true;
+            } else {
+              return; // Not dragging yet, allow normal scrolling
+            }
+          }
 
           e.preventDefault(); // Prevent scrolling while dragging
 
