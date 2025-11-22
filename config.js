@@ -36,7 +36,7 @@
 
     // App Configuration
     app: {
-      version: "2025-01-21-v16",
+      version: "2025-01-22-v17",
       environment: window.ENV_ENVIRONMENT || "production",
       enableDebugLogs: window.ENV_DEBUG === 'true' || false
     },
