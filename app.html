@@ -1418,12 +1418,19 @@
                             <h4 class="text-lg font-bold text-gray-900">📧 Quick Send to Selected Clients</h4>
                             <p class="text-sm text-gray-600"><span id="clientSelectedCount">0</span> client(s) selected</p>
                         </div>
-                        <div class="flex gap-2">
+                        <div class="flex gap-2 flex-wrap">
                             <button onclick="selectAllClients()" class="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
                                 Select All Visible
                             </button>
                             <button onclick="clearClientSelection()" class="px-3 py-1.5 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium">
                                 Clear Selection
+                            </button>
+                            <div class="w-full border-t border-gray-300 my-1"></div>
+                            <button onclick="selectActiveClientsForRenewal()" class="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
+                                📧 Select Active (Renewal)
+                            </button>
+                            <button onclick="selectInactiveClientsForReactivation()" class="px-3 py-1.5 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium">
+                                🔄 Select Paused/Inactive (Reactivation)
                             </button>
                         </div>
                     </div>
@@ -4705,6 +4712,86 @@ Thanks!
       updateClientBulkSendSection();
     }
 
+    // Select only Active clients (for renewal reminders)
+    function selectActiveClientsForRenewal() {
+      clearClientSelection();
+
+      const currentMonth = new Date().getMonth(); // 0-11 (Jan = 0, Dec = 11)
+
+      // Get all visible clients
+      const visibleClients = Array.from(document.querySelectorAll('#clientListGrid .client-row'))
+        .filter(el => el.style.display !== 'none')
+        .map(el => el.dataset.clientId);
+
+      let selectedCount = 0;
+
+      visibleClients.forEach(id => {
+        const client = crmState.clients[id];
+        if (!client) return;
+
+        // Only select Active clients AND check if they're active this month
+        const isActiveStatus = client.status === 'active' || !client.status; // Default to active if no status
+        const hasContract = client.contract && client.contract.enabled;
+        const isActiveThisMonth = client.activeMonths ? client.activeMonths[currentMonth] : true;
+
+        if (isActiveStatus && !hasContract && isActiveThisMonth) {
+          clientSelectionState.selectedIds.add(id);
+
+          // Update checkbox and card styling
+          const checkbox = document.querySelector(`.client-checkbox[data-client-id="${id}"]`);
+          const card = document.querySelector(`.client-row[data-client-id="${id}"]`);
+
+          if (checkbox) checkbox.checked = true;
+          if (card) {
+            card.classList.remove('border-gray-200');
+            card.classList.add('border-indigo-400', 'bg-indigo-50');
+          }
+
+          selectedCount++;
+        }
+      });
+
+      updateClientBulkSendSection();
+      toast(`Selected ${selectedCount} active client(s) for renewal reminder`, true);
+    }
+
+    // Select only Paused/Inactive clients (for reactivation)
+    function selectInactiveClientsForReactivation() {
+      clearClientSelection();
+
+      // Get all visible clients
+      const visibleClients = Array.from(document.querySelectorAll('#clientListGrid .client-row'))
+        .filter(el => el.style.display !== 'none')
+        .map(el => el.dataset.clientId);
+
+      let selectedCount = 0;
+
+      visibleClients.forEach(id => {
+        const client = crmState.clients[id];
+        if (!client) return;
+
+        // Only select Paused or Inactive clients
+        if (client.status === 'paused' || client.status === 'inactive') {
+          clientSelectionState.selectedIds.add(id);
+
+          // Update checkbox and card styling
+          const checkbox = document.querySelector(`.client-checkbox[data-client-id="${id}"]`);
+          const card = document.querySelector(`.client-row[data-client-id="${id}"]`);
+
+          if (checkbox) checkbox.checked = true;
+          if (card) {
+            card.classList.remove('border-gray-200');
+            card.classList.add('border-indigo-400', 'bg-indigo-50');
+          }
+
+          selectedCount++;
+        }
+      });
+
+      updateClientBulkSendSection();
+      toast(`Selected ${selectedCount} paused/inactive client(s) for reactivation`, true);
+    }
+
     function updateClientBulkSendSection() {
       const section = document.getElementById('clientBulkSendSection');
       const countSpan = document.getElementById('clientSelectedCount');
@@ -5988,12 +6075,24 @@ Thanks!
         },
         'default_renewal': {
           id: 'default_renewal',
-          name: 'Renewal Request',
+          name: 'Monthly Renewal Reminder',
           category: 'client',
           type: 'email',
-          subject: 'Time to Renew - {businessName}',
-          body: 'Hi {contactName},\n\nI hope your campaign with us has been successful!\n\nWe\'re preparing our next mailing and would love to have you on board again.\n\nWould you like to renew your spot?\n\nBest regards',
-          variables: ['businessName', 'contactName'],
+          subject: 'Advertise Again Next Month? - {businessName}',
+          body: 'Hi {firstName},\n\nWe\'re preparing our next month\'s mailing and wanted to reach out to see if you\'d like to continue advertising with us.\n\nYour current monthly rate: {monthlyPrice}\n\nJust reply "YES" to confirm your spot, or let me know if you have any questions.\n\nThanks!\n{yourName}',
+          variables: ['firstName', 'businessName', 'monthlyPrice', 'yourName'],
+          createdAt: new Date().toISOString(),
+          usageCount: 0,
+          lastUsed: null
+        },
+        'default_reactivation': {
+          id: 'default_reactivation',
+          name: 'Reactivation Offer',
+          category: 'client',
+          type: 'email',
+          subject: 'We\'d Love to Have You Back! - {businessName}',
+          body: 'Hi {firstName},\n\nIt\'s been a while since you last advertised with us, and we wanted to reach out to see if you\'d like to join our next mailing.\n\nWe\'ve helped many businesses like yours reach thousands of local customers.\n\nWould you like to advertise with us again next month?\n\nReply "YES" and I\'ll get you set up!\n\nBest regards,\n{yourName}',
+          variables: ['firstName', 'businessName', 'yourName'],
           createdAt: new Date().toISOString(),
           usageCount: 0,
           lastUsed: null
