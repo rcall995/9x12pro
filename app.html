@@ -13455,7 +13455,7 @@ Thanks!
                         <input
                           type="checkbox"
                           ${isCloudSyncSelected ? 'checked' : ''}
-                          onchange="toggleProspectForSync(${leadId})"
+                          onchange="toggleProspectForSync('${leadId}')"
                           onclick="event.stopPropagation()"
                           class="mt-1 w-4 h-4 text-blue-600 rounded cursor-pointer flex-shrink-0"
                         />
@@ -13463,7 +13463,7 @@ Thanks!
                         <input
                           type="checkbox"
                           ${isProspectingSelected ? 'checked' : ''}
-                          onchange="toggleProspectingSelection(${leadId})"
+                          onchange="toggleProspectingSelection('${leadId}')"
                           onclick="event.stopPropagation()"
                           class="mt-1 w-4 h-4 text-purple-600 rounded cursor-pointer flex-shrink-0"
                         />
@@ -13474,8 +13474,8 @@ Thanks!
                       </div>
                       <div class="flex gap-1 flex-shrink-0">
                         <button onclick="event.stopPropagation(); openClientModalForProspect('${leadId}')" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View/Edit Business">👁</button>
-                        <button onclick="openContactLaterModal(${leadId}, event)" class="text-purple-600 hover:text-purple-800 text-sm cursor-pointer" title="Contact Later">📅</button>
-                        <button onclick="moveProspectBackToPool(${leadId}, event)" class="text-orange-600 hover:text-orange-800 text-sm cursor-pointer" title="Send back to Pool">🗑</button>
+                        <button onclick="openContactLaterModal('${leadId}', event)" class="text-purple-600 hover:text-purple-800 text-sm cursor-pointer" title="Contact Later">📅</button>
+                        <button onclick="moveProspectBackToPool('${leadId}', event)" class="text-orange-600 hover:text-orange-800 text-sm cursor-pointer" title="Send back to Pool">🗑</button>
                       </div>
                     </div>
                     ${contactIcons.length > 0 ? `
@@ -13498,7 +13498,7 @@ Thanks!
                       <input
                         type="checkbox"
                         ${isCloudSyncSelected ? 'checked' : ''}
-                        onchange="toggleProspectForSync(${leadId})"
+                        onchange="toggleProspectForSync('${leadId}')"
                         onclick="event.stopPropagation()"
                         class="mt-0.5 w-4 h-4 text-blue-600 rounded cursor-pointer flex-shrink-0"
                       />
@@ -13506,7 +13506,7 @@ Thanks!
                       <input
                         type="checkbox"
                         ${isToContactSelected ? 'checked' : ''}
-                        onchange="toggleToContactSelection(${leadId})"
+                        onchange="toggleToContactSelection('${leadId}')"
                         onclick="event.stopPropagation()"
                         class="mt-0.5 w-4 h-4 text-purple-600 rounded cursor-pointer flex-shrink-0"
                       />
@@ -13519,9 +13519,9 @@ Thanks!
                     </div>
                     <div class="flex gap-1 flex-shrink-0">
                       ${typeof item === 'object' ? `<button onclick="event.stopPropagation(); openClientModalForProspect('${leadId}')" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View/Edit Business">👁</button>` : ''}
-                      <button onclick="openContactLaterModal(${leadId}, event)" class="text-purple-600 hover:text-purple-800 text-sm cursor-pointer" title="Contact Later">📅</button>
-                      <button onclick="editLead('${col.key}', ${leadId}, event)" class="text-blue-600 hover:text-blue-800 text-sm cursor-pointer" title="Edit">✎</button>
-                      <button onclick="deleteLead('${col.key}', ${leadId}, event)" class="text-red-600 hover:text-red-800 text-sm cursor-pointer" title="Delete">🗑</button>
+                      <button onclick="openContactLaterModal('${leadId}', event)" class="text-purple-600 hover:text-purple-800 text-sm cursor-pointer" title="Contact Later">📅</button>
+                      <button onclick="editLead('${col.key}', '${leadId}', event)" class="text-blue-600 hover:text-blue-800 text-sm cursor-pointer" title="Edit">✎</button>
+                      <button onclick="deleteLead('${col.key}', '${leadId}', event)" class="text-red-600 hover:text-red-800 text-sm cursor-pointer" title="Delete">🗑</button>
                     </div>
                   </div>
                   ${col.key === 'to-contact' && typeof item === 'object' ? (() => {
@@ -13544,7 +13544,7 @@ Thanks!
                   ${col.key === 'to-contact' ? `
                     <div class="mt-2 pt-2 border-t border-gray-200 space-y-2">
                       <div class="flex gap-2">
-                        <button onclick="handleNotInterested(${leadId}, event)" class="flex-1 px-3 py-1.5 bg-red-600 text-white text-xs rounded hover:bg-red-700 font-medium">
+                        <button onclick="handleNotInterested('${leadId}', event)" class="flex-1 px-3 py-1.5 bg-red-600 text-white text-xs rounded hover:bg-red-700 font-medium">
                           🚫 Not Interested
                         </button>
                         ${(() => {
@@ -13561,7 +13561,7 @@ Thanks!
                               ✅ Current Client
                             </button>`;
                           } else {
-                            return `<button onclick="convertProspectToClient(${leadId}, 'to-contact'); event.stopPropagation();" class="flex-1 px-3 py-1.5 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 font-medium" title="Add to Client Database">
+                            return `<button onclick="convertProspectToClient('${leadId}', 'to-contact'); event.stopPropagation();" class="flex-1 px-3 py-1.5 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 font-medium" title="Add to Client Database">
                               👤 Convert to Client
                             </button>`;
                           }
