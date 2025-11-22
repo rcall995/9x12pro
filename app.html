@@ -17213,7 +17213,7 @@ Thanks!
             let successCount = 0;
             let currentIndex = 0;
 
-            // Process emails sequentially with user confirmation
+            // Process emails sequentially with user confirmation AFTER opening email
             const processNextEmail = () => {
                 if (currentIndex >= selectedIds.length) {
                     // All done - show final toast
@@ -17244,25 +17244,39 @@ Thanks!
                     const subject = filled.subject;
                     const body = filled.body;
 
-                    // Prompt user before opening each email
-                    const userConfirm = confirm(`Email ${currentIndex + 1} of ${selectedCount}\n\nSend to: ${prospect.businessName}\nEmail: ${prospect.email}\n\nClick OK to open email, or Cancel to skip.`);
+                    // Open email window FIRST (while in user gesture context)
+                    window.open(`mailto:${prospect.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+                    successCount++;
+                    console.log('✅ Opened email for:', prospect.businessName);
 
-                    if (userConfirm) {
-                        window.open(`mailto:${prospect.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
-                        successCount++;
-                        console.log('✅ Opened email for:', prospect.businessName);
+                    currentIndex++;
+
+                    // THEN ask if they want to continue to next (after they send this one)
+                    if (currentIndex < selectedIds.length) {
+                        setTimeout(() => {
+                            const continueNext = confirm(`Email opened for ${prospect.businessName}\n\nEmail ${currentIndex} of ${selectedCount} sent.\n\nClick OK to continue to next email, or Cancel to stop.`);
+                            if (continueNext) {
+                                processNextEmail();
+                            } else {
+                                toast(`✅ Sent to ${successCount} of ${selectedCount} prospect${successCount > 1 ? 's' : ''}`, true);
+                                toContactSelectionState.selectedIds.clear();
+                                updateBulkSendSection();
+                                renderKanban();
+                            }
+                        }, 500); // Short delay to let email client open
                     } else {
-                        console.log('⏭️ User skipped:', prospect.businessName);
+                        // Last email - finish up
+                        processNextEmail();
                     }
                 } else if (prospect && !prospect.email) {
                     console.warn('⚠️ No email for:', prospect.businessName);
                     alert(`⚠️ ${prospect.businessName} has no email address. Skipping.`);
+                    currentIndex++;
+                    processNextEmail();
+                } else {
+                    currentIndex++;
+                    processNextEmail();
                 }
-
-                currentIndex++;
-
-                // Continue to next email immediately (user controls timing with confirm dialog)
-                processNextEmail();
             };
 
             // Start processing
