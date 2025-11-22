@@ -9353,11 +9353,22 @@ Thanks!
 
     // Toggle selection of a prospect in Prospecting column
     function toggleProspectingSelection(leadId) {
-      if (prospectingSelectionState.selectedIds.has(leadId)) {
-        prospectingSelectionState.selectedIds.delete(leadId);
+      // Ensure consistent type - convert to string for comparison
+      const id = String(leadId);
+
+      console.log('🔵 toggleProspectingSelection called with:', leadId, 'converted to:', id);
+      console.log('🔵 Current selection state:', Array.from(prospectingSelectionState.selectedIds));
+
+      if (prospectingSelectionState.selectedIds.has(id)) {
+        prospectingSelectionState.selectedIds.delete(id);
+        console.log('🔵 Deselected:', id);
       } else {
-        prospectingSelectionState.selectedIds.add(leadId);
+        prospectingSelectionState.selectedIds.add(id);
+        console.log('🔵 Selected:', id);
       }
+
+      console.log('🔵 New selection state:', Array.from(prospectingSelectionState.selectedIds));
+
       updateMoveToPoolButton();
       renderKanban();
     }
@@ -13717,7 +13728,7 @@ Thanks!
               if (!item) return '';
 
               const leadName = typeof item === 'string' ? item : (item.businessName || 'Unnamed Business');
-              const leadId = typeof item === 'string' ? idx : (item.id || idx);
+              const leadId = typeof item === 'string' ? String(idx) : String(item.id || idx);
 
               // Enhanced display for Prospecting column
               if (col.key === 'prospect-list' && typeof item === 'object') {
