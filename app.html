@@ -17126,36 +17126,58 @@ Thanks!
 
         const selectedCount = toContactSelectionState.selectedIds.size;
 
-        if (confirm(`Send SMS to ${selectedCount} selected prospect${selectedCount > 1 ? 's' : ''}?\n\nThis will open your SMS app for each contact.`)) {
-            let successCount = 0;
+        if (confirm(`Send SMS to ${selectedCount} selected prospect${selectedCount > 1 ? 's' : ''}?\n\nThis will open your SMS app for each contact with a delay between each.`)) {
             const toContactColumn = kanbanState.columns['to-contact'] || [];
+            const selectedIds = Array.from(toContactSelectionState.selectedIds);
 
-            toContactSelectionState.selectedIds.forEach(leadId => {
-                // Ensure consistent string comparison
+            let successCount = 0;
+            let currentIndex = 0;
+
+            // Process SMS sequentially with delay
+            const processNextSMS = () => {
+                if (currentIndex >= selectedIds.length) {
+                    // All done - show final toast
+                    toast(`✅ Opened SMS for ${successCount} of ${selectedCount} prospect${successCount > 1 ? 's' : ''}`, true);
+
+                    // Track template usage
+                    if (template) {
+                        template.lastUsed = new Date().toISOString();
+                        template.usageCount = (template.usageCount || 0) + successCount;
+                        saveUserTemplates();
+                    }
+
+                    // Clear selections
+                    toContactSelectionState.selectedIds.clear();
+                    updateBulkSendSection();
+                    renderKanban();
+                    return;
+                }
+
+                const leadId = selectedIds[currentIndex];
                 const prospect = toContactColumn.find(item => String(item.id || item) === String(leadId));
+
                 if (prospect && typeof prospect === 'object' && prospect.phone) {
                     // Fill template variables
                     const filled = fillTemplateVariables(template, prospect);
                     const message = filled.body;
 
+                    // Show progress toast
+                    toast(`📱 Opening SMS ${currentIndex + 1} of ${selectedCount}: ${prospect.businessName}`, true);
+
                     window.open(`sms:${prospect.phone}?body=${encodeURIComponent(message)}`, '_blank');
                     successCount++;
+                } else if (prospect && !prospect.phone) {
+                    toast(`⚠️ Skipping ${prospect.businessName} - no phone number`, false);
                 }
-            });
 
-            // Track template usage
-            if (template) {
-                template.lastUsed = new Date().toISOString();
-                template.usageCount = (template.usageCount || 0) + selectedCount;
-                saveUserTemplates();
-            }
+                currentIndex++;
 
-            toast(`✅ Opened SMS for ${successCount} prospect${successCount > 1 ? 's' : ''}`, true);
+                // Wait 2 seconds before next SMS to avoid popup blocker
+                setTimeout(processNextSMS, 2000);
+            };
 
-            // Clear selections
-            toContactSelectionState.selectedIds.clear();
-            updateBulkSendSection();
-            renderKanban();
+            // Start processing
+            processNextSMS();
         }
     }
 
@@ -17181,15 +17203,37 @@ Thanks!
 
         const selectedCount = toContactSelectionState.selectedIds.size;
 
-        if (confirm(`Send Email to ${selectedCount} selected prospect${selectedCount > 1 ? 's' : ''}?\n\nThis will open your email client for each contact.`)) {
-            let successCount = 0;
+        if (confirm(`Send Email to ${selectedCount} selected prospect${selectedCount > 1 ? 's' : ''}?\n\nThis will open your email client for each contact with a delay between each.`)) {
             const toContactColumn = kanbanState.columns['to-contact'] || [];
+            const selectedIds = Array.from(toContactSelectionState.selectedIds);
 
-            console.log('🔵 Bulk Email - Selected IDs:', Array.from(toContactSelectionState.selectedIds));
+            console.log('🔵 Bulk Email - Selected IDs:', selectedIds);
             console.log('🔵 Bulk Email - To Contact Column:', toContactColumn.map(item => ({ id: item.id, name: item.businessName })));
 
-            toContactSelectionState.selectedIds.forEach(leadId => {
-                // Ensure consistent string comparison
+            let successCount = 0;
+            let currentIndex = 0;
+
+            // Process emails sequentially with delay
+            const processNextEmail = () => {
+                if (currentIndex >= selectedIds.length) {
+                    // All done - show final toast
+                    toast(`✅ Opened Email for ${successCount} of ${selectedCount} prospect${successCount > 1 ? 's' : ''}`, true);
+
+                    // Track template usage
+                    if (template) {
+                        template.lastUsed = new Date().toISOString();
+                        template.usageCount = (template.usageCount || 0) + successCount;
+                        saveUserTemplates();
+                    }
+
+                    // Clear selections
+                    toContactSelectionState.selectedIds.clear();
+                    updateBulkSendSection();
+                    renderKanban();
+                    return;
+                }
+
+                const leadId = selectedIds[currentIndex];
                 const prospect = toContactColumn.find(item => String(item.id || item) === String(leadId));
 
                 console.log('🔵 Looking for leadId:', leadId, 'Found:', prospect ? prospect.businessName : 'NOT FOUND');
@@ -17200,27 +17244,25 @@ Thanks!
                     const subject = filled.subject;
                     const body = filled.body;
 
+                    // Show progress toast
+                    toast(`📧 Opening email ${currentIndex + 1} of ${selectedCount}: ${prospect.businessName}`, true);
+
                     window.open(`mailto:${prospect.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
                     successCount++;
                     console.log('✅ Opened email for:', prospect.businessName);
                 } else if (prospect && !prospect.email) {
                     console.warn('⚠️ No email for:', prospect.businessName);
+                    toast(`⚠️ Skipping ${prospect.businessName} - no email address`, false);
                 }
-            });
 
-            // Track template usage
-            if (template) {
-                template.lastUsed = new Date().toISOString();
-                template.usageCount = (template.usageCount || 0) + selectedCount;
-                saveUserTemplates();
-            }
+                currentIndex++;
 
-            toast(`✅ Opened Email for ${successCount} prospect${successCount > 1 ? 's' : ''}`, true);
+                // Wait 2 seconds before next email to avoid popup blocker
+                setTimeout(processNextEmail, 2000);
+            };
 
-            // Clear selections
-            toContactSelectionState.selectedIds.clear();
-            updateBulkSendSection();
-            renderKanban();
+            // Start processing
+            processNextEmail();
         }
     }
 
@@ -17246,54 +17288,68 @@ Thanks!
 
         const selectedCount = toContactSelectionState.selectedIds.size;
 
-        if (confirm(`Send via Google Voice to ${selectedCount} selected prospect${selectedCount > 1 ? 's' : ''}?\n\nThis will:\n1. Copy the message to your clipboard\n2. Open Google Voice for each contact\n3. You can paste (Ctrl+V) the message and send`)) {
-            let successCount = 0;
+        if (confirm(`Send via Google Voice to ${selectedCount} selected prospect${selectedCount > 1 ? 's' : ''}?\n\nThis will:\n1. Copy each message to your clipboard\n2. Open Google Voice for each contact with a delay\n3. You can paste (Ctrl+V) the message and send`)) {
             const toContactColumn = kanbanState.columns['to-contact'] || [];
+            const selectedIds = Array.from(toContactSelectionState.selectedIds);
 
-            toContactSelectionState.selectedIds.forEach(leadId => {
-                // Ensure consistent string comparison
+            let successCount = 0;
+            let currentIndex = 0;
+
+            // Process Google Voice messages sequentially with delay
+            const processNextGoogleVoice = () => {
+                if (currentIndex >= selectedIds.length) {
+                    // All done - show final toast
+                    toast(`✅ Opened Google Voice for ${successCount} of ${selectedCount} prospect${successCount > 1 ? 's' : ''}`, true);
+
+                    // Track template usage
+                    if (template) {
+                        template.lastUsed = new Date().toISOString();
+                        template.usageCount = (template.usageCount || 0) + successCount;
+                        saveUserTemplates();
+                    }
+
+                    // Clear selections
+                    toContactSelectionState.selectedIds.clear();
+                    updateBulkSendSection();
+                    renderKanban();
+                    return;
+                }
+
+                const leadId = selectedIds[currentIndex];
                 const prospect = toContactColumn.find(item => String(item.id || item) === String(leadId));
+
                 if (prospect && typeof prospect === 'object' && prospect.phone) {
                     // Fill template variables
                     const filled = fillTemplateVariables(template, prospect);
                     const message = filled.body;
 
                     // Google Voice web URL - opens to messages with phone number
-                    // Note: Message body pre-fill is not supported by Google Voice web interface
-                    // User will need to paste or type the message
                     const cleanPhone = prospect.phone.replace(/\D/g, ''); // Remove non-digits
-
-                    // Format: +1 for US numbers
                     const formattedPhone = cleanPhone.length === 10 ? `+1${cleanPhone}` : `+${cleanPhone}`;
-
-                    // Open Google Voice with the phone number - opens conversation
                     const googleVoiceUrl = `https://voice.google.com/u/0/messages?itemId=${formattedPhone}`;
 
                     // Copy message to clipboard so user can easily paste
                     navigator.clipboard.writeText(message).then(() => {
-                        console.log('Message copied to clipboard');
+                        toast(`📱 Opening Google Voice ${currentIndex + 1} of ${selectedCount}: ${prospect.businessName} (message copied!)`, true);
                     }).catch(err => {
                         console.warn('Could not copy to clipboard:', err);
+                        toast(`📱 Opening Google Voice ${currentIndex + 1} of ${selectedCount}: ${prospect.businessName}`, true);
                     });
 
                     window.open(googleVoiceUrl, '_blank');
                     successCount++;
+                } else if (prospect && !prospect.phone) {
+                    toast(`⚠️ Skipping ${prospect.businessName} - no phone number`, false);
                 }
-            });
 
-            // Track template usage
-            if (template) {
-                template.lastUsed = new Date().toISOString();
-                template.usageCount = (template.usageCount || 0) + selectedCount;
-                saveUserTemplates();
-            }
+                currentIndex++;
 
-            toast(`✅ Message copied! Opened Google Voice for ${successCount} prospect${successCount > 1 ? 's' : ''}. Paste with Ctrl+V`, true);
+                // Wait 3 seconds for Google Voice (slightly longer to allow clipboard and page load)
+                setTimeout(processNextGoogleVoice, 3000);
+            };
 
-            // Clear selections
-            toContactSelectionState.selectedIds.clear();
-            updateBulkSendSection();
-            renderKanban();
+            // Start processing
+            processNextGoogleVoice();
         }
     }
 
