@@ -28,4 +28,16 @@ npm-debug.log*
 # Old files
 AdSpotStudio/
 
+# SQL scripts and database dumps
+*.sql
+*.db
+*.sqlite
+
+# Temporary and backup files
+*.tmp
+*.bak
+*~
+*.backup
+
 .vercel
+.env
