@@ -4201,7 +4201,11 @@ Thanks!
       }
 
       const expenses = productionState.expenses[mailerId] || { ...DEFAULT_EXPENSES };
-      const totalExpenses = Object.values(expenses).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
+      // Only sum actual expense fields, excluding addressCount
+      const totalExpenses = (parseFloat(expenses.printing) || 0) +
+                           (parseFloat(expenses.postage) || 0) +
+                           (parseFloat(expenses.design) || 0) +
+                           (parseFloat(expenses.misc) || 0);
 
       let paidRevenue = 0;
       let depositRevenue = 0;
