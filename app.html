@@ -13833,23 +13833,37 @@ Thanks!
       // Remove from Prospecting column
       items.splice(index, 1);
 
-      // Add to manual prospects in pool (so it shows up there)
+      // Add to manual prospects in pool ONLY if not already there
       if (!prospectPoolState.manualProspects) {
         prospectPoolState.manualProspects = [];
       }
-      prospectPoolState.manualProspects.push({
-        ...prospect,
-        isEnriched: true // Mark as enriched since it came from the kanban
+
+      // Check if already exists in pool (by placeId or businessName)
+      const alreadyInPool = prospectPoolState.manualProspects.some(p => {
+        if (prospect.placeId && p.placeId) {
+          return p.placeId === prospect.placeId;
+        }
+        if (prospect.businessName && p.businessName) {
+          return p.businessName.toLowerCase() === prospect.businessName.toLowerCase();
+        }
+        return false;
       });
+
+      if (!alreadyInPool) {
+        prospectPoolState.manualProspects.push({
+          ...prospect,
+          isEnriched: true // Mark as enriched since it came from the kanban
+        });
+      } else {
+        console.log(`⏭️ Prospect "${prospectName}" already exists in pool, skipping duplicate`);
+      }
 
       // Clear from selection if it was selected
       prospectingSelectionState.selectedIds.delete(leadId);
 
       await saveKanban(); // Save kanban without this prospect
-      // Save pool with this prospect
-      await saveToCloud('manualProspects', prospectPoolState.manualProspects).catch(e => {
-        console.warn('Failed to save manual prospects to cloud:', e);
-      });
+      // Save pool with this prospect (triggers deduplication)
+      await saveManualProspects();
       renderKanban();
       renderProspectPool();
       toast(`"${prospectName}" moved back to Prospect Pool`, true);
