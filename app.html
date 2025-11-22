@@ -5348,7 +5348,39 @@ Thanks!
     }
 
     // Helper function to open client modal for a prospect (converts prospect data to client format)
-    function openClientModalForProspect(prospectData) {
+    function openClientModalForProspect(prospectDataOrId) {
+      let prospectData;
+
+      // If passed an ID (string/number), look it up in kanban state or prospect pool
+      if (typeof prospectDataOrId === 'string' || typeof prospectDataOrId === 'number') {
+        const itemId = String(prospectDataOrId);
+
+        // Search all kanban columns
+        for (const column of ['prospect-list', 'to-contact', 'in-progress', 'committed']) {
+          const items = kanbanState.columns[column] || [];
+          const found = items.find(item => typeof item === 'object' && String(item.id) === itemId);
+          if (found) {
+            prospectData = found;
+            break;
+          }
+        }
+
+        // Search prospect pool if not found in kanban
+        if (!prospectData) {
+          prospectData = prospectPoolState.manualProspects.find(p => String(p.id) === itemId);
+        }
+
+        // If still not found, show error
+        if (!prospectData) {
+          console.error('Prospect not found for ID:', itemId);
+          toast('Prospect not found', false);
+          return;
+        }
+      } else {
+        // Passed the full object
+        prospectData = prospectDataOrId;
+      }
+
       // Check if this prospect already exists as a client (by business name)
       const existingClient = Object.values(crmState.clients).find(c =>
         c.businessName && prospectData.businessName &&
@@ -9585,7 +9617,7 @@ Thanks!
                   const enrichedContactScore = prospect.contactScore || calculateContactScore(prospect);
 
                   return `
-                    <div class="bg-white border-2 ${hasContact ? 'border-green-400' : 'border-gray-200'} rounded-lg p-3 hover:shadow-md transition cursor-pointer relative" onclick="openClientModalForProspect(${JSON.stringify(prospect).replace(/"/g, '&quot;')})">
+                    <div class="bg-white border-2 ${hasContact ? 'border-green-400' : 'border-gray-200'} rounded-lg p-3 hover:shadow-md transition cursor-pointer relative" onclick="openClientModalForProspect('${prospect.id}')">
                       <!-- Contact Score Badge (top-right) -->
                       <div class="absolute top-2 right-2">
                         <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">
@@ -12953,7 +12985,7 @@ Thanks!
                 if (item.twitter) contactIcons.push(`<a href="${esc(ensureHttps(item.twitter))}" target="_blank" class="text-lg hover:text-blue-600" title="Twitter">🐦</a>`);
 
                 return `
-                  <div class="kanban-item text-xs p-2 bg-white border rounded ${hasContact ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'}" data-item-id="${leadId}" data-column="${col.key}" ondblclick="openClientModalForProspect(${JSON.stringify(item).replace(/"/g, '&quot;')})">
+                  <div class="kanban-item text-xs p-2 bg-white border rounded ${hasContact ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'}" data-item-id="${leadId}" data-column="${col.key}" ondblclick="openClientModalForProspect('${leadId}')">
                     <div class="flex justify-between items-start gap-2 mb-2">
                       ${cloudSyncSelection.showSyncUI ? `
                         <input
@@ -12977,7 +13009,7 @@ Thanks!
                         ${item.zipCode ? `<div class="text-xs text-gray-500 font-medium mt-0.5">📍 ${esc(item.zipCode)}</div>` : ''}
                       </div>
                       <div class="flex gap-1 flex-shrink-0">
-                        <button onclick="event.stopPropagation(); openClientModalForProspect(${JSON.stringify(item).replace(/"/g, '&quot;')})" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View/Edit Business">👁</button>
+                        <button onclick="event.stopPropagation(); openClientModalForProspect('${leadId}')" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View/Edit Business">👁</button>
                         <button onclick="openContactLaterModal(${leadId}, event)" class="text-purple-600 hover:text-purple-800 text-sm cursor-pointer" title="Contact Later">📅</button>
                         <button onclick="moveProspectBackToPool(${leadId}, event)" class="text-orange-600 hover:text-orange-800 text-sm cursor-pointer" title="Send back to Pool">🗑</button>
                       </div>
@@ -12996,7 +13028,7 @@ Thanks!
               const isToContactSelected = toContactSelectionState.selectedIds.has(leadId);
 
               return `
-                <div class="kanban-item text-xs p-2 bg-white border rounded" data-item-id="${leadId}" data-column="${col.key}" ondblclick="${typeof item === 'object' ? `openClientModalForProspect(${JSON.stringify(item).replace(/"/g, '&quot;')})` : ''}">
+                <div class="kanban-item text-xs p-2 bg-white border rounded" data-item-id="${leadId}" data-column="${col.key}" ondblclick="${typeof item === 'object' ? `openClientModalForProspect('${leadId}')` : ''}">
                   <div class="flex justify-between items-start gap-2">
                     ${cloudSyncSelection.showSyncUI && typeof item === 'object' ? `
                       <input
@@ -13022,7 +13054,7 @@ Thanks!
                       ${typeof item === 'object' && item.zipCode ? `<div class="text-xs text-gray-500 font-medium mt-0.5">📍 ${esc(item.zipCode)}</div>` : ''}
                     </div>
                     <div class="flex gap-1 flex-shrink-0">
-                      ${typeof item === 'object' ? `<button onclick="event.stopPropagation(); openClientModalForProspect(${JSON.stringify(item).replace(/"/g, '&quot;')})" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View/Edit Business">👁</button>` : ''}
+                      ${typeof item === 'object' ? `<button onclick="event.stopPropagation(); openClientModalForProspect('${leadId}')" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View/Edit Business">👁</button>` : ''}
                       <button onclick="openContactLaterModal(${leadId}, event)" class="text-purple-600 hover:text-purple-800 text-sm cursor-pointer" title="Contact Later">📅</button>
                       <button onclick="editLead('${col.key}', ${leadId}, event)" class="text-blue-600 hover:text-blue-800 text-sm cursor-pointer" title="Edit">✎</button>
                       <button onclick="deleteLead('${col.key}', ${leadId}, event)" class="text-red-600 hover:text-red-800 text-sm cursor-pointer" title="Delete">🗑</button>
