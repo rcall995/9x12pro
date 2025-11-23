@@ -7042,6 +7042,23 @@ Thanks!
         if (new Date() < cacheDate) {
           toast('✅ Using cached results (FREE!)', true);
 
+          // Update progress bar for cached results in multi-search
+          if (progressInfo) {
+            const progressBarFill = document.getElementById('enrichment-progress-fill');
+            const progressText = document.getElementById('enrichment-progress-text');
+            const progressSubtitle = document.getElementById('progress-subtitle');
+
+            if (progressBarFill && progressText && progressSubtitle) {
+              // Calculate progress for this cached search (mark as 100% complete for this search)
+              const searchPortionSize = 100 / progressInfo.totalSearches;
+              const completedProgress = progressInfo.currentSearch * searchPortionSize;
+              progressBarFill.style.width = `${Math.round(completedProgress)}%`;
+              progressBarFill.textContent = `${Math.round(completedProgress)}%`;
+              progressText.textContent = `Using cached results for ${category}`;
+              progressSubtitle.textContent = `Search ${progressInfo.currentSearch} of ${progressInfo.totalSearches}`;
+            }
+          }
+
           // Recalculate enriched flag for cached data (in case logic changed)
           const cachedData = (cached.cachedData || []).map((b, index) => {
             const hasEnrichedData = !!(b.email || b.facebook || b.instagram || b.linkedin || b.twitter || b.googleMapsUrl);
