@@ -31,7 +31,7 @@
   <meta name="format-detection" content="telephone=no" />
   <script>
     // Cache busting version - update this to force reload on all devices
-    window.APP_VERSION = '2025-01-22-v65';
+    window.APP_VERSION = '2025-01-22-v66';
     window.CACHE_BUST = '?v=' + window.APP_VERSION;
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -719,35 +719,54 @@
     </div>
   </header>
 
-  <main class="max-w-6xl mx-auto mt-6 px-3 pb-20">
-    <div class="flex border-b border-gray-300 mb-6 overflow-x-auto" id="navTabs" style="scrollbar-width: thin;">
-        <button data-tab="dashboard" class="tab-btn active px-3 md:px-4 py-2 text-xs md:text-sm whitespace-nowrap">
-            <span class="hidden sm:inline">🏠 Dashboard</span>
-            <span class="sm:hidden">🏠</span>
+  <!-- Main Navigation -->
+  <div class="max-w-6xl mx-auto px-3 mt-4">
+    <div id="mainNavigation" class="bg-gradient-to-r from-indigo-50 to-purple-50 border-2 border-indigo-200 rounded-xl p-4 flex items-center justify-center gap-2 md:gap-4 text-sm md:text-base overflow-x-auto">
+      <div class="flex items-center gap-2 md:gap-4 whitespace-nowrap">
+        <button data-tab="dashboard" class="tab-btn flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:bg-white hover:shadow-md group" id="nav-dashboard">
+          <span class="text-2xl">🏠</span>
+          <span class="font-bold text-gray-700 group-hover:text-indigo-600">Dashboard</span>
         </button>
-        <button data-tab="lead-generation" class="tab-btn px-3 md:px-4 py-2 text-xs md:text-sm whitespace-nowrap">
-            <span class="hidden sm:inline">🔍 Generator</span>
-            <span class="sm:hidden">🔍</span>
+        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+        </svg>
+        <button data-tab="lead-generation" class="tab-btn flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:bg-white hover:shadow-md group" id="nav-generator">
+          <span class="text-2xl">🔍</span>
+          <span class="font-bold text-gray-700 group-hover:text-indigo-600">Generator</span>
         </button>
-        <button data-tab="prospects" class="tab-btn px-3 md:px-4 py-2 text-xs md:text-sm whitespace-nowrap">
-            <span class="hidden sm:inline">🎯 Pool</span>
-            <span class="sm:hidden">🎯</span>
+        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+        </svg>
+        <button data-tab="prospects" class="tab-btn flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:bg-white hover:shadow-md group" id="nav-pool">
+          <span class="text-2xl">🎯</span>
+          <span class="font-bold text-gray-700 group-hover:text-indigo-600">Pool</span>
         </button>
-        <button data-tab="pipeline" class="tab-btn px-3 md:px-4 py-2 text-xs md:text-sm whitespace-nowrap">
-            <span class="hidden sm:inline">📊 Pipeline</span>
-            <span class="sm:hidden">📊</span>
+        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+        </svg>
+        <button data-tab="pipeline" class="tab-btn flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:bg-white hover:shadow-md group" id="nav-pipeline">
+          <span class="text-2xl">📊</span>
+          <span class="font-bold text-gray-700 group-hover:text-indigo-600">Pipeline</span>
         </button>
-        <button data-tab="manager" class="tab-btn px-3 md:px-4 py-2 text-xs md:text-sm whitespace-nowrap">
-            <span class="hidden sm:inline">📮 Campaigns</span>
-            <span class="sm:hidden">📮</span>
+        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+        </svg>
+        <button data-tab="manager" class="tab-btn flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:bg-white hover:shadow-md group" id="nav-campaigns">
+          <span class="text-2xl">📮</span>
+          <span class="font-bold text-gray-700 group-hover:text-indigo-600">Campaigns</span>
         </button>
-        <button data-tab="clients" class="tab-btn px-3 md:px-4 py-2 text-xs md:text-sm whitespace-nowrap">
-            <span class="hidden sm:inline">👥 Clients</span>
-            <span class="sm:hidden">👥</span>
+        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+        </svg>
+        <button data-tab="clients" class="tab-btn flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:bg-white hover:shadow-md group" id="nav-clients">
+          <span class="text-2xl">👥</span>
+          <span class="font-bold text-gray-700 group-hover:text-indigo-600">Clients</span>
         </button>
-        <div class="flex-grow"></div>
-        <div id="quickControls" class="flex items-center gap-2"></div>
+      </div>
     </div>
+  </div>
+
+  <main class="max-w-6xl mx-auto mt-6 px-3 pb-20">
     <div id="tabContent">
 
         <!-- SUPERCHARGED DASHBOARD TAB -->
@@ -17799,12 +17818,16 @@ Thanks!
         // Save current tab to remember it on refresh
         localStorage.setItem('9x12_active_tab', tabName);
 
+        // Remove active state from all nav buttons
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.classList.remove('active');
+            btn.classList.remove('bg-white', 'shadow-md');
         });
+
+        // Add active state to current tab button
         const activeBtn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
         if (activeBtn) {
-            activeBtn.classList.add('active');
+            activeBtn.classList.add('active', 'bg-white', 'shadow-md');
         }
 
         document.querySelectorAll('.tab-pane').forEach(pane => {
