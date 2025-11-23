@@ -771,41 +771,50 @@
 
         <!-- SUPERCHARGED DASHBOARD TAB -->
         <div data-content="dashboard" class="tab-pane active-pane">
+            <!-- COMMAND CENTER BANNER -->
+            <div class="bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 rounded-2xl shadow-2xl p-8 md:p-12 mb-6 text-white relative overflow-hidden">
+                <div class="absolute inset-0 opacity-10">
+                    <div class="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
+                    <div class="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
+                </div>
+
+                <div class="relative z-10">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span class="text-6xl">🎯</span>
+                        <div>
+                            <h2 class="text-5xl font-black tracking-tight">Command Center</h2>
+                            <p class="text-2xl text-blue-100 mt-2">Your Business at a Glance</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- DASHBOARD SUB-NAVIGATION -->
-            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-3 mb-6 flex gap-2 justify-center">
-                <button onclick="switchDashboardTab('overview')" data-dashboard-tab="overview" class="dashboard-tab-btn active px-6 py-3 rounded-lg font-bold text-sm transition-all hover:bg-white hover:shadow-md flex items-center gap-2">
-                    <span class="text-2xl">🎯</span>
+            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-3 mb-6 flex gap-2 justify-center flex-wrap">
+                <button onclick="switchDashboardTab('overview')" data-dashboard-tab="overview" class="dashboard-tab-btn active px-4 py-3 rounded-lg font-bold text-sm transition-all hover:bg-white hover:shadow-md flex items-center gap-2">
+                    <span class="text-xl">🎯</span>
                     <span>Overview</span>
                 </button>
-                <button onclick="switchDashboardTab('tasks')" data-dashboard-tab="tasks" class="dashboard-tab-btn px-6 py-3 rounded-lg font-bold text-sm transition-all hover:bg-white hover:shadow-md flex items-center gap-2">
-                    <span class="text-2xl">✅</span>
+                <button onclick="switchDashboardTab('tasks')" data-dashboard-tab="tasks" class="dashboard-tab-btn px-4 py-3 rounded-lg font-bold text-sm transition-all hover:bg-white hover:shadow-md flex items-center gap-2">
+                    <span class="text-xl">✅</span>
                     <span>Tasks</span>
                 </button>
-                <button onclick="switchDashboardTab('reports')" data-dashboard-tab="reports" class="dashboard-tab-btn px-6 py-3 rounded-lg font-bold text-sm transition-all hover:bg-white hover:shadow-md flex items-center gap-2">
-                    <span class="text-2xl">💰</span>
+                <button onclick="switchDashboardTab('reports')" data-dashboard-tab="reports" class="dashboard-tab-btn px-4 py-3 rounded-lg font-bold text-sm transition-all hover:bg-white hover:shadow-md flex items-center gap-2">
+                    <span class="text-xl">💰</span>
                     <span>Reports</span>
+                </button>
+                <button onclick="switchDashboardTab('templates')" data-dashboard-tab="templates" class="dashboard-tab-btn px-4 py-3 rounded-lg font-bold text-sm transition-all hover:bg-white hover:shadow-md flex items-center gap-2">
+                    <span class="text-xl">📧</span>
+                    <span>Templates</span>
+                </button>
+                <button onclick="switchDashboardTab('renewals')" data-dashboard-tab="renewals" class="dashboard-tab-btn px-4 py-3 rounded-lg font-bold text-sm transition-all hover:bg-white hover:shadow-md flex items-center gap-2">
+                    <span class="text-xl">📋</span>
+                    <span>Renewals</span>
                 </button>
             </div>
 
             <!-- OVERVIEW SUB-PANE -->
             <div id="dashboard-overview" class="dashboard-sub-pane">
-                <!-- HERO SECTION -->
-                <div class="bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 rounded-2xl shadow-2xl p-8 md:p-12 mb-8 text-white relative overflow-hidden">
-                    <div class="absolute inset-0 opacity-10">
-                        <div class="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
-                        <div class="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
-                    </div>
-
-                    <div class="relative z-10">
-                        <div class="flex items-center gap-3 mb-4">
-                            <span class="text-6xl">🎯</span>
-                            <div>
-                                <h2 class="text-5xl font-black tracking-tight">Command Center</h2>
-                                <p class="text-2xl text-blue-100 mt-2">Your Business at a Glance</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
             <!-- GETTING STARTED CHECKLIST (Full Width) -->
             <div id="gettingStartedWidget" class="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl shadow-lg border-2 border-green-200 p-6 mb-8">
@@ -869,121 +878,7 @@
                 </div>
             </div>
 
-            <!-- CONTRACT RENEWALS + TODAY'S TASKS (Side by side) -->
-            <div class="grid md:grid-cols-2 gap-6 mb-8">
-                <!-- CONTRACTS EXPIRING WIDGET -->
-                <div class="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl shadow-lg border-2 border-amber-200 p-6">
-                    <div class="flex items-center gap-3 mb-4">
-                        <span class="text-4xl">📋</span>
-                        <div>
-                            <h4 class="text-xl font-black text-gray-900">Contract Renewals</h4>
-                            <p class="text-sm text-gray-600">Upcoming expiration dates</p>
-                        </div>
-                    </div>
-                    <div id="contractsExpiringList" class="space-y-3">
-                        <!-- Dynamically populated by renderContractsExpiring() -->
-                    </div>
-                </div>
 
-                <!-- TODAY'S TASKS -->
-                <div class="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl shadow-lg border-2 border-green-200 p-6">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="flex items-center gap-3">
-                            <span class="text-4xl">✅</span>
-                            <div>
-                                <h4 class="text-xl font-black text-gray-900">Today's Tasks</h4>
-                                <p class="text-sm text-gray-600" id="dashboardTasksCount">0 tasks due</p>
-                            </div>
-                        </div>
-                        <button onclick="switchDashboardTab('tasks')" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition">View All →</button>
-                    </div>
-                    <div id="dashboardTasksList" class="space-y-2 text-sm">
-                        <!-- Top 5 tasks dynamically populated -->
-                    </div>
-                </div>
-            </div>
-
-            <!-- MESSAGE TEMPLATES MANAGER -->
-            <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl shadow-lg border-2 border-blue-200 p-6 mb-8">
-                <div class="flex items-center justify-between mb-4 cursor-pointer" onclick="toggleDashboardTemplates()">
-                    <div class="flex items-center gap-3">
-                        <span class="text-4xl">📧</span>
-                        <div>
-                            <h4 class="text-xl font-black text-gray-900">Message Templates</h4>
-                            <p class="text-sm text-gray-600">Manage your outreach templates - Click to expand</p>
-                        </div>
-                        <span id="dashboardTemplatesToggleIcon" class="text-2xl ml-2 transition-transform">▶</span>
-                    </div>
-                    <button onclick="event.stopPropagation(); openCreateTemplateModal()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-bold text-sm shadow-lg">
-                        + New Template
-                    </button>
-                </div>
-
-                <div id="dashboardTemplatesContent" class="space-y-4 hidden">
-                    <!-- Prospect Templates -->
-                    <div class="bg-gradient-to-r from-teal-50 to-cyan-50 border-2 border-teal-200 rounded-xl p-4">
-                        <h5 class="text-md font-bold text-gray-800 mb-3 flex items-center gap-2">
-                            <span class="text-xl">🎯</span>
-                            <span>Prospect Templates</span>
-                            <span id="dashboardProspectTemplateCount" class="text-xs font-bold text-teal-600 bg-teal-100 px-3 py-1 rounded-full">(0)</span>
-                        </h5>
-                        <div id="dashboardProspectTemplatesList" class="space-y-2">
-                            <!-- Dynamically populated -->
-                        </div>
-                    </div>
-
-                    <!-- Client Templates -->
-                    <div class="bg-gradient-to-r from-purple-50 to-fuchsia-50 border-2 border-purple-200 rounded-xl p-4">
-                        <h5 class="text-md font-bold text-gray-800 mb-3 flex items-center gap-2">
-                            <span class="text-xl">👥</span>
-                            <span>Client Templates</span>
-                            <span id="dashboardClientTemplateCount" class="text-xs font-bold text-purple-600 bg-purple-100 px-3 py-1 rounded-full">(0)</span>
-                        </h5>
-                        <div id="dashboardClientTemplatesList" class="space-y-2">
-                            <!-- Dynamically populated -->
-                        </div>
-                    </div>
-
-                    <!-- Follow-up Templates -->
-                    <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-4">
-                        <h5 class="text-md font-bold text-gray-800 mb-3 flex items-center gap-2">
-                            <span class="text-xl">🔄</span>
-                            <span>Follow-up Templates</span>
-                            <span id="dashboardFollowupTemplateCount" class="text-xs font-bold text-blue-600 bg-blue-100 px-3 py-1 rounded-full">(0)</span>
-                        </h5>
-                        <div id="dashboardFollowupTemplatesList" class="space-y-2">
-                            <!-- Dynamically populated -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- RECENT ACTIVITY FEED -->
-            <div class="bg-white rounded-2xl shadow-xl border-2 border-gray-100 p-6 md:p-8 mb-8">
-                <div class="flex items-center gap-3 mb-6">
-                    <span class="text-4xl">🎬</span>
-                    <div>
-                        <h4 class="text-2xl font-black text-gray-900">Recent Activity</h4>
-                        <p class="text-sm text-gray-500">Your latest actions across all areas</p>
-                    </div>
-                </div>
-                <div id="recentActivityFeed" class="space-y-3">
-                    <!-- Activity items dynamically populated -->
-                </div>
-            </div>
-
-            <!-- QUICK ACTIONS -->
-            <div class="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl shadow-lg border-2 border-indigo-200 p-8 text-center">
-                <h4 class="text-2xl font-black text-gray-900 mb-6">⚡ Quick Actions</h4>
-                <div class="flex flex-wrap justify-center gap-4">
-                    <button onclick="switchTab('lead-generation')" class="px-6 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all">
-                        🔍 Generate Prospects
-                    </button>
-                    <button onclick="switchTab('manager')" class="px-6 py-4 bg-gradient-to-r from-pink-600 to-rose-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all">
-                        📮 New Campaign
-                    </button>
-                </div>
-            </div>
             </div>
             <!-- END OVERVIEW SUB-PANE -->
 
@@ -1164,6 +1059,108 @@
                 </div>
             </div>
             <!-- END REPORTS SUB-PANE -->
+
+            <!-- TEMPLATES SUB-PANE -->
+            <div id="dashboard-templates" class="dashboard-sub-pane hidden">
+                <!-- HERO SECTION -->
+                <div class="bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 rounded-2xl shadow-2xl p-8 md:p-12 mb-8 text-white relative overflow-hidden">
+                    <div class="absolute inset-0 opacity-10">
+                        <div class="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
+                        <div class="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
+                    </div>
+
+                    <div class="relative z-10">
+                        <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+                            <div class="flex items-center gap-3">
+                                <span class="text-6xl">📧</span>
+                                <div>
+                                    <h2 class="text-5xl font-black tracking-tight">Message Templates</h2>
+                                    <p class="text-2xl text-blue-100 mt-2">Manage Your Outreach Templates</p>
+                                </div>
+                            </div>
+                            <button onclick="openCreateTemplateModal()" class="px-6 py-3 bg-white text-indigo-600 rounded-xl font-bold hover:bg-indigo-50 transition-all shadow-lg transform hover:scale-105">
+                                + New Template
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TEMPLATE CATEGORIES -->
+                <div class="space-y-6">
+                    <!-- Prospect Templates -->
+                    <div class="bg-gradient-to-r from-teal-50 to-cyan-50 border-2 border-teal-200 rounded-2xl p-6">
+                        <h5 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <span class="text-3xl">🎯</span>
+                            <span>Prospect Templates</span>
+                            <span id="dashboardProspectTemplateCount" class="text-sm font-bold text-teal-600 bg-teal-100 px-3 py-1 rounded-full">(0)</span>
+                        </h5>
+                        <div id="dashboardProspectTemplatesList" class="space-y-2">
+                            <!-- Dynamically populated -->
+                        </div>
+                    </div>
+
+                    <!-- Client Templates -->
+                    <div class="bg-gradient-to-r from-purple-50 to-fuchsia-50 border-2 border-purple-200 rounded-2xl p-6">
+                        <h5 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <span class="text-3xl">👥</span>
+                            <span>Client Templates</span>
+                            <span id="dashboardClientTemplateCount" class="text-sm font-bold text-purple-600 bg-purple-100 px-3 py-1 rounded-full">(0)</span>
+                        </h5>
+                        <div id="dashboardClientTemplatesList" class="space-y-2">
+                            <!-- Dynamically populated -->
+                        </div>
+                    </div>
+
+                    <!-- Follow-up Templates -->
+                    <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl p-6">
+                        <h5 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <span class="text-3xl">🔄</span>
+                            <span>Follow-up Templates</span>
+                            <span id="dashboardFollowupTemplateCount" class="text-sm font-bold text-blue-600 bg-blue-100 px-3 py-1 rounded-full">(0)</span>
+                        </h5>
+                        <div id="dashboardFollowupTemplatesList" class="space-y-2">
+                            <!-- Dynamically populated -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- END TEMPLATES SUB-PANE -->
+
+            <!-- RENEWALS SUB-PANE -->
+            <div id="dashboard-renewals" class="dashboard-sub-pane hidden">
+                <!-- HERO SECTION -->
+                <div class="bg-gradient-to-br from-amber-600 via-yellow-600 to-orange-600 rounded-2xl shadow-2xl p-8 md:p-12 mb-8 text-white relative overflow-hidden">
+                    <div class="absolute inset-0 opacity-10">
+                        <div class="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
+                        <div class="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
+                    </div>
+
+                    <div class="relative z-10">
+                        <div class="flex items-center gap-3 mb-4">
+                            <span class="text-6xl">📋</span>
+                            <div>
+                                <h2 class="text-5xl font-black tracking-tight">Contract Renewals</h2>
+                                <p class="text-2xl text-amber-100 mt-2">Track Upcoming Expiration Dates</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CONTRACTS EXPIRING LIST -->
+                <div class="bg-white rounded-2xl shadow-xl border-2 border-amber-100 p-6 md:p-8">
+                    <div class="flex items-center gap-3 mb-6">
+                        <span class="text-4xl">⏰</span>
+                        <div>
+                            <h4 class="text-2xl font-black text-gray-900">Upcoming Renewals</h4>
+                            <p class="text-sm text-gray-500">Keep track of client contract renewals</p>
+                        </div>
+                    </div>
+                    <div id="contractsExpiringList" class="space-y-3">
+                        <!-- Dynamically populated by renderContractsExpiring() -->
+                    </div>
+                </div>
+            </div>
+            <!-- END RENEWALS SUB-PANE -->
         </div>
 
         <!-- SALES PIPELINE TAB -->
@@ -18084,7 +18081,7 @@ Thanks!
     }
 
     /**
-     * Switch between Dashboard sub-tabs (Overview, Tasks, Reports)
+     * Switch between Dashboard sub-tabs (Overview, Tasks, Reports, Templates, Renewals)
      */
     function switchDashboardTab(subTabName) {
         // Remove active state from all dashboard sub-tab buttons
@@ -18109,13 +18106,20 @@ Thanks!
             activePane.classList.remove('hidden');
         }
 
-        // If switching to reports, render financial data
+        // Handle specific tab loading logic
         if (subTabName === 'reports') {
+            // Load financial data
             if (!financialState.loaded) {
                 loadFinancialData();
             } else {
                 renderFinancialRegister();
             }
+        } else if (subTabName === 'templates') {
+            // Render templates
+            setTimeout(() => renderTemplateManager(), 100);
+        } else if (subTabName === 'renewals') {
+            // Render contract renewals
+            renderContractsExpiring();
         }
     }
 
