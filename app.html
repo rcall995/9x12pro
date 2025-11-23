@@ -11434,8 +11434,52 @@ Thanks!
       });
     }
 
+    /**
+     * Clear cached search results for a specific ZIP code
+     * @param {string} zipCode - The ZIP code to clear (e.g., '14150')
+     */
+    function clearCacheByZip(zipCode) {
+      if (!zipCode) {
+        showError('Please provide a ZIP code (e.g., clearCacheByZip("14150"))');
+        return;
+      }
+
+      // Find all cache keys that start with this ZIP code
+      const keysToDelete = Object.keys(placesCache.searches).filter(key => key.startsWith(`${zipCode}-`));
+
+      if (keysToDelete.length === 0) {
+        showWarning(`No cached searches found for ZIP ${zipCode}`);
+        return;
+      }
+
+      const categoryCount = keysToDelete.length;
+      const businessCount = keysToDelete.reduce((sum, key) => {
+        const cached = placesCache.searches[key];
+        return sum + (cached.cachedData ? cached.cachedData.length : 0);
+      }, 0);
+
+      if (!confirm(`Clear ${categoryCount} cached searches for ZIP ${zipCode}?\n\nThis will remove ${businessCount} businesses from the prospect pool.\n\nYou can re-run the search to get fresh results.`)) {
+        return;
+      }
+
+      // Delete the cache entries
+      keysToDelete.forEach(key => {
+        delete placesCache.searches[key];
+      });
+
+      // Save to cloud and localStorage
+      savePlacesCache();
+
+      // Refresh the prospect pool display
+      renderProspectPool();
+
+      showSuccess(`✅ Cleared ${categoryCount} categories for ZIP ${zipCode} (${businessCount} businesses removed)`);
+      console.log(`🗑️ Cleared cache keys:`, keysToDelete);
+    }
+
     // Expose globally
     window.clearAllProspects = clearAllProspects;
+    window.clearCacheByZip = clearCacheByZip;
     window.filterProspectPool = filterProspectPool;
 
     /* ========= PROSPECT POOL CSV EXPORT/IMPORT ========= */
