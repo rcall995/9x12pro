@@ -7243,7 +7243,8 @@ Thanks!
                 const estimatedMinutes = Math.ceil(estimatedSeconds / 60);
 
                 console.log(`⏱️ Estimated time: ${estimatedMinutes} minute${estimatedMinutes !== 1 ? 's' : ''} (${businesses.length} businesses × ~${avgTimePerBusiness}s each)`);
-                toast(`⏱️ Estimated time: ${estimatedMinutes} minute${estimatedMinutes !== 1 ? 's' : ''} - enriching ${businesses.length} businesses...`, true);
+                // Show time estimate for 30 seconds so users can read it
+                toast(`⏱️ Estimated time: ${estimatedMinutes} minute${estimatedMinutes !== 1 ? 's' : ''} - enriching ${businesses.length} businesses...`, true, 30000);
 
                 // Array of entertaining messages to rotate through
                 const entertainingMessages = [
@@ -7305,12 +7306,14 @@ Thanks!
                 // Start rotating messages every 35 seconds (30-40 second range)
                 messageRotationInterval = setInterval(() => {
                   currentMessageIndex = (currentMessageIndex + 1) % entertainingMessages.length;
-                  toast(entertainingMessages[currentMessageIndex], true);
+                  // Show each message for 33 seconds (slightly less than rotation time)
+                  toast(entertainingMessages[currentMessageIndex], true, 33000);
                 }, 35000);
 
                 // Show first entertaining message after initial estimate
                 setTimeout(() => {
-                  toast(entertainingMessages[0], true);
+                  // Show first message for 33 seconds
+                  toast(entertainingMessages[0], true, 33000);
                 }, 2000); // Wait 2 seconds after the initial estimate message
 
                 // Process businesses sequentially with small delays to avoid overwhelming CORS proxy
@@ -7532,7 +7535,8 @@ Thanks!
                 const estimatedMinutes = Math.ceil(estimatedSeconds / 60);
 
                 console.log(`⏱️ Estimated time: ${estimatedMinutes} minute${estimatedMinutes !== 1 ? 's' : ''} (${businesses.length} businesses × ~${avgTimePerBusiness}s each)`);
-                toast(`⏱️ Estimated time: ${estimatedMinutes} minute${estimatedMinutes !== 1 ? 's' : ''} - enriching ${businesses.length} businesses...`, true);
+                // Show time estimate for 30 seconds so users can read it
+                toast(`⏱️ Estimated time: ${estimatedMinutes} minute${estimatedMinutes !== 1 ? 's' : ''} - enriching ${businesses.length} businesses...`, true, 30000);
 
                 // Array of entertaining messages to rotate through
                 const entertainingMessages = [
@@ -7594,12 +7598,14 @@ Thanks!
                 // Start rotating messages every 35 seconds (30-40 second range)
                 messageRotationInterval = setInterval(() => {
                   currentMessageIndex = (currentMessageIndex + 1) % entertainingMessages.length;
-                  toast(entertainingMessages[currentMessageIndex], true);
+                  // Show each message for 33 seconds (slightly less than rotation time)
+                  toast(entertainingMessages[currentMessageIndex], true, 33000);
                 }, 35000);
 
                 // Show first entertaining message after initial estimate
                 setTimeout(() => {
-                  toast(entertainingMessages[0], true);
+                  // Show first message for 33 seconds
+                  toast(entertainingMessages[0], true, 33000);
                 }, 2000); // Wait 2 seconds after the initial estimate message
 
                 // Process businesses sequentially with small delays to avoid overwhelming CORS proxy
