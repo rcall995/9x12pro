@@ -7141,9 +7141,20 @@ Thanks!
             margin-bottom: 1.5rem;
             text-align: center;
           `;
-          progressSubtitle.textContent = progressInfo
-            ? `Search ${progressInfo.currentSearch} of ${progressInfo.totalSearches}`
-            : 'Initializing search...';
+          // Set initial subtitle text
+          if (progressInfo) {
+            if (progressInfo.totalZipCodes > 1 && progressInfo.totalCategories > 1) {
+              progressSubtitle.textContent = `Searching ${progressInfo.totalCategories} categories across ${progressInfo.totalZipCodes} ZIP codes`;
+            } else if (progressInfo.totalCategories > 1) {
+              progressSubtitle.textContent = `Searching ${progressInfo.totalCategories} categories`;
+            } else if (progressInfo.totalZipCodes > 1) {
+              progressSubtitle.textContent = `Searching ${progressInfo.totalZipCodes} ZIP codes`;
+            } else {
+              progressSubtitle.textContent = `Search ${progressInfo.currentSearch} of ${progressInfo.totalSearches}`;
+            }
+          } else {
+            progressSubtitle.textContent = 'Initializing search...';
+          }
 
           const progressBarBg = document.createElement('div');
           progressBarBg.style.cssText = `
@@ -7187,9 +7198,17 @@ Thanks!
           progressOverlay.appendChild(progressContainer);
           document.body.appendChild(progressOverlay);
         } else {
-          // Update subtitle for multi-search
+          // Update subtitle for multi-search when progress bar already exists
           if (progressInfo) {
-            progressSubtitle.textContent = `Search ${progressInfo.currentSearch} of ${progressInfo.totalSearches}`;
+            if (progressInfo.totalZipCodes > 1 && progressInfo.totalCategories > 1) {
+              progressSubtitle.textContent = `Search ${progressInfo.currentSearch} of ${progressInfo.totalSearches} (${progressInfo.totalCategories} categories × ${progressInfo.totalZipCodes} ZIPs)`;
+            } else if (progressInfo.totalCategories > 1) {
+              progressSubtitle.textContent = `Category ${progressInfo.currentSearch} of ${progressInfo.totalCategories}`;
+            } else if (progressInfo.totalZipCodes > 1) {
+              progressSubtitle.textContent = `ZIP ${progressInfo.currentSearch} of ${progressInfo.totalZipCodes}`;
+            } else {
+              progressSubtitle.textContent = `Search ${progressInfo.currentSearch} of ${progressInfo.totalSearches}`;
+            }
           }
         }
 
@@ -7395,9 +7414,22 @@ Thanks!
 
                 // Update subtitle based on single vs multi-search
                 if (progressInfo) {
-                  // Multi-search: show current search and overall remaining categories
-                  const remainingSearches = progressInfo.totalSearches - progressInfo.currentSearch + 1;
-                  progressSubtitle.textContent = `Enriching ${category} (${remainingSearches} ${remainingSearches === 1 ? 'category' : 'categories'} remaining, est. ${estimatedMinutes} min for this one)`;
+                  // Multi-search: show progress across all searches
+                  const totalSearches = progressInfo.totalSearches;
+                  const currentSearch = progressInfo.currentSearch;
+                  const remainingSearches = totalSearches - currentSearch + 1;
+
+                  // Build helpful subtitle message
+                  if (progressInfo.totalZipCodes > 1 && progressInfo.totalCategories > 1) {
+                    // Multiple ZIPs and categories
+                    progressSubtitle.textContent = `Search ${currentSearch} of ${totalSearches} (${progressInfo.totalCategories} categories × ${progressInfo.totalZipCodes} ZIPs, est. ${estimatedMinutes} min for this one)`;
+                  } else if (progressInfo.totalCategories > 1) {
+                    // Multiple categories, one ZIP
+                    progressSubtitle.textContent = `Category ${currentSearch} of ${progressInfo.totalCategories} (${remainingSearches} remaining, est. ${estimatedMinutes} min for this one)`;
+                  } else {
+                    // Multiple ZIPs, one category
+                    progressSubtitle.textContent = `ZIP ${currentSearch} of ${progressInfo.totalZipCodes} (${remainingSearches} remaining, est. ${estimatedMinutes} min for this one)`;
+                  }
                 } else {
                   // Single search: show simple estimate
                   progressSubtitle.textContent = `Now enriching with contact data (est. ${estimatedMinutes} min)`;
@@ -7654,9 +7686,22 @@ Thanks!
 
                 // Update subtitle based on single vs multi-search
                 if (progressInfo) {
-                  // Multi-search: show current search and overall remaining categories
-                  const remainingSearches = progressInfo.totalSearches - progressInfo.currentSearch + 1;
-                  progressSubtitle.textContent = `Enriching ${category} (${remainingSearches} ${remainingSearches === 1 ? 'category' : 'categories'} remaining, est. ${estimatedMinutes} min for this one)`;
+                  // Multi-search: show progress across all searches
+                  const totalSearches = progressInfo.totalSearches;
+                  const currentSearch = progressInfo.currentSearch;
+                  const remainingSearches = totalSearches - currentSearch + 1;
+
+                  // Build helpful subtitle message
+                  if (progressInfo.totalZipCodes > 1 && progressInfo.totalCategories > 1) {
+                    // Multiple ZIPs and categories
+                    progressSubtitle.textContent = `Search ${currentSearch} of ${totalSearches} (${progressInfo.totalCategories} categories × ${progressInfo.totalZipCodes} ZIPs, est. ${estimatedMinutes} min for this one)`;
+                  } else if (progressInfo.totalCategories > 1) {
+                    // Multiple categories, one ZIP
+                    progressSubtitle.textContent = `Category ${currentSearch} of ${progressInfo.totalCategories} (${remainingSearches} remaining, est. ${estimatedMinutes} min for this one)`;
+                  } else {
+                    // Multiple ZIPs, one category
+                    progressSubtitle.textContent = `ZIP ${currentSearch} of ${progressInfo.totalZipCodes} (${remainingSearches} remaining, est. ${estimatedMinutes} min for this one)`;
+                  }
                 } else {
                   // Single search: show simple estimate
                   progressSubtitle.textContent = `Now enriching with contact data (est. ${estimatedMinutes} min)`;
@@ -8937,7 +8982,9 @@ Thanks!
 
               const businesses = await searchGooglePlaces(zipCode, category, radius, {
                 currentSearch: currentSearch,
-                totalSearches: totalSearches
+                totalSearches: totalSearches,
+                totalCategories: selectedCategories.length,
+                totalZipCodes: zipCodes.length
               });
 
               let categoryCount = 0;
