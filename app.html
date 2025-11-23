@@ -31,7 +31,7 @@
   <meta name="format-detection" content="telephone=no" />
   <script>
     // Cache busting version - update this to force reload on all devices
-    window.APP_VERSION = '2025-01-22-v62';
+    window.APP_VERSION = '2025-01-22-v63';
     window.CACHE_BUST = '?v=' + window.APP_VERSION;
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -17583,6 +17583,57 @@ Thanks!
       }).catch(e => {
         console.error('Failed to load prospect cache:', e);
       });
+
+      // Auto-sync prospect cache every 2 minutes to keep devices in sync
+      setInterval(async () => {
+        console.log('🔄 Auto-syncing prospect cache from cloud...');
+        try {
+          const cloudData = await loadFromCloud('placesCache');
+
+          if (cloudData && Object.keys(cloudData).length > 0) {
+            // Merge cloud data with local
+            const currentLocal = { ...placesCache.searches };
+            let newEntriesCount = 0;
+
+            Object.keys(cloudData).forEach(cacheKey => {
+              const cloud = cloudData[cacheKey];
+              const local = currentLocal[cacheKey];
+
+              if (!local) {
+                // New entry from cloud - add it
+                placesCache.searches[cacheKey] = cloud;
+                newEntriesCount++;
+              } else if (cloud.lastFetched && local.lastFetched) {
+                // Both exist - keep newer one
+                const cloudDate = new Date(cloud.lastFetched);
+                const localDate = new Date(local.lastFetched);
+                if (cloudDate > localDate) {
+                  placesCache.searches[cacheKey] = cloud;
+                  newEntriesCount++;
+                }
+              }
+            });
+
+            if (newEntriesCount > 0) {
+              console.log(`✅ Auto-sync: Found ${newEntriesCount} new/updated searches from cloud`);
+
+              // Save merged data locally
+              safeSetItem('mailslot-places-cache', JSON.stringify(placesCache.searches));
+
+              // Refresh prospect pool if user is viewing it
+              const prospectTab = document.querySelector('[data-tab="prospect-pool"]');
+              if (prospectTab && prospectTab.style.display !== 'none') {
+                renderProspectPool();
+                showInfo(`📥 Synced ${newEntriesCount} new searches from cloud`);
+              }
+            } else {
+              console.log('✅ Auto-sync: Prospect cache is up to date');
+            }
+          }
+        } catch(e) {
+          console.error('Auto-sync failed:', e);
+        }
+      }, 2 * 60 * 1000); // Every 2 minutes
 
       // Load spot pricing from localStorage as fallback (cloud load happens earlier)
       // This will be used if cloud sync fails or for migration
