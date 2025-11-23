@@ -8062,15 +8062,16 @@ Thanks!
     // Fetch website HTML with fallback CORS proxies
     async function fetchWithFallbackProxies(url, timeout = 10000) {
       // List of CORS proxies to try (in order)
+      // corsproxy.io primary (100% success rate), allorigins.win backup (59% success rate)
       const proxies = [
-        (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
         (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+        (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
         (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
       ];
 
       for (let i = 0; i < proxies.length; i++) {
         const proxyUrl = proxies[i](url);
-        const proxyName = ['allorigins.win', 'corsproxy.io', 'codetabs.com'][i];
+        const proxyName = ['corsproxy.io', 'allorigins.win', 'codetabs.com'][i];
 
         try {
           console.log(`🌐 Trying proxy ${i + 1}/${proxies.length} (${proxyName}) for: ${url}`);
