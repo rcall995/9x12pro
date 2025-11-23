@@ -7072,14 +7072,110 @@ Thanks!
       }
 
       try {
+        // Create progress bar overlay at the start
+        const progressOverlay = document.createElement('div');
+        progressOverlay.id = 'enrichment-progress-overlay';
+        progressOverlay.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.7);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          backdrop-filter: blur(4px);
+        `;
+
+        const progressContainer = document.createElement('div');
+        progressContainer.style.cssText = `
+          background: white;
+          padding: 2rem;
+          border-radius: 1rem;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+          min-width: 400px;
+          max-width: 500px;
+        `;
+
+        const progressTitle = document.createElement('div');
+        progressTitle.style.cssText = `
+          font-size: 1.25rem;
+          font-weight: bold;
+          color: #1f2937;
+          margin-bottom: 0.5rem;
+          text-align: center;
+        `;
+        progressTitle.textContent = '🔍 Searching for Prospects';
+
+        const progressSubtitle = document.createElement('div');
+        progressSubtitle.id = 'progress-subtitle';
+        progressSubtitle.style.cssText = `
+          font-size: 0.875rem;
+          color: #6b7280;
+          margin-bottom: 1.5rem;
+          text-align: center;
+        `;
+        progressSubtitle.textContent = 'Initializing search...';
+
+        const progressBarBg = document.createElement('div');
+        progressBarBg.style.cssText = `
+          background: #e5e7eb;
+          height: 24px;
+          border-radius: 12px;
+          overflow: hidden;
+          margin-bottom: 1rem;
+        `;
+
+        const progressBarFill = document.createElement('div');
+        progressBarFill.id = 'enrichment-progress-fill';
+        progressBarFill.style.cssText = `
+          background: linear-gradient(90deg, #3b82f6, #2563eb);
+          height: 100%;
+          width: 0%;
+          transition: width 0.3s ease;
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          padding-right: 8px;
+          color: white;
+          font-size: 0.75rem;
+          font-weight: bold;
+        `;
+
+        const progressText = document.createElement('div');
+        progressText.id = 'enrichment-progress-text';
+        progressText.style.cssText = `
+          font-size: 0.875rem;
+          color: #4b5563;
+          text-align: center;
+        `;
+        progressText.textContent = 'Starting search...';
+
+        progressBarBg.appendChild(progressBarFill);
+        progressContainer.appendChild(progressTitle);
+        progressContainer.appendChild(progressSubtitle);
+        progressContainer.appendChild(progressBarBg);
+        progressContainer.appendChild(progressText);
+        progressOverlay.appendChild(progressContainer);
+        document.body.appendChild(progressOverlay);
+
         // Ensure Google Maps API is loaded
         await loadGoogleMapsAPI();
 
-        // Convert zip code to lat/lng
-        toast('📍 Finding location...', true);
+        // Step 1: Convert zip code to lat/lng (5% progress)
+        progressBarFill.style.width = '5%';
+        progressBarFill.textContent = '5%';
+        progressText.textContent = 'Finding location...';
         const location = await convertZipToLatLng(zipCode);
 
         if (!location) {
+          // Remove progress overlay on error
+          const existingProgressOverlay = document.getElementById('enrichment-progress-overlay');
+          if (existingProgressOverlay && existingProgressOverlay.parentNode) {
+            existingProgressOverlay.remove();
+          }
           toast('Invalid zip code or geocoding failed', false);
           return [];
         }
@@ -7234,107 +7330,32 @@ Thanks!
                 const filteredOutCount = allBusinesses.length - businesses.length;
                 console.log(`✅ Found ${businesses.length} matching businesses for ${category} in ZIP ${zipCode} (filtered out ${filteredOutCount} from other ZIPs)`);
 
-                // Fetch phone and website details for each business (required for enrichment)
-                console.log(`📞 Fetching contact details for ${businesses.length} businesses...`);
+                // Step 2: Places search complete (10% progress)
+                progressBarFill.style.width = '10%';
+                progressBarFill.textContent = '10%';
+                progressText.textContent = `Found ${allBusinesses.length} businesses...`;
 
-                // Calculate estimated time
+                // Step 3: Filtering complete (15% progress)
+                progressBarFill.style.width = '15%';
+                progressBarFill.textContent = '15%';
+                progressText.textContent = `Filtered to ${businesses.length} matching businesses...`;
+
+                // Calculate estimated time for enrichment
                 const avgTimePerBusiness = 20; // Average 20 seconds per business for scraping
                 const estimatedSeconds = businesses.length * avgTimePerBusiness;
                 const estimatedMinutes = Math.ceil(estimatedSeconds / 60);
+                progressSubtitle.textContent = `Now enriching with contact data (est. ${estimatedMinutes} min)`;
 
+                // Fetch phone and website details for each business (required for enrichment)
+                console.log(`📞 Fetching contact details for ${businesses.length} businesses...`);
                 console.log(`⏱️ Estimated time: ${estimatedMinutes} minute${estimatedMinutes !== 1 ? 's' : ''} (${businesses.length} businesses × ~${avgTimePerBusiness}s each)`);
 
-                // Create centered progress bar overlay
-                const progressOverlay = document.createElement('div');
-                progressOverlay.id = 'enrichment-progress-overlay';
-                progressOverlay.style.cssText = `
-                  position: fixed;
-                  top: 0;
-                  left: 0;
-                  right: 0;
-                  bottom: 0;
-                  background: rgba(0, 0, 0, 0.7);
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  z-index: 9999;
-                  backdrop-filter: blur(4px);
-                `;
-
-                const progressContainer = document.createElement('div');
-                progressContainer.style.cssText = `
-                  background: white;
-                  padding: 2rem;
-                  border-radius: 1rem;
-                  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-                  min-width: 400px;
-                  max-width: 500px;
-                `;
-
-                const progressTitle = document.createElement('div');
-                progressTitle.style.cssText = `
-                  font-size: 1.25rem;
-                  font-weight: bold;
-                  color: #1f2937;
-                  margin-bottom: 0.5rem;
-                  text-align: center;
-                `;
-                progressTitle.textContent = '🔍 Enriching Prospects';
-
-                const progressSubtitle = document.createElement('div');
-                progressSubtitle.style.cssText = `
-                  font-size: 0.875rem;
-                  color: #6b7280;
-                  margin-bottom: 1.5rem;
-                  text-align: center;
-                `;
-                progressSubtitle.textContent = `Estimated time: ${estimatedMinutes} minute${estimatedMinutes !== 1 ? 's' : ''}`;
-
-                const progressBarBg = document.createElement('div');
-                progressBarBg.style.cssText = `
-                  background: #e5e7eb;
-                  height: 24px;
-                  border-radius: 12px;
-                  overflow: hidden;
-                  margin-bottom: 1rem;
-                `;
-
-                const progressBarFill = document.createElement('div');
-                progressBarFill.id = 'enrichment-progress-fill';
-                progressBarFill.style.cssText = `
-                  background: linear-gradient(90deg, #3b82f6, #2563eb);
-                  height: 100%;
-                  width: 0%;
-                  transition: width 0.3s ease;
-                  display: flex;
-                  align-items: center;
-                  justify-content: flex-end;
-                  padding-right: 8px;
-                  color: white;
-                  font-size: 0.75rem;
-                  font-weight: bold;
-                `;
-
-                const progressText = document.createElement('div');
-                progressText.id = 'enrichment-progress-text';
-                progressText.style.cssText = `
-                  font-size: 0.875rem;
-                  color: #4b5563;
-                  text-align: center;
-                `;
-                progressText.textContent = 'Starting...';
-
-                progressBarBg.appendChild(progressBarFill);
-                progressContainer.appendChild(progressTitle);
-                progressContainer.appendChild(progressSubtitle);
-                progressContainer.appendChild(progressBarBg);
-                progressContainer.appendChild(progressText);
-                progressOverlay.appendChild(progressContainer);
-                document.body.appendChild(progressOverlay);
-
-                // Helper function to update progress
+                // Progress bar already created at start of search - no need to create duplicate
+                // Helper function to update progress (scales from 15% to 100%)
                 const updateProgress = (current, total, businessName) => {
-                  const percentage = Math.round((current / total) * 100);
+                  // Scale from 15% (after filtering) to 100% (complete enrichment)
+                  const enrichmentProgress = (current / total) * 85; // 85% of total (from 15% to 100%)
+                  const percentage = Math.round(15 + enrichmentProgress);
                   progressBarFill.style.width = `${percentage}%`;
                   progressBarFill.textContent = `${percentage}%`;
                   progressText.textContent = `Processing ${current}/${total}: ${businessName}`;
@@ -7382,9 +7403,10 @@ Thanks!
                   }
                 }
 
-                // Remove progress overlay
-                if (progressOverlay && progressOverlay.parentNode) {
-                  progressOverlay.remove();
+                // Remove progress overlay (get reference from DOM)
+                const existingProgressOverlay = document.getElementById('enrichment-progress-overlay');
+                if (existingProgressOverlay && existingProgressOverlay.parentNode) {
+                  existingProgressOverlay.remove();
                 }
 
                 console.log(`✅ Fetched details for ${businessesWithDetails.length} businesses`);
@@ -7553,107 +7575,32 @@ Thanks!
                 const filteredOutCount = allBusinesses.length - businesses.length;
                 console.log(`✅ Found ${businesses.length} matching businesses for ${category} in ZIP ${zipCode} (filtered out ${filteredOutCount} from other ZIPs)`);
 
-                // Fetch phone and website details for each business (required for enrichment)
-                console.log(`📞 Fetching contact details for ${businesses.length} businesses...`);
+                // Step 2: Places search complete (10% progress)
+                progressBarFill.style.width = '10%';
+                progressBarFill.textContent = '10%';
+                progressText.textContent = `Found ${allBusinesses.length} businesses...`;
 
-                // Calculate estimated time
+                // Step 3: Filtering complete (15% progress)
+                progressBarFill.style.width = '15%';
+                progressBarFill.textContent = '15%';
+                progressText.textContent = `Filtered to ${businesses.length} matching businesses...`;
+
+                // Calculate estimated time for enrichment
                 const avgTimePerBusiness = 20; // Average 20 seconds per business for scraping
                 const estimatedSeconds = businesses.length * avgTimePerBusiness;
                 const estimatedMinutes = Math.ceil(estimatedSeconds / 60);
+                progressSubtitle.textContent = `Now enriching with contact data (est. ${estimatedMinutes} min)`;
 
+                // Fetch phone and website details for each business (required for enrichment)
+                console.log(`📞 Fetching contact details for ${businesses.length} businesses...`);
                 console.log(`⏱️ Estimated time: ${estimatedMinutes} minute${estimatedMinutes !== 1 ? 's' : ''} (${businesses.length} businesses × ~${avgTimePerBusiness}s each)`);
 
-                // Create centered progress bar overlay
-                const progressOverlay = document.createElement('div');
-                progressOverlay.id = 'enrichment-progress-overlay';
-                progressOverlay.style.cssText = `
-                  position: fixed;
-                  top: 0;
-                  left: 0;
-                  right: 0;
-                  bottom: 0;
-                  background: rgba(0, 0, 0, 0.7);
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  z-index: 9999;
-                  backdrop-filter: blur(4px);
-                `;
-
-                const progressContainer = document.createElement('div');
-                progressContainer.style.cssText = `
-                  background: white;
-                  padding: 2rem;
-                  border-radius: 1rem;
-                  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-                  min-width: 400px;
-                  max-width: 500px;
-                `;
-
-                const progressTitle = document.createElement('div');
-                progressTitle.style.cssText = `
-                  font-size: 1.25rem;
-                  font-weight: bold;
-                  color: #1f2937;
-                  margin-bottom: 0.5rem;
-                  text-align: center;
-                `;
-                progressTitle.textContent = '🔍 Enriching Prospects';
-
-                const progressSubtitle = document.createElement('div');
-                progressSubtitle.style.cssText = `
-                  font-size: 0.875rem;
-                  color: #6b7280;
-                  margin-bottom: 1.5rem;
-                  text-align: center;
-                `;
-                progressSubtitle.textContent = `Estimated time: ${estimatedMinutes} minute${estimatedMinutes !== 1 ? 's' : ''}`;
-
-                const progressBarBg = document.createElement('div');
-                progressBarBg.style.cssText = `
-                  background: #e5e7eb;
-                  height: 24px;
-                  border-radius: 12px;
-                  overflow: hidden;
-                  margin-bottom: 1rem;
-                `;
-
-                const progressBarFill = document.createElement('div');
-                progressBarFill.id = 'enrichment-progress-fill';
-                progressBarFill.style.cssText = `
-                  background: linear-gradient(90deg, #3b82f6, #2563eb);
-                  height: 100%;
-                  width: 0%;
-                  transition: width 0.3s ease;
-                  display: flex;
-                  align-items: center;
-                  justify-content: flex-end;
-                  padding-right: 8px;
-                  color: white;
-                  font-size: 0.75rem;
-                  font-weight: bold;
-                `;
-
-                const progressText = document.createElement('div');
-                progressText.id = 'enrichment-progress-text';
-                progressText.style.cssText = `
-                  font-size: 0.875rem;
-                  color: #4b5563;
-                  text-align: center;
-                `;
-                progressText.textContent = 'Starting...';
-
-                progressBarBg.appendChild(progressBarFill);
-                progressContainer.appendChild(progressTitle);
-                progressContainer.appendChild(progressSubtitle);
-                progressContainer.appendChild(progressBarBg);
-                progressContainer.appendChild(progressText);
-                progressOverlay.appendChild(progressContainer);
-                document.body.appendChild(progressOverlay);
-
-                // Helper function to update progress
+                // Progress bar already created at start of search - no need to create duplicate
+                // Helper function to update progress (scales from 15% to 100%)
                 const updateProgress = (current, total, businessName) => {
-                  const percentage = Math.round((current / total) * 100);
+                  // Scale from 15% (after filtering) to 100% (complete enrichment)
+                  const enrichmentProgress = (current / total) * 85; // 85% of total (from 15% to 100%)
+                  const percentage = Math.round(15 + enrichmentProgress);
                   progressBarFill.style.width = `${percentage}%`;
                   progressBarFill.textContent = `${percentage}%`;
                   progressText.textContent = `Processing ${current}/${total}: ${businessName}`;
@@ -7701,9 +7648,10 @@ Thanks!
                   }
                 }
 
-                // Remove progress overlay
-                if (progressOverlay && progressOverlay.parentNode) {
-                  progressOverlay.remove();
+                // Remove progress overlay (get reference from DOM)
+                const existingProgressOverlay = document.getElementById('enrichment-progress-overlay');
+                if (existingProgressOverlay && existingProgressOverlay.parentNode) {
+                  existingProgressOverlay.remove();
                 }
 
                 console.log(`✅ Fetched details for ${businessesWithDetails.length} businesses`);
@@ -7767,6 +7715,11 @@ Thanks!
         });
       } catch(err) {
         console.error('Google Places search error:', err);
+        // Remove progress overlay on error
+        const existingProgressOverlay = document.getElementById('enrichment-progress-overlay');
+        if (existingProgressOverlay && existingProgressOverlay.parentNode) {
+          existingProgressOverlay.remove();
+        }
         toast(`Search failed: ${err.message}`, false);
         return [];
       }
