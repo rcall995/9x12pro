@@ -31,7 +31,7 @@
   <meta name="format-detection" content="telephone=no" />
   <script>
     // Cache busting version - update this to force reload on all devices
-    window.APP_VERSION = '2025-01-23-v69';
+    window.APP_VERSION = '2025-01-23-v70';
     window.CACHE_BUST = '?v=' + window.APP_VERSION;
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -52,12 +52,14 @@
   <script>document.write('<script src="components/BusinessModal.js' + window.CACHE_BUST + '"><\/script>');</script>
   <script>document.write('<script src="components/FilterBar.js' + window.CACHE_BUST + '"><\/script>');</script>
 
-  <!-- Google Maps JavaScript API with Places Library -->
+  <!-- Google Maps JavaScript API - PLACES LIBRARY DISABLED TO PREVENT CHARGES -->
   <script>
-    // Use API key from config
+    // IMPORTANT: Places API costs $32 per 1,000 requests - DISABLED
+    // Use API key from config (Geocoding only - free tier available)
     (function() {
       var script = document.createElement('script');
-      script.src = 'https://maps.googleapis.com/maps/api/js?key=' + window.APP_CONFIG.googleMaps.apiKey + '&libraries=places&callback=initGoogleMaps';
+      // REMOVED: &libraries=places to prevent costly API calls
+      script.src = 'https://maps.googleapis.com/maps/api/js?key=' + window.APP_CONFIG.googleMaps.apiKey + '&callback=initGoogleMaps';
       script.async = true;
       script.defer = true;
       document.head.appendChild(script);
@@ -2975,17 +2977,11 @@
     <div class="modal" style="max-width: 600px;">
       <h3 class="text-lg font-bold mb-4">➕ Add Business Manually</h3>
 
-      <!-- Google Places Lookup -->
-      <div class="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 mb-4">
-        <label class="text-sm font-semibold text-blue-900 block mb-2">🔍 Quick Lookup (Optional)</label>
-        <p class="text-xs text-gray-600 mb-3">Search for a business to auto-fill details from Google Places:</p>
-        <div class="flex gap-2">
-          <input id="googlePlacesLookup" type="text" class="flex-1 border rounded-md p-2" placeholder="Search business name + city..." />
-          <button type="button" onclick="lookupBusinessOnGoogle()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium whitespace-nowrap">
-            🔍 Search
-          </button>
-        </div>
-        <p id="lookupStatus" class="text-xs text-gray-500 mt-2"></p>
+      <!-- Google Places Lookup - DISABLED TO PREVENT API CHARGES -->
+      <div class="bg-red-50 border-2 border-red-200 rounded-lg p-4 mb-4">
+        <label class="text-sm font-semibold text-red-900 block mb-2">⛔ Quick Lookup (Disabled)</label>
+        <p class="text-xs text-red-700 mb-2">Google Places API has been disabled to prevent charges ($32 per 1,000 searches).</p>
+        <p class="text-xs text-gray-600">Please enter business details manually below, or use the Generator tab with Outscraper.</p>
       </div>
 
       <form id="addManualBusinessForm" class="space-y-4">
@@ -3298,9 +3294,13 @@
     <div class="modal" style="max-width: 600px;">
       <h3 class="text-lg font-bold mb-4">🔍 Auto-Populate Prospects</h3>
 
-      <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-        <p class="text-sm text-blue-900">
-          Search Google Places API for businesses in your area and automatically add them to your prospecting list.
+      <div class="bg-red-50 border-2 border-red-200 rounded-lg p-4 mb-4">
+        <p class="text-sm font-bold text-red-900 mb-2">⛔ Google Places API Disabled</p>
+        <p class="text-sm text-red-800 mb-2">
+          Google Places API costs $32 per 1,000 searches and has been disabled to prevent charges.
+        </p>
+        <p class="text-sm text-gray-700">
+          <strong>Alternative:</strong> Use Outscraper (free scraping tool) or add prospects manually.
         </p>
       </div>
 
@@ -7241,6 +7241,11 @@ Thanks!
     }
 
     async function searchGooglePlaces(zipCode, category, radiusMeters, progressInfo = null) {
+      // ⛔ PLACES API DISABLED - Costs $32 per 1,000 requests
+      // This function is now disabled to prevent API charges
+      showError('⛔ Google Places API has been disabled to prevent charges. Please use manual entry or contact support for alternatives.');
+      return [];
+
       // progressInfo: { currentSearch: 1, totalSearches: 5 } for multi-category searches
       // Check quota first
       const quotaCheck = canUserSearch();
