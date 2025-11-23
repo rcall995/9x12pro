@@ -7237,90 +7237,117 @@ Thanks!
                 // Fetch phone and website details for each business (required for enrichment)
                 console.log(`📞 Fetching contact details for ${businesses.length} businesses...`);
 
-                // Calculate and display estimated time
+                // Calculate estimated time
                 const avgTimePerBusiness = 20; // Average 20 seconds per business for scraping
                 const estimatedSeconds = businesses.length * avgTimePerBusiness;
                 const estimatedMinutes = Math.ceil(estimatedSeconds / 60);
 
                 console.log(`⏱️ Estimated time: ${estimatedMinutes} minute${estimatedMinutes !== 1 ? 's' : ''} (${businesses.length} businesses × ~${avgTimePerBusiness}s each)`);
-                // Show time estimate for 30 seconds so users can read it
-                toast(`⏱️ Estimated time: ${estimatedMinutes} minute${estimatedMinutes !== 1 ? 's' : ''} - enriching ${businesses.length} businesses...`, true, 30000);
 
-                // Array of entertaining messages to rotate through
-                const entertainingMessages = [
-                  "☕ Perfect time to grab a coffee!",
-                  "💡 Tip: Personalized postcards get 3x more responses",
-                  "📈 Did you know? Direct mail has a 4.9% response rate vs 0.6% for email",
-                  "🎯 Tip: Target businesses with 5-20 employees for best ROI",
-                  "🖼️ Pro tip: Include a photo of your work on your postcard",
-                  "💰 Fact: Direct mail ROI averages 29% for small businesses",
-                  "✍️ Tip: Handwrite the address for a personal touch",
-                  "🎨 Keep your design simple - one clear message works best",
-                  "📞 Follow up within 3 days of mail delivery for best results",
-                  "🌟 Tip: Include a clear call-to-action on every postcard",
-                  "💼 Businesses check their mail daily - email can wait days",
-                  "🎁 Pro tip: Include a limited-time offer to drive urgency",
-                  "📊 Track your campaigns - measure what works!",
-                  "🚀 Tip: Send 3-5 touches to the same prospect for best results",
-                  "🎯 Quality over quantity - 50 perfect prospects beat 500 random ones",
-                  "💡 Testimonials on postcards boost credibility by 40%",
-                  "📮 Tuesday-Thursday mailings get the highest response rates",
-                  "🔄 Consistent mailing builds brand recognition over time",
-                  "💬 Tip: Ask a question on your postcard to engage readers",
-                  "🏆 Winners never quit on their first campaign",
-                  "📱 Include a QR code to bridge offline and online marketing",
-                  "💵 Tip: Highlight your differentiator, not just your services",
-                  "🎪 Stand out: Use bold colors and clear fonts",
-                  "⏰ Best time to mail: 2 weeks before seasonal demand",
-                  "🎓 Learn from every campaign - test and improve",
-                  "🌈 Color postcards get 25% more attention than black & white",
-                  "💪 Persistence pays: Most sales happen after the 5th touch",
-                  "📍 Local targeting = higher conversion rates",
-                  "🎉 Celebrate small wins - every response is progress!",
-                  "🔍 Research your prospects - personalization wins",
-                  "💌 People love getting real mail in a digital world",
-                  "🎬 Tell a story - facts tell, stories sell",
-                  "⚡ Urgency creates action - limited time offers work",
-                  "🌟 Make it about them, not you",
-                  "📈 Track metrics: response rate, conversion rate, ROI",
-                  "🎨 White space is your friend - don't overcrowd",
-                  "💎 Quality printing shows you care about details",
-                  "🚪 Door hangers can complement your postcard strategy",
-                  "🎯 Segment your audience for better targeting",
-                  "🔥 Hot tip: Mail on Mondays, they'll see it Tuesday morning",
-                  "📞 Include multiple contact options (phone, email, web)",
-                  "🏅 Professional design beats DIY every time",
-                  "💡 Solve a problem - don't just promote features",
-                  "🎁 Free offers get opened first",
-                  "📊 A/B test your messaging to optimize results",
-                  "🌟 Show before/after results if possible",
-                  "💼 B2B? Mail to the owner or decision-maker by name",
-                  "🎪 Use emotional triggers - fear of missing out works",
-                  "⭐ Reviews and ratings build instant trust",
-                  "🚀 Speed wins - respond to inquiries within 1 hour"
-                ];
+                // Create centered progress bar overlay
+                const progressOverlay = document.createElement('div');
+                progressOverlay.id = 'enrichment-progress-overlay';
+                progressOverlay.style.cssText = `
+                  position: fixed;
+                  top: 0;
+                  left: 0;
+                  right: 0;
+                  bottom: 0;
+                  background: rgba(0, 0, 0, 0.7);
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  z-index: 9999;
+                  backdrop-filter: blur(4px);
+                `;
 
-                let messageRotationInterval = null;
-                let currentMessageIndex = 0;
+                const progressContainer = document.createElement('div');
+                progressContainer.style.cssText = `
+                  background: white;
+                  padding: 2rem;
+                  border-radius: 1rem;
+                  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+                  min-width: 400px;
+                  max-width: 500px;
+                `;
 
-                // Start rotating messages every 35 seconds (30-40 second range)
-                messageRotationInterval = setInterval(() => {
-                  currentMessageIndex = (currentMessageIndex + 1) % entertainingMessages.length;
-                  // Show each message for 33 seconds (slightly less than rotation time)
-                  toast(entertainingMessages[currentMessageIndex], true, 33000);
-                }, 35000);
+                const progressTitle = document.createElement('div');
+                progressTitle.style.cssText = `
+                  font-size: 1.25rem;
+                  font-weight: bold;
+                  color: #1f2937;
+                  margin-bottom: 0.5rem;
+                  text-align: center;
+                `;
+                progressTitle.textContent = '🔍 Enriching Prospects';
 
-                // Show first entertaining message after initial estimate
-                setTimeout(() => {
-                  // Show first message for 33 seconds
-                  toast(entertainingMessages[0], true, 33000);
-                }, 2000); // Wait 2 seconds after the initial estimate message
+                const progressSubtitle = document.createElement('div');
+                progressSubtitle.style.cssText = `
+                  font-size: 0.875rem;
+                  color: #6b7280;
+                  margin-bottom: 1.5rem;
+                  text-align: center;
+                `;
+                progressSubtitle.textContent = `Estimated time: ${estimatedMinutes} minute${estimatedMinutes !== 1 ? 's' : ''}`;
+
+                const progressBarBg = document.createElement('div');
+                progressBarBg.style.cssText = `
+                  background: #e5e7eb;
+                  height: 24px;
+                  border-radius: 12px;
+                  overflow: hidden;
+                  margin-bottom: 1rem;
+                `;
+
+                const progressBarFill = document.createElement('div');
+                progressBarFill.id = 'enrichment-progress-fill';
+                progressBarFill.style.cssText = `
+                  background: linear-gradient(90deg, #3b82f6, #2563eb);
+                  height: 100%;
+                  width: 0%;
+                  transition: width 0.3s ease;
+                  display: flex;
+                  align-items: center;
+                  justify-content: flex-end;
+                  padding-right: 8px;
+                  color: white;
+                  font-size: 0.75rem;
+                  font-weight: bold;
+                `;
+
+                const progressText = document.createElement('div');
+                progressText.id = 'enrichment-progress-text';
+                progressText.style.cssText = `
+                  font-size: 0.875rem;
+                  color: #4b5563;
+                  text-align: center;
+                `;
+                progressText.textContent = 'Starting...';
+
+                progressBarBg.appendChild(progressBarFill);
+                progressContainer.appendChild(progressTitle);
+                progressContainer.appendChild(progressSubtitle);
+                progressContainer.appendChild(progressBarBg);
+                progressContainer.appendChild(progressText);
+                progressOverlay.appendChild(progressContainer);
+                document.body.appendChild(progressOverlay);
+
+                // Helper function to update progress
+                const updateProgress = (current, total, businessName) => {
+                  const percentage = Math.round((current / total) * 100);
+                  progressBarFill.style.width = `${percentage}%`;
+                  progressBarFill.textContent = `${percentage}%`;
+                  progressText.textContent = `Processing ${current}/${total}: ${businessName}`;
+                };
 
                 // Process businesses sequentially with small delays to avoid overwhelming CORS proxy
                 const businessesWithDetails = [];
                 for (let i = 0; i < businesses.length; i++) {
                   const b = businesses[i];
                   try {
+                    // Update progress bar
+                    updateProgress(i + 1, businesses.length, b.name);
+
                     console.log(`📇 Processing ${i + 1}/${businesses.length}: ${b.name}`);
                     const details = await fetchPlaceDetails(b.placeId);
 
@@ -7355,9 +7382,9 @@ Thanks!
                   }
                 }
 
-                // Clear the message rotation interval
-                if (messageRotationInterval) {
-                  clearInterval(messageRotationInterval);
+                // Remove progress overlay
+                if (progressOverlay && progressOverlay.parentNode) {
+                  progressOverlay.remove();
                 }
 
                 console.log(`✅ Fetched details for ${businessesWithDetails.length} businesses`);
@@ -7529,90 +7556,117 @@ Thanks!
                 // Fetch phone and website details for each business (required for enrichment)
                 console.log(`📞 Fetching contact details for ${businesses.length} businesses...`);
 
-                // Calculate and display estimated time
+                // Calculate estimated time
                 const avgTimePerBusiness = 20; // Average 20 seconds per business for scraping
                 const estimatedSeconds = businesses.length * avgTimePerBusiness;
                 const estimatedMinutes = Math.ceil(estimatedSeconds / 60);
 
                 console.log(`⏱️ Estimated time: ${estimatedMinutes} minute${estimatedMinutes !== 1 ? 's' : ''} (${businesses.length} businesses × ~${avgTimePerBusiness}s each)`);
-                // Show time estimate for 30 seconds so users can read it
-                toast(`⏱️ Estimated time: ${estimatedMinutes} minute${estimatedMinutes !== 1 ? 's' : ''} - enriching ${businesses.length} businesses...`, true, 30000);
 
-                // Array of entertaining messages to rotate through
-                const entertainingMessages = [
-                  "☕ Perfect time to grab a coffee!",
-                  "💡 Tip: Personalized postcards get 3x more responses",
-                  "📈 Did you know? Direct mail has a 4.9% response rate vs 0.6% for email",
-                  "🎯 Tip: Target businesses with 5-20 employees for best ROI",
-                  "🖼️ Pro tip: Include a photo of your work on your postcard",
-                  "💰 Fact: Direct mail ROI averages 29% for small businesses",
-                  "✍️ Tip: Handwrite the address for a personal touch",
-                  "🎨 Keep your design simple - one clear message works best",
-                  "📞 Follow up within 3 days of mail delivery for best results",
-                  "🌟 Tip: Include a clear call-to-action on every postcard",
-                  "💼 Businesses check their mail daily - email can wait days",
-                  "🎁 Pro tip: Include a limited-time offer to drive urgency",
-                  "📊 Track your campaigns - measure what works!",
-                  "🚀 Tip: Send 3-5 touches to the same prospect for best results",
-                  "🎯 Quality over quantity - 50 perfect prospects beat 500 random ones",
-                  "💡 Testimonials on postcards boost credibility by 40%",
-                  "📮 Tuesday-Thursday mailings get the highest response rates",
-                  "🔄 Consistent mailing builds brand recognition over time",
-                  "💬 Tip: Ask a question on your postcard to engage readers",
-                  "🏆 Winners never quit on their first campaign",
-                  "📱 Include a QR code to bridge offline and online marketing",
-                  "💵 Tip: Highlight your differentiator, not just your services",
-                  "🎪 Stand out: Use bold colors and clear fonts",
-                  "⏰ Best time to mail: 2 weeks before seasonal demand",
-                  "🎓 Learn from every campaign - test and improve",
-                  "🌈 Color postcards get 25% more attention than black & white",
-                  "💪 Persistence pays: Most sales happen after the 5th touch",
-                  "📍 Local targeting = higher conversion rates",
-                  "🎉 Celebrate small wins - every response is progress!",
-                  "🔍 Research your prospects - personalization wins",
-                  "💌 People love getting real mail in a digital world",
-                  "🎬 Tell a story - facts tell, stories sell",
-                  "⚡ Urgency creates action - limited time offers work",
-                  "🌟 Make it about them, not you",
-                  "📈 Track metrics: response rate, conversion rate, ROI",
-                  "🎨 White space is your friend - don't overcrowd",
-                  "💎 Quality printing shows you care about details",
-                  "🚪 Door hangers can complement your postcard strategy",
-                  "🎯 Segment your audience for better targeting",
-                  "🔥 Hot tip: Mail on Mondays, they'll see it Tuesday morning",
-                  "📞 Include multiple contact options (phone, email, web)",
-                  "🏅 Professional design beats DIY every time",
-                  "💡 Solve a problem - don't just promote features",
-                  "🎁 Free offers get opened first",
-                  "📊 A/B test your messaging to optimize results",
-                  "🌟 Show before/after results if possible",
-                  "💼 B2B? Mail to the owner or decision-maker by name",
-                  "🎪 Use emotional triggers - fear of missing out works",
-                  "⭐ Reviews and ratings build instant trust",
-                  "🚀 Speed wins - respond to inquiries within 1 hour"
-                ];
+                // Create centered progress bar overlay
+                const progressOverlay = document.createElement('div');
+                progressOverlay.id = 'enrichment-progress-overlay';
+                progressOverlay.style.cssText = `
+                  position: fixed;
+                  top: 0;
+                  left: 0;
+                  right: 0;
+                  bottom: 0;
+                  background: rgba(0, 0, 0, 0.7);
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  z-index: 9999;
+                  backdrop-filter: blur(4px);
+                `;
 
-                let messageRotationInterval = null;
-                let currentMessageIndex = 0;
+                const progressContainer = document.createElement('div');
+                progressContainer.style.cssText = `
+                  background: white;
+                  padding: 2rem;
+                  border-radius: 1rem;
+                  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+                  min-width: 400px;
+                  max-width: 500px;
+                `;
 
-                // Start rotating messages every 35 seconds (30-40 second range)
-                messageRotationInterval = setInterval(() => {
-                  currentMessageIndex = (currentMessageIndex + 1) % entertainingMessages.length;
-                  // Show each message for 33 seconds (slightly less than rotation time)
-                  toast(entertainingMessages[currentMessageIndex], true, 33000);
-                }, 35000);
+                const progressTitle = document.createElement('div');
+                progressTitle.style.cssText = `
+                  font-size: 1.25rem;
+                  font-weight: bold;
+                  color: #1f2937;
+                  margin-bottom: 0.5rem;
+                  text-align: center;
+                `;
+                progressTitle.textContent = '🔍 Enriching Prospects';
 
-                // Show first entertaining message after initial estimate
-                setTimeout(() => {
-                  // Show first message for 33 seconds
-                  toast(entertainingMessages[0], true, 33000);
-                }, 2000); // Wait 2 seconds after the initial estimate message
+                const progressSubtitle = document.createElement('div');
+                progressSubtitle.style.cssText = `
+                  font-size: 0.875rem;
+                  color: #6b7280;
+                  margin-bottom: 1.5rem;
+                  text-align: center;
+                `;
+                progressSubtitle.textContent = `Estimated time: ${estimatedMinutes} minute${estimatedMinutes !== 1 ? 's' : ''}`;
+
+                const progressBarBg = document.createElement('div');
+                progressBarBg.style.cssText = `
+                  background: #e5e7eb;
+                  height: 24px;
+                  border-radius: 12px;
+                  overflow: hidden;
+                  margin-bottom: 1rem;
+                `;
+
+                const progressBarFill = document.createElement('div');
+                progressBarFill.id = 'enrichment-progress-fill';
+                progressBarFill.style.cssText = `
+                  background: linear-gradient(90deg, #3b82f6, #2563eb);
+                  height: 100%;
+                  width: 0%;
+                  transition: width 0.3s ease;
+                  display: flex;
+                  align-items: center;
+                  justify-content: flex-end;
+                  padding-right: 8px;
+                  color: white;
+                  font-size: 0.75rem;
+                  font-weight: bold;
+                `;
+
+                const progressText = document.createElement('div');
+                progressText.id = 'enrichment-progress-text';
+                progressText.style.cssText = `
+                  font-size: 0.875rem;
+                  color: #4b5563;
+                  text-align: center;
+                `;
+                progressText.textContent = 'Starting...';
+
+                progressBarBg.appendChild(progressBarFill);
+                progressContainer.appendChild(progressTitle);
+                progressContainer.appendChild(progressSubtitle);
+                progressContainer.appendChild(progressBarBg);
+                progressContainer.appendChild(progressText);
+                progressOverlay.appendChild(progressContainer);
+                document.body.appendChild(progressOverlay);
+
+                // Helper function to update progress
+                const updateProgress = (current, total, businessName) => {
+                  const percentage = Math.round((current / total) * 100);
+                  progressBarFill.style.width = `${percentage}%`;
+                  progressBarFill.textContent = `${percentage}%`;
+                  progressText.textContent = `Processing ${current}/${total}: ${businessName}`;
+                };
 
                 // Process businesses sequentially with small delays to avoid overwhelming CORS proxy
                 const businessesWithDetails = [];
                 for (let i = 0; i < businesses.length; i++) {
                   const b = businesses[i];
                   try {
+                    // Update progress bar
+                    updateProgress(i + 1, businesses.length, b.name);
+
                     console.log(`📇 Processing ${i + 1}/${businesses.length}: ${b.name}`);
                     const details = await fetchPlaceDetails(b.placeId);
 
@@ -7647,9 +7701,9 @@ Thanks!
                   }
                 }
 
-                // Clear the message rotation interval
-                if (messageRotationInterval) {
-                  clearInterval(messageRotationInterval);
+                // Remove progress overlay
+                if (progressOverlay && progressOverlay.parentNode) {
+                  progressOverlay.remove();
                 }
 
                 console.log(`✅ Fetched details for ${businessesWithDetails.length} businesses`);
