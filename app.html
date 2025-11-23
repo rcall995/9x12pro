@@ -7023,7 +7023,8 @@ Thanks!
       }
     }
 
-    async function searchGooglePlaces(zipCode, category, radiusMeters) {
+    async function searchGooglePlaces(zipCode, category, radiusMeters, progressInfo = null) {
+      // progressInfo: { currentSearch: 1, totalSearches: 5 } for multi-category searches
       // Check quota first
       const quotaCheck = canUserSearch();
       if (!quotaCheck.allowed) {
@@ -7072,102 +7073,130 @@ Thanks!
       }
 
       try {
-        // Create progress bar overlay at the start
-        const progressOverlay = document.createElement('div');
-        progressOverlay.id = 'enrichment-progress-overlay';
-        progressOverlay.style.cssText = `
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0, 0, 0, 0.7);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 9999;
-          backdrop-filter: blur(4px);
-        `;
+        // Get or create progress bar overlay
+        let progressBarFill = document.getElementById('enrichment-progress-fill');
+        let progressText = document.getElementById('enrichment-progress-text');
+        let progressSubtitle = document.getElementById('progress-subtitle');
 
-        const progressContainer = document.createElement('div');
-        progressContainer.style.cssText = `
-          background: white;
-          padding: 2rem;
-          border-radius: 1rem;
-          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-          min-width: 400px;
-          max-width: 500px;
-        `;
+        // Only create progress bar if it doesn't exist
+        if (!progressBarFill) {
+          const progressOverlay = document.createElement('div');
+          progressOverlay.id = 'enrichment-progress-overlay';
+          progressOverlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            backdrop-filter: blur(4px);
+          `;
 
-        const progressTitle = document.createElement('div');
-        progressTitle.style.cssText = `
-          font-size: 1.25rem;
-          font-weight: bold;
-          color: #1f2937;
-          margin-bottom: 0.5rem;
-          text-align: center;
-        `;
-        progressTitle.textContent = '🔍 Searching for Prospects';
+          const progressContainer = document.createElement('div');
+          progressContainer.style.cssText = `
+            background: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            min-width: 400px;
+            max-width: 500px;
+          `;
 
-        const progressSubtitle = document.createElement('div');
-        progressSubtitle.id = 'progress-subtitle';
-        progressSubtitle.style.cssText = `
-          font-size: 0.875rem;
-          color: #6b7280;
-          margin-bottom: 1.5rem;
-          text-align: center;
-        `;
-        progressSubtitle.textContent = 'Initializing search...';
+          const progressTitle = document.createElement('div');
+          progressTitle.style.cssText = `
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+            text-align: center;
+          `;
+          progressTitle.textContent = '🔍 Searching for Prospects';
 
-        const progressBarBg = document.createElement('div');
-        progressBarBg.style.cssText = `
-          background: #e5e7eb;
-          height: 24px;
-          border-radius: 12px;
-          overflow: hidden;
-          margin-bottom: 1rem;
-        `;
+          progressSubtitle = document.createElement('div');
+          progressSubtitle.id = 'progress-subtitle';
+          progressSubtitle.style.cssText = `
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin-bottom: 1.5rem;
+            text-align: center;
+          `;
+          progressSubtitle.textContent = progressInfo
+            ? `Search ${progressInfo.currentSearch} of ${progressInfo.totalSearches}`
+            : 'Initializing search...';
 
-        const progressBarFill = document.createElement('div');
-        progressBarFill.id = 'enrichment-progress-fill';
-        progressBarFill.style.cssText = `
-          background: linear-gradient(90deg, #3b82f6, #2563eb);
-          height: 100%;
-          width: 0%;
-          transition: width 0.3s ease;
-          display: flex;
-          align-items: center;
-          justify-content: flex-end;
-          padding-right: 8px;
-          color: white;
-          font-size: 0.75rem;
-          font-weight: bold;
-        `;
+          const progressBarBg = document.createElement('div');
+          progressBarBg.style.cssText = `
+            background: #e5e7eb;
+            height: 24px;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+          `;
 
-        const progressText = document.createElement('div');
-        progressText.id = 'enrichment-progress-text';
-        progressText.style.cssText = `
-          font-size: 0.875rem;
-          color: #4b5563;
-          text-align: center;
-        `;
-        progressText.textContent = 'Starting search...';
+          progressBarFill = document.createElement('div');
+          progressBarFill.id = 'enrichment-progress-fill';
+          progressBarFill.style.cssText = `
+            background: linear-gradient(90deg, #3b82f6, #2563eb);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 8px;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: bold;
+          `;
 
-        progressBarBg.appendChild(progressBarFill);
-        progressContainer.appendChild(progressTitle);
-        progressContainer.appendChild(progressSubtitle);
-        progressContainer.appendChild(progressBarBg);
-        progressContainer.appendChild(progressText);
-        progressOverlay.appendChild(progressContainer);
-        document.body.appendChild(progressOverlay);
+          progressText = document.createElement('div');
+          progressText.id = 'enrichment-progress-text';
+          progressText.style.cssText = `
+            font-size: 0.875rem;
+            color: #4b5563;
+            text-align: center;
+          `;
+          progressText.textContent = 'Starting search...';
+
+          progressBarBg.appendChild(progressBarFill);
+          progressContainer.appendChild(progressTitle);
+          progressContainer.appendChild(progressSubtitle);
+          progressContainer.appendChild(progressBarBg);
+          progressContainer.appendChild(progressText);
+          progressOverlay.appendChild(progressContainer);
+          document.body.appendChild(progressOverlay);
+        } else {
+          // Update subtitle for multi-search
+          if (progressInfo) {
+            progressSubtitle.textContent = `Search ${progressInfo.currentSearch} of ${progressInfo.totalSearches}`;
+          }
+        }
 
         // Ensure Google Maps API is loaded
         await loadGoogleMapsAPI();
 
-        // Step 1: Convert zip code to lat/lng (5% progress)
-        progressBarFill.style.width = '5%';
-        progressBarFill.textContent = '5%';
-        progressText.textContent = 'Finding location...';
+        // Helper function to calculate overall progress when doing multiple searches
+        const calculateOverallProgress = (searchPhasePercent) => {
+          if (!progressInfo) {
+            // Single search - use phase percent directly
+            return searchPhasePercent;
+          }
+          // Multi-search: each search gets an equal portion of 100%
+          const searchPortionSize = 100 / progressInfo.totalSearches;
+          const previousSearchesProgress = (progressInfo.currentSearch - 1) * searchPortionSize;
+          const currentSearchProgress = (searchPhasePercent / 100) * searchPortionSize;
+          return Math.round(previousSearchesProgress + currentSearchProgress);
+        };
+
+        // Step 1: Convert zip code to lat/lng (5% of this search)
+        const geocodingProgress = calculateOverallProgress(5);
+        progressBarFill.style.width = `${geocodingProgress}%`;
+        progressBarFill.textContent = `${geocodingProgress}%`;
+        progressText.textContent = `Finding location for ${zipCode}...`;
         const location = await convertZipToLatLng(zipCode);
 
         if (!location) {
@@ -7330,14 +7359,16 @@ Thanks!
                 const filteredOutCount = allBusinesses.length - businesses.length;
                 console.log(`✅ Found ${businesses.length} matching businesses for ${category} in ZIP ${zipCode} (filtered out ${filteredOutCount} from other ZIPs)`);
 
-                // Step 2: Places search complete (10% progress)
-                progressBarFill.style.width = '10%';
-                progressBarFill.textContent = '10%';
-                progressText.textContent = `Found ${allBusinesses.length} businesses...`;
+                // Step 2: Places search complete (10% of this search)
+                const placesProgress = calculateOverallProgress(10);
+                progressBarFill.style.width = `${placesProgress}%`;
+                progressBarFill.textContent = `${placesProgress}%`;
+                progressText.textContent = `Found ${allBusinesses.length} businesses in ${category}...`;
 
-                // Step 3: Filtering complete (15% progress)
-                progressBarFill.style.width = '15%';
-                progressBarFill.textContent = '15%';
+                // Step 3: Filtering complete (15% of this search)
+                const filteringProgress = calculateOverallProgress(15);
+                progressBarFill.style.width = `${filteringProgress}%`;
+                progressBarFill.textContent = `${filteringProgress}%`;
                 progressText.textContent = `Filtered to ${businesses.length} matching businesses...`;
 
                 // Calculate estimated time for enrichment
@@ -7351,14 +7382,14 @@ Thanks!
                 console.log(`⏱️ Estimated time: ${estimatedMinutes} minute${estimatedMinutes !== 1 ? 's' : ''} (${businesses.length} businesses × ~${avgTimePerBusiness}s each)`);
 
                 // Progress bar already created at start of search - no need to create duplicate
-                // Helper function to update progress (scales from 15% to 100%)
+                // Helper function to update progress (scales from 15% to 100% of this search)
                 const updateProgress = (current, total, businessName) => {
-                  // Scale from 15% (after filtering) to 100% (complete enrichment)
-                  const enrichmentProgress = (current / total) * 85; // 85% of total (from 15% to 100%)
-                  const percentage = Math.round(15 + enrichmentProgress);
+                  // Scale from 15% (after filtering) to 100% (complete enrichment) for this individual search
+                  const searchEnrichmentPercent = 15 + ((current / total) * 85); // 15% to 100% for this search
+                  const percentage = calculateOverallProgress(searchEnrichmentPercent);
                   progressBarFill.style.width = `${percentage}%`;
                   progressBarFill.textContent = `${percentage}%`;
-                  progressText.textContent = `Processing ${current}/${total}: ${businessName}`;
+                  progressText.textContent = `Enriching ${category}: ${current}/${total} - ${businessName}`;
                 };
 
                 // Process businesses sequentially with small delays to avoid overwhelming CORS proxy
@@ -7403,10 +7434,13 @@ Thanks!
                   }
                 }
 
-                // Remove progress overlay (get reference from DOM)
-                const existingProgressOverlay = document.getElementById('enrichment-progress-overlay');
-                if (existingProgressOverlay && existingProgressOverlay.parentNode) {
-                  existingProgressOverlay.remove();
+                // Remove progress overlay only if this is a single search
+                // For multi-search, the bulk handler will remove it after all searches complete
+                if (!progressInfo) {
+                  const existingProgressOverlay = document.getElementById('enrichment-progress-overlay');
+                  if (existingProgressOverlay && existingProgressOverlay.parentNode) {
+                    existingProgressOverlay.remove();
+                  }
                 }
 
                 console.log(`✅ Fetched details for ${businessesWithDetails.length} businesses`);
@@ -7575,14 +7609,16 @@ Thanks!
                 const filteredOutCount = allBusinesses.length - businesses.length;
                 console.log(`✅ Found ${businesses.length} matching businesses for ${category} in ZIP ${zipCode} (filtered out ${filteredOutCount} from other ZIPs)`);
 
-                // Step 2: Places search complete (10% progress)
-                progressBarFill.style.width = '10%';
-                progressBarFill.textContent = '10%';
-                progressText.textContent = `Found ${allBusinesses.length} businesses...`;
+                // Step 2: Places search complete (10% of this search)
+                const placesProgress = calculateOverallProgress(10);
+                progressBarFill.style.width = `${placesProgress}%`;
+                progressBarFill.textContent = `${placesProgress}%`;
+                progressText.textContent = `Found ${allBusinesses.length} businesses in ${category}...`;
 
-                // Step 3: Filtering complete (15% progress)
-                progressBarFill.style.width = '15%';
-                progressBarFill.textContent = '15%';
+                // Step 3: Filtering complete (15% of this search)
+                const filteringProgress = calculateOverallProgress(15);
+                progressBarFill.style.width = `${filteringProgress}%`;
+                progressBarFill.textContent = `${filteringProgress}%`;
                 progressText.textContent = `Filtered to ${businesses.length} matching businesses...`;
 
                 // Calculate estimated time for enrichment
@@ -7596,14 +7632,14 @@ Thanks!
                 console.log(`⏱️ Estimated time: ${estimatedMinutes} minute${estimatedMinutes !== 1 ? 's' : ''} (${businesses.length} businesses × ~${avgTimePerBusiness}s each)`);
 
                 // Progress bar already created at start of search - no need to create duplicate
-                // Helper function to update progress (scales from 15% to 100%)
+                // Helper function to update progress (scales from 15% to 100% of this search)
                 const updateProgress = (current, total, businessName) => {
-                  // Scale from 15% (after filtering) to 100% (complete enrichment)
-                  const enrichmentProgress = (current / total) * 85; // 85% of total (from 15% to 100%)
-                  const percentage = Math.round(15 + enrichmentProgress);
+                  // Scale from 15% (after filtering) to 100% (complete enrichment) for this individual search
+                  const searchEnrichmentPercent = 15 + ((current / total) * 85); // 15% to 100% for this search
+                  const percentage = calculateOverallProgress(searchEnrichmentPercent);
                   progressBarFill.style.width = `${percentage}%`;
                   progressBarFill.textContent = `${percentage}%`;
-                  progressText.textContent = `Processing ${current}/${total}: ${businessName}`;
+                  progressText.textContent = `Enriching ${category}: ${current}/${total} - ${businessName}`;
                 };
 
                 // Process businesses sequentially with small delays to avoid overwhelming CORS proxy
@@ -7648,10 +7684,13 @@ Thanks!
                   }
                 }
 
-                // Remove progress overlay (get reference from DOM)
-                const existingProgressOverlay = document.getElementById('enrichment-progress-overlay');
-                if (existingProgressOverlay && existingProgressOverlay.parentNode) {
-                  existingProgressOverlay.remove();
+                // Remove progress overlay only if this is a single search
+                // For multi-search, the bulk handler will remove it after all searches complete
+                if (!progressInfo) {
+                  const existingProgressOverlay = document.getElementById('enrichment-progress-overlay');
+                  if (existingProgressOverlay && existingProgressOverlay.parentNode) {
+                    existingProgressOverlay.remove();
+                  }
                 }
 
                 console.log(`✅ Fetched details for ${businessesWithDetails.length} businesses`);
@@ -8861,7 +8900,10 @@ Thanks!
               const currentSearch = successfulSearches + failedSearches + 1;
               btn.innerHTML = `⏳ Searching ${category} in ${zipCode}... (${currentSearch}/${totalSearches})`;
 
-              const businesses = await searchGooglePlaces(zipCode, category, radius);
+              const businesses = await searchGooglePlaces(zipCode, category, radius, {
+                currentSearch: currentSearch,
+                totalSearches: totalSearches
+              });
 
               let categoryCount = 0;
               // Deduplicate by place ID and filter out "not interested"
@@ -8886,6 +8928,12 @@ Thanks!
               failedSearches++;
             }
           }
+        }
+
+        // Remove progress overlay after all searches complete
+        const existingProgressOverlay = document.getElementById('enrichment-progress-overlay');
+        if (existingProgressOverlay && existingProgressOverlay.parentNode) {
+          existingProgressOverlay.remove();
         }
 
         if (allBusinesses.length === 0) {
