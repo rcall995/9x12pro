@@ -31,7 +31,7 @@
   <meta name="format-detection" content="telephone=no" />
   <script>
     // Cache busting version - update this to force reload on all devices
-    window.APP_VERSION = '2025-01-23-v70';
+    window.APP_VERSION = '2025-01-23-v71';
     window.CACHE_BUST = '?v=' + window.APP_VERSION;
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -2977,11 +2977,11 @@
     <div class="modal" style="max-width: 600px;">
       <h3 class="text-lg font-bold mb-4">➕ Add Business Manually</h3>
 
-      <!-- Google Places Lookup - DISABLED TO PREVENT API CHARGES -->
-      <div class="bg-red-50 border-2 border-red-200 rounded-lg p-4 mb-4">
-        <label class="text-sm font-semibold text-red-900 block mb-2">⛔ Quick Lookup (Disabled)</label>
-        <p class="text-xs text-red-700 mb-2">Google Places API has been disabled to prevent charges ($32 per 1,000 searches).</p>
-        <p class="text-xs text-gray-600">Please enter business details manually below, or use the Generator tab with Outscraper.</p>
+      <!-- Yelp Lookup - FREE! -->
+      <div class="bg-green-50 border-2 border-green-200 rounded-lg p-4 mb-4">
+        <label class="text-sm font-semibold text-green-900 block mb-2">✅ Quick Lookup (FREE via Yelp)</label>
+        <p class="text-xs text-green-700 mb-2">Search Yelp to auto-fill business details - completely free!</p>
+        <p class="text-xs text-gray-600">Or enter business details manually below.</p>
       </div>
 
       <form id="addManualBusinessForm" class="space-y-4">
@@ -3294,13 +3294,13 @@
     <div class="modal" style="max-width: 600px;">
       <h3 class="text-lg font-bold mb-4">🔍 Auto-Populate Prospects</h3>
 
-      <div class="bg-red-50 border-2 border-red-200 rounded-lg p-4 mb-4">
-        <p class="text-sm font-bold text-red-900 mb-2">⛔ Google Places API Disabled</p>
-        <p class="text-sm text-red-800 mb-2">
-          Google Places API costs $32 per 1,000 searches and has been disabled to prevent charges.
+      <div class="bg-green-50 border-2 border-green-200 rounded-lg p-4 mb-4">
+        <p class="text-sm font-bold text-green-900 mb-2">✅ Now Using Yelp Fusion API (FREE!)</p>
+        <p class="text-sm text-green-800 mb-2">
+          Search for businesses automatically using Yelp's free API - 2,500 searches per day at no cost!
         </p>
         <p class="text-sm text-gray-700">
-          <strong>Alternative:</strong> Use Outscraper (free scraping tool) or add prospects manually.
+          <strong>Benefits:</strong> Phone numbers, addresses, ratings, reviews, and more - all included for free.
         </p>
       </div>
 
@@ -7240,11 +7240,82 @@ Thanks!
       }
     }
 
+    /**
+     * Search for businesses using Yelp Fusion API
+     * FREE: 2,500 calls per day - NO COST!
+     */
+    async function searchYelpBusinesses(zipCode, category, radiusMeters, progressInfo = null) {
+      try {
+        const cacheKey = `${zipCode}-${category}`;
+
+        // Check cache first
+        if (placesCache.searches[cacheKey]) {
+          const cached = placesCache.searches[cacheKey];
+          const cacheDate = new Date(cached.cachedUntil);
+
+          if (new Date() < cacheDate) {
+            showSuccess('✅ Using cached results (FREE!)');
+            return cached.businesses;
+          }
+        }
+
+        showInfo(`🔍 Searching Yelp for "${category}" in ${zipCode}...`);
+
+        // Call Yelp API via our serverless function
+        const response = await fetch('/api/yelp', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            location: zipCode,
+            term: category,
+            radius: radiusMeters,
+            limit: 50 // Yelp max per request
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Yelp API request failed');
+        }
+
+        const data = await response.json();
+        const businesses = data.businesses || [];
+
+        console.log(`✅ Yelp returned ${businesses.length} businesses`);
+
+        // Cache results for 30 days
+        const cachedUntil = new Date();
+        cachedUntil.setDate(cachedUntil.getDate() + 30);
+
+        placesCache.searches[cacheKey] = {
+          businesses: businesses,
+          cachedUntil: cachedUntil.toISOString()
+        };
+
+        // Save cache to cloud
+        await saveToCloud('placesCache', placesCache);
+
+        showSuccess(`✅ Found ${businesses.length} businesses on Yelp (FREE!)`);
+
+        return businesses;
+
+      } catch (error) {
+        console.error('Yelp search error:', error);
+        showError(`❌ Yelp search failed: ${error.message}`);
+        return [];
+      }
+    }
+
+    /**
+     * LEGACY: Google Places API (DISABLED - Costs $32 per 1,000 requests)
+     */
     async function searchGooglePlaces(zipCode, category, radiusMeters, progressInfo = null) {
       // ⛔ PLACES API DISABLED - Costs $32 per 1,000 requests
-      // This function is now disabled to prevent API charges
-      showError('⛔ Google Places API has been disabled to prevent charges. Please use manual entry or contact support for alternatives.');
-      return [];
+      // Replaced with searchYelpBusinesses (FREE - 2,500/day)
+      showError('⛔ Google Places API has been disabled. Using Yelp instead (FREE!)');
+      return await searchYelpBusinesses(zipCode, category, radiusMeters, progressInfo);
 
       // progressInfo: { currentSearch: 1, totalSearches: 5 } for multi-category searches
       // Check quota first
