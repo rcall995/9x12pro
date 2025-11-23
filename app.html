@@ -7392,7 +7392,16 @@ Thanks!
                 const avgTimePerBusiness = 20; // Average 20 seconds per business for scraping
                 const estimatedSeconds = businesses.length * avgTimePerBusiness;
                 const estimatedMinutes = Math.ceil(estimatedSeconds / 60);
-                progressSubtitle.textContent = `Now enriching with contact data (est. ${estimatedMinutes} min)`;
+
+                // Update subtitle based on single vs multi-search
+                if (progressInfo) {
+                  // Multi-search: show current search and overall remaining categories
+                  const remainingSearches = progressInfo.totalSearches - progressInfo.currentSearch + 1;
+                  progressSubtitle.textContent = `Enriching ${category} (${remainingSearches} ${remainingSearches === 1 ? 'category' : 'categories'} remaining, est. ${estimatedMinutes} min for this one)`;
+                } else {
+                  // Single search: show simple estimate
+                  progressSubtitle.textContent = `Now enriching with contact data (est. ${estimatedMinutes} min)`;
+                }
 
                 // Fetch phone and website details for each business (required for enrichment)
                 console.log(`📞 Fetching contact details for ${businesses.length} businesses...`);
@@ -7642,7 +7651,16 @@ Thanks!
                 const avgTimePerBusiness = 20; // Average 20 seconds per business for scraping
                 const estimatedSeconds = businesses.length * avgTimePerBusiness;
                 const estimatedMinutes = Math.ceil(estimatedSeconds / 60);
-                progressSubtitle.textContent = `Now enriching with contact data (est. ${estimatedMinutes} min)`;
+
+                // Update subtitle based on single vs multi-search
+                if (progressInfo) {
+                  // Multi-search: show current search and overall remaining categories
+                  const remainingSearches = progressInfo.totalSearches - progressInfo.currentSearch + 1;
+                  progressSubtitle.textContent = `Enriching ${category} (${remainingSearches} ${remainingSearches === 1 ? 'category' : 'categories'} remaining, est. ${estimatedMinutes} min for this one)`;
+                } else {
+                  // Single search: show simple estimate
+                  progressSubtitle.textContent = `Now enriching with contact data (est. ${estimatedMinutes} min)`;
+                }
 
                 // Fetch phone and website details for each business (required for enrichment)
                 console.log(`📞 Fetching contact details for ${businesses.length} businesses...`);
