@@ -22,9 +22,18 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%234F46E5'/><text x='50' y='60' font-family='Arial' font-size='24' font-weight='bold' fill='white' text-anchor='middle'>9x12</text></svg>" />
 
   <!-- VERSION: 2025-01-14-v22 PWA Support -->
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <!-- Aggressive Cache Busting for iOS/Safari -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
+  <meta name="cache-control" content="no-cache" />
+  <meta name="expires" content="0" />
+  <meta name="format-detection" content="telephone=no" />
+  <script>
+    // Cache busting version - update this to force reload on all devices
+    window.APP_VERSION = '2025-01-22-v61';
+    window.CACHE_BUST = '?v=' + window.APP_VERSION;
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Google Maps API callback must be defined BEFORE script loads -->
   <script>
@@ -34,14 +43,14 @@
     };
   </script>
   <!-- Core Utilities - Load First -->
-  <script src="config.js"></script>
-  <script src="error-handler.js"></script>
-  <script src="utils.js"></script>
+  <script>document.write('<script src="config.js' + window.CACHE_BUST + '"><\/script>');</script>
+  <script>document.write('<script src="error-handler.js' + window.CACHE_BUST + '"><\/script>');</script>
+  <script>document.write('<script src="utils.js' + window.CACHE_BUST + '"><\/script>');</script>
 
   <!-- New Modular Components -->
-  <script src="components/Toast.js"></script>
-  <script src="components/BusinessModal.js"></script>
-  <script src="components/FilterBar.js"></script>
+  <script>document.write('<script src="components/Toast.js' + window.CACHE_BUST + '"><\/script>');</script>
+  <script>document.write('<script src="components/BusinessModal.js' + window.CACHE_BUST + '"><\/script>');</script>
+  <script>document.write('<script src="components/FilterBar.js' + window.CACHE_BUST + '"><\/script>');</script>
 
   <!-- Google Maps JavaScript API with Places Library -->
   <script>
@@ -3629,6 +3638,59 @@
         console.log('✅ ACTIVE_USER set to:', ACTIVE_USER);
       }
     }, 100);
+
+    // Auto-update checker: Periodically check if app version has changed
+    function checkForAppUpdate() {
+      // Check if config version differs from page version
+      if (window.APP_CONFIG && window.APP_CONFIG.app.version !== window.APP_VERSION) {
+        console.log('🔄 New version detected:', window.APP_CONFIG.app.version, '(current:', window.APP_VERSION + ')');
+
+        // Show persistent banner prompting refresh
+        const updateBanner = document.createElement('div');
+        updateBanner.id = 'update-banner';
+        updateBanner.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          padding: 12px 20px;
+          text-align: center;
+          font-weight: bold;
+          z-index: 99999;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+          animation: slideDown 0.3s ease-out;
+        `;
+        updateBanner.innerHTML = `
+          <div style="max-width: 800px; margin: 0 auto; display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap;">
+            <span>🎉 New version available (${window.APP_CONFIG.app.version})!</span>
+            <button onclick="location.reload(true)" style="background: white; color: #667eea; padding: 8px 20px; border-radius: 8px; font-weight: bold; border: none; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2); transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+              Refresh Now
+            </button>
+            <button onclick="this.parentElement.parentElement.remove()" style="background: transparent; color: white; padding: 8px 16px; border-radius: 8px; border: 2px solid white; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='transparent'">
+              Later
+            </button>
+          </div>
+        `;
+
+        // Add animation
+        const style = document.createElement('style');
+        style.textContent = `
+          @keyframes slideDown {
+            from { transform: translateY(-100%); }
+            to { transform: translateY(0); }
+          }
+        `;
+        document.head.appendChild(style);
+        document.body.appendChild(updateBanner);
+      }
+    }
+
+    // Check for updates every 5 minutes
+    setInterval(checkForAppUpdate, 5 * 60 * 1000);
+    // Also check once on load (after 10 seconds to let everything initialize)
+    setTimeout(checkForAppUpdate, 10000);
 
     // Cloud Sync State - Tracks what's syncing and when
     const cloudSyncState = {
