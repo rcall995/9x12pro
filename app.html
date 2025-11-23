@@ -1129,17 +1129,15 @@
                                 <p class="text-2xl text-teal-100 mt-2">Your Discovered Opportunities</p>
                             </div>
                         </div>
-                        <div class="flex gap-3 flex-wrap">
-                            <button onclick="openAddManualBusinessModal()" class="px-6 py-3 bg-white text-emerald-600 rounded-xl font-bold hover:bg-emerald-50 transition-all shadow-lg transform hover:scale-105">
-                                ➕ Add Manually
-                            </button>
-                        </div>
                     </div>
                 </div>
             </div>
 
             <!-- ACTION BUTTONS -->
             <div class="flex justify-end items-center gap-3 mb-6">
+                <button onclick="openAddManualBusinessModal()" class="px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 font-bold text-sm shadow-lg transform hover:scale-105 transition-all">
+                    ➕ Add Manually
+                </button>
                 <button onclick="exportProspectPoolCSV()" class="px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 font-bold text-sm shadow-lg transform hover:scale-105 transition-all">
                     📥 Export CSV
                 </button>
@@ -1329,10 +1327,6 @@
                             <span class="inline-block w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
                             <span>Results cached for 30 days • Repeat searches are FREE</span>
                         </div>
-                        <label class="flex items-center gap-2 text-sm text-purple-100 cursor-pointer hover:text-white transition">
-                            <input type="checkbox" id="clearBeforeSearch" class="rounded text-purple-600 focus:ring-purple-500" />
-                            <span>🗑️ Clear previous searches before searching</span>
-                        </label>
                     </div>
                     <div class="flex flex-col sm:flex-row gap-4 w-full mt-4">
                         <button
@@ -8938,16 +8932,6 @@ Thanks!
 
     // Run bulk auto-populate with multiple categories - shows results in modal
     async function runBulkAutoPopulate() {
-      // Check if user wants to clear previous searches first
-      const clearBeforeSearch = document.getElementById('clearBeforeSearch')?.checked;
-      if (clearBeforeSearch) {
-        console.log('🗑️ Clearing previous searches before new search...');
-        placesCache.searches = {};
-        prospectPoolState.selectedIds.clear();
-        savePlacesCache();
-        toast('Cleared previous searches', true);
-      }
-
       const zipCodeInput = document.getElementById('bulkPopZipCode').value.trim();
       const radius = 5000; // Default ~3 miles (search radius removed from UI)
 
