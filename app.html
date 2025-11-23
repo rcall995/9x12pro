@@ -10719,6 +10719,12 @@ Thanks!
 
         ${Object.keys(unifiedByCategory).sort().map(category => {
         const prospects = unifiedByCategory[category];
+
+        // Hide categories with zero businesses
+        if (!prospects || prospects.length === 0) {
+          return '';
+        }
+
         const categoryName = category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
         const enrichedCount = prospects.filter(p => p.isEnriched || p.enriched).length;
         const rawCount = prospects.filter(p => !p.isEnriched && !p.enriched).length;
