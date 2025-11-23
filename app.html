@@ -31,7 +31,7 @@
   <meta name="format-detection" content="telephone=no" />
   <script>
     // Cache busting version - update this to force reload on all devices
-    window.APP_VERSION = '2025-01-22-v63';
+    window.APP_VERSION = '2025-01-22-v64';
     window.CACHE_BUST = '?v=' + window.APP_VERSION;
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -17621,10 +17621,15 @@ Thanks!
               safeSetItem('mailslot-places-cache', JSON.stringify(placesCache.searches));
 
               // Refresh prospect pool if user is viewing it
-              const prospectTab = document.querySelector('[data-tab="prospect-pool"]');
-              if (prospectTab && prospectTab.style.display !== 'none') {
+              const prospectTab = document.querySelector('.tab-pane[data-content="prospects"]');
+              const isViewingProspects = prospectTab && !prospectTab.classList.contains('hidden');
+
+              if (isViewingProspects) {
+                console.log('📥 User is viewing Prospect Pool - refreshing...');
                 renderProspectPool();
                 showInfo(`📥 Synced ${newEntriesCount} new searches from cloud`);
+              } else {
+                console.log('📥 User not viewing Prospect Pool - data synced silently');
               }
             } else {
               console.log('✅ Auto-sync: Prospect cache is up to date');
