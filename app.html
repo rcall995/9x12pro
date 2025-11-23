@@ -4762,7 +4762,7 @@ Thanks!
       container.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3" id="clientListGrid">
           ${clients.map(client => {
-            const lastPurchase = client.history.length > 0
+            const lastPurchase = (client.history && client.history.length > 0)
               ? client.history[client.history.length - 1]
               : null;
 
@@ -5944,7 +5944,8 @@ Thanks!
                 cardsBought: parseInt(row['cards bought']) || 0
               },
               notes: row['notes'] || '',
-              contracts: existingClient ? existingClient.contracts : []
+              contracts: existingClient ? existingClient.contracts : [],
+              history: existingClient ? existingClient.history : []
             };
 
             crmState.clients[clientId] = client;
