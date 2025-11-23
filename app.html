@@ -7053,9 +7053,23 @@ Thanks!
               const searchPortionSize = 100 / progressInfo.totalSearches;
               const completedProgress = progressInfo.currentSearch * searchPortionSize;
               progressBarFill.style.width = `${Math.round(completedProgress)}%`;
-              progressBarFill.textContent = `${Math.round(completedProgress)}%`;
+
+              // Update percentage display
+              const progressPercentage = document.getElementById('enrichment-progress-percentage');
+              if (progressPercentage) {
+                progressPercentage.textContent = `${Math.round(completedProgress)}%`;
+              }
+
               progressText.textContent = `Using cached results for ${category}`;
-              progressSubtitle.textContent = `Search ${progressInfo.currentSearch} of ${progressInfo.totalSearches}`;
+
+              // Show business count in subtitle
+              const totalBusinessesFound = progressInfo.totalBusinessesFound || 0;
+              const businessText = `${totalBusinessesFound} ${totalBusinessesFound === 1 ? 'business' : 'businesses'} found`;
+              if (progressInfo.totalCategories > 1) {
+                progressSubtitle.textContent = `Category ${progressInfo.currentSearch} of ${progressInfo.totalCategories} (${businessText})`;
+              } else {
+                progressSubtitle.textContent = `Search ${progressInfo.currentSearch} of ${progressInfo.totalSearches} (${businessText})`;
+              }
             }
           }
 
@@ -7156,13 +7170,19 @@ Thanks!
             progressSubtitle.textContent = 'Initializing search...';
           }
 
+          // Progress bar wrapper (for relative positioning)
+          const progressBarWrapper = document.createElement('div');
+          progressBarWrapper.style.cssText = `
+            position: relative;
+            margin-bottom: 1rem;
+          `;
+
           const progressBarBg = document.createElement('div');
           progressBarBg.style.cssText = `
             background: #e5e7eb;
             height: 24px;
             border-radius: 12px;
             overflow: hidden;
-            margin-bottom: 1rem;
           `;
 
           progressBarFill = document.createElement('div');
@@ -7172,14 +7192,22 @@ Thanks!
             height: 100%;
             width: 0%;
             transition: width 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            padding-right: 8px;
-            color: white;
+          `;
+
+          // Percentage text overlaid on top of progress bar
+          const progressPercentage = document.createElement('div');
+          progressPercentage.id = 'enrichment-progress-percentage';
+          progressPercentage.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #1f2937;
             font-size: 0.75rem;
             font-weight: bold;
+            pointer-events: none;
           `;
+          progressPercentage.textContent = '0%';
 
           progressText = document.createElement('div');
           progressText.id = 'enrichment-progress-text';
@@ -7191,9 +7219,11 @@ Thanks!
           progressText.textContent = 'Starting search...';
 
           progressBarBg.appendChild(progressBarFill);
+          progressBarWrapper.appendChild(progressBarBg);
+          progressBarWrapper.appendChild(progressPercentage);
           progressContainer.appendChild(progressTitle);
           progressContainer.appendChild(progressSubtitle);
-          progressContainer.appendChild(progressBarBg);
+          progressContainer.appendChild(progressBarWrapper);
           progressContainer.appendChild(progressText);
           progressOverlay.appendChild(progressContainer);
           document.body.appendChild(progressOverlay);
@@ -7228,10 +7258,18 @@ Thanks!
           return Math.round(previousSearchesProgress + currentSearchProgress);
         };
 
+        // Helper function to update both progress bar and percentage display
+        const updateProgressBar = (percent) => {
+          progressBarFill.style.width = `${percent}%`;
+          const progressPercentage = document.getElementById('enrichment-progress-percentage');
+          if (progressPercentage) {
+            progressPercentage.textContent = `${percent}%`;
+          }
+        };
+
         // Step 1: Convert zip code to lat/lng (5% of this search)
         const geocodingProgress = calculateOverallProgress(5);
-        progressBarFill.style.width = `${geocodingProgress}%`;
-        progressBarFill.textContent = `${geocodingProgress}%`;
+        updateProgressBar(geocodingProgress);
         progressText.textContent = `Finding location for ${zipCode}...`;
         const location = await convertZipToLatLng(zipCode);
 
@@ -7397,14 +7435,12 @@ Thanks!
 
                 // Step 2: Places search complete (10% of this search)
                 const placesProgress = calculateOverallProgress(10);
-                progressBarFill.style.width = `${placesProgress}%`;
-                progressBarFill.textContent = `${placesProgress}%`;
+                updateProgressBar(placesProgress);
                 progressText.textContent = `Found ${allBusinesses.length} businesses in ${category}...`;
 
                 // Step 3: Filtering complete (15% of this search)
                 const filteringProgress = calculateOverallProgress(15);
-                progressBarFill.style.width = `${filteringProgress}%`;
-                progressBarFill.textContent = `${filteringProgress}%`;
+                updateProgressBar(filteringProgress);
                 progressText.textContent = `Filtered to ${businesses.length} matching businesses...`;
 
                 // Calculate estimated time for enrichment
@@ -7419,16 +7455,19 @@ Thanks!
                   const currentSearch = progressInfo.currentSearch;
                   const remainingSearches = totalSearches - currentSearch + 1;
 
-                  // Build helpful subtitle message
+                  // Build helpful subtitle message showing businesses found
+                  const totalBusinessesFound = progressInfo.totalBusinessesFound || 0;
+                  const businessText = `${totalBusinessesFound} ${totalBusinessesFound === 1 ? 'business' : 'businesses'} found`;
+
                   if (progressInfo.totalZipCodes > 1 && progressInfo.totalCategories > 1) {
                     // Multiple ZIPs and categories
-                    progressSubtitle.textContent = `Search ${currentSearch} of ${totalSearches} (${progressInfo.totalCategories} categories × ${progressInfo.totalZipCodes} ZIPs, est. ${estimatedMinutes} min for this one)`;
+                    progressSubtitle.textContent = `Category ${currentSearch} of ${totalSearches} (${businessText}, est. ${estimatedMinutes} min for this one)`;
                   } else if (progressInfo.totalCategories > 1) {
                     // Multiple categories, one ZIP
-                    progressSubtitle.textContent = `Category ${currentSearch} of ${progressInfo.totalCategories} (${remainingSearches} remaining, est. ${estimatedMinutes} min for this one)`;
+                    progressSubtitle.textContent = `Category ${currentSearch} of ${progressInfo.totalCategories} (${businessText}, ${remainingSearches} remaining)`;
                   } else {
                     // Multiple ZIPs, one category
-                    progressSubtitle.textContent = `ZIP ${currentSearch} of ${progressInfo.totalZipCodes} (${remainingSearches} remaining, est. ${estimatedMinutes} min for this one)`;
+                    progressSubtitle.textContent = `ZIP ${currentSearch} of ${progressInfo.totalZipCodes} (${businessText}, ${remainingSearches} remaining)`;
                   }
                 } else {
                   // Single search: show simple estimate
@@ -7445,8 +7484,7 @@ Thanks!
                   // Scale from 15% (after filtering) to 100% (complete enrichment) for this individual search
                   const searchEnrichmentPercent = 15 + ((current / total) * 85); // 15% to 100% for this search
                   const percentage = calculateOverallProgress(searchEnrichmentPercent);
-                  progressBarFill.style.width = `${percentage}%`;
-                  progressBarFill.textContent = `${percentage}%`;
+                  updateProgressBar(percentage);
                   progressText.textContent = `Enriching ${category}: ${current}/${total} - ${businessName}`;
                 };
 
@@ -7669,14 +7707,12 @@ Thanks!
 
                 // Step 2: Places search complete (10% of this search)
                 const placesProgress = calculateOverallProgress(10);
-                progressBarFill.style.width = `${placesProgress}%`;
-                progressBarFill.textContent = `${placesProgress}%`;
+                updateProgressBar(placesProgress);
                 progressText.textContent = `Found ${allBusinesses.length} businesses in ${category}...`;
 
                 // Step 3: Filtering complete (15% of this search)
                 const filteringProgress = calculateOverallProgress(15);
-                progressBarFill.style.width = `${filteringProgress}%`;
-                progressBarFill.textContent = `${filteringProgress}%`;
+                updateProgressBar(filteringProgress);
                 progressText.textContent = `Filtered to ${businesses.length} matching businesses...`;
 
                 // Calculate estimated time for enrichment
@@ -7691,16 +7727,19 @@ Thanks!
                   const currentSearch = progressInfo.currentSearch;
                   const remainingSearches = totalSearches - currentSearch + 1;
 
-                  // Build helpful subtitle message
+                  // Build helpful subtitle message showing businesses found
+                  const totalBusinessesFound = progressInfo.totalBusinessesFound || 0;
+                  const businessText = `${totalBusinessesFound} ${totalBusinessesFound === 1 ? 'business' : 'businesses'} found`;
+
                   if (progressInfo.totalZipCodes > 1 && progressInfo.totalCategories > 1) {
                     // Multiple ZIPs and categories
-                    progressSubtitle.textContent = `Search ${currentSearch} of ${totalSearches} (${progressInfo.totalCategories} categories × ${progressInfo.totalZipCodes} ZIPs, est. ${estimatedMinutes} min for this one)`;
+                    progressSubtitle.textContent = `Category ${currentSearch} of ${totalSearches} (${businessText}, est. ${estimatedMinutes} min for this one)`;
                   } else if (progressInfo.totalCategories > 1) {
                     // Multiple categories, one ZIP
-                    progressSubtitle.textContent = `Category ${currentSearch} of ${progressInfo.totalCategories} (${remainingSearches} remaining, est. ${estimatedMinutes} min for this one)`;
+                    progressSubtitle.textContent = `Category ${currentSearch} of ${progressInfo.totalCategories} (${businessText}, ${remainingSearches} remaining)`;
                   } else {
                     // Multiple ZIPs, one category
-                    progressSubtitle.textContent = `ZIP ${currentSearch} of ${progressInfo.totalZipCodes} (${remainingSearches} remaining, est. ${estimatedMinutes} min for this one)`;
+                    progressSubtitle.textContent = `ZIP ${currentSearch} of ${progressInfo.totalZipCodes} (${businessText}, ${remainingSearches} remaining)`;
                   }
                 } else {
                   // Single search: show simple estimate
@@ -7717,8 +7756,7 @@ Thanks!
                   // Scale from 15% (after filtering) to 100% (complete enrichment) for this individual search
                   const searchEnrichmentPercent = 15 + ((current / total) * 85); // 15% to 100% for this search
                   const percentage = calculateOverallProgress(searchEnrichmentPercent);
-                  progressBarFill.style.width = `${percentage}%`;
-                  progressBarFill.textContent = `${percentage}%`;
+                  updateProgressBar(percentage);
                   progressText.textContent = `Enriching ${category}: ${current}/${total} - ${businessName}`;
                 };
 
@@ -8984,7 +9022,8 @@ Thanks!
                 currentSearch: currentSearch,
                 totalSearches: totalSearches,
                 totalCategories: selectedCategories.length,
-                totalZipCodes: zipCodes.length
+                totalZipCodes: zipCodes.length,
+                totalBusinessesFound: allBusinesses.length // Running total
               });
 
               let categoryCount = 0;
