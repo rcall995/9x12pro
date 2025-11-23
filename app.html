@@ -31,7 +31,7 @@
   <meta name="format-detection" content="telephone=no" />
   <script>
     // Cache busting version - update this to force reload on all devices
-    window.APP_VERSION = '2025-01-22-v64';
+    window.APP_VERSION = '2025-01-22-v65';
     window.CACHE_BUST = '?v=' + window.APP_VERSION;
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -719,39 +719,6 @@
     </div>
   </header>
 
-  <!-- Workflow Breadcrumb -->
-  <div class="max-w-6xl mx-auto px-3 mt-4">
-    <div id="workflowBreadcrumb" class="bg-gradient-to-r from-indigo-50 to-purple-50 border-2 border-indigo-200 rounded-xl p-4 flex items-center justify-center gap-2 md:gap-4 text-sm md:text-base overflow-x-auto">
-      <div class="flex items-center gap-2 md:gap-4 whitespace-nowrap">
-        <button onclick="switchTab('lead-generation')" class="flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:bg-white hover:shadow-md group" id="breadcrumb-generator">
-          <span class="text-2xl">🔍</span>
-          <span class="font-bold text-gray-700 group-hover:text-indigo-600">Generator</span>
-        </button>
-        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-        </svg>
-        <button onclick="switchTab('prospects')" class="flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:bg-white hover:shadow-md group" id="breadcrumb-pool">
-          <span class="text-2xl">🎯</span>
-          <span class="font-bold text-gray-700 group-hover:text-indigo-600">Pool</span>
-        </button>
-        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-        </svg>
-        <button onclick="switchTab('pipeline')" class="flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:bg-white hover:shadow-md group" id="breadcrumb-pipeline">
-          <span class="text-2xl">📊</span>
-          <span class="font-bold text-gray-700 group-hover:text-indigo-600">Pipeline</span>
-        </button>
-        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-        </svg>
-        <button onclick="switchTab('clients')" class="flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:bg-white hover:shadow-md group" id="breadcrumb-clients">
-          <span class="text-2xl">👥</span>
-          <span class="font-bold text-gray-700 group-hover:text-indigo-600">Clients</span>
-        </button>
-      </div>
-    </div>
-  </div>
-
   <main class="max-w-6xl mx-auto mt-6 px-3 pb-20">
     <div class="flex border-b border-gray-300 mb-6 overflow-x-auto" id="navTabs" style="scrollbar-width: thin;">
         <button data-tab="dashboard" class="tab-btn active px-3 md:px-4 py-2 text-xs md:text-sm whitespace-nowrap">
@@ -759,20 +726,16 @@
             <span class="sm:hidden">🏠</span>
         </button>
         <button data-tab="lead-generation" class="tab-btn px-3 md:px-4 py-2 text-xs md:text-sm whitespace-nowrap">
-            <span class="hidden sm:inline">🔍 Prospect Generator</span>
-            <span class="sm:hidden">🔍 Generate</span>
+            <span class="hidden sm:inline">🔍 Generator</span>
+            <span class="sm:hidden">🔍</span>
         </button>
         <button data-tab="prospects" class="tab-btn px-3 md:px-4 py-2 text-xs md:text-sm whitespace-nowrap">
-            <span class="hidden sm:inline">🎯 Prospect Pool</span>
-            <span class="sm:hidden">🎯 Pool</span>
+            <span class="hidden sm:inline">🎯 Pool</span>
+            <span class="sm:hidden">🎯</span>
         </button>
         <button data-tab="pipeline" class="tab-btn px-3 md:px-4 py-2 text-xs md:text-sm whitespace-nowrap">
-            <span class="hidden sm:inline">📊 Sales Pipeline</span>
-            <span class="sm:hidden">📊 Pipeline</span>
-        </button>
-        <button data-tab="tasks" class="tab-btn px-3 md:px-4 py-2 text-xs md:text-sm whitespace-nowrap">
-            <span class="hidden sm:inline">✅ Tasks</span>
-            <span class="sm:hidden">✅</span>
+            <span class="hidden sm:inline">📊 Pipeline</span>
+            <span class="sm:hidden">📊</span>
         </button>
         <button data-tab="manager" class="tab-btn px-3 md:px-4 py-2 text-xs md:text-sm whitespace-nowrap">
             <span class="hidden sm:inline">📮 Campaigns</span>
@@ -781,10 +744,6 @@
         <button data-tab="clients" class="tab-btn px-3 md:px-4 py-2 text-xs md:text-sm whitespace-nowrap">
             <span class="hidden sm:inline">👥 Clients</span>
             <span class="sm:hidden">👥</span>
-        </button>
-        <button data-tab="admin" class="tab-btn px-3 md:px-4 py-2 text-xs md:text-sm whitespace-nowrap">
-            <span class="hidden sm:inline">📈 Reports</span>
-            <span class="sm:hidden">📈</span>
         </button>
         <div class="flex-grow"></div>
         <div id="quickControls" class="flex items-center gap-2"></div>
@@ -983,11 +942,14 @@
                     <button onclick="switchTab('lead-generation')" class="px-6 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all">
                         🔍 Generate Prospects
                     </button>
-                    <button onclick="switchTab('tasks'); openTaskModal();" class="px-6 py-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all">
-                        ➕ Add Task
+                    <button onclick="switchTab('tasks')" class="px-6 py-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all">
+                        ✅ View Tasks
                     </button>
                     <button onclick="switchTab('manager')" class="px-6 py-4 bg-gradient-to-r from-pink-600 to-rose-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all">
                         📮 New Campaign
+                    </button>
+                    <button onclick="switchTab('admin')" class="px-6 py-4 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all">
+                        📈 View Reports
                     </button>
                 </div>
             </div>
