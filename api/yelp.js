@@ -25,10 +25,12 @@ export default async function handler(req, res) {
 
   try {
     // Build Yelp API URL
+    // Note: We don't use radius - we search by ZIP and then filter to exact ZIP matches on client
     const params = new URLSearchParams({
       location: location, // e.g., "14221" or "Buffalo, NY"
-      limit: Math.min(limit, 50), // Yelp max is 50 per request
-      radius: radius || 8000 // Default 5 miles in meters (8000m)
+      limit: Math.min(limit, 50) // Yelp max is 50 per request
+      // No radius parameter - let Yelp return results near the ZIP code
+      // We'll filter to exact ZIP matches on the client side
     });
 
     // Add term/category if provided

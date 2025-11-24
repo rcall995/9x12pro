@@ -3573,7 +3573,7 @@ async function enrichBusinessWebsite(business) {
  * Search for businesses using Yelp Fusion API
  * FREE: 2,500 calls per day - NO COST!
  */
-async function searchYelpBusinesses(zipCode, category, radiusMeters, progressInfo = null) {
+async function searchYelpBusinesses(zipCode, category, progressInfo = null) {
   try {
     const cacheKey = `${zipCode}-${category}`;
 
@@ -3590,7 +3590,7 @@ async function searchYelpBusinesses(zipCode, category, radiusMeters, progressInf
 
     showInfo(`🔍 Searching Yelp for "${category}" in ${zipCode}...`);
 
-    // Call Yelp API via our serverless function
+    // Call Yelp API via our serverless function (no radius - we filter by exact ZIP)
     const response = await fetch('/api/yelp', {
       method: 'POST',
       headers: {
@@ -3599,7 +3599,6 @@ async function searchYelpBusinesses(zipCode, category, radiusMeters, progressInf
       body: JSON.stringify({
         location: zipCode,
         term: category,
-        radius: radiusMeters,
         limit: 50 // Yelp max per request
       })
     });
@@ -3614,21 +3613,21 @@ async function searchYelpBusinesses(zipCode, category, radiusMeters, progressInf
 
     console.log(`✅ Yelp returned ${yelpBusinesses.length} businesses`);
 
-    // Filter out Canadian postal codes (contain letters) - USA ZIP codes are 5 digits only
-    const usaBusinesses = yelpBusinesses.filter(biz => {
-      const zip = biz.zip || '';
-      // USA ZIP codes are exactly 5 digits (or 5+4 format like 12345-6789)
-      const isUSAZip = /^\d{5}(-\d{4})?$/.test(zip);
-      if (!isUSAZip && zip) {
-        console.log(`🚫 Filtered out non-USA business: ${biz.name} (ZIP: ${zip})`);
+    // Filter to EXACT ZIP code matches only (no radius search)
+    const exactZipMatches = yelpBusinesses.filter(biz => {
+      const bizZip = (biz.zip || '').trim();
+      // Only keep businesses that exactly match the searched ZIP code
+      const isExactMatch = bizZip === zipCode;
+      if (!isExactMatch && bizZip) {
+        console.log(`🚫 Filtered out: ${biz.name} (ZIP: ${bizZip} != ${zipCode})`);
       }
-      return isUSAZip;
+      return isExactMatch;
     });
 
-    console.log(`🇺🇸 Filtered to ${usaBusinesses.length} USA businesses (removed ${yelpBusinesses.length - usaBusinesses.length} non-USA)`);
+    console.log(`📍 Filtered to ${exactZipMatches.length} businesses in exact ZIP ${zipCode} (removed ${yelpBusinesses.length - exactZipMatches.length} from other ZIPs)`);
 
     // Transform Yelp data to our expected format (website enrichment happens when added to kanban)
-    const businesses = usaBusinesses.map(biz => ({
+    const businesses = exactZipMatches.map(biz => ({
       placeId: `yelp_${biz.yelp_id}`,
       name: biz.name,
       address: biz.address,
@@ -3685,9 +3684,9 @@ async function searchYelpBusinesses(zipCode, category, radiusMeters, progressInf
  */
 async function searchGooglePlaces(zipCode, category, radiusMeters, progressInfo = null) {
   // ⛔ PLACES API DISABLED - Costs $32 per 1,000 requests
-  // Replaced with searchYelpBusinesses (FREE - 2,500/day)
-  // Silently redirect to Yelp - no need to show warning anymore
-  return await searchYelpBusinesses(zipCode, category, radiusMeters, progressInfo);
+  // Replaced with searchYelpBusinesses (FREE - 5,000/day)
+  // Silently redirect to Yelp - searches exact ZIP codes only (no radius)
+  return await searchYelpBusinesses(zipCode, category, progressInfo);
 
   // progressInfo: { currentSearch: 1, totalSearches: 5 } for multi-category searches
   // Check quota first
@@ -5610,119 +5609,15 @@ async function clearAllSearchCaches() {
   }
 }
 
-// Find neighboring ZIP codes using the zip-neighbors API
-async function findNeighborZips(zipCode) {
-  zipCode = zipCode.trim();
-
-  // Validate ZIP code format
-  if (!/^\d{5}$/.test(zipCode)) {
-    toast('Please enter a valid 5-digit ZIP code', false);
-    return;
-  }
-
-  const container = document.getElementById('neighborZipsContainer');
-  const checkboxesDiv = document.getElementById('neighborZipsCheckboxes');
-  const countSpan = document.getElementById('selectedZipCount');
-
-  // Show loading state
-  checkboxesDiv.innerHTML = '<span class="text-purple-200">🔍 Finding nearby ZIP codes...</span>';
-  container.classList.remove('hidden');
-
-  try {
-    const response = await fetch('/api/zip-neighbors', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ zipCode })
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to find neighboring ZIP codes');
-    }
-
-    const data = await response.json();
-
-    // Build checkbox HTML - center ZIP first (pre-selected), then neighbors
-    let html = '';
-
-    // Center ZIP (always selected by default)
-    html += `
-      <label class="flex items-center gap-1 px-3 py-2 bg-green-500/30 border border-green-400/50 rounded-lg cursor-pointer hover:bg-green-500/40 transition">
-        <input type="checkbox" class="neighbor-zip-checkbox" value="${data.centerZip.zipCode}" checked onchange="updateSelectedZipCount()">
-        <span class="text-white font-semibold">${data.centerZip.zipCode}</span>
-        <span class="text-green-200 text-xs">${data.centerZip.city}</span>
-        <span class="text-green-300 text-xs font-bold">★</span>
-      </label>
-    `;
-
-    // Neighbor ZIPs (pre-selected up to 5 more, for total of 6)
-    data.neighbors.forEach((neighbor, index) => {
-      const isChecked = index < 5; // First 5 neighbors are checked by default
-      html += `
-        <label class="flex items-center gap-1 px-3 py-2 bg-white/20 border border-white/30 rounded-lg cursor-pointer hover:bg-white/30 transition">
-          <input type="checkbox" class="neighbor-zip-checkbox" value="${neighbor.zipCode}" ${isChecked ? 'checked' : ''} onchange="updateSelectedZipCount()">
-          <span class="text-white font-semibold">${neighbor.zipCode}</span>
-          <span class="text-purple-200 text-xs">${neighbor.city}</span>
-          <span class="text-purple-300 text-xs">${neighbor.distance}mi</span>
-        </label>
-      `;
-    });
-
-    checkboxesDiv.innerHTML = html;
-    updateSelectedZipCount();
-
-  } catch (error) {
-    console.error('Error finding neighbor ZIPs:', error);
-    checkboxesDiv.innerHTML = `<span class="text-red-300">❌ ${error.message}</span>`;
-  }
-}
-
-// Update the selected ZIP count display and enforce max of 6
-function updateSelectedZipCount() {
-  const checkboxes = document.querySelectorAll('.neighbor-zip-checkbox');
-  const checkedBoxes = document.querySelectorAll('.neighbor-zip-checkbox:checked');
-  const countSpan = document.getElementById('selectedZipCount');
-
-  const count = checkedBoxes.length;
-  countSpan.textContent = count;
-
-  // Visual feedback based on count
-  if (count === 0) {
-    countSpan.className = 'text-red-400 font-bold';
-  } else if (count > 6) {
-    countSpan.className = 'text-red-400 font-bold';
-  } else {
-    countSpan.className = 'text-green-400 font-bold';
-  }
-
-  // Disable unchecked boxes if we're at 6
-  checkboxes.forEach(cb => {
-    if (!cb.checked && count >= 6) {
-      cb.disabled = true;
-      cb.parentElement.classList.add('opacity-50');
-    } else {
-      cb.disabled = false;
-      cb.parentElement.classList.remove('opacity-50');
-    }
-  });
-}
-
 // Run bulk auto-populate with multiple categories - shows results in modal
 async function runBulkAutoPopulate() {
-  const radius = 8047; // 5 miles in meters
+  // Get ZIP codes from the 3 input fields
+  const zip1 = document.getElementById('bulkPopZip1')?.value.trim() || '';
+  const zip2 = document.getElementById('bulkPopZip2')?.value.trim() || '';
+  const zip3 = document.getElementById('bulkPopZip3')?.value.trim() || '';
 
-  // Get selected ZIP codes from checkboxes (new approach) or fallback to input field
-  const neighborCheckboxes = document.querySelectorAll('.neighbor-zip-checkbox:checked');
-  let zipCodes = [];
-
-  if (neighborCheckboxes.length > 0) {
-    // Use selected neighbor ZIPs
-    neighborCheckboxes.forEach(cb => zipCodes.push(cb.value));
-  } else {
-    // Fallback: use the input field directly (for backwards compatibility)
-    const zipCodeInput = document.getElementById('bulkPopZipCode').value.trim();
-    zipCodes = zipCodeInput.split(',').map(z => z.trim()).filter(z => z);
-  }
+  // Collect non-empty ZIPs
+  let zipCodes = [zip1, zip2, zip3].filter(z => z.length > 0);
 
   // Validation
   if (zipCodes.length === 0) {
