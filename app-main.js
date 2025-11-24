@@ -1,0 +1,18489 @@
+console.log('🚀 Main app.html script starting...');
+/* ========= CONFIG ========= */
+// Supabase client is initialized in HEAD section
+var supabaseClient = window.supabaseClient; // Local reference
+
+// Get current user email from auth (replaces ACTIVE_USER constant)
+function getCurrentUserEmail() {
+  // Check if auth-root.js has set currentAuthUser
+  if (window.currentAuthUser && window.currentAuthUser.email) {
+    return window.currentAuthUser.email;
+  }
+  // Fallback: try to get from session
+  console.warn('⚠️ currentAuthUser not available, returning null');
+  return null;
+}
+
+// Initialize ACTIVE_USER - will be updated when auth completes
+var ACTIVE_USER = getCurrentUserEmail();
+
+// Poll to update ACTIVE_USER once auth is ready
+var authCheckInterval = setInterval(function() {
+  if (window.currentAuthUser && window.currentAuthUser.email) {
+    ACTIVE_USER = window.currentAuthUser.email;
+    clearInterval(authCheckInterval);
+    console.log('✅ ACTIVE_USER set to:', ACTIVE_USER);
+  }
+}, 100);
+
+// Auto-update checker: Periodically check if app version has changed
+function checkForAppUpdate() {
+  // Check if config version differs from page version
+  if (window.APP_CONFIG && window.APP_CONFIG.app.version !== window.APP_VERSION) {
+    console.log('🔄 New version detected:', window.APP_CONFIG.app.version, '(current:', window.APP_VERSION + ')');
+
+    // Show persistent banner prompting refresh
+    const updateBanner = document.createElement('div');
+    updateBanner.id = 'update-banner';
+    updateBanner.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 12px 20px;
+      text-align: center;
+      font-weight: bold;
+      z-index: 99999;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      animation: slideDown 0.3s ease-out;
+    `;
+    updateBanner.innerHTML = `
+      <div style="max-width: 800px; margin: 0 auto; display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap;">
+        <span>🎉 New version available (${window.APP_CONFIG.app.version})!</span>
+        <button onclick="location.reload(true)" style="background: white; color: #667eea; padding: 8px 20px; border-radius: 8px; font-weight: bold; border: none; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2); transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+          Refresh Now
+        </button>
+        <button onclick="this.parentElement.parentElement.remove()" style="background: transparent; color: white; padding: 8px 16px; border-radius: 8px; border: 2px solid white; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='transparent'">
+          Later
+        </button>
+      </div>
+    `;
+
+    // Add animation
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideDown {
+        from { transform: translateY(-100%); }
+        to { transform: translateY(0); }
+      }
+    `;
+    document.head.appendChild(style);
+    document.body.appendChild(updateBanner);
+  }
+}
+
+// Check for updates every 5 minutes
+setInterval(checkForAppUpdate, 5 * 60 * 1000);
+// Also check once on load (after 10 seconds to let everything initialize)
+setTimeout(checkForAppUpdate, 10000);
+
+// Cloud Sync State - Tracks what's syncing and when
+const cloudSyncState = {
+  syncing: false,
+  lastSync: null,
+  pendingSaves: new Set(), // Track which data types need saving (temporary failures)
+  permanentlyFailedSaves: new Set(), // Track data types that are too large (permanent failures)
+  syncErrors: {},
+  userNotified: new Set(), // Track which errors we've already notified user about
+  inProgressSaves: new Map(), // Track saves currently in progress (dataType -> Promise)
+  debouncedSaves: new Map() // Track debounced save timers (dataType -> timeoutId)
+};
+
+// ⚠️ SECURITY WARNING: Never commit real API keys to version control!
+//
+// Google Places API Key - Replace with your actual key
+// Get your key at: https://console.cloud.google.com/google/maps-apis/
+// IMPORTANT: Restrict this key by HTTP referrer in Google Cloud Console to prevent abuse
+const GOOGLE_PLACES_API_KEY = "YOUR_GOOGLE_PLACES_API_KEY_HERE";
+
+// Message Templates - For outreach to prospects
+const MESSAGE_TEMPLATES = {
+  messenger: {
+    name: "Facebook Messenger - First Contact",
+    subject: "",
+    body: `Hi there! 👋
+
+I noticed [BUSINESS_NAME] on Facebook and wanted to reach out about a local advertising opportunity.
+
+We help local businesses like yours reach thousands of households in [TOWN] through our shared mailer program. Your business would be featured alongside other quality local services.
+
+Would you be open to a quick chat about how this could work for you?
+
+Looking forward to hearing from you!
+
+Best regards,
+[YOUR_NAME]
+[YOUR_PHONE]`
+  },
+  email: {
+    name: "Email - First Contact",
+    subject: "Local Advertising Opportunity for [BUSINESS_NAME]",
+    body: `Hi,
+
+I hope this email finds you well. I'm reaching out regarding a cost-effective advertising opportunity for [BUSINESS_NAME] in [TOWN].
+
+We publish a shared mailer that goes directly to thousands of local households. Your business would be featured alongside other quality local services, giving you exposure to potential customers in your area.
+
+Here's what makes this different:
+• Direct mail to targeted local households
+• Professional design included
+• Shared cost model makes it affordable
+• Proven results for local businesses
+
+Would you be interested in learning more? I'd be happy to send over some details and pricing.
+
+Best regards,
+[YOUR_NAME]
+[YOUR_PHONE]
+[YOUR_EMAIL]`
+  },
+  instagram: {
+    name: "Instagram DM - First Contact",
+    subject: "",
+    body: `Hey! 👋
+
+Love what [BUSINESS_NAME] is doing! I wanted to reach out about a local advertising opportunity that might interest you.
+
+We help businesses in [TOWN] reach thousands of local households through our shared mailer program.
+
+Would you be open to a quick chat? I think this could be a great fit for you!
+
+[YOUR_NAME]
+[YOUR_PHONE]`
+  },
+  followup: {
+    name: "Follow-up - After Initial Contact",
+    subject: "Following up - [BUSINESS_NAME]",
+    body: `Hi,
+
+I wanted to follow up on my message from [DATE] about the local advertising opportunity.
+
+I know you're busy, but I wanted to make sure this didn't get lost in your inbox.
+
+We're putting together our next mailer for [TOWN] and I'd love to include [BUSINESS_NAME] if you're interested.
+
+Do you have 5 minutes to chat this week?
+
+Thanks!
+[YOUR_NAME]
+[YOUR_PHONE]`
+  }
+};
+
+// User Templates State (editable, synced to cloud)
+const userTemplatesState = {
+  templates: {} // { templateId: { id, name, category, type, subject, body, variables, createdAt, lastUsed } }
+};
+
+// Application Configuration Constants
+const TOTAL_SPOTS_PER_POSTCARD = 18;
+const DEFAULT_DESIGN_COST = 150;
+const CLOUD_SYNC_URL_LENGTH_LIMIT = 6000; // Browser URL length limit for GET requests
+const CLOUD_SYNC_RETRY_INTERVAL = 60000; // 1 minute in milliseconds
+const DEBOUNCE_RENDER_DELAY = 150; // Milliseconds to debounce kanban rendering
+
+/* ========= LOCALSTORAGE UTILITY ========= */
+
+// Safe localStorage wrapper with quota exceeded handling
+function safeSetItem(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (err) {
+    // Check if this is a quota exceeded error
+    const isQuotaExceeded = err.name === 'QuotaExceededError' ||
+                            err.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+                            err.code === 22 || // Chrome
+                            err.code === 1014; // Firefox
+
+    if (isQuotaExceeded) {
+      console.error('localStorage quota exceeded:', {
+        key,
+        valueSize: value.length,
+        error: err.message
+      });
+
+      // Show user-friendly warning (only once per session)
+      if (!window._localStorageQuotaWarningShown) {
+        toast('⚠️ Local storage is full. Some data may not be saved offline. Consider clearing old cached data.', false);
+        window._localStorageQuotaWarningShown = true;
+      }
+
+      // Try to free up space by clearing old cache data
+      try {
+        // Clear places cache (largest non-critical data)
+        localStorage.removeItem('mailslot-places-cache');
+
+        // Retry the save after clearing cache
+        localStorage.setItem(key, value);
+        toast('✓ Freed up space and saved successfully', true);
+        return true;
+      } catch (retryErr) {
+        console.error('Failed to save even after clearing cache:', retryErr);
+        return false;
+      }
+    } else {
+      // Other localStorage error
+      console.error('localStorage error:', err);
+      return false;
+    }
+  }
+}
+
+function safeGetItem(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch (err) {
+    console.error('localStorage getItem error:', err);
+    return null;
+  }
+}
+
+function safeRemoveItem(key) {
+  try {
+    localStorage.removeItem(key);
+    return true;
+  } catch (err) {
+    console.error('localStorage removeItem error:', err);
+    return false;
+  }
+}
+
+/* ========= CLOUD SYNC SYSTEM ========= */
+
+// Unified function to load data from Google Sheets
+async function loadFromCloud(dataType) {
+  try {
+    // Query Supabase app_data table for this data type
+    const { data, error } = await supabaseClient
+      .from('app_data')
+      .select('data')
+      .eq('user_email', ACTIVE_USER)
+      .eq('data_type', dataType)
+      .single();
+
+    if (error) {
+      // If no data found (404), return null (not an error)
+      if (error.code === 'PGRST116') {
+        return null;
+      }
+      throw error;
+    }
+
+    const appData = data?.data || null;
+
+    // Cache to localStorage
+    if (appData !== null && appData !== undefined) {
+      safeSetItem(`mailslot-${dataType}`, JSON.stringify(appData));
+    }
+
+    return appData;
+  } catch (err) {
+    console.warn(`⚠️ Failed to load ${dataType} from cloud, using localStorage:`, err);
+    cloudSyncState.syncErrors[dataType] = err.message;
+
+    // Fallback to localStorage
+    const cached = safeGetItem(`mailslot-${dataType}`);
+    return cached ? JSON.parse(cached) : null;
+  }
+}
+
+// Unified function to save data to Supabase
+async function saveToCloud(dataType, data, options = {}) {
+  try {
+    // Use upsert to insert or update
+    const { error } = await supabaseClient
+      .from('app_data')
+      .upsert({
+        user_email: ACTIVE_USER,
+        data_type: dataType,
+        data: data
+      }, {
+        onConflict: 'user_email,data_type'
+      });
+
+    if (error) throw error;
+
+    // Update cache
+    safeSetItem(`mailslot-${dataType}`, JSON.stringify(data));
+    cloudSyncState.lastSync = Date.now();
+    delete cloudSyncState.syncErrors[dataType];
+
+    return { success: true };
+
+  } catch (err) {
+    console.error(`❌ Failed to save ${dataType} to cloud:`, err);
+    cloudSyncState.syncErrors[dataType] = err.message;
+
+    // Still save to localStorage as backup
+    safeSetItem(`mailslot-${dataType}`, JSON.stringify(data));
+
+    // Check if this is a permanent failure (data too large)
+    if (err.message && err.message.includes('Data too large')) {
+      // Mark as permanently failed (don't retry)
+      cloudSyncState.permanentlyFailedSaves.add(dataType);
+
+      // Show user notification once
+      if (!cloudSyncState.userNotified.has(dataType)) {
+        toast(`⚠️ ${dataType} data is too large for cloud sync. Saved locally only.`, false);
+        cloudSyncState.userNotified.add(dataType);
+      }
+
+      console.warn(`📦 ${dataType} marked as localStorage-only (too large for cloud sync)`);
+    } else {
+      // Temporary failure - add to retry queue
+      cloudSyncState.pendingSaves.add(dataType);
+    }
+
+    throw err;
+  }
+}
+
+// Optimized cloud sync wrapper - prevents duplicate simultaneous saves
+// Optional debouncing for non-critical saves (set debounceMs > 0)
+async function saveToCloudOptimized(dataType, data, debounceMs = 0) {
+  // If this dataType is already being saved, wait for that save to complete
+  // then trigger a new save with the latest data
+  if (cloudSyncState.inProgressSaves.has(dataType)) {
+    try {
+      await cloudSyncState.inProgressSaves.get(dataType);
+    } catch (err) {
+      // Ignore errors from previous save, we'll try again
+    }
+  }
+
+  // Clear any pending debounced save for this dataType (update to latest data)
+  if (cloudSyncState.debouncedSaves.has(dataType)) {
+    clearTimeout(cloudSyncState.debouncedSaves.get(dataType));
+    cloudSyncState.debouncedSaves.delete(dataType);
+  }
+
+  // For non-critical saves with debouncing, delay the save
+  if (debounceMs > 0) {
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(async () => {
+        cloudSyncState.debouncedSaves.delete(dataType);
+
+        const savePromise = saveToCloud(dataType, data)
+          .finally(() => {
+            cloudSyncState.inProgressSaves.delete(dataType);
+          });
+
+        cloudSyncState.inProgressSaves.set(dataType, savePromise);
+
+        try {
+          const result = await savePromise;
+          resolve(result);
+        } catch (err) {
+          reject(err);
+        }
+      }, debounceMs);
+
+      cloudSyncState.debouncedSaves.set(dataType, timeoutId);
+    });
+  }
+
+  // For immediate/critical saves, execute right away
+  const savePromise = saveToCloud(dataType, data)
+    .finally(() => {
+      cloudSyncState.inProgressSaves.delete(dataType);
+    });
+
+  cloudSyncState.inProgressSaves.set(dataType, savePromise);
+  return savePromise;
+}
+
+// Auto-retry failed syncs (but not permanently failed ones)
+setInterval(() => {
+  // Remove any permanently failed saves from the retry queue
+  cloudSyncState.permanentlyFailedSaves.forEach(dataType => {
+    cloudSyncState.pendingSaves.delete(dataType);
+  });
+
+  if (cloudSyncState.pendingSaves.size > 0 && !cloudSyncState.syncing) {
+    // Will be handled by individual save functions
+  }
+}, CLOUD_SYNC_RETRY_INTERVAL); // Retry every minute
+
+const CANONICAL_STATUSES = [
+  "Available",
+  "Reserved",
+  "Invoice Sent",
+  "Deposit Paid",
+  "Proof In Progress",
+  "Ad Approved",
+  "Paid in Full"
+];
+
+let sortOrder = [...CANONICAL_STATUSES];
+let visibleStatuses = [...CANONICAL_STATUSES];
+const GRADIENT_HEX = ["#fef3c7", "#fff7ed", "#fed7aa", "#fdba74", "#dbeafe", "#2563eb", "#16a34a"];
+const GRADIENT_PILL = ["#fcd34d", "#fb923c", "#f97316", "#ea580c", "#3b82f6", "#1d4ed8", "#15803d"];
+let STATUS_HEX = {};
+let STATUS_PILL = {};
+
+function updateColorMappings() {
+  const visibleSorted = sortOrder.filter(s => visibleStatuses.includes(s));
+  const numVisible = visibleSorted.length;
+  const usedHex = GRADIENT_HEX.slice(0, numVisible - 1);
+  usedHex.push(GRADIENT_HEX[GRADIENT_HEX.length - 1]);
+  const usedPill = GRADIENT_PILL.slice(0, numVisible - 1);
+  usedPill.push(GRADIENT_PILL[GRADIENT_PILL.length - 1]);
+  visibleSorted.forEach((s, i) => {
+    STATUS_HEX[s] = usedHex[i];
+    STATUS_PILL[s] = usedPill[i];
+  });
+  const hiddenDefault = STATUS_HEX["Available"] || GRADIENT_HEX[0];
+  CANONICAL_STATUSES.filter(s => !visibleStatuses.includes(s)).forEach(s => {
+    STATUS_HEX[s] = hiddenDefault;
+    STATUS_PILL[s] = GRADIENT_PILL[0];
+  });
+}
+
+const PAIRS = [[1,2],[3,4],[5,6],[7,8],[9,10],[11,12],[13,14],[15,16],[17,18]];
+const keyPair = (a,b)=>[Math.min(a,b),Math.max(a,b)].join("-");
+const isValidPair=(a,b)=>PAIRS.some(([x,y])=>x===Math.min(a,b)&&y===Math.max(a,b));
+const mateOf = n => { for (const [a,b] of PAIRS) { if (a===n) return b; if (b===n) return a; } return null; };
+
+// VERSION CHECK - If you don't see this in console, you're viewing cached HTML
+console.log('🔥 APP VERSION: 2025-01-14-v21 - Fix date timezone issue (display correct date)');
+
+const state = {
+  mailers: [],
+  current: null,
+  availability: {},
+  initial: {},
+  merged: new Set(),
+  selected: new Set(),
+  dirty: false,
+  lastSide: "front",
+  updatingSelectors: false  // Flag to prevent circular updates when syncing dropdowns
+};
+
+const stagedColors = {
+  Postcard_BG: "",
+  Banner_BG: "#000000"  // Black - ensures white text by default
+};
+
+// AUTO-SAVE STATE
+const autoSaveState = {
+  timer: null,
+  lastSaveTime: null,
+  saving: false,
+  updateInterval: null
+};
+
+// PRODUCTION STATE (OLD - for expenses and spot pricing)
+const productionState = {
+  expenses: {},
+  spotPricing: {},
+  pricing: {}, // Per-postcard pricing: { mailerId: { singleAd, doubleAd, bannerAd } }
+  revenueGoals: {} // Per-postcard revenue goals: { mailerId: { singleCount, singlePrice, doubleCount, doublePrice, bannerCount, bannerPrice, total } }
+};
+
+const DEFAULT_SPOT_PRICE = 500;
+const DEFAULT_EXPENSES = {
+  printing: 0,
+  postage: 0,
+  design: 0,
+  misc: 0
+};
+
+// CRM STATE
+const crmState = {
+  clients: {},
+  nextClientId: 1
+};
+
+// CLIENT SELECTION STATE (for bulk send)
+const clientSelectionState = {
+  selectedIds: new Set()
+};
+
+// KANBAN STATE
+const kanbanState = {
+  columns: {
+    'prospect-list': [],      // Renamed from 'prospect-list'
+    'to-contact': [],          // Renamed from 'to-contact'
+    'in-progress': [],         // Renamed from 'in-progress'
+    'committed': []            // Renamed from 'committed'
+  }
+};
+
+// DAILY OUTREACH GOAL STATE
+const dailyGoalState = {
+  dailyGoal: 10,               // Default goal: contact 10 businesses per day
+  todayCount: 0,               // How many contacted today
+  lastResetDate: new Date().toDateString(),  // Track when we last reset
+  history: []                  // Array of {date, goal, actual, businesses: []}
+};
+
+// CLOUD SYNC SELECTION STATE
+const cloudSyncSelection = {
+  selectedIds: new Set(),
+  showSyncUI: false
+};
+
+// TASKS STATE
+const tasksState = {
+  tasks: []
+};
+
+// API QUOTA TRACKING STATE
+const apiQuotaState = {
+  monthlyLimit: 28000,  // Google Places API free tier
+  currentMonth: new Date().toISOString().slice(0, 7), // "2025-11"
+  callsThisMonth: 0,
+  userQuotas: {},  // Per-user quotas when restrictions activate
+  restrictionsActive: false,
+  warningThreshold: 0.8,  // 80% = 22,400 calls
+  criticalThreshold: 0.95  // 95% = 26,600 calls
+};
+
+// PLACES CACHE STATE (30-day cache + permanent Place IDs)
+const placesCache = {
+  searches: {}  // Format: { "zipCode-category": { placeIds: [], cachedData: [], cachedUntil: "date" } }
+};
+
+// NOT INTERESTED LIST STATE (permanent exclusion list)
+const notInterestedState = {
+  placeIds: new Set(),  // Set of Place IDs marked as "not interested"
+  businesses: {}  // Map of Place ID => business info for reference
+};
+
+// PROSPECTS RESULTS STATE (temporary storage for search results)
+let prospectsResultsState = {
+  businesses: [],
+  selectedIds: new Set()
+};
+
+let lastFocusedElementBeforeModal = null;
+let draggedItem = null;
+let draggedTask = null;
+
+/* ========= UTILITIES ========= */
+const $ = sel => document.querySelector(sel);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ensureHttps = url => {
+  if (!url) return '';
+  const trimmed = url.trim();
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+  return 'https://' + trimmed;
+};
+const show = (el, on=true) => el && el.classList.toggle("hidden", !on);
+const toast = (msg, ok=true, durationMs=null) => {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = `toast ${ok ? "toast-ok" : "toast-warn"}`;
+  t.classList.remove("hidden");
+  t.removeAttribute("aria-hidden");
+
+  // Calculate duration based on message length if not specified
+  // Base: 2000ms, +50ms per character over 20 chars, max 6000ms
+  const duration = durationMs || Math.min(2000 + Math.max(0, msg.length - 20) * 50, 6000);
+
+  setTimeout(()=>{ t.classList.add("hidden"); t.setAttribute("aria-hidden","true"); }, duration);
+};
+
+function formatDate(dateStr) {
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(dateStr));
+}
+
+function isOverdue(dateStr) {
+  // Parse date in LOCAL timezone (not UTC) to avoid timezone issues
+  const parts = dateStr.split('-');
+  const due = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return due < today; // Only overdue if BEFORE today (not today itself)
+}
+
+function updateTaskDate(input) {
+  const row = input.closest('.task-row');
+  const taskId = row.dataset.taskId;
+  const newDate = input.value;
+  if (newDate) {
+    row.dataset.dueDate = newDate;
+    const task = tasksState.tasks.find(t => t.id == taskId);
+    if (task) {
+      task.dueDate = newDate;
+      saveTasks();
+    }
+    updateTasksDisplay();
+    toast('Task date updated');
+  }
+}
+
+function toggleTaskComplete(checkbox) {
+  // Handle case where checkbox might be an event instead of an element
+  if (!checkbox || typeof checkbox.closest !== 'function') {
+    console.error('toggleTaskComplete called with invalid checkbox:', checkbox);
+    return;
+  }
+
+  const row = checkbox.closest('.task-row');
+  if (!row) {
+    console.error('Could not find task-row for checkbox');
+    return;
+  }
+
+  const taskId = row.dataset.taskId;
+  const task = tasksState.tasks.find(t => t.id == taskId);
+  if (task) {
+    task.completed = checkbox.checked;
+    saveTasks();
+    if (checkbox.checked) {
+      row.classList.add('completed');
+    } else {
+      row.classList.remove('completed');
+    }
+    updateTasksDisplay();
+  }
+}
+
+/* ========= FINANCIAL CALCULATIONS ========= */
+function calculateFinancials(mailerId, campaign = null) {
+  if (!mailerId) return null;
+
+  console.log(`\n💰 CALCULATING FINANCIALS FOR: ${mailerId}`);
+  console.log('Campaign data provided?', !!campaign);
+  console.log('spotPricing loaded?', Object.keys(productionState.spotPricing).length > 0);
+  console.log('pricing loaded?', Object.keys(productionState.pricing).length > 0);
+
+  // If pricing data hasn't loaded yet, return null to avoid showing $500 defaults
+  // The calculations will run again once pricing loads
+  const hasPricingData = Object.keys(productionState.pricing).length > 0 || Object.keys(productionState.spotPricing).length > 0;
+  if (!hasPricingData) {
+    console.log('⏳ Skipping financial calculations - waiting for pricing data to load');
+    return null;
+  }
+
+  const expenses = productionState.expenses[mailerId] || { ...DEFAULT_EXPENSES };
+  // Only sum actual expense fields, excluding addressCount
+  const totalExpenses = (parseFloat(expenses.printing) || 0) +
+                       (parseFloat(expenses.postage) || 0) +
+                       (parseFloat(expenses.design) || 0) +
+                       (parseFloat(expenses.misc) || 0);
+
+  let paidRevenue = 0;
+  let depositRevenue = 0;
+  let projectedRevenue = 0;
+  let spotsSold = 0;
+  let spotsPaid = 0;
+
+  // Use campaign data if provided, otherwise use state.availability (for current postcard)
+  const getSpotData = (i) => {
+    if (campaign && campaign[`Spot_${i}`]) {
+      const spotValue = campaign[`Spot_${i}`];
+
+      // Handle plain "Available" string (empty spot)
+      if (spotValue === "Available") {
+        return { name: "", status: "Available" };
+      }
+
+      // Handle string format "Status: Business Name"
+      if (typeof spotValue === 'string') {
+        // Check if it's "Status: Name" format
+        if (spotValue.includes(':')) {
+          const colonIndex = spotValue.indexOf(':');
+          const status = spotValue.substring(0, colonIndex).trim();
+          const name = spotValue.substring(colonIndex + 1).trim();
+          return { name, status };
+        }
+
+        // Try JSON parse as fallback
+        try {
+          return JSON.parse(spotValue);
+        } catch (e) {
+          // If not JSON and no colon, treat as Available
+          return { name: "", status: "Available" };
+        }
+      }
+
+      // Handle object
+      return spotValue;
+    }
+    return state.availability[`Spot_${i}`];
+  };
+
+  // Get pricing for this postcard (new system)
+  const pricing = productionState.pricing[mailerId] || null;
+
+  for (let i = 1; i <= TOTAL_SPOTS_PER_POSTCARD; i++) {
+    const spot = getSpotData(i);
+
+    // Check if this spot is the SECOND spot in a merged pair
+    const mate = mateOf(i);
+    let isMergedSecond = false;
+    let isMerged = false;
+    if (mate && mate < i) {
+      if (campaign) {
+        // When using campaign data, check if spot names match (indicates merge)
+        const mateSpot = getSpotData(mate);
+        const spotName = spot?.name?.trim() || '';
+        const mateName = mateSpot?.name?.trim() || '';
+        isMergedSecond = spotName && mateName && spotName === mateName;
+      } else {
+        // When using state.availability, use state.merged
+        isMergedSecond = state.merged.has(keyPair(i, mate));
+      }
+    }
+
+    // Check if this spot is the FIRST in a merged pair
+    if (mate && mate > i) {
+      if (campaign) {
+        const mateSpot = getSpotData(mate);
+        const spotName = spot?.name?.trim() || '';
+        const mateName = mateSpot?.name?.trim() || '';
+        isMerged = spotName && mateName && spotName === mateName;
+      } else {
+        isMerged = state.merged.has(keyPair(i, mate));
+      }
+    }
+
+    // Skip if this is the second spot in a merged pair (already counted with first spot)
+    if (isMergedSecond) {
+      continue;
+    }
+
+    // Simple pricing logic:
+    // 1. If spot has custom price (manually set) → use it
+    // 2. Otherwise → use Set Pricing defaults (Single/Double/Banner)
+    let price;
+    const priceKey = normalizePriceKey(mailerId, i);
+    const customSpotPrice = productionState.spotPricing[priceKey];
+
+    // Debug pricing lookup for first spot only
+    if (i === 1) {
+      console.log('🔍 PRICING DEBUG for Spot 1:');
+      console.log('  priceKey:', priceKey);
+      console.log('  customSpotPrice:', customSpotPrice);
+      console.log('  pricing object:', pricing);
+      console.log('  spotPricing keys:', Object.keys(productionState.spotPricing).slice(0, 5));
+    }
+
+    if (customSpotPrice !== undefined && customSpotPrice !== null && customSpotPrice > 0) {
+      // Use manually set price
+      price = parseFloat(customSpotPrice);
+      if (i === 1) console.log('  ✅ Using custom spot price:', price);
+    } else if (pricing) {
+      // Use Set Pricing defaults
+      if (isMerged) {
+        if ((i === 13 || i === 14) && mate && (mate === 13 || mate === 14)) {
+          price = parseFloat(pricing.bannerAd) || DEFAULT_SPOT_PRICE;
+        } else {
+          price = parseFloat(pricing.doubleAd) || DEFAULT_SPOT_PRICE;
+        }
+      } else {
+        price = parseFloat(pricing.singleAd) || DEFAULT_SPOT_PRICE;
+      }
+      if (i === 1) console.log('  ✅ Using Set Pricing:', price, '(isMerged:', isMerged, ')');
+    } else {
+      // Fallback if nothing is set
+      price = DEFAULT_SPOT_PRICE;
+      if (i === 1) console.log('  ⚠️ Using default price:', price);
+    }
+
+    // Only count revenue if spot has a business name entered
+    if (spot && spot.status !== "Available" && spot.name && spot.name.trim() !== "") {
+      console.log(`  📍 Spot ${i}: "${spot.name}" | Status: "${spot.status}" | Price: $${price} | Merged: ${isMerged}`);
+      spotsSold++;
+      projectedRevenue += price;
+
+      // Count all filled spots as revenue (Reserved and beyond)
+      if (spot.status === "Deposit Paid") {
+        // Deposit Paid = only 50% received so far
+        const depositAmount = price * 0.5;
+        console.log(`    💰 DEPOSIT PAID - Adding $${depositAmount} to revenue`);
+        depositRevenue += depositAmount;
+      } else {
+        // Reserved, Invoice Sent, Ad Approved, Paid in Full = full price
+        console.log(`    ✅ ${spot.status} - Adding $${price} to revenue`);
+        paidRevenue += price;
+        spotsPaid++;
+      }
+    }
+  }
+  
+  const currentRevenue = paidRevenue + depositRevenue;
+  const currentProfit = currentRevenue - totalExpenses;
+  const projectedProfit = projectedRevenue - totalExpenses;
+  const breakeven = currentRevenue >= totalExpenses;
+
+  console.log(`💵 REVENUE SUMMARY:`);
+  console.log(`  Spots Sold: ${spotsSold}`);
+  console.log(`  Projected Revenue: $${projectedRevenue.toFixed(2)}`);
+  console.log(`  Paid Revenue: $${paidRevenue.toFixed(2)}`);
+  console.log(`  Deposit Revenue: $${depositRevenue.toFixed(2)}`);
+  console.log(`  Current Revenue: $${currentRevenue.toFixed(2)}`);
+  console.log(`  Total Expenses: $${totalExpenses.toFixed(2)}`);
+  console.log(`  Current Profit: $${currentProfit.toFixed(2)}\n`);
+
+  const avgSpotPrice = spotsSold > 0 ? projectedRevenue / spotsSold : DEFAULT_SPOT_PRICE;
+  const remainingToBreakeven = Math.max(0, totalExpenses - currentRevenue);
+  const spotsNeeded = Math.ceil(remainingToBreakeven / avgSpotPrice);
+
+  // Calculate effective total spots (18 minus number of merged pairs)
+  // Each merged pair reduces total by 1 (4 singles become 2 doubles = -2 spots)
+  let mergedPairsCount = 0;
+  if (campaign) {
+    // Count merged pairs by checking if adjacent spots have matching names
+    for (let i = 1; i <= TOTAL_SPOTS_PER_POSTCARD; i++) {
+      const mate = mateOf(i);
+      if (mate && mate > i) { // Only count each pair once
+        const spot = getSpotData(i);
+        const mateSpot = getSpotData(mate);
+        const spotName = spot?.name?.trim() || '';
+        const mateName = mateSpot?.name?.trim() || '';
+        if (spotName && mateName && spotName === mateName) {
+          mergedPairsCount++;
+        }
+      }
+    }
+  } else {
+    mergedPairsCount = state.merged.size;
+  }
+  const effectiveTotalSpots = TOTAL_SPOTS_PER_POSTCARD - mergedPairsCount;
+
+  // Calculate maximum potential revenue by summing actual price for each spot
+  // This accounts for custom spot pricing - if a spot has a custom price, use it
+  let maxPotentialRevenue = 0;
+  for (let i = 1; i <= TOTAL_SPOTS_PER_POSTCARD; i++) {
+    const priceKey = normalizePriceKey(mailerId, i);
+    const customSpotPrice = productionState.spotPricing[priceKey];
+
+    // Use same 3-step pricing logic
+    let spotPrice;
+    if (customSpotPrice !== undefined && customSpotPrice !== null && customSpotPrice > 0) {
+      spotPrice = parseFloat(customSpotPrice);
+    } else if (pricing) {
+      spotPrice = parseFloat(pricing.singleAd) || DEFAULT_SPOT_PRICE;
+    } else {
+      spotPrice = DEFAULT_SPOT_PRICE;
+    }
+
+    maxPotentialRevenue += spotPrice;
+  }
+
+  // Use revenue goal if set, otherwise use maxPotentialRevenue
+  const revenueGoal = productionState.revenueGoals[mailerId];
+  const revenueTarget = (revenueGoal && revenueGoal.total > 0) ? revenueGoal.total : maxPotentialRevenue;
+
+  return {
+    revenue: {
+      paid: paidRevenue,
+      deposit: depositRevenue,
+      current: currentRevenue,
+      projected: projectedRevenue,
+      target: revenueTarget
+    },
+    expenses: {
+      ...expenses,
+      total: totalExpenses
+    },
+    profit: {
+      current: currentProfit,
+      projected: projectedProfit,
+      margin: projectedRevenue > 0 ? (projectedProfit / projectedRevenue * 100) : 0
+    },
+    metrics: {
+      spotsSold,
+      spotsPaid,
+      spotsAvailable: effectiveTotalSpots - spotsSold,
+      avgSpotPrice,
+      breakeven,
+      spotsNeeded,
+      progressPercent: effectiveTotalSpots > 0 ? (spotsSold / effectiveTotalSpots * 100) : 0,
+      effectiveTotalSpots // Add this for display purposes
+    }
+  };
+}
+
+function formatCurrency(amount) {
+  return new Intl.NumberFormat('en-US', { 
+    style: 'currency', 
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(amount || 0);
+}
+
+function updateFinancialDashboard() {
+  if (!state.current) return;
+
+  const financials = calculateFinancials(state.current.Mailer_ID, state.current);
+  if (!financials) return;
+  
+  const profitEl = document.getElementById('profitStatus');
+  const revenueEl = document.getElementById('currentRevenue');
+  const expensesEl = document.getElementById('oldTotalExpenses');
+  const spotsToBreakevenEl = document.getElementById('spotsToBreakeven');
+  const progressBarEl = document.getElementById('revenueProgressBar');
+  const progressTextEl = document.getElementById('revenueProgressText');
+  
+  if (profitEl) {
+    profitEl.textContent = formatCurrency(financials.profit.current);
+    profitEl.className = `metric-value ${financials.metrics.breakeven ? 'text-green-600' : 'text-red-500'}`;
+  }
+  
+  if (revenueEl) revenueEl.textContent = formatCurrency(financials.revenue.current);
+  if (expensesEl) expensesEl.textContent = formatCurrency(financials.expenses.total);
+  
+  if (spotsToBreakevenEl) {
+    if (financials.metrics.breakeven) {
+      spotsToBreakevenEl.innerHTML = '✓ <span class="text-green-600 font-bold">Profitable!</span>';
+    } else {
+      spotsToBreakevenEl.innerHTML = `Need <span class="font-bold text-indigo-600">${financials.metrics.spotsNeeded} more spot${financials.metrics.spotsNeeded === 1 ? '' : 's'}</span> to break even`;
+    }
+  }
+  
+  if (progressBarEl) {
+    const percent = (financials.revenue.current / financials.revenue.target * 100);
+    progressBarEl.style.width = `${Math.min(percent, 100)}%`;
+  }
+  
+  if (progressTextEl) {
+    const revenuePercent = Math.round((financials.revenue.current / financials.revenue.target) * 100);
+    progressTextEl.textContent = `${formatCurrency(financials.revenue.current)} of ${formatCurrency(financials.revenue.target)} goal (${revenuePercent}%)`;
+  }
+  
+  const slotsSoldEl = document.getElementById('slotsSoldMetric');
+  const slotsSoldPercentEl = document.getElementById('slotsSoldPercent');
+  if (slotsSoldEl) {
+    slotsSoldEl.textContent = `${financials.metrics.spotsSold}/${financials.metrics.effectiveTotalSpots}`;
+  }
+  if (slotsSoldPercentEl) {
+    const percent = Math.round(financials.metrics.progressPercent);
+    slotsSoldPercentEl.textContent = `(${percent}%)`;
+  }
+
+  const slotsSoldBarEl = document.getElementById('slotsSoldBar');
+  if (slotsSoldBarEl) {
+    slotsSoldBarEl.style.width = `${financials.metrics.progressPercent}%`;
+  }
+}
+
+/* ========= EXPENSE MODAL ========= */
+function openExpenseModal() {
+  if (!state.current) {
+    toast("Please select a postcard first", false);
+    return;
+  }
+
+  const modal = document.getElementById("expenseModal");
+  const mailerId = state.current.Mailer_ID;
+  const expenses = productionState.expenses[mailerId] || { ...DEFAULT_EXPENSES };
+
+  document.getElementById("expensePrinting").value = expenses.printing || DEFAULT_EXPENSES.printing;
+  document.getElementById("expensePostage").value = expenses.postage || DEFAULT_EXPENSES.postage;
+  document.getElementById("expenseDesign").value = expenses.design || DEFAULT_EXPENSES.design;
+  document.getElementById("expenseMisc").value = expenses.misc || DEFAULT_EXPENSES.misc;
+  document.getElementById("expenseAddressCount").value = expenses.addressCount || 0;
+
+  updateExpenseTotal();
+
+  lastFocusedElementBeforeModal = document.activeElement;
+  modal.style.display = "flex";
+  modal.setAttribute('aria-hidden', 'false');
+  trapModalFocus(modal);
+  document.getElementById("expensePrinting").focus();
+}
+
+function closeExpenseModal() {
+  const modal = document.getElementById("expenseModal");
+  modal.style.display = "none";
+  modal.setAttribute('aria-hidden', 'true');
+  releaseModalFocus(modal);
+  if (lastFocusedElementBeforeModal) lastFocusedElementBeforeModal.focus();
+}
+
+function updateExpenseTotal() {
+  const printing = parseFloat(document.getElementById("expensePrinting").value) || 0;
+  const postage = parseFloat(document.getElementById("expensePostage").value) || 0;
+  const design = parseFloat(document.getElementById("expenseDesign").value) || 0;
+  const misc = parseFloat(document.getElementById("expenseMisc").value) || 0;
+
+  const total = printing + postage + design + misc;
+  document.getElementById("expenseTotal").textContent = formatCurrency(total);
+}
+
+function calculateEDDMPostage() {
+  const addressCount = parseFloat(document.getElementById("expenseAddressCount").value) || 0;
+  const postageCost = addressCount * 0.247;
+
+  document.getElementById("expensePostage").value = postageCost.toFixed(2);
+  updateExpenseTotal();
+}
+
+async function loadExpenses() {
+  try {
+    // Try loading from cloud first
+    const cloudData = await loadFromCloud('expenses');
+
+    if (cloudData) {
+      productionState.expenses = cloudData;
+    } else {
+      // Fallback to localStorage
+      const saved = localStorage.getItem('mailslot-expenses');
+      if (saved) {
+        productionState.expenses = JSON.parse(saved);
+        // Sync to cloud
+        saveToCloud('expenses', productionState.expenses).catch(e => console.warn('Failed to sync expenses to cloud:', e));
+      }
+    }
+  } catch(e) {
+    console.error('Error loading expenses:', e);
+  }
+}
+
+async function saveExpenses() {
+  try {
+    // Save to cloud and localStorage
+    await saveToCloud('expenses', productionState.expenses);
+  } catch(e) {
+    console.warn('Expenses saved to localStorage only (cloud sync failed):', e);
+  }
+}
+
+function saveExpenseModal() {
+  if (!state.current) return;
+
+  const mailerId = state.current.Mailer_ID;
+  productionState.expenses[mailerId] = {
+    printing: parseFloat(document.getElementById("expensePrinting").value) || 0,
+    postage: parseFloat(document.getElementById("expensePostage").value) || 0,
+    design: parseFloat(document.getElementById("expenseDesign").value) || 0,
+    misc: parseFloat(document.getElementById("expenseMisc").value) || 0,
+    addressCount: parseFloat(document.getElementById("expenseAddressCount").value) || 0
+  };
+
+  saveExpenses();
+
+  updateFinancialDashboard();
+  closeExpenseModal();
+  state.dirty = true;
+  updateToolbar();
+  // Save immediately to database
+  saveToSheet();
+}
+
+/* ========= CRM FUNCTIONS ========= */
+
+function buildClientObject(data) {
+  return {
+    id: data.id || `CLT-${String(crmState.nextClientId++).padStart(4, '0')}`,
+    businessName: data.businessName || "",
+    category: data.category || "",
+    contact: {
+      name: data.contactName || "",
+      firstName: data.firstName || "",
+      phone: data.phone || "",
+      email: data.email || "",
+      address: data.address || ""
+    },
+    monthlyPrice: data.monthlyPrice || 0,
+    status: data.status || "active", // active, paused, inactive
+    activeMonths: data.activeMonths || [true, true, true, true, true, true, true, true, true, true, true, true], // J F M A M J J A S O N D
+    history: data.history || [],
+    interactions: data.interactions || [], // Interaction tracking: [{date, type, notes, nextFollowUp}]
+    lifetime: {
+      totalSpent: 0,
+      cardsBought: 0,
+      renewalRate: 0,
+      avgPrice: 0
+    },
+    notes: data.notes || "",
+    tags: data.tags || [],
+    createdDate: data.createdDate || new Date().toISOString(),
+    lastContact: data.lastContact || null,
+    nextRenewal: data.nextRenewal || null,
+    contract: data.contract || {
+      enabled: false,
+      startDate: null,
+      length: 6,
+      monthlyRate: 0,
+      totalValue: 0,
+      endDate: null,
+      autoRenew: false
+    }
+  };
+}
+
+async function loadClients() {
+  try {
+    // Try loading from cloud first
+    const cloudData = await loadFromCloud('clients');
+
+    if (cloudData) {
+      crmState.clients = cloudData.clients || {};
+      crmState.nextClientId = cloudData.nextClientId || 1;
+
+      // Normalize client data to ensure all have required structure
+      Object.keys(crmState.clients).forEach(clientId => {
+        const client = crmState.clients[clientId];
+
+        // If client is missing expected properties, normalize it
+        if (!client.history || !client.lifetime || !client.contact || typeof client.contact === 'string') {
+          crmState.clients[clientId] = buildClientObject({
+            id: client.id || clientId,
+            businessName: client.businessName || client.business_name || "",
+            category: client.category || "",
+            contactName: client.contactName || client.contact_name || client.contact || "",
+            phone: client.phone || "",
+            email: client.email || "",
+            address: client.address || "",
+            notes: client.notes || "",
+            history: client.history || [],
+            tags: client.tags || [],
+            createdDate: client.createdDate || client.created_at || new Date().toISOString(),
+            lastContact: client.lastContact || null,
+            nextRenewal: client.nextRenewal || null,
+            contract: client.contract || undefined
+          });
+        }
+      });
+    } else {
+      // Fallback to localStorage
+      const saved = localStorage.getItem('mailslot-clients');
+      if (saved) {
+        const data = JSON.parse(saved);
+        crmState.clients = data.clients || {};
+        crmState.nextClientId = data.nextClientId || 1;
+        // Sync to cloud
+        saveToCloud('clients', { clients: crmState.clients, nextClientId: crmState.nextClientId }).catch(e => console.warn('Failed to sync clients to cloud:', e));
+      }
+    }
+
+    // Render client list (inside try-catch to prevent promise rejection)
+    renderClientList();
+  } catch(e) {
+    console.error('Error loading clients:', e);
+    // Still try to render with empty state
+    crmState.clients = {};
+    crmState.nextClientId = 1;
+    renderClientList();
+  }
+}
+
+async function saveClients() {
+  try {
+    const data = {
+      clients: crmState.clients,
+      nextClientId: crmState.nextClientId
+    };
+    // Save to cloud and localStorage
+    await saveToCloud('clients', data);
+  } catch(e) {
+    console.warn('Clients saved to localStorage only (cloud sync failed):', e);
+  }
+}
+
+function renderClientList() {
+  const container = document.getElementById('clientList');
+  const clients = Object.values(crmState.clients);
+
+  if (clients.length === 0) {
+    container.innerHTML = '<p class="text-sm text-gray-500 text-center py-8">No clients yet. Add your first client above!</p>';
+    updateClientBulkSendSection();
+    return;
+  }
+
+  clients.sort((a, b) => a.businessName.localeCompare(b.businessName));
+
+  container.innerHTML = `
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3" id="clientListGrid">
+      ${clients.map(client => {
+        const lastPurchase = (client.history && client.history.length > 0)
+          ? client.history[client.history.length - 1]
+          : null;
+
+        const hasPhone = client.contact && client.contact.phone;
+        const hasEmail = client.contact && client.contact.email;
+        const isSelected = clientSelectionState.selectedIds.has(client.id);
+
+        return `
+          <div class="client-row bg-white border-2 ${isSelected ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200'} rounded-lg p-3 hover:shadow-lg transition relative flex flex-col min-h-[220px]"
+               data-client-id="${esc(client.id)}"
+               data-category="${esc(client.category)}"
+               data-business="${esc(client.businessName.toLowerCase())}">
+
+            <!-- Checkbox in top-left corner -->
+            <div class="absolute top-2 left-2 z-10">
+              <input
+                type="checkbox"
+                class="client-checkbox h-5 w-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"
+                data-client-id="${esc(client.id)}"
+                ${isSelected ? 'checked' : ''}
+              />
+            </div>
+
+            <!-- Revenue Badge in top-right corner -->
+            <div class="absolute top-2 right-2 text-right pointer-events-none z-10">
+              <div class="text-sm font-semibold text-green-600">${formatCurrency(client.lifetime.totalSpent)}</div>
+              <div class="text-xs text-gray-500">${client.lifetime.cardsBought} card${client.lifetime.cardsBought === 1 ? '' : 's'}</div>
+            </div>
+
+            <!-- Main content (clickable to open modal) -->
+            <div class="client-card-body cursor-pointer pt-6 pb-2 flex-1" data-client-id="${esc(client.id)}">
+              <!-- Business Name (larger, more prominent) -->
+              <h5 class="font-bold text-base text-gray-900 mb-2 pr-16 leading-tight">${esc(client.businessName)}</h5>
+
+              <!-- Category with badge styling -->
+              <div class="flex items-center gap-2 mb-2 flex-wrap">
+                ${client.category ? `<span class="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded-md font-medium">🏢 ${esc(client.category)}</span>` : '<span class="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-md">Uncategorized</span>'}
+                ${client.status === 'paused' ? '<span class="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-md font-medium">⏸️ Paused</span>' : ''}
+                ${client.status === 'inactive' ? '<span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-md font-medium">❌ Inactive</span>' : ''}
+              </div>
+
+              <!-- Owner name (if available from enrichment) -->
+              ${client.ownerName ? `<div class="text-xs text-gray-600 mb-1">👤 Owner: ${esc(client.ownerName)}</div>` : ''}
+
+              <!-- Rating and Review Count (if available) -->
+              ${client.rating || client.reviewCount ? `
+                <div class="flex items-center gap-2 mb-2 text-xs text-gray-700">
+                  ${client.rating ? `<span class="font-semibold">⭐ ${client.rating}</span>` : ''}
+                  ${client.reviewCount ? `<span class="text-gray-500">(${client.reviewCount.toLocaleString()} reviews)</span>` : ''}
+                  ${client.priceLevel && client.priceLevel > 0 ? `<span class="text-green-600 font-bold">${'$'.repeat(client.priceLevel)}</span>` : ''}
+                </div>
+              ` : ''}
+
+              <!-- Business Description (if available) -->
+              ${client.description ? `<p class="text-xs text-gray-600 italic mb-2">"${esc(client.description.substring(0, 60))}${client.description.length > 60 ? '...' : ''}"</p>` : ''}
+
+              <!-- Contact Info Section -->
+              <div class="space-y-1 mb-2">
+                ${client.contact.firstName ? `<div class="text-sm text-gray-700 font-medium">👤 ${esc(client.contact.firstName)}${client.contact.name && client.contact.name !== client.contact.firstName ? ` (${esc(client.contact.name)})` : ''}</div>` : (client.contact.name ? `<div class="text-sm text-gray-600">👤 ${esc(client.contact.name)}</div>` : '')}
+                ${hasPhone ? `<div class="text-xs text-gray-600">📞 ${esc(client.contact.phone)}</div>` : ''}
+                ${hasEmail ? `<div class="text-xs text-gray-600 truncate">✉️ ${esc(client.contact.email)}</div>` : ''}
+              </div>
+
+              <!-- Social Media Icons (if available) -->
+              ${(() => {
+                const socialIcons = [];
+                if (client.website) socialIcons.push(`<a href="${esc(ensureHttps(client.website))}" onclick="event.stopPropagation()" target="_blank" class="text-base hover:scale-125 transition-transform" title="🌐 ${esc(client.website)}">🌐</a>`);
+                if (client.instagram) socialIcons.push(`<a href="${esc(ensureHttps(client.instagram))}" onclick="event.stopPropagation()" target="_blank" class="text-base hover:scale-125 transition-transform" title="📷 ${esc(client.instagram)}">📷</a>`);
+                if (client.facebook) socialIcons.push(`<a href="${esc(ensureHttps(client.facebook))}" onclick="event.stopPropagation()" target="_blank" class="text-base hover:scale-125 transition-transform" title="📘 ${esc(client.facebook)}">📘</a>`);
+                if (client.linkedin) socialIcons.push(`<a href="${esc(ensureHttps(client.linkedin))}" onclick="event.stopPropagation()" target="_blank" class="text-base hover:scale-125 transition-transform" title="💼 ${esc(client.linkedin)}">💼</a>`);
+                if (client.twitter) socialIcons.push(`<a href="${esc(ensureHttps(client.twitter))}" onclick="event.stopPropagation()" target="_blank" class="text-base hover:scale-125 transition-transform" title="🐦 ${esc(client.twitter)}">🐦</a>`);
+                return socialIcons.length > 0 ? `
+                  <div class="flex gap-2 items-center py-1 mb-2 border-t border-gray-200 pt-2">
+                    ${socialIcons.join('')}
+                  </div>
+                ` : '';
+              })()}
+
+              <!-- Monthly Price (more prominent if set) -->
+              ${client.monthlyPrice ? `<div class="text-sm font-bold text-green-600 bg-green-50 px-2 py-1 rounded-md inline-block mb-2">💰 ${formatCurrency(client.monthlyPrice)}/month</div>` : ''}
+
+              <!-- Last purchase info -->
+              ${lastPurchase ? `
+                <div class="mt-2 pt-2 border-t border-gray-200">
+                  <div class="text-xs text-gray-500">Last campaign:</div>
+                  <div class="text-xs text-gray-700 font-medium">${esc(lastPurchase.campaign)}</div>
+                </div>
+              ` : ''}
+            </div>
+
+            <!-- Action button - always at bottom -->
+            <div class="mt-auto pt-2 border-t">
+              <button class="client-move-btn w-full px-3 py-1.5 bg-purple-600 text-white rounded-md hover:bg-purple-700 font-semibold text-xs"
+                      data-client-id="${esc(client.id)}">
+                📤 Move to Pipeline
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+
+  // Add event delegation after DOM is ready
+  setTimeout(() => {
+    const gridElement = document.getElementById('clientListGrid');
+    if (!gridElement) return;
+
+    // Use a single click handler for everything
+    gridElement.onclick = (e) => {
+      // Handle checkbox clicks
+      if (e.target.classList.contains('client-checkbox')) {
+        e.stopPropagation();
+        const clientId = e.target.getAttribute('data-client-id');
+        if (clientId) {
+          toggleClientSelection(clientId);
+        }
+        return;
+      }
+
+      // Handle button clicks
+      if (e.target.classList.contains('client-move-btn') || e.target.closest('.client-move-btn')) {
+        e.stopPropagation();
+        const btn = e.target.classList.contains('client-move-btn') ? e.target : e.target.closest('.client-move-btn');
+        const clientId = btn.getAttribute('data-client-id');
+        if (clientId) {
+          moveClientToKanban(clientId);
+        }
+        return;
+      }
+
+      // Handle card body clicks (open modal)
+      const cardBody = e.target.closest('.client-card-body');
+      if (cardBody) {
+        const clientId = cardBody.getAttribute('data-client-id');
+        if (clientId) {
+          openClientModal(clientId);
+        }
+      }
+    };
+  }, 10);
+
+  updateClientBulkSendSection();
+}
+
+function toggleClientSelection(clientId) {
+  if (clientSelectionState.selectedIds.has(clientId)) {
+    clientSelectionState.selectedIds.delete(clientId);
+  } else {
+    clientSelectionState.selectedIds.add(clientId);
+  }
+
+  // Update the checkbox visual state and card styling without full re-render
+  const checkbox = document.querySelector(`.client-checkbox[data-client-id="${clientId}"]`);
+  const card = document.querySelector(`.client-row[data-client-id="${clientId}"]`);
+
+  if (checkbox) {
+    checkbox.checked = clientSelectionState.selectedIds.has(clientId);
+  }
+
+  if (card) {
+    if (clientSelectionState.selectedIds.has(clientId)) {
+      card.classList.remove('border-gray-200');
+      card.classList.add('border-indigo-400', 'bg-indigo-50');
+    } else {
+      card.classList.remove('border-indigo-400', 'bg-indigo-50');
+      card.classList.add('border-gray-200');
+    }
+  }
+
+  updateClientBulkSendSection();
+}
+
+function selectAllClients() {
+  // Look in the grid container, not the parent container
+  const visibleClients = Array.from(document.querySelectorAll('#clientListGrid .client-row'))
+    .filter(el => el.style.display !== 'none')
+    .map(el => el.dataset.clientId);
+
+  visibleClients.forEach(id => {
+    clientSelectionState.selectedIds.add(id);
+
+    // Update checkbox and card styling
+    const checkbox = document.querySelector(`.client-checkbox[data-client-id="${id}"]`);
+    const card = document.querySelector(`.client-row[data-client-id="${id}"]`);
+
+    if (checkbox) {
+      checkbox.checked = true;
+    }
+
+    if (card) {
+      card.classList.remove('border-gray-200');
+      card.classList.add('border-indigo-400', 'bg-indigo-50');
+    }
+  });
+
+  updateClientBulkSendSection();
+}
+
+function clearClientSelection() {
+  // Update all checkboxes and cards before clearing
+  clientSelectionState.selectedIds.forEach(id => {
+    const checkbox = document.querySelector(`.client-checkbox[data-client-id="${id}"]`);
+    const card = document.querySelector(`.client-row[data-client-id="${id}"]`);
+
+    if (checkbox) {
+      checkbox.checked = false;
+    }
+
+    if (card) {
+      card.classList.remove('border-indigo-400', 'bg-indigo-50');
+      card.classList.add('border-gray-200');
+    }
+  });
+
+  clientSelectionState.selectedIds.clear();
+  updateClientBulkSendSection();
+}
+
+// Select only Active clients (for renewal reminders)
+function selectActiveClientsForRenewal() {
+  clearClientSelection();
+
+  const currentMonth = new Date().getMonth(); // 0-11 (Jan = 0, Dec = 11)
+
+  // Get all visible clients
+  const visibleClients = Array.from(document.querySelectorAll('#clientListGrid .client-row'))
+    .filter(el => el.style.display !== 'none')
+    .map(el => el.dataset.clientId);
+
+  let selectedCount = 0;
+
+  visibleClients.forEach(id => {
+    const client = crmState.clients[id];
+    if (!client) return;
+
+    // Only select Active clients AND check if they're active this month
+    const isActiveStatus = client.status === 'active' || !client.status; // Default to active if no status
+    const hasContract = client.contract && client.contract.enabled;
+    const isActiveThisMonth = client.activeMonths ? client.activeMonths[currentMonth] : true;
+
+    if (isActiveStatus && !hasContract && isActiveThisMonth) {
+      clientSelectionState.selectedIds.add(id);
+
+      // Update checkbox and card styling
+      const checkbox = document.querySelector(`.client-checkbox[data-client-id="${id}"]`);
+      const card = document.querySelector(`.client-row[data-client-id="${id}"]`);
+
+      if (checkbox) checkbox.checked = true;
+      if (card) {
+        card.classList.remove('border-gray-200');
+        card.classList.add('border-indigo-400', 'bg-indigo-50');
+      }
+
+      selectedCount++;
+    }
+  });
+
+  updateClientBulkSendSection();
+  toast(`Selected ${selectedCount} active client(s) for renewal reminder`, true);
+}
+
+// Select only Paused/Inactive clients (for reactivation)
+function selectInactiveClientsForReactivation() {
+  clearClientSelection();
+
+  // Get all visible clients
+  const visibleClients = Array.from(document.querySelectorAll('#clientListGrid .client-row'))
+    .filter(el => el.style.display !== 'none')
+    .map(el => el.dataset.clientId);
+
+  let selectedCount = 0;
+
+  visibleClients.forEach(id => {
+    const client = crmState.clients[id];
+    if (!client) return;
+
+    // Only select Paused or Inactive clients
+    if (client.status === 'paused' || client.status === 'inactive') {
+      clientSelectionState.selectedIds.add(id);
+
+      // Update checkbox and card styling
+      const checkbox = document.querySelector(`.client-checkbox[data-client-id="${id}"]`);
+      const card = document.querySelector(`.client-row[data-client-id="${id}"]`);
+
+      if (checkbox) checkbox.checked = true;
+      if (card) {
+        card.classList.remove('border-gray-200');
+        card.classList.add('border-indigo-400', 'bg-indigo-50');
+      }
+
+      selectedCount++;
+    }
+  });
+
+  updateClientBulkSendSection();
+  toast(`Selected ${selectedCount} paused/inactive client(s) for reactivation`, true);
+}
+
+function updateClientBulkSendSection() {
+  const section = document.getElementById('clientBulkSendSection');
+  const countSpan = document.getElementById('clientSelectedCount');
+  const selectedCount = clientSelectionState.selectedIds.size;
+
+  if (countSpan) {
+    countSpan.textContent = selectedCount;
+  }
+
+  if (section) {
+    if (selectedCount > 0) {
+      section.classList.remove('hidden');
+      // Populate template selector if not already done
+      populateClientBulkSendTemplates();
+    } else {
+      section.classList.add('hidden');
+    }
+  }
+}
+
+function populateClientBulkSendTemplates() {
+  const selector = document.getElementById('clientBulkSendTemplateSelector');
+  if (!selector) return;
+
+  const templates = Object.values(userTemplatesState.templates || {});
+
+  // Only populate if empty
+  if (selector.options.length <= 1) {
+    selector.innerHTML = '<option value="">— Choose a template —</option>' +
+      templates.map(t => `<option value="${t.id}">[${t.type.toUpperCase()}] ${t.name}</option>`).join('');
+  }
+
+  // Add event listener for template preview
+  selector.onchange = function() {
+    const previewDiv = document.getElementById('clientBulkSendPreview');
+    const previewText = document.getElementById('clientBulkSendPreviewText');
+
+    if (this.value && previewDiv && previewText) {
+      const template = userTemplatesState.templates[this.value];
+      if (template) {
+        previewText.textContent = template.body;
+        previewDiv.classList.remove('hidden');
+      } else {
+        previewDiv.classList.add('hidden');
+      }
+    } else if (previewDiv) {
+      previewDiv.classList.add('hidden');
+    }
+  };
+}
+
+function clientBulkSendSMS() {
+  const templateSelector = document.getElementById('clientBulkSendTemplateSelector');
+  if (!templateSelector || !templateSelector.value) {
+    toast('⚠️ Please select a template first', false);
+    return;
+  }
+
+  const templateId = templateSelector.value;
+  const template = userTemplatesState.templates[templateId];
+
+  if (!template) {
+    toast('⚠️ Template not found', false);
+    return;
+  }
+
+  if (template.type !== 'sms') {
+    toast('⚠️ Please select an SMS template', false);
+    return;
+  }
+
+  const selectedCount = clientSelectionState.selectedIds.size;
+
+  if (confirm(`Send SMS to ${selectedCount} selected client${selectedCount > 1 ? 's' : ''}?\n\nThis will open your SMS app for each contact.`)) {
+    let successCount = 0;
+
+    clientSelectionState.selectedIds.forEach(clientId => {
+      const client = crmState.clients[clientId];
+      if (client && client.contact && client.contact.phone) {
+        // Fill template variables
+        const data = {
+          businessName: client.businessName,
+          contactName: client.contact.name || client.businessName,
+          firstName: client.contact?.firstName || '',
+          phone: client.contact.phone,
+          email: client.contact.email || '',
+          town: client.address?.city || '',
+          zipCode: client.address?.zipCode || '',
+          monthlyPrice: client.monthlyPrice ? `$${client.monthlyPrice}` : ''
+        };
+        const filled = fillTemplateVariables(template, data);
+        const message = filled.body;
+
+        window.open(`sms:${client.contact.phone}?body=${encodeURIComponent(message)}`, '_blank');
+        successCount++;
+      }
+    });
+
+    // Track template usage
+    if (template) {
+      template.lastUsed = new Date().toISOString();
+      template.usageCount = (template.usageCount || 0) + selectedCount;
+      saveUserTemplates();
+    }
+
+    toast(`✅ Opened SMS for ${successCount} client${successCount > 1 ? 's' : ''}`, true);
+
+    // Clear selections
+    clearClientSelection();
+  }
+}
+
+// State for sequential email sending
+let clientBulkEmailQueue = [];
+let clientBulkEmailCurrentIndex = 0;
+let clientBulkEmailTemplate = null;
+
+function clientBulkSendEmail() {
+  const templateSelector = document.getElementById('clientBulkSendTemplateSelector');
+  if (!templateSelector || !templateSelector.value) {
+    toast('⚠️ Please select a template first', false);
+    return;
+  }
+
+  const templateId = templateSelector.value;
+  const template = userTemplatesState.templates[templateId];
+
+  if (!template) {
+    toast('⚠️ Template not found', false);
+    return;
+  }
+
+  if (template.type !== 'email') {
+    toast('⚠️ Please select an Email template', false);
+    return;
+  }
+
+  // Collect all clients with emails
+  const clientsWithEmails = [];
+  clientSelectionState.selectedIds.forEach(clientId => {
+    const client = crmState.clients[clientId];
+    if (client && client.contact && client.contact.email) {
+      clientsWithEmails.push(client);
+    }
+  });
+
+  if (clientsWithEmails.length === 0) {
+    toast('⚠️ No clients with email addresses selected', false);
+    return;
+  }
+
+  if (confirm(`Send personalized emails to ${clientsWithEmails.length} client${clientsWithEmails.length > 1 ? 's' : ''}?\n\nYou'll click through each email one at a time.`)) {
+    // Initialize queue
+    clientBulkEmailQueue = clientsWithEmails;
+    clientBulkEmailCurrentIndex = 0;
+    clientBulkEmailTemplate = template;
+
+    // Track template usage
+    template.lastUsed = new Date().toISOString();
+    template.usageCount = (template.usageCount || 0) + clientsWithEmails.length;
+    saveUserTemplates();
+
+    // Open first email
+    openNextClientEmail();
+  }
+}
+
+function openNextClientEmail() {
+  if (clientBulkEmailCurrentIndex >= clientBulkEmailQueue.length) {
+    // Done!
+    toast(`✅ Completed ${clientBulkEmailQueue.length} personalized email${clientBulkEmailQueue.length > 1 ? 's' : ''}`, true);
+    clientBulkEmailQueue = [];
+    clientBulkEmailCurrentIndex = 0;
+    clientBulkEmailTemplate = null;
+    clearClientSelection();
+    return;
+  }
+
+  const client = clientBulkEmailQueue[clientBulkEmailCurrentIndex];
+  const template = clientBulkEmailTemplate;
+
+  // Fill template variables with this client's data
+  const data = {
+    businessName: client.businessName,
+    contactName: client.contact?.name || client.businessName,
+    firstName: client.contact?.firstName || '',
+    phone: client.contact?.phone || '',
+    email: client.contact?.email || '',
+    town: client.address?.city || '',
+    zipCode: client.address?.zipCode || '',
+    monthlyPrice: client.monthlyPrice ? `$${client.monthlyPrice}` : ''
+  };
+
+  const filled = fillTemplateVariables(template, data);
+  const subject = filled.subject;
+  const body = filled.body;
+
+  // Open mailto link
+  window.open(`mailto:${client.contact.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+
+  clientBulkEmailCurrentIndex++;
+
+  // Show progress and next button
+  const remaining = clientBulkEmailQueue.length - clientBulkEmailCurrentIndex;
+  if (remaining > 0) {
+    setTimeout(() => {
+      if (confirm(`Email ${clientBulkEmailCurrentIndex} of ${clientBulkEmailQueue.length} opened for ${client.businessName}.\n\n${remaining} more to go. Continue to next email?`)) {
+        openNextClientEmail();
+      } else {
+        toast(`⚠️ Stopped at ${clientBulkEmailCurrentIndex} of ${clientBulkEmailQueue.length}`, false);
+        clientBulkEmailQueue = [];
+        clientBulkEmailCurrentIndex = 0;
+        clientBulkEmailTemplate = null;
+      }
+    }, 500);
+  } else {
+    // Last one
+    setTimeout(() => {
+      toast(`✅ Completed all ${clientBulkEmailQueue.length} personalized email${clientBulkEmailQueue.length > 1 ? 's' : ''}!`, true);
+      clientBulkEmailQueue = [];
+      clientBulkEmailCurrentIndex = 0;
+      clientBulkEmailTemplate = null;
+      clearClientSelection();
+    }, 500);
+  }
+}
+
+function clientBulkSendGoogleVoice() {
+  const templateSelector = document.getElementById('clientBulkSendTemplateSelector');
+  if (!templateSelector || !templateSelector.value) {
+    toast('⚠️ Please select a template first', false);
+    return;
+  }
+
+  const templateId = templateSelector.value;
+  const template = userTemplatesState.templates[templateId];
+
+  if (!template) {
+    toast('⚠️ Template not found', false);
+    return;
+  }
+
+  if (template.type !== 'sms') {
+    toast('⚠️ Please select an SMS template (Google Voice uses SMS format)', false);
+    return;
+  }
+
+  const selectedCount = clientSelectionState.selectedIds.size;
+
+  if (confirm(`Send via Google Voice to ${selectedCount} selected client${selectedCount > 1 ? 's' : ''}?\n\nThis will:\n1. Copy the message to your clipboard\n2. Open Google Voice for each contact\n3. You can paste (Ctrl+V) the message and send`)) {
+    let successCount = 0;
+
+    clientSelectionState.selectedIds.forEach(clientId => {
+      const client = crmState.clients[clientId];
+      if (client && client.contact && client.contact.phone) {
+        // Fill template variables
+        const data = {
+          businessName: client.businessName,
+          contactName: client.contact.name || client.businessName,
+          firstName: client.contact?.firstName || '',
+          phone: client.contact.phone,
+          email: client.contact.email || '',
+          town: client.address?.city || '',
+          zipCode: client.address?.zipCode || '',
+          monthlyPrice: client.monthlyPrice ? `$${client.monthlyPrice}` : ''
+        };
+        const filled = fillTemplateVariables(template, data);
+        const message = filled.body;
+
+        const cleanPhone = client.contact.phone.replace(/\D/g, '');
+        const formattedPhone = cleanPhone.length === 10 ? `+1${cleanPhone}` : `+${cleanPhone}`;
+        const googleVoiceUrl = `https://voice.google.com/u/0/messages?itemId=${formattedPhone}`;
+
+        navigator.clipboard.writeText(message).then(() => {
+          console.log('Message copied to clipboard');
+        }).catch(err => {
+          console.warn('Could not copy to clipboard:', err);
+        });
+
+        window.open(googleVoiceUrl, '_blank');
+        successCount++;
+      }
+    });
+
+    // Track template usage
+    if (template) {
+      template.lastUsed = new Date().toISOString();
+      template.usageCount = (template.usageCount || 0) + selectedCount;
+      saveUserTemplates();
+    }
+
+    toast(`✅ Message copied! Opened Google Voice for ${successCount} client${successCount > 1 ? 's' : ''}. Paste with Ctrl+V`, true);
+
+    // Clear selections
+    clearClientSelection();
+  }
+}
+
+function filterClients() {
+  const searchTerm = document.getElementById('clientSearch').value.toLowerCase();
+  const categoryFilter = document.getElementById('categoryFilter').value;
+  const statusFilter = document.getElementById('statusFilter').value;
+  
+  const clientEls = document.querySelectorAll('#clientList .client-row');
+  
+  clientEls.forEach(el => {
+    const business = el.dataset.business || '';
+    const category = el.dataset.category || '';
+    const clientId = el.dataset.clientId;
+    const client = crmState.clients[clientId];
+    
+    let visible = true;
+    
+    if (searchTerm && !business.includes(searchTerm) && !category.toLowerCase().includes(searchTerm)) {
+      visible = false;
+    }
+    
+    if (categoryFilter && category !== categoryFilter) {
+      visible = false;
+    }
+    
+    if (statusFilter && client) {
+      const hasActivePurchase = client.history.some(h => h.status === 'Paid in Full');
+      const hasPendingPurchase = client.history.some(h => h.status !== 'Paid in Full' && h.status !== 'Available');
+      
+      if (statusFilter === 'active' && !hasActivePurchase) visible = false;
+      if (statusFilter === 'pending' && !hasPendingPurchase) visible = false;
+      if (statusFilter === 'inactive' && (hasActivePurchase || hasPendingPurchase)) visible = false;
+    }
+    
+    el.style.display = visible ? 'block' : 'none';
+  });
+}
+
+/* ========= CONTRACT MANAGEMENT ========= */
+function toggleContractFields() {
+  const enabled = document.getElementById('hasContract').checked;
+  document.getElementById('contractFields').classList.toggle('hidden', !enabled);
+  if (enabled) {
+    // Set default start date to today if empty
+    if (!document.getElementById('contractStartDate').value) {
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('contractStartDate').value = today;
+      calculateContractEnd();
+    }
+  }
+}
+
+function calculateContractEnd() {
+  const startDate = document.getElementById('contractStartDate').value;
+  const length = parseInt(document.getElementById('contractLength').value);
+
+  if (!startDate) {
+    document.getElementById('contractEndDate').textContent = '—';
+    return;
+  }
+
+  const start = new Date(startDate);
+  const end = new Date(start);
+  end.setMonth(end.getMonth() + length);
+
+  // Format as readable date
+  const options = { year: 'numeric', month: 'long', day: 'numeric' };
+  document.getElementById('contractEndDate').textContent = end.toLocaleDateString('en-US', options);
+
+  calculateContractTotal();
+}
+
+function calculateContractTotal() {
+  const monthlyRate = parseFloat(document.getElementById('contractMonthlyRate').value) || 0;
+  const length = parseInt(document.getElementById('contractLength').value);
+  const total = monthlyRate * length;
+
+  document.getElementById('contractTotalValue').textContent = formatCurrency(total);
+}
+
+// Helper function to open client modal for a prospect (converts prospect data to client format)
+function openClientModalForProspect(prospectDataOrId) {
+  let prospectData;
+
+  // If passed an ID (string/number), look it up in kanban state or prospect pool
+  if (typeof prospectDataOrId === 'string' || typeof prospectDataOrId === 'number') {
+    const itemId = String(prospectDataOrId);
+
+    // Search all kanban columns
+    for (const column of ['prospect-list', 'to-contact', 'in-progress', 'committed']) {
+      const items = kanbanState.columns[column] || [];
+      const found = items.find(item => typeof item === 'object' && String(item.id) === itemId);
+      if (found) {
+        prospectData = found;
+        break;
+      }
+    }
+
+    // Search prospect pool if not found in kanban
+    if (!prospectData) {
+      prospectData = prospectPoolState.manualProspects.find(p => String(p.id) === itemId);
+    }
+
+    // If still not found, show error
+    if (!prospectData) {
+      console.error('Prospect not found for ID:', itemId);
+      toast('Prospect not found', false);
+      return;
+    }
+  } else {
+    // Passed the full object
+    prospectData = prospectDataOrId;
+  }
+
+  // Check if this prospect already exists as a client (by business name)
+  const existingClient = Object.values(crmState.clients).find(c =>
+    c.businessName && prospectData.businessName &&
+    c.businessName.toLowerCase() === prospectData.businessName.toLowerCase()
+  );
+
+  if (existingClient) {
+    // Open existing client
+    openClientModal(existingClient.id);
+    return;
+  }
+
+  // Open modal in "new client" mode with prospect data pre-filled
+  const modal = document.getElementById('clientModal');
+  const title = document.getElementById('clientModalTitle');
+  const deleteBtn = document.getElementById('btnDeleteClient');
+  const historySection = document.getElementById('clientHistorySection');
+
+  title.textContent = 'New Client (from Prospect)';
+  deleteBtn.classList.add('hidden');
+  historySection.classList.add('hidden');
+
+  // Pre-fill with prospect data
+  document.getElementById('clientId').value = '';
+  document.getElementById('clientBusinessName').value = prospectData.businessName || prospectData.name || '';
+  document.getElementById('clientCategory').value = prospectData.category || '';
+  document.getElementById('clientContactName').value = prospectData.contactName || '';
+  document.getElementById('clientFirstName').value = prospectData.firstName || '';
+  document.getElementById('clientPhone').value = prospectData.phone || '';
+  document.getElementById('clientEmail').value = prospectData.email || '';
+  document.getElementById('clientMonthlyPrice').value = '';
+  document.getElementById('clientStatus').value = 'active';
+
+  // Build notes with all available prospect info
+  let notes = prospectData.notes || '';
+  if (prospectData.address) notes += `\nAddress: ${prospectData.address}`;
+  if (prospectData.website) notes += `\nWebsite: ${prospectData.website}`;
+  if (!notes) notes = `Found via ${prospectData.source || 'Prospect Generator'}`;
+  document.getElementById('clientNotes').value = notes;
+
+  // Set active months to all checked
+  for (let i = 0; i < 12; i++) {
+    document.getElementById(`activeMonth${i}`).checked = true;
+  }
+
+  // Show modal
+  modal.style.display = 'flex';
+}
+
+function openClientModal(clientId = null) {
+  const modal = document.getElementById('clientModal');
+  const title = document.getElementById('clientModalTitle');
+  const deleteBtn = document.getElementById('btnDeleteClient');
+  const historySection = document.getElementById('clientHistorySection');
+  
+  lastFocusedElementBeforeModal = document.activeElement;
+  
+  if (clientId && crmState.clients[clientId]) {
+    const client = crmState.clients[clientId];
+    title.textContent = 'Edit Client';
+    deleteBtn.classList.remove('hidden');
+    historySection.classList.remove('hidden');
+    
+    document.getElementById('clientId').value = client.id;
+    document.getElementById('clientBusinessName').value = client.businessName;
+    document.getElementById('clientCategory').value = client.category;
+    document.getElementById('clientContactName').value = client.contact.name;
+    document.getElementById('clientFirstName').value = client.contact.firstName || '';
+    document.getElementById('clientPhone').value = client.contact.phone;
+    document.getElementById('clientEmail').value = client.contact.email;
+    document.getElementById('clientMonthlyPrice').value = client.monthlyPrice || '';
+    document.getElementById('clientStatus').value = client.status || 'active';
+    document.getElementById('clientNotes').value = client.notes;
+
+    // Load active months
+    const activeMonths = client.activeMonths || [true, true, true, true, true, true, true, true, true, true, true, true];
+    for (let i = 0; i < 12; i++) {
+      document.getElementById(`activeMonth${i}`).checked = activeMonths[i];
+    }
+
+    renderClientHistory(client);
+    
+    document.getElementById('clientLifetimeSpent').textContent = formatCurrency(client.lifetime.totalSpent);
+    document.getElementById('clientCardsBought').textContent = client.lifetime.cardsBought;
+    document.getElementById('clientAvgPrice').textContent = formatCurrency(client.lifetime.avgPrice);
+
+    // Load contract data
+    if (client.contract && client.contract.enabled) {
+      document.getElementById('hasContract').checked = true;
+      document.getElementById('contractFields').classList.remove('hidden');
+      document.getElementById('contractStartDate').value = client.contract.startDate || '';
+      document.getElementById('contractLength').value = client.contract.length || 6;
+      document.getElementById('contractMonthlyRate').value = client.contract.monthlyRate || '';
+      document.getElementById('contractAutoRenew').checked = client.contract.autoRenew || false;
+      calculateContractEnd();
+    } else {
+      document.getElementById('hasContract').checked = false;
+      document.getElementById('contractFields').classList.add('hidden');
+    }
+  } else {
+    title.textContent = 'Add New Client';
+    deleteBtn.classList.add('hidden');
+    historySection.classList.add('hidden');
+
+    document.getElementById('clientId').value = '';
+    document.getElementById('clientBusinessName').value = '';
+    document.getElementById('clientCategory').value = '';
+    document.getElementById('clientContactName').value = '';
+    document.getElementById('clientFirstName').value = '';
+    document.getElementById('clientPhone').value = '';
+    document.getElementById('clientEmail').value = '';
+    document.getElementById('clientMonthlyPrice').value = '';
+    document.getElementById('clientStatus').value = 'active';
+    document.getElementById('clientNotes').value = '';
+
+    // Reset active months (all checked by default)
+    for (let i = 0; i < 12; i++) {
+      document.getElementById(`activeMonth${i}`).checked = true;
+    }
+
+    // Reset contract fields
+    document.getElementById('hasContract').checked = false;
+    document.getElementById('contractFields').classList.add('hidden');
+    document.getElementById('contractStartDate').value = '';
+    document.getElementById('contractLength').value = '6';
+    document.getElementById('contractMonthlyRate').value = '';
+    document.getElementById('contractAutoRenew').checked = false;
+    document.getElementById('contractEndDate').textContent = '—';
+    document.getElementById('contractTotalValue').textContent = '$0';
+  }
+  
+  modal.style.display = 'flex';
+  modal.setAttribute('aria-hidden', 'false');
+  trapModalFocus(modal);
+  document.getElementById('clientBusinessName').focus();
+}
+
+function renderClientHistory(client) {
+  const container = document.getElementById('clientHistory');
+  
+  if (client.history.length === 0) {
+    container.innerHTML = '<p class="text-sm text-gray-500 text-center py-2">No purchase history yet</p>';
+    return;
+  }
+  
+  container.innerHTML = client.history.map(purchase => `
+    <div class="flex justify-between items-center p-2 bg-white border rounded">
+      <div>
+        <div class="font-medium text-sm">${esc(purchase.campaign)}</div>
+        <div class="text-xs text-gray-500">Spot ${purchase.spot} • ${purchase.status}</div>
+      </div>
+      <div class="text-right">
+        <div class="font-semibold text-green-600">${formatCurrency(purchase.price)}</div>
+        <div class="text-xs text-gray-500">${purchase.date || 'N/A'}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// toggleCustomCategory function removed - categories now come from businessCategories
+
+function closeClientModal() {
+  const modal = document.getElementById('clientModal');
+  modal.style.display = 'none';
+  modal.setAttribute('aria-hidden', 'true');
+  releaseModalFocus(modal);
+  if (lastFocusedElementBeforeModal) lastFocusedElementBeforeModal.focus();
+}
+
+function saveClientModal() {
+  const businessName = document.getElementById('clientBusinessName').value.trim();
+
+  if (!businessName) {
+    toast('Business name is required', false);
+    document.getElementById('clientBusinessName').focus();
+    return;
+  }
+
+  // Get category from dropdown
+  const category = document.getElementById('clientCategory').value;
+
+  const clientId = document.getElementById('clientId').value;
+  const isNew = !clientId;
+
+  // Collect active months
+  const activeMonths = [];
+  for (let i = 0; i < 12; i++) {
+    activeMonths.push(document.getElementById(`activeMonth${i}`).checked);
+  }
+
+  const clientData = {
+    id: clientId || undefined,
+    businessName,
+    category: category,
+    contactName: document.getElementById('clientContactName').value,
+    firstName: document.getElementById('clientFirstName').value.trim(),
+    phone: document.getElementById('clientPhone').value,
+    email: document.getElementById('clientEmail').value,
+    monthlyPrice: parseFloat(document.getElementById('clientMonthlyPrice').value) || 0,
+    status: document.getElementById('clientStatus').value,
+    activeMonths: activeMonths,
+    notes: document.getElementById('clientNotes').value
+  };
+  
+  let client;
+  if (isNew) {
+    client = buildClientObject(clientData);
+    crmState.clients[client.id] = client;
+  } else {
+    client = crmState.clients[clientId];
+    client.businessName = clientData.businessName;
+    client.category = clientData.category;
+    client.contact.name = clientData.contactName;
+    client.contact.firstName = clientData.firstName;
+    client.contact.phone = clientData.phone;
+    client.contact.email = clientData.email;
+    client.monthlyPrice = clientData.monthlyPrice;
+    client.status = clientData.status;
+    client.activeMonths = clientData.activeMonths;
+    client.notes = clientData.notes;
+  }
+
+  // Save contract data
+  const hasContract = document.getElementById('hasContract').checked;
+  if (hasContract) {
+    const startDate = document.getElementById('contractStartDate').value;
+    const length = parseInt(document.getElementById('contractLength').value);
+    const monthlyRate = parseFloat(document.getElementById('contractMonthlyRate').value) || 0;
+    const autoRenew = document.getElementById('contractAutoRenew').checked;
+
+    // Calculate end date
+    let endDate = null;
+    if (startDate) {
+      const start = new Date(startDate);
+      const end = new Date(start);
+      end.setMonth(end.getMonth() + length);
+      endDate = end.toISOString().split('T')[0];
+    }
+
+    client.contract = {
+      enabled: true,
+      startDate: startDate,
+      length: length,
+      monthlyRate: monthlyRate,
+      totalValue: monthlyRate * length,
+      endDate: endDate,
+      autoRenew: autoRenew
+    };
+  } else {
+    client.contract = {
+      enabled: false,
+      startDate: null,
+      length: 6,
+      monthlyRate: 0,
+      totalValue: 0,
+      endDate: null,
+      autoRenew: false
+    };
+  }
+
+  saveClients();
+  renderClientList();
+  closeClientModal();
+  toast(isNew ? 'Client added' : 'Client updated');
+}
+
+function deleteClientModal() {
+  const clientId = document.getElementById('clientId').value;
+  if (!clientId) return;
+
+  const client = crmState.clients[clientId];
+  if (!client) return;
+
+  const historyCount = client.history?.length || 0;
+  const confirmMsg = `Are you sure you want to delete "${client.businessName}"?\n\n` +
+    `This client has ${historyCount} purchase ${historyCount === 1 ? 'record' : 'records'}.\n\n` +
+    `This action cannot be undone.`;
+
+  if (confirm(confirmMsg)) {
+    delete crmState.clients[clientId];
+    saveClients();
+    renderClientList();
+    closeClientModal();
+    toast('Client deleted');
+  }
+}
+
+function linkClientToSpot(clientId, spotNum, campaign, price, status) {
+  const client = crmState.clients[clientId];
+  if (!client) return;
+  
+  const purchase = {
+    campaign: campaign,
+    spot: spotNum,
+    price: price,
+    status: status,
+    date: new Date().toISOString().split('T')[0]
+  };
+  
+  client.history.push(purchase);
+  
+  client.lifetime.cardsBought = client.history.length;
+  client.lifetime.totalSpent = client.history.reduce((sum, p) => sum + (p.price || 0), 0);
+  client.lifetime.avgPrice = client.lifetime.totalSpent / client.lifetime.cardsBought;
+  
+  saveClients();
+}
+
+function populateClientDropdown() {
+  const select = document.getElementById('editClient');
+  if (!select) return;
+
+  const clients = Object.values(crmState.clients).sort((a, b) =>
+    a.businessName.localeCompare(b.businessName)
+  );
+
+  select.innerHTML = '<option value="">— Select existing client —</option>' +
+    clients.map(c => `<option value="${c.id}">${esc(c.businessName)} (${esc(c.category)})</option>`).join('');
+
+  // Auto-fill business name when client is selected
+  select.onchange = function() {
+    const clientId = this.value;
+    if (clientId && crmState.clients[clientId]) {
+      document.getElementById('editName').value = crmState.clients[clientId].businessName;
+    }
+  };
+}
+
+function quickAddClient() {
+  const businessName = document.getElementById('editName').value.trim();
+  openClientModal();
+  if (businessName) {
+    document.getElementById('clientBusinessName').value = businessName;
+  }
+}
+
+/* ========= EXPORT/IMPORT FUNCTIONS ========= */
+
+function exportClientsCSV() {
+  const clients = Object.values(crmState.clients);
+  if (clients.length === 0) {
+    toast('No clients to export', false);
+    return;
+  }
+  
+  const headers = ['Business Name', 'Category', 'Contact Name', 'First Name', 'Phone', 'Email', 'Monthly Price', 'Lifetime Spent', 'Cards Bought', 'Notes'];
+  const rows = clients.map(c => [
+    c.businessName,
+    c.category,
+    c.contact.name,
+    c.contact.firstName || '',
+    c.contact.phone,
+    c.contact.email,
+    c.monthlyPrice || 0,
+    c.lifetime.totalSpent,
+    c.lifetime.cardsBought,
+    c.notes
+  ]);
+  
+  let csv = headers.join(',') + '\n';
+  rows.forEach(row => {
+    csv += row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(',') + '\n';
+  });
+  
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `clients-${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  
+  toast('Clients exported to CSV');
+}
+
+function importClientsCSV(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const csv = e.target.result;
+      const lines = csv.split('\n').filter(line => line.trim());
+
+      if (lines.length < 2) {
+        toast('CSV file is empty or invalid', false);
+        return;
+      }
+
+      // Parse CSV
+      const parseCsvLine = (line) => {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          if (char === '"') {
+            if (inQuotes && line[i + 1] === '"') {
+              current += '"';
+              i++;
+            } else {
+              inQuotes = !inQuotes;
+            }
+          } else if (char === ',' && !inQuotes) {
+            result.push(current);
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        result.push(current);
+        return result;
+      };
+
+      // Parse header
+      const headers = parseCsvLine(lines[0]).map(h => h.trim().toLowerCase());
+
+      // Validate headers
+      const requiredHeaders = ['business name', 'category', 'contact name', 'phone', 'email'];
+      const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+      if (missingHeaders.length > 0) {
+        toast(`CSV missing required columns: ${missingHeaders.join(', ')}`, false);
+        return;
+      }
+
+      // Parse data rows
+      const imported = [];
+      const errors = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = parseCsvLine(lines[i]);
+        if (values.length !== headers.length) continue;
+
+        const row = {};
+        headers.forEach((header, idx) => {
+          row[header] = values[idx];
+        });
+
+        // Validate required fields
+        if (!row['business name'] || !row['business name'].trim()) {
+          errors.push(`Row ${i + 1}: Missing business name`);
+          continue;
+        }
+
+        // Create or update client object
+        const businessName = row['business name'].trim();
+
+        // Check if client already exists (by business name)
+        let existingClient = Object.values(crmState.clients).find(
+          c => c.businessName.toLowerCase() === businessName.toLowerCase()
+        );
+
+        const clientId = existingClient ? existingClient.id : Date.now() + i;
+
+        const client = {
+          id: clientId,
+          businessName: businessName,
+          category: row['category'] || '',
+          contact: {
+            name: row['contact name'] || '',
+            firstName: row['first name'] || '',
+            phone: row['phone'] || '',
+            email: row['email'] || ''
+          },
+          monthlyPrice: parseFloat(row['monthly price']) || 0,
+          lifetime: {
+            totalSpent: parseFloat(row['lifetime spent']) || 0,
+            cardsBought: parseInt(row['cards bought']) || 0
+          },
+          notes: row['notes'] || '',
+          contracts: existingClient ? existingClient.contracts : [],
+          history: existingClient ? existingClient.history : []
+        };
+
+        crmState.clients[clientId] = client;
+        imported.push(businessName);
+      }
+
+      // Save and re-render
+      saveClients();
+      renderClientList();
+
+      // Reset file input
+      event.target.value = '';
+
+      // Show results
+      if (imported.length > 0) {
+        toast(`Successfully imported ${imported.length} client${imported.length === 1 ? '' : 's'}`, true);
+      }
+      if (errors.length > 0) {
+        console.warn('Import errors:', errors);
+        toast(`Imported with ${errors.length} error${errors.length === 1 ? '' : 's'} (check console)`, false);
+      }
+
+    } catch (err) {
+      console.error('CSV import error:', err);
+      toast('Failed to import CSV. Please check the file format.', false);
+    }
+  };
+
+  reader.onerror = () => {
+    toast('Failed to read CSV file', false);
+  };
+
+  reader.readAsText(file);
+}
+
+function syncClientsToSheets() {
+  // Google Sheets sync deprecated - now using Supabase cloud storage
+  toast('Clients are now automatically synced to Supabase', true);
+  return;
+}
+
+function syncClientsToSheets_DEPRECATED() {
+  const clients = Object.values(crmState.clients);
+
+  if (clients.length === 0) {
+    toast('No clients to sync', false);
+    return;
+  }
+
+  toast('Syncing clients to Google Sheets...', true);
+
+  const payload = {
+    action: 'syncClients',
+    user: ACTIVE_USER,
+    clients: clients
+  };
+
+  fetch(GAS_URL, {
+    method: 'POST',
+    mode: 'no-cors',  // Google Apps Script requires no-cors
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload)
+  })
+  .then(() => {
+    // no-cors mode doesn't allow reading response, so we assume success
+    toast(`✓ Client sync request sent (${clients.length} clients)`, true);
+  })
+  .catch(err => {
+    console.error('Sync error:', err);
+    toast('⚠️ Sync failed. Your Google Apps Script may need to handle "syncClients" action. Clients are saved locally.', false);
+  });
+
+  // Note: To make this fully functional, add this to your Google Apps Script doPost():
+  // if (data.action === 'syncClients') {
+  //   // Handle client sync logic here
+  //   return ContentService.createTextOutput(JSON.stringify({success: true}))
+  //     .setMimeType(ContentService.MimeType.JSON);
+  // }
+}
+
+/* ========= EMAIL FUNCTIONS ========= */
+
+const emailTemplates = {
+  invoice: {
+    subject: 'Invoice Reminder - {businessName}',
+    body: 'Hi {contactName},\n\nThis is a friendly reminder that your invoice for {campaign} is still pending.\n\nAmount Due: {amount}\n\nPlease let me know if you have any questions.\n\nBest regards'
+  },
+  proof: {
+    subject: 'Your Ad Proof is Ready - {businessName}',
+    body: 'Hi {contactName},\n\nGreat news! Your ad proof for {campaign} is ready for review.\n\nPlease review and let me know if you\'d like any changes.\n\nBest regards'
+  },
+  renewal: {
+    subject: 'Time to Renew - {businessName}',
+    body: 'Hi {contactName},\n\nI hope your campaign with us has been successful!\n\nWe\'re preparing our next mailing and would love to have you on board again.\n\nWould you like to renew your spot?\n\nBest regards'
+  },
+  thankyou: {
+    subject: 'Thank You - {businessName}',
+    body: 'Hi {contactName},\n\nThank you for advertising with us on {campaign}!\n\nWe appreciate your business and look forward to working with you again.\n\nBest regards'
+  }
+};
+
+function openEmailModal() {
+  const modal = document.getElementById('emailModal');
+  lastFocusedElementBeforeModal = document.activeElement;
+  modal.style.display = 'flex';
+  modal.setAttribute('aria-hidden', 'false');
+  trapModalFocus(modal);
+}
+
+function closeEmailModal() {
+  const modal = document.getElementById('emailModal');
+  modal.style.display = 'none';
+  modal.setAttribute('aria-hidden', 'true');
+  releaseModalFocus(modal);
+  if (lastFocusedElementBeforeModal) lastFocusedElementBeforeModal.focus();
+}
+
+function loadEmailTemplate() {
+  const templateKey = document.getElementById('emailTemplate').value;
+  if (!templateKey) return;
+  
+  const template = emailTemplates[templateKey];
+  document.getElementById('emailSubject').value = template.subject;
+  document.getElementById('emailBody').value = template.body;
+}
+
+function sendEmail() {
+  const to = document.getElementById('emailTo').value;
+  const subject = document.getElementById('emailSubject').value;
+  const body = document.getElementById('emailBody').value;
+  
+  if (!to || !subject || !body) {
+    toast('Please fill in all fields', false);
+    return;
+  }
+  
+  // In production, this would call your email API
+  const mailtoLink = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.location.href = mailtoLink;
+  
+  toast('Email client opened');
+  closeEmailModal();
+}
+
+/* ========= REPORTS FUNCTIONS ========= */
+
+function openReportsModal() {
+  const modal = document.getElementById('reportsModal');
+  lastFocusedElementBeforeModal = document.activeElement;
+  modal.style.display = 'flex';
+  modal.setAttribute('aria-hidden', 'false');
+  trapModalFocus(modal);
+}
+
+function closeReportsModal() {
+  const modal = document.getElementById('reportsModal');
+  modal.style.display = 'none';
+  modal.setAttribute('aria-hidden', 'true');
+  releaseModalFocus(modal);
+  if (lastFocusedElementBeforeModal) lastFocusedElementBeforeModal.focus();
+}
+
+function generateProfitLossReport() {
+  const output = document.getElementById('reportOutput');
+  const content = document.getElementById('reportContent');
+  
+  let report = '<div class="space-y-4">';
+  report += '<h3 class="font-bold text-lg">Profit & Loss Report</h3>';
+  
+  state.mailers.forEach(campaign => {
+    const financials = calculateFinancials(campaign.Mailer_ID, campaign);
+    if (!financials) return;
+
+    report += `
+      <div class="border-b pb-3">
+        <div class="font-semibold">${esc(campaign.Town)} — ${esc(campaign.Mail_Date)}</div>
+        <div class="grid grid-cols-2 gap-2 mt-2 text-sm">
+          <div>Revenue: ${formatCurrency(financials.revenue.current)}</div>
+          <div>Expenses: ${formatCurrency(financials.expenses.total)}</div>
+          <div class="${financials.profit.current >= 0 ? 'text-green-600' : 'text-red-600'} font-semibold">
+            Profit: ${formatCurrency(financials.profit.current)}
+          </div>
+          <div>Margin: ${financials.profit.margin.toFixed(1)}%</div>
+        </div>
+      </div>
+    `;
+  });
+  
+  report += '</div>';
+  content.innerHTML = report;
+  output.classList.remove('hidden');
+}
+
+function generateClientValueReport() {
+  const output = document.getElementById('reportOutput');
+  const content = document.getElementById('reportContent');
+  
+  const clients = Object.values(crmState.clients).sort((a, b) => b.lifetime.totalSpent - a.lifetime.totalSpent);
+  
+  let report = '<div class="space-y-2">';
+  report += '<h3 class="font-bold text-lg mb-3">Client Value Analysis</h3>';
+  report += '<div class="grid grid-cols-3 gap-2 font-semibold text-sm border-b pb-2">';
+  report += '<div>Client</div><div>Lifetime Value</div><div>Cards Purchased</div>';
+  report += '</div>';
+  
+  clients.forEach(client => {
+    report += `
+      <div class="grid grid-cols-3 gap-2 text-sm py-1">
+        <div>${esc(client.businessName)}</div>
+        <div class="text-green-600 font-semibold">${formatCurrency(client.lifetime.totalSpent)}</div>
+        <div>${client.lifetime.cardsBought}</div>
+      </div>
+    `;
+  });
+  
+  report += '</div>';
+  content.innerHTML = report;
+  output.classList.remove('hidden');
+}
+
+function generateCampaignReport() {
+  toast('Campaign comparison report generated');
+  // Implementation similar to P&L
+}
+
+function generateSalesFunnelReport() {
+  toast('Sales funnel report generated');
+  // Implementation with kanban metrics
+}
+
+function downloadReport() {
+  toast('Report download started');
+}
+
+/* ========= API QUOTA & PLACES CACHE FUNCTIONS ========= */
+
+function loadApiQuota() {
+  try {
+    const saved = safeGetItem('mailslot-api-quota');
+    if (saved) {
+      const data = JSON.parse(saved);
+      const currentMonth = new Date().toISOString().slice(0, 7);
+
+      // Reset if new month
+      if (data.currentMonth !== currentMonth) {
+        apiQuotaState.currentMonth = currentMonth;
+        apiQuotaState.callsThisMonth = 0;
+        apiQuotaState.userQuotas = {};
+        apiQuotaState.restrictionsActive = false;
+        saveApiQuota();
+      } else {
+        Object.assign(apiQuotaState, data);
+      }
+    }
+  } catch(e) {
+    console.error('Error loading API quota:', e);
+  }
+}
+
+function saveApiQuota() {
+  safeSetItem('mailslot-api-quota', JSON.stringify(apiQuotaState));
+}
+
+function getApiQuota() {
+  return {
+    used: apiQuotaState.callsThisMonth,
+    total: apiQuotaState.monthlyLimit,
+    remaining: apiQuotaState.monthlyLimit - apiQuotaState.callsThisMonth,
+    percentUsed: (apiQuotaState.callsThisMonth / apiQuotaState.monthlyLimit) * 100,
+    restrictionsActive: apiQuotaState.restrictionsActive
+  };
+}
+
+async function loadNotInterestedList() {
+  try {
+    // Try loading from cloud first
+    const cloudData = await loadFromCloud('notInterested');
+
+    if (cloudData) {
+      notInterestedState.placeIds = new Set(cloudData.placeIds || []);
+      notInterestedState.businesses = cloudData.businesses || {};
+    } else {
+      // Fallback to localStorage
+      const saved = localStorage.getItem('mailslot-not-interested');
+      if (saved) {
+        const data = JSON.parse(saved);
+        notInterestedState.placeIds = new Set(data.placeIds || []);
+        notInterestedState.businesses = data.businesses || {};
+        // Sync to cloud
+        const cloudData = {
+          placeIds: Array.from(notInterestedState.placeIds),
+          businesses: notInterestedState.businesses
+        };
+        saveToCloud('notInterested', cloudData).catch(e => console.warn('Failed to sync not interested list to cloud:', e));
+      }
+    }
+  } catch(e) {
+    console.error('Error loading not interested list:', e);
+  }
+}
+
+async function saveNotInterestedList() {
+  try {
+    const data = {
+      placeIds: Array.from(notInterestedState.placeIds),
+      businesses: notInterestedState.businesses
+    };
+    await saveToCloud('notInterested', data);
+  } catch(e) {
+    console.warn('Not interested list saved to localStorage only (cloud sync failed):', e);
+  }
+}
+
+/* ========= USER TEMPLATES FUNCTIONS ========= */
+
+async function loadUserTemplates() {
+  try {
+    // Try loading from cloud first
+    const cloudData = await loadFromCloud('userTemplates');
+
+    if (cloudData && cloudData.templates) {
+      userTemplatesState.templates = cloudData.templates;
+      console.log(`✅ Loaded ${Object.keys(cloudData.templates).length} user templates from cloud`);
+    } else {
+      // Fallback to localStorage
+      const saved = safeGetItem('mailslot-user-templates');
+      if (saved) {
+        const data = JSON.parse(saved);
+        userTemplatesState.templates = data.templates || {};
+        console.log(`✅ Loaded ${Object.keys(userTemplatesState.templates).length} user templates from localStorage`);
+      } else {
+        // Initialize with default templates converted from hardcoded ones
+        initializeDefaultTemplates();
+      }
+    }
+
+    // Migrate old templates: remove isDefault flag
+    migrateTemplates();
+
+    // Populate bulk send dropdown after templates are loaded
+    populateBulkSendTemplates();
+  } catch(e) {
+    console.error('Error loading user templates:', e);
+    // Initialize with defaults on error
+    initializeDefaultTemplates();
+    // Still try to populate dropdown
+    populateBulkSendTemplates();
+  }
+}
+
+// Migration function to remove isDefault flag from existing templates
+function migrateTemplates() {
+  let migrated = false;
+  Object.keys(userTemplatesState.templates).forEach(templateId => {
+    const template = userTemplatesState.templates[templateId];
+    if (template.isDefault === true) {
+      delete template.isDefault;
+      // Ensure usage tracking fields exist
+      if (template.usageCount === undefined) template.usageCount = 0;
+      if (template.lastUsed === undefined) template.lastUsed = null;
+      migrated = true;
+    }
+  });
+
+  if (migrated) {
+    console.log('🔄 Migrated templates: removed isDefault flags');
+    saveUserTemplates();
+  }
+}
+
+function initializeDefaultTemplates() {
+  // Convert hardcoded MESSAGE_TEMPLATES to user templates
+  const defaultTemplates = {
+    'default_messenger': {
+      id: 'default_messenger',
+      name: 'Facebook Messenger - First Contact',
+      category: 'prospect',
+      type: 'messenger',
+      subject: '',
+      body: MESSAGE_TEMPLATES.messenger.body,
+      variables: ['businessName', 'town', 'yourName', 'yourPhone'],
+      createdAt: new Date().toISOString(),
+      usageCount: 0,
+      lastUsed: null
+    },
+    'default_email_prospect': {
+      id: 'default_email_prospect',
+      name: 'Email - First Contact',
+      category: 'prospect',
+      type: 'email',
+      subject: MESSAGE_TEMPLATES.email.subject,
+      body: MESSAGE_TEMPLATES.email.body,
+      variables: ['businessName', 'town', 'yourName', 'yourPhone', 'yourEmail'],
+      createdAt: new Date().toISOString(),
+      usageCount: 0,
+      lastUsed: null
+    },
+    'default_instagram': {
+      id: 'default_instagram',
+      name: 'Instagram DM - First Contact',
+      category: 'prospect',
+      type: 'instagram',
+      subject: '',
+      body: MESSAGE_TEMPLATES.instagram.body,
+      variables: ['businessName', 'town', 'yourName', 'yourPhone'],
+      createdAt: new Date().toISOString(),
+      usageCount: 0,
+      lastUsed: null
+    },
+    'default_followup': {
+      id: 'default_followup',
+      name: 'Follow-up - After Initial Contact',
+      category: 'followup',
+      type: 'email',
+      subject: MESSAGE_TEMPLATES.followup.subject,
+      body: MESSAGE_TEMPLATES.followup.body,
+      variables: ['businessName', 'town', 'date', 'yourName', 'yourPhone'],
+      createdAt: new Date().toISOString(),
+      usageCount: 0,
+      lastUsed: null
+    },
+    'default_invoice': {
+      id: 'default_invoice',
+      name: 'Invoice Reminder',
+      category: 'client',
+      type: 'email',
+      subject: 'Invoice Reminder - {businessName}',
+      body: 'Hi {contactName},\n\nThis is a friendly reminder that your invoice for {campaign} is still pending.\n\nAmount Due: {amount}\n\nPlease let me know if you have any questions.\n\nBest regards',
+      variables: ['businessName', 'contactName', 'campaign', 'amount'],
+      createdAt: new Date().toISOString(),
+      usageCount: 0,
+      lastUsed: null
+    },
+    'default_proof': {
+      id: 'default_proof',
+      name: 'Ad Proof Ready',
+      category: 'client',
+      type: 'email',
+      subject: 'Your Ad Proof is Ready - {businessName}',
+      body: 'Hi {contactName},\n\nGreat news! Your ad proof for {campaign} is ready for review.\n\nPlease review and let me know if you\'d like any changes.\n\nBest regards',
+      variables: ['businessName', 'contactName', 'campaign'],
+      createdAt: new Date().toISOString(),
+      usageCount: 0,
+      lastUsed: null
+    },
+    'default_renewal': {
+      id: 'default_renewal',
+      name: 'Monthly Renewal Reminder',
+      category: 'client',
+      type: 'email',
+      subject: 'Advertise Again Next Month? - {businessName}',
+      body: 'Hi {firstName},\n\nWe\'re preparing our next month\'s mailing and wanted to reach out to see if you\'d like to continue advertising with us.\n\nYour current monthly rate: {monthlyPrice}\n\nJust reply "YES" to confirm your spot, or let me know if you have any questions.\n\nThanks!\n{yourName}',
+      variables: ['firstName', 'businessName', 'monthlyPrice', 'yourName'],
+      createdAt: new Date().toISOString(),
+      usageCount: 0,
+      lastUsed: null
+    },
+    'default_reactivation': {
+      id: 'default_reactivation',
+      name: 'Reactivation Offer',
+      category: 'client',
+      type: 'email',
+      subject: 'We\'d Love to Have You Back! - {businessName}',
+      body: 'Hi {firstName},\n\nIt\'s been a while since you last advertised with us, and we wanted to reach out to see if you\'d like to join our next mailing.\n\nWe\'ve helped many businesses like yours reach thousands of local customers.\n\nWould you like to advertise with us again next month?\n\nReply "YES" and I\'ll get you set up!\n\nBest regards,\n{yourName}',
+      variables: ['firstName', 'businessName', 'yourName'],
+      createdAt: new Date().toISOString(),
+      usageCount: 0,
+      lastUsed: null
+    },
+    'default_thankyou': {
+      id: 'default_thankyou',
+      name: 'Thank You',
+      category: 'client',
+      type: 'email',
+      subject: 'Thank You - {businessName}',
+      body: 'Hi {contactName},\n\nThank you for advertising with us on {campaign}!\n\nWe appreciate your business and look forward to working with you again.\n\nBest regards',
+      variables: ['businessName', 'contactName', 'campaign'],
+      createdAt: new Date().toISOString(),
+      usageCount: 0,
+      lastUsed: null
+    }
+  };
+
+  userTemplatesState.templates = defaultTemplates;
+  saveUserTemplates(); // Save defaults to cloud
+  console.log('✅ Initialized with 8 starter templates');
+}
+
+async function saveUserTemplates() {
+  try {
+    const data = {
+      templates: userTemplatesState.templates
+    };
+    await saveToCloud('userTemplates', data);
+    safeSetItem('mailslot-user-templates', JSON.stringify(data));
+    console.log(`✅ Saved ${Object.keys(userTemplatesState.templates).length} templates to cloud`);
+  } catch(e) {
+    console.warn('Templates saved to localStorage only (cloud sync failed):', e);
+    safeSetItem('mailslot-user-templates', JSON.stringify({ templates: userTemplatesState.templates }));
+  }
+}
+
+function createTemplate(name, category, type, subject, body) {
+  const id = 'template_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+
+  // Extract variables from body and subject
+  const variablePattern = /\{([^}]+)\}/g;
+  const variablesSet = new Set();
+  const allText = (subject + ' ' + body);
+  let match;
+  while ((match = variablePattern.exec(allText)) !== null) {
+    variablesSet.add(match[1]);
+  }
+
+  const template = {
+    id,
+    name,
+    category,
+    type,
+    subject,
+    body,
+    variables: Array.from(variablesSet),
+    createdAt: new Date().toISOString(),
+    lastUsed: null,
+    usageCount: 0,  // New: Track usage
+    isDefault: false
+  };
+
+  userTemplatesState.templates[id] = template;
+  saveUserTemplates();
+  return template;
+}
+
+function updateTemplate(id, updates) {
+  if (!userTemplatesState.templates[id]) {
+    console.error('Template not found:', id);
+    return null;
+  }
+
+  // Don't allow editing default templates
+  if (userTemplatesState.templates[id].isDefault) {
+    toast('⚠️ Cannot edit default templates. Create a copy instead.', false);
+    return null;
+  }
+
+  // Update fields
+  Object.assign(userTemplatesState.templates[id], updates);
+
+  // Re-extract variables if body or subject changed
+  if (updates.body || updates.subject) {
+    const variablePattern = /\{([^}]+)\}/g;
+    const variablesSet = new Set();
+    const allText = (userTemplatesState.templates[id].subject + ' ' + userTemplatesState.templates[id].body);
+    let match;
+    while ((match = variablePattern.exec(allText)) !== null) {
+      variablesSet.add(match[1]);
+    }
+    userTemplatesState.templates[id].variables = Array.from(variablesSet);
+  }
+
+  saveUserTemplates();
+  return userTemplatesState.templates[id];
+}
+
+function editTemplate(id) {
+  const template = userTemplatesState.templates[id];
+  if (!template) {
+    toast('⚠️ Template not found', false);
+    return;
+  }
+
+  // For default templates, duplicate first then edit
+  if (template.isDefault) {
+    const duplicate = duplicateTemplate(id);
+    if (duplicate) {
+      openEditTemplateModal(duplicate.id);
+    }
+  } else {
+    // Open the edit template modal with the template ID
+    openEditTemplateModal(id);
+  }
+}
+
+function deleteTemplate(id) {
+  const template = userTemplatesState.templates[id];
+  if (!template) {
+    toast('⚠️ Template not found', false);
+    return;
+  }
+
+  if (confirm(`Are you sure you want to delete "${template.name}"?\n\nThis action cannot be undone.`)) {
+    delete userTemplatesState.templates[id];
+    saveUserTemplates();
+    renderTemplateManager();
+    populateBulkSendTemplates();
+    toast('✅ Template deleted', true);
+  }
+}
+
+function duplicateTemplate(id) {
+  if (!userTemplatesState.templates[id]) {
+    toast('⚠️ Template not found', false);
+    return null;
+  }
+
+  const original = userTemplatesState.templates[id];
+  const newId = 'template_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+
+  const duplicate = {
+    ...original,
+    id: newId,
+    name: original.name + ' (Copy)',
+    createdAt: new Date().toISOString(),
+    lastUsed: null,
+    usageCount: 0,  // New: Track usage
+    isDefault: false
+  };
+
+  userTemplatesState.templates[newId] = duplicate;
+  saveUserTemplates();
+  renderTemplateManager();
+  populateBulkSendTemplates();
+  toast('✅ Template duplicated', true);
+  return duplicate;
+}
+
+function getTemplatesByCategory(category) {
+  return Object.values(userTemplatesState.templates)
+    .filter(t => t.category === category)
+    .sort((a, b) => {
+      // Sort defaults first, then by name
+      if (a.isDefault && !b.isDefault) return -1;
+      if (!a.isDefault && b.isDefault) return 1;
+      return a.name.localeCompare(b.name);
+    });
+}
+
+function fillTemplateVariables(template, data) {
+  let subject = template.subject || '';
+  let body = template.body || '';
+
+  // Replace all variables with data (new {VARIABLE} format)
+  if (template.variables && Array.isArray(template.variables)) {
+    template.variables.forEach(variable => {
+      const regex = new RegExp(`\\{${variable}\\}`, 'g');
+      const value = data[variable] || `{${variable}}`;
+      subject = subject.replace(regex, value);
+      body = body.replace(regex, value);
+    });
+  }
+
+  // EXPANDED VARIABLE REPLACEMENT - Both [VARIABLE] and {VARIABLE} formats
+  const variableMap = {
+    // Business info
+    'BUSINESS_NAME': data.businessName || data.name || '',
+    'COMPANY': data.businessName || data.name || '',
+    'BUSINESS': data.businessName || data.name || '',
+
+    // Contact person info
+    'FIRST_NAME': data.firstName || data.contactName?.split(' ')[0] || '',
+    'LAST_NAME': data.lastName || data.contactName?.split(' ').slice(1).join(' ') || '',
+    'CONTACT_NAME': data.contactName || data.firstName || '',
+    'FULL_NAME': data.contactName || (data.firstName && data.lastName ? `${data.firstName} ${data.lastName}` : data.firstName || ''),
+    'OWNER_NAME': data.ownerName || data.contactName || '',
+
+    // Business details
+    'INDUSTRY': data.industry || data.category || '',
+    'CATEGORY': data.category || data.industry || '',
+    'WEBSITE': data.website || '',
+    'PHONE': data.phone || '',
+    'EMAIL': data.email || '',
+
+    // Location
+    'ADDRESS': data.address || '',
+    'STREET': data.address || '',
+    'CITY': data.city || data.town || '',
+    'TOWN': data.town || data.city || '',
+    'STATE': data.state || '',
+    'ZIP': data.zipCode || data.zip || '',
+    'ZIP_CODE': data.zipCode || data.zip || '',
+    'LOCATION': data.city || data.town || data.zipCode || '',
+
+    // Pricing
+    'PRICE': data.price || data.amount || '',
+    'AMOUNT': data.amount || data.price || '',
+    'COST': data.price || data.amount || '',
+    'DISCOUNT': data.discount || '',
+
+    // Campaign info
+    'CAMPAIGN': data.campaign || '',
+    'MAILER': data.campaign || '',
+
+    // User info (sender)
+    'YOUR_NAME': data.yourName || '',
+    'YOUR_PHONE': data.yourPhone || '',
+    'YOUR_EMAIL': data.yourEmail || '',
+    'YOUR_COMPANY': data.yourCompany || '',
+    'YOUR_WEBSITE': data.yourWebsite || '',
+
+    // Date/time
+    'DATE': new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+    'SHORT_DATE': new Date().toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }),
+    'MONTH': new Date().toLocaleDateString('en-US', { month: 'long' }),
+    'YEAR': new Date().getFullYear().toString(),
+    'DAY': new Date().toLocaleDateString('en-US', { weekday: 'long' })
+  };
+
+  // Replace both {VARIABLE} and [VARIABLE] formats
+  Object.keys(variableMap).forEach(key => {
+    const value = variableMap[key];
+    // Replace {VARIABLE} format
+    const curlyRegex = new RegExp(`\\{${key}\\}`, 'g');
+    subject = subject.replace(curlyRegex, value);
+    body = body.replace(curlyRegex, value);
+    // Replace [VARIABLE] format
+    const bracketRegex = new RegExp(`\\[${key}\\]`, 'g');
+    subject = subject.replace(bracketRegex, value);
+    body = body.replace(bracketRegex, value);
+  });
+
+  return { subject, body };
+}
+
+// Detect unfilled variables in template text
+function detectMissingVariables(text) {
+  const missing = [];
+
+  // Match {VARIABLE} format
+  const curlyMatches = text.match(/\{([A-Z_]+)\}/g) || [];
+  curlyMatches.forEach(match => {
+    const varName = match.slice(1, -1); // Remove { and }
+    if (!missing.includes(varName)) {
+      missing.push(varName);
+    }
+  });
+
+  // Match [VARIABLE] format
+  const bracketMatches = text.match(/\[([A-Z_]+)\]/g) || [];
+  bracketMatches.forEach(match => {
+    const varName = match.slice(1, -1); // Remove [ and ]
+    if (!missing.includes(varName)) {
+      missing.push(varName);
+    }
+  });
+
+  return missing;
+}
+
+async function loadPlacesCache() {
+  try {
+    // Load from cloud first
+    const cloudData = await loadFromCloud('placesCache');
+
+    // Load from localStorage
+    const localSaved = safeGetItem('mailslot-places-cache');
+    const localData = localSaved ? JSON.parse(localSaved) : {};
+
+    // Merge cloud and local data (keep newer entries)
+    const merged = { ...cloudData };
+
+    Object.keys(localData).forEach(cacheKey => {
+      const local = localData[cacheKey];
+      const cloud = merged[cacheKey];
+
+      if (!cloud) {
+        // Only in local - add it
+        merged[cacheKey] = local;
+      } else if (local.lastFetched && cloud.lastFetched) {
+        // In both - keep the newer one
+        const localDate = new Date(local.lastFetched);
+        const cloudDate = new Date(cloud.lastFetched);
+        if (localDate > cloudDate) {
+          merged[cacheKey] = local;
+        }
+      }
+    });
+
+    placesCache.searches = merged;
+
+    const totalProspects = Object.values(merged).reduce((sum, cache) =>
+      sum + (cache.cachedData?.length || 0), 0
+    );
+
+    console.log(`📦 Loaded prospect cache: ${Object.keys(merged).length} searches, ${totalProspects} total prospects`);
+
+    // Save merged back to localStorage
+    safeSetItem('mailslot-places-cache', JSON.stringify(merged));
+
+  } catch(e) {
+    console.error('Error loading places cache:', e);
+    // Fall back to localStorage only
+    const saved = safeGetItem('mailslot-places-cache');
+    if (saved) {
+      placesCache.searches = JSON.parse(saved);
+    }
+  }
+}
+
+async function savePlacesCache() {
+  try {
+    // Save to localStorage first (always)
+    safeSetItem('mailslot-places-cache', JSON.stringify(placesCache.searches));
+
+    // Check size before saving to cloud
+    const dataStr = JSON.stringify(placesCache.searches);
+    const sizeKB = Math.round(dataStr.length / 1024);
+
+    console.log(`💾 Saving prospect cache to cloud (${sizeKB} KB)...`);
+
+    // Supabase has a reasonable size limit - if under 5MB we're good
+    if (dataStr.length > 5000000) {
+      console.warn('⚠️ Prospect cache too large for cloud sync, keeping local only');
+      toast('⚠️ Prospect data is large - saved locally only', false);
+      return;
+    }
+
+    // Save to cloud
+    await saveToCloud('placesCache', placesCache.searches);
+    console.log(`✅ Prospect cache saved to cloud (${sizeKB} KB)`);
+
+  } catch(e) {
+    console.error('Error saving places cache to cloud:', e);
+    // Data is already in localStorage, so no data loss
+  }
+}
+
+function trackApiCall(count = 1) {
+  apiQuotaState.callsThisMonth += count;
+
+  const percentUsed = apiQuotaState.callsThisMonth / apiQuotaState.monthlyLimit;
+
+  // Activate restrictions at warning threshold
+  if (percentUsed >= apiQuotaState.warningThreshold && !apiQuotaState.restrictionsActive) {
+    apiQuotaState.restrictionsActive = true;
+    // Set per-user quota: remaining calls divided by estimated active users (default 10)
+    const remainingCalls = apiQuotaState.monthlyLimit - apiQuotaState.callsThisMonth;
+    const perUserQuota = Math.floor(remainingCalls / 10); // Conservative estimate
+
+    toast(`⚠️ API quota at ${Math.round(percentUsed * 100)}% - Per-user limits now active (${perUserQuota} searches/user)`, false);
+  }
+
+  // Critical warning
+  if (percentUsed >= apiQuotaState.criticalThreshold) {
+    toast(`🚨 API quota at ${Math.round(percentUsed * 100)}% - Very limited searches remaining`, false);
+  }
+
+  saveApiQuota();
+}
+
+function canUserSearch(userId = ACTIVE_USER) {
+  const percentUsed = apiQuotaState.callsThisMonth / apiQuotaState.monthlyLimit;
+
+  // If under warning threshold, everyone can search
+  if (percentUsed < apiQuotaState.warningThreshold) {
+    return { allowed: true, reason: null };
+  }
+
+  // If restrictions active, check user quota
+  if (apiQuotaState.restrictionsActive) {
+    const userCalls = apiQuotaState.userQuotas[userId] || 0;
+    const remainingCalls = apiQuotaState.monthlyLimit - apiQuotaState.callsThisMonth;
+    const perUserLimit = Math.floor(remainingCalls / 10);
+
+    if (userCalls >= perUserLimit) {
+      return {
+        allowed: false,
+        reason: `Monthly search limit reached (${perUserLimit} searches). Resets ${getNextMonthDate()}.`
+      };
+    }
+  }
+
+  // Check absolute limit
+  if (apiQuotaState.callsThisMonth >= apiQuotaState.monthlyLimit) {
+    return {
+      allowed: false,
+      reason: `System-wide monthly limit reached. Resets ${getNextMonthDate()}.`
+    };
+  }
+
+  return { allowed: true, reason: null };
+}
+
+function recordUserSearch(userId = ACTIVE_USER) {
+  if (!apiQuotaState.userQuotas[userId]) {
+    apiQuotaState.userQuotas[userId] = 0;
+  }
+  apiQuotaState.userQuotas[userId]++;
+  saveApiQuota();
+}
+
+function getNextMonthDate() {
+  const now = new Date();
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  return nextMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function getApiUsageStats() {
+  const percentUsed = (apiQuotaState.callsThisMonth / apiQuotaState.monthlyLimit * 100).toFixed(1);
+  const remaining = apiQuotaState.monthlyLimit - apiQuotaState.callsThisMonth;
+
+  return {
+    used: apiQuotaState.callsThisMonth,
+    limit: apiQuotaState.monthlyLimit,
+    remaining: remaining,
+    percentUsed: percentUsed,
+    restrictionsActive: apiQuotaState.restrictionsActive,
+    resetsOn: getNextMonthDate()
+  };
+}
+
+/* ========= GOOGLE PLACES AUTO-POPULATE FUNCTIONS ========= */
+
+function openAutoPopulateModal() {
+  if (!GOOGLE_PLACES_API_KEY) {
+    toast('Google Places API key not configured. Please add your API key to the GOOGLE_PLACES_API_KEY constant.', false);
+    return;
+  }
+
+  const modal = document.getElementById('autoPopulateModal');
+  modal.classList.add('show');
+  modal.style.display = 'flex';
+  modal.setAttribute('aria-hidden', 'false');
+
+  // Update API usage display
+  updateApiUsageDisplay();
+
+  // Focus first input
+  document.getElementById('autoPopZipCode').focus();
+}
+
+function closeAutoPopulateModal() {
+  const modal = document.getElementById('autoPopulateModal');
+  modal.classList.remove('show');
+  modal.style.display = 'none';
+  modal.setAttribute('aria-hidden', 'true');
+
+  // Reset form
+  document.getElementById('autoPopZipCode').value = '';
+  document.getElementById('autoPopCategory').value = '';
+  document.getElementById('autoPopRadius').value = '3000';
+}
+
+function updateApiUsageDisplay() {
+  const stats = getApiUsageStats();
+  const display = document.getElementById('apiUsageDisplay');
+
+  let bgColor = 'bg-green-50 border-green-300';
+  let textColor = 'text-green-900';
+  let icon = '✅';
+
+  if (stats.percentUsed >= 95) {
+    bgColor = 'bg-red-50 border-red-300';
+    textColor = 'text-red-900';
+    icon = '🚨';
+  } else if (stats.percentUsed >= 80) {
+    bgColor = 'bg-orange-50 border-orange-300';
+    textColor = 'text-orange-900';
+    icon = '⚠️';
+  } else if (stats.percentUsed >= 50) {
+    bgColor = 'bg-yellow-50 border-yellow-300';
+    textColor = 'text-yellow-900';
+    icon = '💡';
+  }
+
+  display.className = `mb-4 p-3 rounded-lg border ${bgColor}`;
+  display.innerHTML = `
+    <div class="${textColor}">
+      <div class="font-semibold text-sm mb-1">${icon} API Usage This Month</div>
+      <div class="text-xs">
+        <strong>${stats.used}</strong> of ${stats.limit} searches used (${stats.percentUsed}%)
+        <br>
+        ${stats.remaining} searches remaining • Resets ${stats.resetsOn}
+      </div>
+      ${stats.restrictionsActive ? '<div class="text-xs mt-1 font-semibold">⚠️ Per-user quotas active</div>' : ''}
+    </div>
+  `;
+}
+
+// Initialize Google Maps API - script loads from <head> tag with callback
+function loadGoogleMapsAPI() {
+  return new Promise((resolve, reject) => {
+    // Check if already loaded
+    if (typeof google !== 'undefined' && google.maps && googleMapsLoaded) {
+      resolve();
+      return;
+    }
+
+    // Wait for callback (script is loading from <head>)
+    const checkInterval = setInterval(() => {
+      if (googleMapsLoaded && typeof google !== 'undefined' && google.maps) {
+        clearInterval(checkInterval);
+        resolve();
+      }
+    }, 100);
+
+    // Timeout after 10 seconds
+    setTimeout(() => {
+      clearInterval(checkInterval);
+      if (!googleMapsLoaded) {
+        reject(new Error('Google Maps API failed to load within 10 seconds'));
+      }
+    }, 10000);
+  });
+}
+
+// ZIP code to city mapping for Western NY area
+const zipToCityMap = {
+  '14072': ['Grand Island'],
+  '14150': ['Tonawanda'],  // Town of Tonawanda only (NOT North Tonawanda)
+  '14217': ['Kenmore', 'Buffalo'],
+  '14120': ['North Tonawanda'],  // City of North Tonawanda (separate from 14150)
+  '14221': ['Williamsville', 'Buffalo'],
+  '14225': ['Cheektowaga', 'Buffalo'],
+  '14228': ['Amherst', 'Getzville', 'Williamsville'],  // Added for Amherst area
+  // Add more as needed
+};
+
+// Validate if a business belongs to a ZIP code based on ZIP and/or city
+function validateZipMatch(actualZip, actualCity, searchedZip) {
+  // First priority: if we have actualZip, use it
+  if (actualZip) {
+    return actualZip === searchedZip;
+  }
+
+  // Second priority: if we have actualCity, validate against expected cities for this ZIP
+  if (actualCity && zipToCityMap[searchedZip]) {
+    const expectedCities = zipToCityMap[searchedZip];
+    // Case-insensitive city match
+    return expectedCities.some(city =>
+      city.toLowerCase() === actualCity.toLowerCase()
+    );
+  }
+
+  // If we have neither ZIP nor city, keep it (benefit of doubt - within search radius)
+  return true;
+}
+
+// Extract ZIP code from an address string
+function extractZipFromAddress(address) {
+  if (!address) return null;
+
+  // Match 5-digit ZIP codes (with optional +4 extension)
+  const zipMatch = address.match(/\b(\d{5})(?:-\d{4})?\b/);
+  return zipMatch ? zipMatch[1] : null;
+}
+
+async function convertZipToLatLng(zipCode) {
+  try {
+    // Ensure Google Maps API is loaded
+    await loadGoogleMapsAPI();
+
+    // Use Google Maps Geocoder (client-side, no CORS issues)
+    const geocoder = new google.maps.Geocoder();
+
+    return new Promise((resolve, reject) => {
+      geocoder.geocode(
+        {
+          address: zipCode,
+          componentRestrictions: { country: 'US' }
+        },
+        (results, status) => {
+          if (status === 'OK' && results.length > 0) {
+            const location = results[0].geometry.location;
+            resolve({ lat: location.lat(), lng: location.lng() });
+          } else {
+            reject(new Error(`Geocoding failed: ${status}`));
+          }
+        }
+      );
+    });
+  } catch(err) {
+    console.error('Geocoding error:', err);
+    return null;
+  }
+}
+
+/**
+ * Search Google for business website using Custom Search API
+ * This finds the actual business website (not Yelp URL)
+ */
+async function searchBusinessWebsite(searchQuery, businessName) {
+  try {
+    // Use Google Custom Search via our serverless function
+    const response = await fetch('/api/google-search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        query: searchQuery,
+        businessName: businessName
+      })
+    });
+
+    if (!response.ok) {
+      return '';
+    }
+
+    const data = await response.json();
+    return data.website || '';
+
+  } catch (error) {
+    console.warn('Website search failed:', error);
+    return '';
+  }
+}
+
+/**
+ * Enrich a business with website and social media when added to kanban
+ * Runs asynchronously so it doesn't block the UI
+ * Uses 3 Google Custom Search queries per business (website, facebook, instagram)
+ */
+async function enrichBusinessWebsite(business) {
+  if (!business || business.enriched) {
+    return;
+  }
+
+  const businessName = business.name || business.businessName;
+  const location = `${business.city || ''} ${business.state || ''}`.trim();
+
+  try {
+    console.log(`🔍 Enriching: ${businessName}`);
+    let foundItems = [];
+
+    // Check if we have quota remaining
+    if (enrichmentQuota.queriesUsed >= enrichmentQuota.dailyLimit) {
+      console.log(`⚠️ Daily enrichment limit reached (${enrichmentQuota.dailyLimit} queries)`);
+      toast(`⚠️ Daily search limit reached (${enrichmentQuota.dailyLimit}/day). Resets at midnight.`, false);
+      business.enriched = true;
+      return;
+    }
+
+    // 1. Search for website (if not already set)
+    if (!business.website) {
+      const websiteQuery = `${businessName} ${location}`;
+      const website = await searchBusinessWebsite(websiteQuery, businessName);
+      trackEnrichmentQuery(1);
+      if (website) {
+        business.website = website;
+        foundItems.push('website');
+        console.log(`✅ Found website: ${website}`);
+      }
+    }
+
+    // 2. Search for Facebook page (if not already set)
+    if (!business.facebook && enrichmentQuota.queriesUsed < enrichmentQuota.dailyLimit) {
+      const fbQuery = `${businessName} ${location} site:facebook.com`;
+      const fbResult = await searchBusinessWebsite(fbQuery, businessName);
+      trackEnrichmentQuery(1);
+      if (fbResult && fbResult.includes('facebook.com')) {
+        business.facebook = fbResult;
+        foundItems.push('Facebook');
+        console.log(`✅ Found Facebook: ${fbResult}`);
+      }
+    }
+
+    // 3. Search for Instagram (if not already set)
+    if (!business.instagram && enrichmentQuota.queriesUsed < enrichmentQuota.dailyLimit) {
+      const igQuery = `${businessName} ${location} site:instagram.com`;
+      const igResult = await searchBusinessWebsite(igQuery, businessName);
+      trackEnrichmentQuery(1);
+      if (igResult && igResult.includes('instagram.com')) {
+        business.instagram = igResult;
+        foundItems.push('Instagram');
+        console.log(`✅ Found Instagram: ${igResult}`);
+      }
+    }
+
+    business.enriched = true;
+
+    if (foundItems.length > 0) {
+      // Save kanban state with updated info
+      saveKanban();
+
+      // Re-render to show the updates
+      renderKanban();
+
+      toast(`🔍 Found ${foundItems.join(', ')} for ${businessName}`, true);
+    } else {
+      console.log(`⚠️ No website/social found for ${businessName}`);
+    }
+
+  } catch (error) {
+    console.warn('Enrichment failed:', error);
+    business.enriched = true; // Mark as enriched to avoid retry
+  }
+}
+
+/**
+ * Search for businesses using Yelp Fusion API
+ * FREE: 2,500 calls per day - NO COST!
+ */
+async function searchYelpBusinesses(zipCode, category, radiusMeters, progressInfo = null) {
+  try {
+    const cacheKey = `${zipCode}-${category}`;
+
+    // Check cache first
+    if (placesCache.searches[cacheKey]) {
+      const cached = placesCache.searches[cacheKey];
+      const cacheDate = new Date(cached.cachedUntil);
+
+      if (new Date() < cacheDate) {
+        showSuccess('✅ Using cached results (FREE!)');
+        return cached.cachedData || cached.businesses || [];
+      }
+    }
+
+    showInfo(`🔍 Searching Yelp for "${category}" in ${zipCode}...`);
+
+    // Call Yelp API via our serverless function
+    const response = await fetch('/api/yelp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        location: zipCode,
+        term: category,
+        radius: radiusMeters,
+        limit: 50 // Yelp max per request
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Yelp API request failed');
+    }
+
+    const data = await response.json();
+    const yelpBusinesses = data.businesses || [];
+
+    console.log(`✅ Yelp returned ${yelpBusinesses.length} businesses`);
+
+    // Filter out Canadian postal codes (contain letters) - USA ZIP codes are 5 digits only
+    const usaBusinesses = yelpBusinesses.filter(biz => {
+      const zip = biz.zip || '';
+      // USA ZIP codes are exactly 5 digits (or 5+4 format like 12345-6789)
+      const isUSAZip = /^\d{5}(-\d{4})?$/.test(zip);
+      if (!isUSAZip && zip) {
+        console.log(`🚫 Filtered out non-USA business: ${biz.name} (ZIP: ${zip})`);
+      }
+      return isUSAZip;
+    });
+
+    console.log(`🇺🇸 Filtered to ${usaBusinesses.length} USA businesses (removed ${yelpBusinesses.length - usaBusinesses.length} non-USA)`);
+
+    // Transform Yelp data to our expected format (website enrichment happens when added to kanban)
+    const businesses = usaBusinesses.map(biz => ({
+      placeId: `yelp_${biz.yelp_id}`,
+      name: biz.name,
+      address: biz.address,
+      city: biz.city,
+      state: biz.state,
+      zip: biz.zip,
+      zipCode: biz.zip,
+      actualZip: biz.zip,
+      phone: biz.phone,
+      website: '', // Will be enriched when added to kanban
+      yelpUrl: biz.website,
+      rating: biz.rating,
+      reviewCount: biz.review_count,
+      categories: biz.categories,
+      lat: biz.lat,
+      lng: biz.lng,
+      imageUrl: biz.image_url,
+      isClosed: biz.is_closed,
+      price: biz.price,
+      source: 'yelp',
+      searchedZipCode: zipCode,
+      category: category,
+      enriched: false
+    }));
+
+    console.log(`✅ Transformed ${businesses.length} Yelp businesses (websites will be enriched when added to kanban)`);
+
+    // Cache results for 30 days
+    const cachedUntil = new Date();
+    cachedUntil.setDate(cachedUntil.getDate() + 30);
+
+    placesCache.searches[cacheKey] = {
+      cachedData: businesses,
+      cachedUntil: cachedUntil.toISOString(),
+      lastFetched: new Date().toISOString()
+    };
+
+    // Save cache to cloud (must save .searches, not the whole object)
+    await savePlacesCache();
+
+    showSuccess(`✅ Found ${businesses.length} businesses on Yelp (FREE!)`);
+
+    return businesses;
+
+  } catch (error) {
+    console.error('Yelp search error:', error);
+    showError(`❌ Yelp search failed: ${error.message}`);
+    return [];
+  }
+}
+
+/**
+ * LEGACY: Google Places API (DISABLED - Costs $32 per 1,000 requests)
+ */
+async function searchGooglePlaces(zipCode, category, radiusMeters, progressInfo = null) {
+  // ⛔ PLACES API DISABLED - Costs $32 per 1,000 requests
+  // Replaced with searchYelpBusinesses (FREE - 2,500/day)
+  // Silently redirect to Yelp - no need to show warning anymore
+  return await searchYelpBusinesses(zipCode, category, radiusMeters, progressInfo);
+
+  // progressInfo: { currentSearch: 1, totalSearches: 5 } for multi-category searches
+  // Check quota first
+  const quotaCheck = canUserSearch();
+  if (!quotaCheck.allowed) {
+    toast(quotaCheck.reason, false);
+    return [];
+  }
+
+  const cacheKey = `${zipCode}-${category}`;
+
+  // Check cache first
+  if (placesCache.searches[cacheKey]) {
+    const cached = placesCache.searches[cacheKey];
+    const cacheDate = new Date(cached.cachedUntil);
+
+    if (new Date() < cacheDate) {
+      toast('✅ Using cached results (FREE!)', true);
+
+      // Update progress bar for cached results in multi-search
+      if (progressInfo) {
+        const progressBarFill = document.getElementById('enrichment-progress-fill');
+        const progressText = document.getElementById('enrichment-progress-text');
+        const progressSubtitle = document.getElementById('progress-subtitle');
+
+        if (progressBarFill && progressText && progressSubtitle) {
+          // Calculate progress for this cached search (mark as 100% complete for this search)
+          const searchPortionSize = 100 / progressInfo.totalSearches;
+          const completedProgress = progressInfo.currentSearch * searchPortionSize;
+          progressBarFill.style.width = `${Math.round(completedProgress)}%`;
+
+          // Update percentage display
+          const progressPercentage = document.getElementById('enrichment-progress-percentage');
+          if (progressPercentage) {
+            progressPercentage.textContent = `${Math.round(completedProgress)}%`;
+          }
+
+          progressText.textContent = `Using cached results for ${category}`;
+
+          // Show business count in subtitle
+          const totalBusinessesFound = progressInfo.totalBusinessesFound || 0;
+          const businessText = `${totalBusinessesFound} ${totalBusinessesFound === 1 ? 'business' : 'businesses'} found`;
+          if (progressInfo.totalCategories > 1) {
+            progressSubtitle.textContent = `Category ${progressInfo.currentSearch} of ${progressInfo.totalCategories} (${businessText})`;
+          } else {
+            progressSubtitle.textContent = `Search ${progressInfo.currentSearch} of ${progressInfo.totalSearches} (${businessText})`;
+          }
+        }
+      }
+
+      // Recalculate enriched flag for cached data (in case logic changed)
+      const cachedData = (cached.cachedData || []).map((b, index) => {
+        const hasEnrichedData = !!(b.email || b.facebook || b.instagram || b.linkedin || b.twitter || b.googleMapsUrl);
+
+        // Debug log first 3 businesses
+        if (index < 3) {
+          console.log(`🔍 CACHE - Enrichment check for "${b.name}":`, {
+            email: b.email,
+            facebook: b.facebook,
+            instagram: b.instagram,
+            linkedin: b.linkedin,
+            twitter: b.twitter,
+            googleMapsUrl: b.googleMapsUrl,
+            hasEnrichedData
+          });
+        }
+
+        return {
+          ...b,
+          enriched: hasEnrichedData
+        };
+      });
+
+      const enrichedCount = cachedData.filter(b => b.enriched).length;
+      console.log(`✅ CACHE: ${enrichedCount}/${cachedData.length} businesses are enriched`);
+
+      return cachedData;
+    }
+  }
+
+  try {
+    // Get or create progress bar overlay
+    let progressBarFill = document.getElementById('enrichment-progress-fill');
+    let progressText = document.getElementById('enrichment-progress-text');
+    let progressSubtitle = document.getElementById('progress-subtitle');
+
+    // Only create progress bar if it doesn't exist
+    if (!progressBarFill) {
+      const progressOverlay = document.createElement('div');
+      progressOverlay.id = 'enrichment-progress-overlay';
+      progressOverlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        backdrop-filter: blur(4px);
+      `;
+
+      const progressContainer = document.createElement('div');
+      progressContainer.style.cssText = `
+        background: white;
+        padding: 2rem;
+        border-radius: 1rem;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        min-width: 400px;
+        max-width: 500px;
+      `;
+
+      const progressTitle = document.createElement('div');
+      progressTitle.style.cssText = `
+        font-size: 1.25rem;
+        font-weight: bold;
+        color: #1f2937;
+        margin-bottom: 0.5rem;
+        text-align: center;
+      `;
+      progressTitle.textContent = '🔍 Searching for Prospects';
+
+      progressSubtitle = document.createElement('div');
+      progressSubtitle.id = 'progress-subtitle';
+      progressSubtitle.style.cssText = `
+        font-size: 0.875rem;
+        color: #6b7280;
+        margin-bottom: 1.5rem;
+        text-align: center;
+      `;
+      // Set initial subtitle text
+      if (progressInfo) {
+        if (progressInfo.totalZipCodes > 1 && progressInfo.totalCategories > 1) {
+          progressSubtitle.textContent = `Searching ${progressInfo.totalCategories} categories across ${progressInfo.totalZipCodes} ZIP codes`;
+        } else if (progressInfo.totalCategories > 1) {
+          progressSubtitle.textContent = `Searching ${progressInfo.totalCategories} categories`;
+        } else if (progressInfo.totalZipCodes > 1) {
+          progressSubtitle.textContent = `Searching ${progressInfo.totalZipCodes} ZIP codes`;
+        } else {
+          progressSubtitle.textContent = `Search ${progressInfo.currentSearch} of ${progressInfo.totalSearches}`;
+        }
+      } else {
+        progressSubtitle.textContent = 'Initializing search...';
+      }
+
+      // Progress bar wrapper (for relative positioning)
+      const progressBarWrapper = document.createElement('div');
+      progressBarWrapper.style.cssText = `
+        position: relative;
+        margin-bottom: 1rem;
+      `;
+
+      const progressBarBg = document.createElement('div');
+      progressBarBg.style.cssText = `
+        background: #e5e7eb;
+        height: 24px;
+        border-radius: 12px;
+        overflow: hidden;
+      `;
+
+      progressBarFill = document.createElement('div');
+      progressBarFill.id = 'enrichment-progress-fill';
+      progressBarFill.style.cssText = `
+        background: linear-gradient(90deg, #3b82f6, #2563eb);
+        height: 100%;
+        width: 0%;
+        transition: width 0.3s ease;
+      `;
+
+      // Percentage text overlaid on top of progress bar
+      const progressPercentage = document.createElement('div');
+      progressPercentage.id = 'enrichment-progress-percentage';
+      progressPercentage.style.cssText = `
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: #1f2937;
+        font-size: 0.75rem;
+        font-weight: bold;
+        pointer-events: none;
+      `;
+      progressPercentage.textContent = '0%';
+
+      progressText = document.createElement('div');
+      progressText.id = 'enrichment-progress-text';
+      progressText.style.cssText = `
+        font-size: 0.875rem;
+        color: #4b5563;
+        text-align: center;
+      `;
+      progressText.textContent = 'Starting search...';
+
+      progressBarBg.appendChild(progressBarFill);
+      progressBarWrapper.appendChild(progressBarBg);
+      progressBarWrapper.appendChild(progressPercentage);
+      progressContainer.appendChild(progressTitle);
+      progressContainer.appendChild(progressSubtitle);
+      progressContainer.appendChild(progressBarWrapper);
+      progressContainer.appendChild(progressText);
+      progressOverlay.appendChild(progressContainer);
+      document.body.appendChild(progressOverlay);
+    } else {
+      // Update subtitle for multi-search when progress bar already exists
+      if (progressInfo) {
+        if (progressInfo.totalZipCodes > 1 && progressInfo.totalCategories > 1) {
+          progressSubtitle.textContent = `Search ${progressInfo.currentSearch} of ${progressInfo.totalSearches} (${progressInfo.totalCategories} categories × ${progressInfo.totalZipCodes} ZIPs)`;
+        } else if (progressInfo.totalCategories > 1) {
+          progressSubtitle.textContent = `Category ${progressInfo.currentSearch} of ${progressInfo.totalCategories}`;
+        } else if (progressInfo.totalZipCodes > 1) {
+          progressSubtitle.textContent = `ZIP ${progressInfo.currentSearch} of ${progressInfo.totalZipCodes}`;
+        } else {
+          progressSubtitle.textContent = `Search ${progressInfo.currentSearch} of ${progressInfo.totalSearches}`;
+        }
+      }
+    }
+
+    // Ensure Google Maps API is loaded
+    await loadGoogleMapsAPI();
+
+    // Helper function to calculate overall progress when doing multiple searches
+    const calculateOverallProgress = (searchPhasePercent) => {
+      if (!progressInfo) {
+        // Single search - use phase percent directly
+        return searchPhasePercent;
+      }
+      // Multi-search: each search gets an equal portion of 100%
+      const searchPortionSize = 100 / progressInfo.totalSearches;
+      const previousSearchesProgress = (progressInfo.currentSearch - 1) * searchPortionSize;
+      const currentSearchProgress = (searchPhasePercent / 100) * searchPortionSize;
+      return Math.round(previousSearchesProgress + currentSearchProgress);
+    };
+
+    // Helper function to update both progress bar and percentage display
+    const updateProgressBar = (percent) => {
+      progressBarFill.style.width = `${percent}%`;
+      const progressPercentage = document.getElementById('enrichment-progress-percentage');
+      if (progressPercentage) {
+        progressPercentage.textContent = `${percent}%`;
+      }
+    };
+
+    // Step 1: Convert zip code to lat/lng (5% of this search)
+    const geocodingProgress = calculateOverallProgress(5);
+    updateProgressBar(geocodingProgress);
+    progressText.textContent = `Finding location for ${zipCode}...`;
+    const location = await convertZipToLatLng(zipCode);
+
+    if (!location) {
+      // Remove progress overlay on error
+      const existingProgressOverlay = document.getElementById('enrichment-progress-overlay');
+      if (existingProgressOverlay && existingProgressOverlay.parentNode) {
+        existingProgressOverlay.remove();
+      }
+      toast('Invalid zip code or geocoding failed', false);
+      return [];
+    }
+
+    // Track API call for geocoding
+    trackApiCall(1);
+    recordUserSearch();
+
+    // Search nearby places using Places Service (client-side, no CORS issues)
+    toast('🔍 Searching for businesses...', true);
+
+    // Create a temporary div for PlacesService (required by Google Maps API)
+    const mapDiv = document.createElement('div');
+    const map = new google.maps.Map(mapDiv);
+    const service = new google.maps.places.PlacesService(map);
+
+    // List of Google's predefined place types
+    const predefinedTypes = [
+      'accounting', 'airport', 'amusement_park', 'aquarium', 'art_gallery', 'atm', 'bakery', 'bank', 'bar',
+      'beauty_salon', 'bicycle_store', 'book_store', 'bowling_alley', 'bus_station', 'cafe', 'campground',
+      'car_dealer', 'car_rental', 'car_repair', 'car_wash', 'casino', 'cemetery', 'church', 'city_hall',
+      'clothing_store', 'convenience_store', 'courthouse', 'dentist', 'department_store', 'doctor', 'drugstore',
+      'electrician', 'electronics_store', 'embassy', 'fire_station', 'florist', 'funeral_home', 'furniture_store',
+      'gas_station', 'gym', 'hair_care', 'hardware_store', 'hindu_temple', 'home_goods_store', 'hospital',
+      'insurance_agency', 'jewelry_store', 'laundry', 'lawyer', 'library', 'light_rail_station', 'liquor_store',
+      'local_government_office', 'locksmith', 'lodging', 'meal_delivery', 'meal_takeaway', 'mosque', 'movie_rental',
+      'movie_theater', 'moving_company', 'museum', 'night_club', 'painter', 'park', 'parking', 'pet_store',
+      'pharmacy', 'physiotherapist', 'plumber', 'police', 'post_office', 'primary_school', 'real_estate_agency',
+      'restaurant', 'roofing_contractor', 'rv_park', 'school', 'secondary_school', 'shoe_store', 'shopping_mall',
+      'spa', 'stadium', 'storage', 'store', 'subway_station', 'supermarket', 'synagogue', 'taxi_stand',
+      'tourist_attraction', 'train_station', 'transit_station', 'travel_agency', 'university', 'veterinary_care',
+      'zoo', 'administrative_area_level_1', 'administrative_area_level_2', 'administrative_area_level_3',
+      'administrative_area_level_4', 'administrative_area_level_5', 'archipelago', 'colloquial_area', 'continent',
+      'country', 'establishment', 'finance', 'floor', 'food', 'general_contractor', 'geocode', 'health',
+      'intersection', 'locality', 'natural_feature', 'neighborhood', 'place_of_worship', 'plus_code', 'point_of_interest',
+      'political', 'post_box', 'postal_code', 'postal_code_prefix', 'postal_code_suffix', 'postal_town', 'premise',
+      'room', 'route', 'street_address', 'street_number', 'sublocality', 'sublocality_level_1', 'sublocality_level_2',
+      'sublocality_level_3', 'sublocality_level_4', 'sublocality_level_5', 'subpremise', 'town_square', 'grocery_or_supermarket'
+    ];
+
+    const isCustomCategory = !predefinedTypes.includes(category.toLowerCase());
+
+    return new Promise((resolve, reject) => {
+      let request;
+
+      if (isCustomCategory) {
+        // Use textSearch for custom categories (more accurate for niche industries)
+        request = {
+          query: `${category} in ${zipCode}`,
+          location: new google.maps.LatLng(location.lat, location.lng),
+          radius: radiusMeters
+        };
+
+        service.textSearch(request, async (results, status) => {
+          // Track API call for places search
+          trackApiCall(1);
+
+          if (status === google.maps.places.PlacesServiceStatus.OK ||
+              status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+
+            // First, map all operational businesses
+            const allBusinesses = (results || [])
+              .filter(place => place.business_status === 'OPERATIONAL') // Only active businesses
+              .map(place => {
+                // Prefer formatted_address (has ZIP) over vicinity (often missing ZIP)
+                const address = place.formatted_address || place.vicinity || '';
+
+                // Extract ZIP and City from address_components
+                let actualZip = null;
+                let actualCity = null;
+                if (place.address_components) {
+                  const zipComponent = place.address_components.find(comp =>
+                    comp.types.includes('postal_code')
+                  );
+                  actualZip = zipComponent ? zipComponent.short_name : null;
+
+                  // Extract city (locality)
+                  const cityComponent = place.address_components.find(comp =>
+                    comp.types.includes('locality')
+                  );
+                  actualCity = cityComponent ? cityComponent.long_name : null;
+                }
+
+                // Fallback to extracting from address string if address_components not available
+                if (!actualZip) {
+                  actualZip = extractZipFromAddress(address);
+                }
+                if (!actualCity && address) {
+                  // Try to extract city from address
+                  // Format can be: "123 Main St, Buffalo, NY 14072" OR "123 Main St, Grand Island"
+                  let cityMatch = address.match(/,\s*([^,]+),\s*NY/i);
+                  if (!cityMatch) {
+                    // Try simpler pattern: last comma-separated part (for "123 Street, Grand Island")
+                    const parts = address.split(',').map(p => p.trim());
+                    if (parts.length >= 2) {
+                      actualCity = parts[parts.length - 1]; // Get last part
+                    }
+                  } else {
+                    actualCity = cityMatch[1].trim();
+                  }
+                }
+
+                return {
+                  placeId: place.place_id,
+                  name: place.name,
+                  address: address,
+                  phone: place.formatted_phone_number || place.international_phone_number || '',
+                  website: place.website || '',
+                  rating: place.rating || 0,
+                  userRatingsTotal: place.user_ratings_total || 0,
+                  types: place.types || [],
+                  category: category, // Track which category this came from
+                  zipCode: zipCode, // Track which ZIP code was used for the search
+                  actualZip: actualZip, // Extract actual ZIP from address_components or address string
+                  actualCity: actualCity // Extract actual city
+                };
+              });
+
+            // SMART ZIP/CITY FILTERING
+            const businesses = allBusinesses.filter(b => {
+              // Priority 1: If we have actualZip, it must match
+              if (b.actualZip) {
+                if (b.actualZip === zipCode) {
+                  console.log(`✅ Keeping "${b.name}" - ZIP ${b.actualZip} matches`);
+                  return true;
+                } else {
+                  console.log(`❌ Filtering "${b.name}" - ZIP ${b.actualZip} doesn't match ${zipCode}`);
+                  return false;
+                }
+              }
+
+              // Priority 2: No ZIP but have city - validate city matches expected cities for this ZIP
+              if (b.actualCity && zipToCityMap[zipCode]) {
+                const expectedCities = zipToCityMap[zipCode];
+                const cityMatches = expectedCities.some(city =>
+                  city.toLowerCase() === b.actualCity.toLowerCase()
+                );
+                if (cityMatches) {
+                  console.log(`✅ Keeping "${b.name}" - City "${b.actualCity}" matches ZIP ${zipCode} expected cities`);
+                  return true;
+                } else {
+                  console.log(`❌ Filtering "${b.name}" - City "${b.actualCity}" doesn't match ZIP ${zipCode} expected cities`);
+                  return false;
+                }
+              }
+
+              // Priority 3: No ZIP and no city - filter out (can't validate)
+              console.log(`❌ Filtering "${b.name}" - no ZIP or city detected (actualZip: ${b.actualZip}, actualCity: ${b.actualCity}, address: "${b.address}")`);
+              return false;
+            });
+
+            const filteredOutCount = allBusinesses.length - businesses.length;
+            console.log(`✅ Found ${businesses.length} matching businesses for ${category} in ZIP ${zipCode} (filtered out ${filteredOutCount} from other ZIPs)`);
+
+            // Step 2: Places search complete (10% of this search)
+            const placesProgress = calculateOverallProgress(10);
+            updateProgressBar(placesProgress);
+            progressText.textContent = `Found ${allBusinesses.length} businesses in ${category}...`;
+
+            // Step 3: Filtering complete (15% of this search)
+            const filteringProgress = calculateOverallProgress(15);
+            updateProgressBar(filteringProgress);
+            progressText.textContent = `Filtered to ${businesses.length} matching businesses...`;
+
+            // Calculate estimated time for enrichment
+            const avgTimePerBusiness = 20; // Average 20 seconds per business for scraping
+            const estimatedSeconds = businesses.length * avgTimePerBusiness;
+            const estimatedMinutes = Math.ceil(estimatedSeconds / 60);
+
+            // Update subtitle based on single vs multi-search
+            if (progressInfo) {
+              // Multi-search: show progress across all searches
+              const totalSearches = progressInfo.totalSearches;
+              const currentSearch = progressInfo.currentSearch;
+              const remainingSearches = totalSearches - currentSearch + 1;
+
+              // Build helpful subtitle message showing businesses found
+              const totalBusinessesFound = progressInfo.totalBusinessesFound || 0;
+              const businessText = `${totalBusinessesFound} ${totalBusinessesFound === 1 ? 'business' : 'businesses'} found`;
+
+              if (progressInfo.totalZipCodes > 1 && progressInfo.totalCategories > 1) {
+                // Multiple ZIPs and categories
+                progressSubtitle.textContent = `Category ${currentSearch} of ${totalSearches} (${businessText}, est. ${estimatedMinutes} min for this one)`;
+              } else if (progressInfo.totalCategories > 1) {
+                // Multiple categories, one ZIP
+                progressSubtitle.textContent = `Category ${currentSearch} of ${progressInfo.totalCategories} (${businessText}, ${remainingSearches} remaining)`;
+              } else {
+                // Multiple ZIPs, one category
+                progressSubtitle.textContent = `ZIP ${currentSearch} of ${progressInfo.totalZipCodes} (${businessText}, ${remainingSearches} remaining)`;
+              }
+            } else {
+              // Single search: show simple estimate
+              progressSubtitle.textContent = `Now enriching with contact data (est. ${estimatedMinutes} min)`;
+            }
+
+            // Fetch phone and website details for each business (required for enrichment)
+            console.log(`📞 Fetching contact details for ${businesses.length} businesses...`);
+            console.log(`⏱️ Estimated time: ${estimatedMinutes} minute${estimatedMinutes !== 1 ? 's' : ''} (${businesses.length} businesses × ~${avgTimePerBusiness}s each)`);
+
+            // Progress bar already created at start of search - no need to create duplicate
+            // Helper function to update progress (scales from 15% to 100% of this search)
+            const updateProgress = (current, total, businessName) => {
+              // Scale from 15% (after filtering) to 100% (complete enrichment) for this individual search
+              const searchEnrichmentPercent = 15 + ((current / total) * 85); // 15% to 100% for this search
+              const percentage = calculateOverallProgress(searchEnrichmentPercent);
+              updateProgressBar(percentage);
+              progressText.textContent = `Enriching ${category}: ${current}/${total} - ${businessName}`;
+            };
+
+            // Process businesses sequentially with small delays to avoid overwhelming CORS proxy
+            const businessesWithDetails = [];
+            for (let i = 0; i < businesses.length; i++) {
+              const b = businesses[i];
+              try {
+                // Update progress bar
+                updateProgress(i + 1, businesses.length, b.name);
+
+                console.log(`📇 Processing ${i + 1}/${businesses.length}: ${b.name}`);
+                const details = await fetchPlaceDetails(b.placeId);
+
+                // Extract email and social media from website (scrapes actual HTML links!)
+                const extractedEmail = await extractEmailFromWebsite(details.website);
+                const socialMedia = await extractSocialMediaFromWebsite(details.website);
+
+                businessesWithDetails.push({
+                  ...b,
+                  phone: details.phone || b.phone || '',
+                  website: details.website || b.website || '',
+                  email: extractedEmail || details.email || '',
+                  priceLevel: details.priceLevel || 0,
+                  reviewCount: details.reviewCount || b.userRatingsTotal || 0,
+                  description: details.description || '',
+                  ownerName: details.ownerName || '',
+                  googleMapsUrl: details.googleMapsUrl || '',
+                  // Extract REAL social media links from website HTML (no guessing!)
+                  instagram: socialMedia.instagram || '',
+                  facebook: socialMedia.facebook || '',
+                  linkedin: socialMedia.linkedin || '',
+                  twitter: socialMedia.twitter || ''
+                });
+
+                // Small delay between requests to avoid overwhelming proxy
+                if (i < businesses.length - 1) {
+                  await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
+                }
+              } catch (err) {
+                console.warn(`Failed to fetch details for ${b.name}:`, err);
+                businessesWithDetails.push(b); // Return original if details fetch fails
+              }
+            }
+
+            // Remove progress overlay only if this is a single search
+            // For multi-search, the bulk handler will remove it after all searches complete
+            if (!progressInfo) {
+              const existingProgressOverlay = document.getElementById('enrichment-progress-overlay');
+              if (existingProgressOverlay && existingProgressOverlay.parentNode) {
+                existingProgressOverlay.remove();
+              }
+            }
+
+            console.log(`✅ Fetched details for ${businessesWithDetails.length} businesses`);
+
+            // Calculate lead scores for all businesses
+            const businessesWithScores = businessesWithDetails.map(b => {
+              const leadScore = calculateProspectScore(b);
+              const scoreCategory = getScoreCategory(leadScore);
+
+              // Mark as enriched if we have email, social media, or other enriched data
+              const hasEnrichedData = !!(b.email || b.facebook || b.instagram || b.linkedin || b.twitter || b.googleMapsUrl);
+
+              // Debug logging for first business
+              if (businessesWithDetails.indexOf(b) === 0) {
+                console.log(`🔍 Enrichment check for "${b.name}":`, {
+                  email: b.email,
+                  facebook: b.facebook,
+                  instagram: b.instagram,
+                  linkedin: b.linkedin,
+                  twitter: b.twitter,
+                  googleMapsUrl: b.googleMapsUrl,
+                  hasEnrichedData
+                });
+              }
+
+              return {
+                ...b,
+                leadScore,
+                scoreCategory,
+                contactScore: calculateContactScore(b),
+                enriched: hasEnrichedData
+              };
+            });
+
+            // Sort by lead score (highest first)
+            businessesWithScores.sort((a, b) => b.leadScore - a.leadScore);
+
+            const enrichedCount = businessesWithScores.filter(b => b.enriched).length;
+            console.log(`🎯 Scored ${businessesWithScores.length} businesses (avg score: ${Math.round(businessesWithScores.reduce((sum, b) => sum + b.leadScore, 0) / businessesWithScores.length)})`);
+            console.log(`✅ Enriched: ${enrichedCount}/${businessesWithScores.length} businesses have email/social/maps data`);
+
+            // Cache results for 30 days
+            const cacheExpiry = new Date();
+            cacheExpiry.setDate(cacheExpiry.getDate() + 30);
+
+            placesCache.searches[cacheKey] = {
+              placeIds: businessesWithScores.map(b => b.placeId),
+              cachedData: businessesWithScores,
+              cachedUntil: cacheExpiry.toISOString(),
+              lastFetched: new Date().toISOString()
+            };
+
+            savePlacesCache();
+
+            resolve(businessesWithScores);
+          } else {
+            reject(new Error(`Places API error: ${status}`));
+          }
+        });
+      } else {
+        // Use nearbySearch for predefined types (faster and more accurate)
+        request = {
+          location: new google.maps.LatLng(location.lat, location.lng),
+          radius: radiusMeters,
+          type: category
+        };
+
+        service.nearbySearch(request, async (results, status) => {
+          // Track API call for places search
+          trackApiCall(1);
+
+          if (status === google.maps.places.PlacesServiceStatus.OK ||
+              status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+
+            // First, map all operational businesses
+            const allBusinesses = (results || [])
+              .filter(place => place.business_status === 'OPERATIONAL') // Only active businesses
+              .map(place => {
+                // Prefer formatted_address (has ZIP) over vicinity (often missing ZIP)
+                const address = place.formatted_address || place.vicinity || '';
+
+                // Extract ZIP and City from address_components
+                let actualZip = null;
+                let actualCity = null;
+                if (place.address_components) {
+                  const zipComponent = place.address_components.find(comp =>
+                    comp.types.includes('postal_code')
+                  );
+                  actualZip = zipComponent ? zipComponent.short_name : null;
+
+                  // Extract city (locality)
+                  const cityComponent = place.address_components.find(comp =>
+                    comp.types.includes('locality')
+                  );
+                  actualCity = cityComponent ? cityComponent.long_name : null;
+                }
+
+                // Fallback to extracting from address string if address_components not available
+                if (!actualZip) {
+                  actualZip = extractZipFromAddress(address);
+                }
+                if (!actualCity && address) {
+                  // Try to extract city from address
+                  // Format can be: "123 Main St, Buffalo, NY 14072" OR "123 Main St, Grand Island"
+                  let cityMatch = address.match(/,\s*([^,]+),\s*NY/i);
+                  if (!cityMatch) {
+                    // Try simpler pattern: last comma-separated part (for "123 Street, Grand Island")
+                    const parts = address.split(',').map(p => p.trim());
+                    if (parts.length >= 2) {
+                      actualCity = parts[parts.length - 1]; // Get last part
+                    }
+                  } else {
+                    actualCity = cityMatch[1].trim();
+                  }
+                }
+
+                return {
+                  placeId: place.place_id,
+                  name: place.name,
+                  address: address,
+                  phone: place.formatted_phone_number || place.international_phone_number || '',
+                  website: place.website || '',
+                  rating: place.rating || 0,
+                  userRatingsTotal: place.user_ratings_total || 0,
+                  types: place.types || [],
+                  category: category, // Track which category this came from
+                  zipCode: zipCode, // Track which ZIP code was used for the search
+                  actualZip: actualZip, // Extract actual ZIP from address_components or address string
+                  actualCity: actualCity // Extract actual city
+                };
+              });
+
+            // SMART ZIP/CITY FILTERING
+            const businesses = allBusinesses.filter(b => {
+              // Priority 1: If we have actualZip, it must match
+              if (b.actualZip) {
+                if (b.actualZip === zipCode) {
+                  console.log(`✅ Keeping "${b.name}" - ZIP ${b.actualZip} matches`);
+                  return true;
+                } else {
+                  console.log(`❌ Filtering "${b.name}" - ZIP ${b.actualZip} doesn't match ${zipCode}`);
+                  return false;
+                }
+              }
+
+              // Priority 2: No ZIP but have city - validate city matches expected cities for this ZIP
+              if (b.actualCity && zipToCityMap[zipCode]) {
+                const expectedCities = zipToCityMap[zipCode];
+                const cityMatches = expectedCities.some(city =>
+                  city.toLowerCase() === b.actualCity.toLowerCase()
+                );
+                if (cityMatches) {
+                  console.log(`✅ Keeping "${b.name}" - City "${b.actualCity}" matches ZIP ${zipCode} expected cities`);
+                  return true;
+                } else {
+                  console.log(`❌ Filtering "${b.name}" - City "${b.actualCity}" doesn't match ZIP ${zipCode} expected cities`);
+                  return false;
+                }
+              }
+
+              // Priority 3: No ZIP and no city - filter out (can't validate)
+              console.log(`❌ Filtering "${b.name}" - no ZIP or city detected (actualZip: ${b.actualZip}, actualCity: ${b.actualCity}, address: "${b.address}")`);
+              return false;
+            });
+
+            const filteredOutCount = allBusinesses.length - businesses.length;
+            console.log(`✅ Found ${businesses.length} matching businesses for ${category} in ZIP ${zipCode} (filtered out ${filteredOutCount} from other ZIPs)`);
+
+            // Step 2: Places search complete (10% of this search)
+            const placesProgress = calculateOverallProgress(10);
+            updateProgressBar(placesProgress);
+            progressText.textContent = `Found ${allBusinesses.length} businesses in ${category}...`;
+
+            // Step 3: Filtering complete (15% of this search)
+            const filteringProgress = calculateOverallProgress(15);
+            updateProgressBar(filteringProgress);
+            progressText.textContent = `Filtered to ${businesses.length} matching businesses...`;
+
+            // Calculate estimated time for enrichment
+            const avgTimePerBusiness = 20; // Average 20 seconds per business for scraping
+            const estimatedSeconds = businesses.length * avgTimePerBusiness;
+            const estimatedMinutes = Math.ceil(estimatedSeconds / 60);
+
+            // Update subtitle based on single vs multi-search
+            if (progressInfo) {
+              // Multi-search: show progress across all searches
+              const totalSearches = progressInfo.totalSearches;
+              const currentSearch = progressInfo.currentSearch;
+              const remainingSearches = totalSearches - currentSearch + 1;
+
+              // Build helpful subtitle message showing businesses found
+              const totalBusinessesFound = progressInfo.totalBusinessesFound || 0;
+              const businessText = `${totalBusinessesFound} ${totalBusinessesFound === 1 ? 'business' : 'businesses'} found`;
+
+              if (progressInfo.totalZipCodes > 1 && progressInfo.totalCategories > 1) {
+                // Multiple ZIPs and categories
+                progressSubtitle.textContent = `Category ${currentSearch} of ${totalSearches} (${businessText}, est. ${estimatedMinutes} min for this one)`;
+              } else if (progressInfo.totalCategories > 1) {
+                // Multiple categories, one ZIP
+                progressSubtitle.textContent = `Category ${currentSearch} of ${progressInfo.totalCategories} (${businessText}, ${remainingSearches} remaining)`;
+              } else {
+                // Multiple ZIPs, one category
+                progressSubtitle.textContent = `ZIP ${currentSearch} of ${progressInfo.totalZipCodes} (${businessText}, ${remainingSearches} remaining)`;
+              }
+            } else {
+              // Single search: show simple estimate
+              progressSubtitle.textContent = `Now enriching with contact data (est. ${estimatedMinutes} min)`;
+            }
+
+            // Fetch phone and website details for each business (required for enrichment)
+            console.log(`📞 Fetching contact details for ${businesses.length} businesses...`);
+            console.log(`⏱️ Estimated time: ${estimatedMinutes} minute${estimatedMinutes !== 1 ? 's' : ''} (${businesses.length} businesses × ~${avgTimePerBusiness}s each)`);
+
+            // Progress bar already created at start of search - no need to create duplicate
+            // Helper function to update progress (scales from 15% to 100% of this search)
+            const updateProgress = (current, total, businessName) => {
+              // Scale from 15% (after filtering) to 100% (complete enrichment) for this individual search
+              const searchEnrichmentPercent = 15 + ((current / total) * 85); // 15% to 100% for this search
+              const percentage = calculateOverallProgress(searchEnrichmentPercent);
+              updateProgressBar(percentage);
+              progressText.textContent = `Enriching ${category}: ${current}/${total} - ${businessName}`;
+            };
+
+            // Process businesses sequentially with small delays to avoid overwhelming CORS proxy
+            const businessesWithDetails = [];
+            for (let i = 0; i < businesses.length; i++) {
+              const b = businesses[i];
+              try {
+                // Update progress bar
+                updateProgress(i + 1, businesses.length, b.name);
+
+                console.log(`📇 Processing ${i + 1}/${businesses.length}: ${b.name}`);
+                const details = await fetchPlaceDetails(b.placeId);
+
+                // Extract email and social media from website (scrapes actual HTML links!)
+                const extractedEmail = await extractEmailFromWebsite(details.website);
+                const socialMedia = await extractSocialMediaFromWebsite(details.website);
+
+                businessesWithDetails.push({
+                  ...b,
+                  phone: details.phone || b.phone || '',
+                  website: details.website || b.website || '',
+                  email: extractedEmail || details.email || '',
+                  priceLevel: details.priceLevel || 0,
+                  reviewCount: details.reviewCount || b.userRatingsTotal || 0,
+                  description: details.description || '',
+                  ownerName: details.ownerName || '',
+                  googleMapsUrl: details.googleMapsUrl || '',
+                  // Extract REAL social media links from website HTML (no guessing!)
+                  instagram: socialMedia.instagram || '',
+                  facebook: socialMedia.facebook || '',
+                  linkedin: socialMedia.linkedin || '',
+                  twitter: socialMedia.twitter || ''
+                });
+
+                // Small delay between requests to avoid overwhelming proxy
+                if (i < businesses.length - 1) {
+                  await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
+                }
+              } catch (err) {
+                console.warn(`Failed to fetch details for ${b.name}:`, err);
+                businessesWithDetails.push(b); // Return original if details fetch fails
+              }
+            }
+
+            // Remove progress overlay only if this is a single search
+            // For multi-search, the bulk handler will remove it after all searches complete
+            if (!progressInfo) {
+              const existingProgressOverlay = document.getElementById('enrichment-progress-overlay');
+              if (existingProgressOverlay && existingProgressOverlay.parentNode) {
+                existingProgressOverlay.remove();
+              }
+            }
+
+            console.log(`✅ Fetched details for ${businessesWithDetails.length} businesses`);
+
+            // Calculate lead scores for all businesses
+            const businessesWithScores = businessesWithDetails.map(b => {
+              const leadScore = calculateProspectScore(b);
+              const scoreCategory = getScoreCategory(leadScore);
+
+              // Mark as enriched if we have email, social media, or other enriched data
+              const hasEnrichedData = !!(b.email || b.facebook || b.instagram || b.linkedin || b.twitter || b.googleMapsUrl);
+
+              // Debug logging for first business
+              if (businessesWithDetails.indexOf(b) === 0) {
+                console.log(`🔍 Enrichment check for "${b.name}":`, {
+                  email: b.email,
+                  facebook: b.facebook,
+                  instagram: b.instagram,
+                  linkedin: b.linkedin,
+                  twitter: b.twitter,
+                  googleMapsUrl: b.googleMapsUrl,
+                  hasEnrichedData
+                });
+              }
+
+              return {
+                ...b,
+                leadScore,
+                scoreCategory,
+                contactScore: calculateContactScore(b),
+                enriched: hasEnrichedData
+              };
+            });
+
+            // Sort by lead score (highest first)
+            businessesWithScores.sort((a, b) => b.leadScore - a.leadScore);
+
+            const enrichedCount = businessesWithScores.filter(b => b.enriched).length;
+            console.log(`🎯 Scored ${businessesWithScores.length} businesses (avg score: ${Math.round(businessesWithScores.reduce((sum, b) => sum + b.leadScore, 0) / businessesWithScores.length)})`);
+            console.log(`✅ Enriched: ${enrichedCount}/${businessesWithScores.length} businesses have email/social/maps data`);
+
+            // Cache results for 30 days
+            const cacheExpiry = new Date();
+            cacheExpiry.setDate(cacheExpiry.getDate() + 30);
+
+            placesCache.searches[cacheKey] = {
+              placeIds: businessesWithScores.map(b => b.placeId),
+              cachedData: businessesWithScores,
+              cachedUntil: cacheExpiry.toISOString(),
+              lastFetched: new Date().toISOString()
+            };
+
+            savePlacesCache();
+
+            resolve(businessesWithScores);
+          } else {
+            reject(new Error(`Places API error: ${status}`));
+          }
+        });
+      }
+    });
+  } catch(err) {
+    console.error('Google Places search error:', err);
+    // Remove progress overlay on error
+    const existingProgressOverlay = document.getElementById('enrichment-progress-overlay');
+    if (existingProgressOverlay && existingProgressOverlay.parentNode) {
+      existingProgressOverlay.remove();
+    }
+    toast(`Search failed: ${err.message}`, false);
+    return [];
+  }
+}
+
+// Fetch additional details for a place (phone, website, etc.)
+async function fetchPlaceDetails(placeId) {
+  try {
+    await loadGoogleMapsAPI();
+
+    return new Promise((resolve, reject) => {
+      const service = new google.maps.places.PlacesService(document.createElement('div'));
+
+      service.getDetails(
+        {
+          placeId: placeId,
+          fields: [
+            'formatted_phone_number',
+            'international_phone_number',
+            'website',
+            'url',
+            'price_level',
+            'user_ratings_total',
+            'editorial_summary',
+            'reviews'
+          ]
+        },
+        (place, status) => {
+          if (status === google.maps.places.PlacesServiceStatus.OK) {
+            const hasData = !!(place.formatted_phone_number || place.international_phone_number || place.website);
+
+            // Extract owner/contact name from reviews (sometimes mentioned)
+            let ownerName = '';
+            if (place.reviews && place.reviews.length > 0) {
+              // Look for owner responses or mentions in reviews
+              for (const review of place.reviews) {
+                if (review.author_name && review.author_name.includes('Owner')) {
+                  ownerName = review.author_name.replace('Owner', '').trim();
+                  break;
+                }
+              }
+            }
+
+            resolve({
+              phone: place.formatted_phone_number || place.international_phone_number || '',
+              website: place.website || '',
+              email: '', // Will be enriched from website scraping
+              facebook: '', // Will be enriched from website scraping
+              instagram: '', // Will be enriched from website scraping
+              linkedin: '',
+              twitter: '',
+              googleMapsUrl: place.url || '',
+              priceLevel: place.price_level || 0, // 0-4 scale ($ to $$$$)
+              reviewCount: place.user_ratings_total || 0,
+              description: place.editorial_summary?.overview || '',
+              ownerName: ownerName,
+              enriched: hasData,
+              cost: 0
+            });
+          } else {
+            // Don't reject - just return empty data
+            resolve({
+              phone: '',
+              website: '',
+              email: '',
+              facebook: '',
+              instagram: '',
+              linkedin: '',
+              twitter: '',
+              googleMapsUrl: '',
+              priceLevel: 0,
+              reviewCount: 0,
+              description: '',
+              ownerName: '',
+              enriched: false,
+              cost: 0
+            });
+          }
+        }
+      );
+    });
+  } catch(err) {
+    console.error('Error fetching place details:', err);
+    return { phone: '', website: '', email: '', facebook: '', instagram: '', googleMapsUrl: '', openingHours: [], enriched: false, cost: 0 };
+  }
+}
+
+// Smart Social Media Guessing - FREE, client-side only
+// Generates probable social media URLs based on business name and website
+function guessSocialMediaLinks(businessName, website) {
+  // Clean business name for social media handles
+  const cleanName = businessName
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '') // Remove special chars
+    .replace(/\s+/g, ''); // Remove spaces
+
+  // Try to extract domain name as alternative handle
+  let domainHandle = '';
+  if (website) {
+    try {
+      const url = new URL(website.startsWith('http') ? website : `https://${website}`);
+      domainHandle = url.hostname
+        .replace('www.', '')
+        .replace(/\.(com|net|org|co|ca|us)$/i, '')
+        .replace(/[^a-z0-9]/g, '');
+    } catch (e) {
+      // Invalid URL, skip domain extraction
+    }
+  }
+
+  // Common variations to try
+  const handles = [
+    cleanName, // adamspizza
+    domainHandle, // adamspizza (from adamspizza.com)
+    businessName.toLowerCase().replace(/\s+/g, ''), // adams pizza -> adamspizza
+    businessName.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ''), // adam's pizza -> adamspizza
+  ].filter(h => h && h.length > 0); // Remove empty
+
+  // Remove duplicates
+  const uniqueHandles = [...new Set(handles)];
+
+  // Generate probable URLs
+  return {
+    instagram: uniqueHandles.map(h => `https://instagram.com/${h}`),
+    facebook: uniqueHandles.map(h => `https://facebook.com/${h}`),
+    twitter: uniqueHandles.map(h => `https://twitter.com/${h}`),
+    linkedin: uniqueHandles.map(h => `https://linkedin.com/company/${h}`)
+  };
+}
+
+// Verify if a social media URL actually exists
+// Uses HEAD request to check without downloading content
+async function verifySocialMediaUrl(url) {
+  try {
+    // Use fetch with no-cors mode to avoid CORS issues
+    // This will return opaque response but we can check if it loads
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+
+    const response = await fetch(url, {
+      method: 'HEAD',
+      mode: 'no-cors',
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    // In no-cors mode, we get an opaque response
+    // If it doesn't throw, the URL likely exists
+    return true;
+
+  } catch (error) {
+    // URL doesn't exist or timed out
+    return false;
+  }
+}
+
+// Verify all guessed social media links and return only valid ones
+async function verifyAndFilterSocialLinks(guessedLinks) {
+  const verified = {
+    instagram: '',
+    facebook: '',
+    linkedin: '',
+    twitter: ''
+  };
+
+  // Check each platform's variations in order of likelihood
+  for (const [platform, urls] of Object.entries(guessedLinks)) {
+    for (const url of urls) {
+      const isValid = await verifySocialMediaUrl(url);
+      if (isValid) {
+        verified[platform] = url;
+        console.log(`✅ Found valid ${platform}: ${url}`);
+        break; // Stop checking variations once we find a valid one
+      }
+    }
+  }
+
+  return verified;
+}
+
+// Fetch website HTML with fallback CORS proxies
+async function fetchWithFallbackProxies(url, timeout = 10000) {
+  // List of CORS proxies to try (in order)
+  // corsproxy.io primary (100% success rate), allorigins.win backup (59% success rate)
+  const proxies = [
+    (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
+  ];
+
+  for (let i = 0; i < proxies.length; i++) {
+    const proxyUrl = proxies[i](url);
+    const proxyName = ['corsproxy.io', 'allorigins.win', 'codetabs.com'][i];
+
+    try {
+      console.log(`🌐 Trying proxy ${i + 1}/${proxies.length} (${proxyName}) for: ${url}`);
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+      const response = await fetch(proxyUrl, {
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const html = await response.text();
+        console.log(`✅ Success with ${proxyName} - fetched ${html.length} bytes`);
+        return html;
+      } else {
+        console.warn(`❌ ${proxyName} returned status ${response.status}`);
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        console.warn(`⏱️ ${proxyName} timeout after ${timeout}ms`);
+      } else {
+        console.warn(`❌ ${proxyName} error: ${err.message}`);
+      }
+    }
+  }
+
+  // All proxies failed
+  throw new Error('All CORS proxies failed');
+}
+
+// Extract email from website using CORS proxy
+async function extractEmailFromWebsite(websiteUrl) {
+  if (!websiteUrl) return '';
+
+  try {
+    // Ensure URL has protocol
+    const url = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`;
+
+    console.log(`📧 Attempting to extract email from: ${url}`);
+
+    // Use fallback CORS proxies to fetch the website content
+    const html = await fetchWithFallbackProxies(url, 10000);
+
+    // Email regex patterns (ordered by specificity)
+    const emailPatterns = [
+      // mailto: links
+      /mailto:([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi,
+      // Email addresses in text
+      /\b[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+\b/gi
+    ];
+
+    const emails = new Set();
+
+    // Try each pattern
+    for (const pattern of emailPatterns) {
+      const matches = html.matchAll(pattern);
+      for (const match of matches) {
+        const email = match[1] || match[0];
+
+        // Filter out common non-business emails and generic placeholders
+        const invalidDomains = [
+          'example.com',
+          'domain.com',
+          'email.com',
+          'sentry.io',
+          'facebook.com',
+          'google.com',
+          'twitter.com',
+          'linkedin.com',
+          'instagram.com',
+          'wix.com',
+          'squarespace.com',
+          'wordpress.com'
+        ];
+
+        // Filter out generic/placeholder email prefixes
+        const genericPrefixes = [
+          'office@',
+          'info@',
+          'contact@',
+          'admin@',
+          'support@',
+          'sales@',
+          'hello@',
+          'mail@',
+          'email@',
+          'noreply@',
+          'no-reply@',
+          'webmaster@',
+          'postmaster@'
+        ];
+
+        const domain = email.split('@')[1];
+        const lowerEmail = email.toLowerCase();
+
+        // Skip if domain is invalid
+        if (invalidDomains.some(d => domain && domain.includes(d))) {
+          return;
+        }
+
+        // Skip if it's a generic placeholder (only if it matches exactly)
+        // But allow them if they're on the business's own domain
+        const isGenericPrefix = genericPrefixes.some(prefix => lowerEmail.startsWith(prefix));
+
+        // Allow generic prefixes if the domain looks like a business domain
+        // (not a generic email provider like gmail, yahoo, etc.)
+        const isBusinessDomain = !['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'aol.com'].includes(domain);
+
+        if (!isGenericPrefix || isBusinessDomain) {
+          emails.add(lowerEmail);
+        }
+      }
+    }
+
+    // Return first found email (most likely to be legitimate)
+    const emailArray = Array.from(emails);
+    if (emailArray.length > 0) {
+      console.log(`✅ Found email: ${emailArray[0]}`);
+      return emailArray[0];
+    }
+
+    console.log(`❌ No email found on website`);
+    return '';
+
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      console.warn(`Email extraction timeout for ${websiteUrl}`);
+    } else {
+      console.warn(`Email extraction error for ${websiteUrl}:`, error.message);
+    }
+    return '';
+  }
+}
+
+// Extract social media links from website HTML (REAL links only, no guessing!)
+async function extractSocialMediaFromWebsite(websiteUrl) {
+  if (!websiteUrl) return { facebook: '', instagram: '', linkedin: '', twitter: '' };
+
+  try {
+    // Ensure URL has protocol
+    const url = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`;
+
+    console.log(`🔗 Attempting to extract social media from: ${url}`);
+
+    // Use fallback CORS proxies to fetch the website content
+    const html = await fetchWithFallbackProxies(url, 10000);
+
+    // Social media link patterns (look for actual href links in HTML)
+    // Updated to handle various formats: usernames, numeric IDs, profile URLs, page URLs
+    const facebookPattern = /href=["'](https?:\/\/(?:www\.)?facebook\.com\/(?:profile\.php\?id=)?[a-zA-Z0-9._\-\/]+?)["']/gi;
+    const instagramPattern = /href=["'](https?:\/\/(?:www\.)?instagram\.com\/[a-zA-Z0-9._]+\/?)["']/gi;
+    const linkedinPattern = /href=["'](https?:\/\/(?:www\.)?linkedin\.com\/(?:company|in)\/[a-zA-Z0-9._\-]+\/?)["']/gi;
+    const twitterPattern = /href=["'](https?:\/\/(?:www\.)?(?:twitter\.com|x\.com)\/[a-zA-Z0-9._]+\/?)["']/gi;
+
+    // Extract links
+    const facebookMatches = Array.from(html.matchAll(facebookPattern));
+    const instagramMatches = Array.from(html.matchAll(instagramPattern));
+    const linkedinMatches = Array.from(html.matchAll(linkedinPattern));
+    const twitterMatches = Array.from(html.matchAll(twitterPattern));
+
+    console.log(`🔍 Found ${facebookMatches.length} Facebook, ${instagramMatches.length} Instagram, ${linkedinMatches.length} LinkedIn, ${twitterMatches.length} Twitter links`);
+
+    // Filter out common non-business pages (share buttons, generic pages, etc.)
+    const excludePatterns = [
+      /facebook\.com\/sharer/i,
+      /facebook\.com\/share/i,
+      /facebook\.com\/pages/i,
+      /instagram\.com\/explore/i,
+      /instagram\.com\/accounts/i,
+      /twitter\.com\/share/i,
+      /twitter\.com\/intent/i,
+      /linkedin\.com\/shareArticle/i,
+      /linkedin\.com\/sharing/i
+    ];
+
+    const isValidLink = (url) => {
+      return !excludePatterns.some(pattern => pattern.test(url));
+    };
+
+    // Get first valid match for each platform (most likely to be the business's official page)
+    const facebook = facebookMatches.find(m => isValidLink(m[1]))?.[1] || '';
+    const instagram = instagramMatches.find(m => isValidLink(m[1]))?.[1] || '';
+    const linkedin = linkedinMatches.find(m => isValidLink(m[1]))?.[1] || '';
+    const twitter = twitterMatches.find(m => isValidLink(m[1]))?.[1] || '';
+
+    // Log what we found
+    const foundPlatforms = [];
+    if (facebook) {
+      foundPlatforms.push('Facebook');
+      console.log(`  ✓ Facebook: ${facebook}`);
+    }
+    if (instagram) {
+      foundPlatforms.push('Instagram');
+      console.log(`  ✓ Instagram: ${instagram}`);
+    }
+    if (linkedin) {
+      foundPlatforms.push('LinkedIn');
+      console.log(`  ✓ LinkedIn: ${linkedin}`);
+    }
+    if (twitter) {
+      foundPlatforms.push('Twitter/X');
+      console.log(`  ✓ Twitter: ${twitter}`);
+    }
+
+    if (foundPlatforms.length > 0) {
+      console.log(`✅ Found social media: ${foundPlatforms.join(', ')}`);
+    } else {
+      console.log(`❌ No social media links found on website`);
+    }
+
+    return { facebook, instagram, linkedin, twitter };
+
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      console.warn(`Social media extraction timeout for ${websiteUrl}`);
+    } else {
+      console.warn(`Social media extraction error for ${websiteUrl}:`, error.message);
+    }
+    return { facebook: '', instagram: '', linkedin: '', twitter: '' };
+  }
+}
+
+// 9x12Pro Smart Enrichment - Our custom website scraper
+// Scrapes business websites for emails, social media, contact names
+// FREE - no API costs, uses our own serverless function
+async function fetchSmartEnrichment(websiteUrl, businessName) {
+  try {
+    console.log('🎯 Smart enrichment for:', businessName, '- Website:', websiteUrl);
+
+    // Call our Vercel serverless function
+    const response = await fetch('/api/enrich-contact', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        websiteUrl: websiteUrl,
+        businessName: businessName
+      })
+    });
+
+    if (!response.ok) {
+      console.warn('Smart enrichment API failed:', await response.text());
+      return {
+        email: '',
+        phone: '',
+        facebook: '',
+        instagram: '',
+        linkedin: '',
+        twitter: '',
+        contactNames: [],
+        enriched: false,
+        source: '9x12pro-scraper',
+        pagesScraped: 0
+      };
+    }
+
+    const data = await response.json();
+    console.log('✅ Smart enrichment data:', data);
+
+    return data;
+
+  } catch(err) {
+    console.error('Error fetching smart enrichment:', err);
+    return {
+      email: '',
+      phone: '',
+      facebook: '',
+      instagram: '',
+      linkedin: '',
+      twitter: '',
+      contactNames: [],
+      enriched: false,
+      source: '9x12pro-scraper',
+      pagesScraped: 0
+    };
+  }
+}
+
+// Fetch enriched business details from Outscraper (phone, email, social media)
+// Uses Vercel serverless function as proxy to avoid CORS issues
+async function fetchOutscraperDetails(businessName, address, placeId) {
+  try {
+    // Build search query - use full address for best match
+    const query = `${businessName} ${address}`;
+
+    console.log('🔍 Outscraper enrichment for:', businessName);
+
+    // Call our Vercel serverless function
+    const response = await fetch('/api/outscraper', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        query: query,
+        limit: 1
+      })
+    });
+
+    if (!response.ok) {
+      console.warn('Outscraper API failed:', await response.text());
+      return {
+        phone: '',
+        website: '',
+        email: '',
+        facebook: '',
+        instagram: '',
+        enriched: false,
+        source: 'outscraper',
+        cost: 0
+      };
+    }
+
+    const data = await response.json();
+    console.log('✅ Outscraper data:', data);
+
+    return data;
+
+  } catch(err) {
+    console.error('Error fetching Outscraper details:', err);
+    return {
+      phone: '',
+      website: '',
+      email: '',
+      facebook: '',
+      instagram: '',
+      enriched: false,
+      source: 'outscraper',
+      cost: 0
+    };
+  }
+}
+
+/* ========= PROSPECT SCORING & ENRICHMENT QUEUE ========= */
+
+/**
+ * Calculate Prospect Score (0-100)
+ * Determines how likely a business is to buy advertising
+ * Based on: business type, review count, rating, online presence
+ */
+function calculateProspectScore(business) {
+  let score = 0;
+
+  // SIMPLIFIED LEAD SCORING - Based on real-world 9x12 sales experience
+  // Focus: Service businesses, established but not too big, missing online presence
+
+  // 1. BUSINESS TYPE (0-40 points) - Most important factor
+  // Service businesses with recurring customers are IDEAL for local advertising
+  const serviceTypes = [
+    'plumber', 'plumbing', 'electrician', 'electrical', 'hvac', 'heating', 'cooling', 'air_conditioning',
+    'roofing', 'roofer', 'contractor', 'general_contractor', 'remodeling',
+    'landscaper', 'landscaping', 'lawn_care', 'lawn_service', 'tree_service',
+    'pest_control', 'exterminator', 'cleaning_service', 'carpet_cleaning',
+    'painter', 'painting', 'flooring', 'tile', 'concrete',
+    'garage_door', 'window', 'gutter', 'siding',
+    'auto_repair', 'car_repair', 'mechanic', 'auto_body', 'tire',
+    'restaurant', 'cafe', 'bakery', 'pizza',
+    'hair_salon', 'beauty_salon', 'barber', 'spa', 'nail_salon',
+    'gym', 'fitness', 'yoga', 'massage',
+    'dentist', 'dental', 'chiropractor', 'physical_therapy',
+    'real_estate', 'insurance', 'lawyer', 'attorney', 'accountant'
+  ];
+
+  const types = business.types || [];
+  const isService = types.some(type =>
+    serviceTypes.some(serviceType => type.toLowerCase().includes(serviceType))
+  );
+  score += isService ? 40 : 10; // Big penalty for non-service businesses
+
+  // 2. REVIEW COUNT (0-30 points) - The SWEET SPOT
+  // 20-200 reviews = Established enough to have budget, small enough to need help
+  const reviews = business.userRatingsTotal || 0;
+  if (reviews >= 20 && reviews <= 200) {
+    score += 30; // PERFECT - This is your target market
+  } else if (reviews >= 10 && reviews < 20) {
+    score += 20; // Good - Growing business
+  } else if (reviews > 200 && reviews < 500) {
+    score += 10; // Too established, probably has marketing figured out
+  } else if (reviews >= 500) {
+    score += 0; // Large chain, wrong target
+  } else {
+    score += 5; // Very new, might not have budget yet
+  }
+
+  // 3. GAP OPPORTUNITY (0-20 points) - Missing online presence
+  // If they don't have strong digital, they NEED traditional marketing like postcards
+  const hasWebsite = !!business.website;
+  const hasSocial = !!(business.facebook || business.instagram);
+
+  if (!hasWebsite) score += 10; // No website = Big gap
+  if (!hasSocial) score += 10; // No social = Big gap
+
+  // 4. RATING (0-10 points) - Room for improvement
+  // 4.0-4.5 stars = Good but not great, need to compete harder
+  const rating = business.rating || 0;
+  if (rating >= 4.0 && rating <= 4.5) {
+    score += 10; // Perfect - They're good but have competition pressure
+  } else if (rating >= 3.5 && rating < 4.0) {
+    score += 8; // Lower rating = Need to win back customers
+  } else if (rating > 4.5) {
+    score += 5; // High rating is good, but less urgency
+  } else {
+    score += 0; // Very low or no rating
+  }
+
+  return Math.min(score, 100); // Cap at 100
+}
+
+/**
+ * Calculate Contact Score (0-10)
+ * Measures how many contact methods are available
+ */
+function calculateContactScore(business) {
+  let score = 0;
+
+  if (business.phone) score += 2;
+  if (business.email) score += 2;
+  if (business.website) score += 2;
+  if (business.facebook) score += 1;
+  if (business.instagram) score += 1;
+  if (business.linkedin) score += 1;
+  if (business.twitter) score += 1;
+
+  return Math.min(score, 10);
+}
+
+/**
+ * Get score category and badge
+ */
+function getScoreCategory(score) {
+  if (score >= 80) return { label: 'HOT LEAD', emoji: '🔥', color: 'red' };
+  if (score >= 60) return { label: 'WARM LEAD', emoji: '⭐', color: 'orange' };
+  if (score >= 40) return { label: 'COLD LEAD', emoji: '❄️', color: 'blue' };
+  return { label: 'LOW PRIORITY', emoji: '💤', color: 'gray' };
+}
+
+/**
+ * EnrichmentQueue - Background enrichment processor
+ * Processes businesses in order of prospect score priority
+ */
+class EnrichmentQueue {
+  constructor() {
+    this.queue = [];
+    this.processing = [];
+    this.completed = [];
+    this.failed = [];
+    this.concurrency = 3; // Process 3 at a time
+    this.isRunning = false;
+  }
+
+  /**
+   * Add businesses to enrichment queue
+   * Automatically sorts by priority score (high to low)
+   */
+  async add(businesses) {
+    // Sort by priority score (high to low)
+    const sorted = businesses
+      .filter(b => b.website && !b.enriched) // Only enrich businesses with websites that haven't been enriched
+      .map(b => ({
+        ...b,
+        leadScore: b.leadScore || calculateProspectScore(b)
+      }))
+      .sort((a, b) => b.leadScore - a.leadScore);
+
+    console.log(`📋 Adding ${sorted.length} businesses to enrichment queue (sorted by priority)`);
+
+    this.queue.push(...sorted);
+
+    if (!this.isRunning) {
+      this.processQueue();
+    }
+  }
+
+  /**
+   * Process queue with concurrency control
+   */
+  async processQueue() {
+    this.isRunning = true;
+
+    while (this.queue.length > 0 || this.processing.length > 0) {
+      // Start new enrichments up to concurrency limit
+      while (this.processing.length < this.concurrency && this.queue.length > 0) {
+        const business = this.queue.shift();
+        this.processing.push(business);
+        this.enrichOne(business); // Don't await - run in parallel
+      }
+
+      // Wait a bit before checking again
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    this.isRunning = false;
+    console.log(`✅ Enrichment queue completed: ${this.completed.length} successful, ${this.failed.length} failed`);
+  }
+
+  /**
+   * Enrich a single business
+   */
+  async enrichOne(business) {
+    try {
+      console.log(`🎯 Enriching: ${business.name} (Score: ${business.leadScore})`);
+
+      // Update UI to show enriching status
+      this.updateBusinessCard(business.placeId, { status: 'enriching' });
+
+      // Fetch enrichment data
+      const enrichedData = await fetchSmartEnrichment(business.website, business.name);
+
+      // Merge enriched data with existing business data
+      const enrichedBusiness = {
+        ...business,
+        email: enrichedData.email || business.email || '',
+        phone: enrichedData.phone || business.phone || '',
+        facebook: enrichedData.facebook || business.facebook || '',
+        instagram: enrichedData.instagram || business.instagram || '',
+        linkedin: enrichedData.linkedin || business.linkedin || '',
+        twitter: enrichedData.twitter || business.twitter || '',
+        contactNames: enrichedData.contactNames || [],
+        enriched: true,
+        enrichmentSource: '9x12pro-scraper',
+        pagesScraped: enrichedData.pagesScraped || 0,
+        contactScore: calculateContactScore({
+          phone: enrichedData.phone || business.phone,
+          email: enrichedData.email,
+          website: business.website,
+          facebook: enrichedData.facebook,
+          instagram: enrichedData.instagram,
+          linkedin: enrichedData.linkedin,
+          twitter: enrichedData.twitter
+        })
+      };
+
+      // Recalculate lead score with enriched data
+      enrichedBusiness.leadScore = calculateProspectScore(enrichedBusiness);
+
+      // Update UI with enriched data
+      this.updateBusinessCard(business.placeId, { status: 'enriched', data: enrichedBusiness });
+
+      // Move from processing to completed
+      this.processing = this.processing.filter(b => b.placeId !== business.placeId);
+      this.completed.push(enrichedBusiness);
+
+      console.log(`✅ Enriched: ${business.name} - Contact Score: ${enrichedBusiness.contactScore}/10`);
+
+    } catch (err) {
+      console.error(`❌ Enrichment failed for ${business.name}:`, err);
+
+      // Update UI to show failed status
+      this.updateBusinessCard(business.placeId, { status: 'failed' });
+
+      // Move from processing to failed
+      this.processing = this.processing.filter(b => b.placeId !== business.placeId);
+      this.failed.push(business);
+    }
+  }
+
+  /**
+   * Update business card in UI (both Prospect Pool and Kanban)
+   */
+  updateBusinessCard(placeId, update) {
+    // Update in Prospect Pool
+    const poolCard = document.querySelector(`.prospect-card[data-place-id="${placeId}"]`);
+    if (poolCard && update.status) {
+      const statusIndicator = poolCard.querySelector('.enrichment-status');
+      if (statusIndicator) {
+        if (update.status === 'enriching') {
+          statusIndicator.innerHTML = '<span class="text-xs text-blue-600">🎯 Enriching...</span>';
+        } else if (update.status === 'enriched' && update.data) {
+          // Update card with enriched data
+          this.renderEnrichedCard(poolCard, update.data);
+        } else if (update.status === 'failed') {
+          statusIndicator.innerHTML = '<span class="text-xs text-red-600">❌ Failed</span>';
+        }
+      }
+    }
+
+    // Update in Kanban if exists
+    const kanbanCard = document.querySelector(`.kanban-business-card[data-place-id="${placeId}"]`);
+    if (kanbanCard && update.status === 'enriched' && update.data) {
+      this.renderEnrichedKanbanCard(kanbanCard, update.data);
+    }
+
+    // Update in prospectPoolState
+    if (update.status === 'enriched' && update.data) {
+      const poolIndex = prospectPoolState.prospects.findIndex(p => p.placeId === placeId);
+      if (poolIndex !== -1) {
+        prospectPoolState.prospects[poolIndex] = update.data;
+      }
+    }
+  }
+
+  /**
+   * Render enriched prospect pool card
+   */
+  renderEnrichedCard(cardElement, business) {
+    const scoreCategory = getScoreCategory(business.leadScore);
+
+    // Update score badge
+    const scoreBadge = cardElement.querySelector('.score-badge');
+    if (scoreBadge) {
+      scoreBadge.innerHTML = `
+        <span class="text-${scoreCategory.color}-600 font-bold">${scoreCategory.emoji} ${scoreCategory.label}</span>
+        <span class="text-gray-600">Score: ${business.leadScore}/100</span>
+      `;
+    }
+
+    // Update enrichment status
+    const statusIndicator = cardElement.querySelector('.enrichment-status');
+    if (statusIndicator) {
+      statusIndicator.innerHTML = `
+        <span class="text-xs text-green-600">✅ Enriched</span>
+        <span class="text-xs text-gray-600">Contact Score: ${business.contactScore}/10</span>
+      `;
+    }
+
+    // Update contact methods
+    const contactMethods = cardElement.querySelector('.contact-methods');
+    if (contactMethods) {
+      let methods = [];
+      if (business.phone) methods.push(`<span title="Phone">☎️</span>`);
+      if (business.email) methods.push(`<span title="Email">✉️</span>`);
+      if (business.website) methods.push(`<span title="Website">🌐</span>`);
+      if (business.facebook) methods.push(`<span title="Facebook">📘</span>`);
+      if (business.instagram) methods.push(`<span title="Instagram">📷</span>`);
+      if (business.linkedin) methods.push(`<span title="LinkedIn">💼</span>`);
+      if (business.twitter) methods.push(`<span title="Twitter">🐦</span>`);
+
+      contactMethods.innerHTML = methods.join(' ');
+    }
+  }
+
+  /**
+   * Render enriched kanban card
+   */
+  renderEnrichedKanbanCard(cardElement, business) {
+    // Similar to renderEnrichedCard but for kanban layout
+    // Update any enriched data display in kanban cards
+    const contactInfo = cardElement.querySelector('.contact-info');
+    if (contactInfo && business.email) {
+      contactInfo.innerHTML += `<div class="text-xs text-gray-600">✉️ ${business.email}</div>`;
+    }
+  }
+
+  /**
+   * Get queue stats
+   */
+  getStats() {
+    return {
+      queued: this.queue.length,
+      processing: this.processing.length,
+      completed: this.completed.length,
+      failed: this.failed.length,
+      isRunning: this.isRunning
+    };
+  }
+
+  /**
+   * Clear queue
+   */
+  clear() {
+    this.queue = [];
+    this.processing = [];
+    this.completed = [];
+    this.failed = [];
+    this.isRunning = false;
+  }
+}
+
+// Global enrichment queue instance
+const enrichmentQueue = new EnrichmentQueue();
+
+async function runAutoPopulate() {
+  const zipCode = document.getElementById('autoPopZipCode').value.trim();
+  const category = document.getElementById('autoPopCategory').value;
+  const radius = parseInt(document.getElementById('autoPopRadius').value);
+
+  // Validation
+  if (!zipCode || !/^\d{5}$/.test(zipCode)) {
+    toast('Please enter a valid 5-digit zip code', false);
+    return;
+  }
+
+  if (!category) {
+    toast('Please select a business category', false);
+    return;
+  }
+
+  // Disable button during search
+  const btn = document.getElementById('btnRunAutoPopulate');
+  const originalText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Searching...';
+
+  try {
+    const businesses = await searchGooglePlaces(zipCode, category, radius);
+
+    if (businesses.length === 0) {
+      toast('No businesses found in this area', false);
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+      return;
+    }
+
+    // HYBRID AUTO-ENRICHMENT STRATEGY
+    // AUTO-ENRICHMENT - ENRICH ALL BUSINESSES
+    const businessesWithWebsites = businesses.filter(b => b.website && !b.enriched);
+    console.log(`🎯 Enriching ${businessesWithWebsites.length} businesses...`);
+
+    if (businessesWithWebsites.length > 0) {
+      // Enrich ALL businesses with websites
+      for (let i = 0; i < businessesWithWebsites.length; i++) {
+        const business = businessesWithWebsites[i];
+        btn.innerHTML = `🎯 Enriching ${business.name}... (${i + 1}/${businessesWithWebsites.length})`;
+
+        try {
+          const enrichedData = await fetchSmartEnrichment(business.website, business.name);
+
+          // Update business in cache
+          const cacheKey = `${zipCode}-${category}`;
+          const cached = placesCache.searches[cacheKey];
+          if (cached && cached.cachedData) {
+            const businessIndex = cached.cachedData.findIndex(b => b.placeId === business.placeId);
+            if (businessIndex !== -1) {
+              cached.cachedData[businessIndex] = {
+                ...cached.cachedData[businessIndex],
+                email: enrichedData.email || '',
+                // ALWAYS keep Google's phone number - more reliable than scraped data
+                phone: cached.cachedData[businessIndex].phone || enrichedData.phone || '',
+                facebook: enrichedData.facebook || '',
+                instagram: enrichedData.instagram || '',
+                linkedin: enrichedData.linkedin || '',
+                twitter: enrichedData.twitter || '',
+                contactNames: enrichedData.contactNames || [],
+                enriched: true,
+                enrichmentSource: '9x12pro-scraper',
+                pagesScraped: enrichedData.pagesScraped || 0,
+                contactScore: calculateContactScore({
+                  phone: cached.cachedData[businessIndex].phone, // Use Google's phone for scoring
+                  email: enrichedData.email,
+                  website: cached.cachedData[businessIndex].website,
+                  facebook: enrichedData.facebook,
+                  instagram: enrichedData.instagram,
+                  linkedin: enrichedData.linkedin,
+                  twitter: enrichedData.twitter
+                })
+              };
+
+              // Recalculate lead score with enriched data
+              cached.cachedData[businessIndex].leadScore = calculateProspectScore(cached.cachedData[businessIndex]);
+              cached.cachedData[businessIndex].scoreCategory = getScoreCategory(cached.cachedData[businessIndex].leadScore);
+            }
+          }
+
+          // Log progress
+          if ((i + 1) % 5 === 0 || i === businessesWithWebsites.length - 1) {
+            console.log(`✅ Enriched ${i + 1}/${businessesWithWebsites.length} businesses`);
+          }
+        } catch (err) {
+          console.error(`❌ Failed to enrich ${business.name}:`, err);
+        }
+      }
+
+      // Save all enriched data to cache
+      await savePlacesCache();
+      console.log(`✅ Enrichment complete! ${businessesWithWebsites.length} businesses enriched.`);
+    }
+
+    // Just cache results - searchGooglePlaces already handled caching
+    closeAutoPopulateModal();
+
+    // Show success modal with category breakdown (BEFORE enrichment toast)
+    const categorizedResults = { [category]: businesses.length };
+    showProspectSuccessModal(categorizedResults, businesses.length);
+
+    // Show enrichment status toast AFTER modal
+    if (businessesWithWebsites.length > 0) {
+      setTimeout(() => {
+        toast(`✅ All ${businessesWithWebsites.length} prospects enriched with emails & social media!`, true);
+      }, 500);
+    }
+
+    // Refresh Prospect Pool to show enriched data
+    const prospectsTab = document.querySelector('[data-content="prospects"]');
+    if (prospectsTab && !prospectsTab.classList.contains('hidden')) {
+      setTimeout(() => renderProspectPool(), 500);
+    }
+
+  } catch(err) {
+    console.error('Auto-populate error:', err);
+    toast('Search failed. Please try again.', false);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+  }
+}
+
+// Toggle custom category input
+function toggleBulkCustomCategory() {
+  const checkbox = document.getElementById('enableCustomCategory');
+  const input = document.getElementById('bulkCustomCategory');
+  input.disabled = !checkbox.checked;
+  if (checkbox.checked) {
+    input.focus();
+  } else {
+    input.value = '';
+  }
+}
+
+// Update quick API usage display in prospecting section
+function updateQuickApiUsage() {
+  const stats = getApiQuota();
+  const usageEl = document.getElementById('quickApiUsage');
+  const resetEl = document.getElementById('quickApiReset');
+
+  if (usageEl) {
+    usageEl.textContent = `${stats.used.toLocaleString()} / ${stats.total.toLocaleString()}`;
+  }
+
+  if (resetEl) {
+    const nextMonth = new Date();
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    nextMonth.setDate(1);
+    const monthName = nextMonth.toLocaleString('en-US', { month: 'short' });
+    resetEl.textContent = `Resets ${monthName} 1`;
+  }
+}
+
+// Toggle all category checkboxes
+function toggleAllCategories() {
+  const selectAllCheckbox = document.getElementById('selectAllCategories');
+  const categoryCheckboxes = document.querySelectorAll('.category-checkbox');
+
+  categoryCheckboxes.forEach(checkbox => {
+    checkbox.checked = selectAllCheckbox.checked;
+  });
+}
+
+// Clear all search caches (localStorage + cloud)
+async function clearAllSearchCaches() {
+  if (!confirm('⚠️ This will clear ALL cached searches and prospect data. Your clients will NOT be affected. Continue?')) {
+    return;
+  }
+
+  try {
+    // Clear localStorage
+    localStorage.removeItem('mailslot-places-cache');
+    localStorage.removeItem('categorizedProspects');
+    localStorage.removeItem('manualProspects');
+    localStorage.removeItem('notInterestedBusinesses');
+
+    // Clear in-memory cache
+    placesCache.searches = {};
+    prospectPoolState.selectedIds.clear();
+
+    // Clear cloud storage
+    await saveToCloud('placesCache', {});
+    await saveToCloud('categorizedProspects', {});
+    await saveToCloud('manualProspects', []);
+    await saveToCloud('notInterestedBusinesses', []);
+
+    toast('✅ All searches cleared! Reloading...', true);
+
+    // Reload page after a moment
+    setTimeout(() => location.reload(), 1000);
+  } catch (error) {
+    console.error('Error clearing caches:', error);
+    toast('❌ Error clearing caches. Check console.', false);
+  }
+}
+
+// Find neighboring ZIP codes using the zip-neighbors API
+async function findNeighborZips(zipCode) {
+  zipCode = zipCode.trim();
+
+  // Validate ZIP code format
+  if (!/^\d{5}$/.test(zipCode)) {
+    toast('Please enter a valid 5-digit ZIP code', false);
+    return;
+  }
+
+  const container = document.getElementById('neighborZipsContainer');
+  const checkboxesDiv = document.getElementById('neighborZipsCheckboxes');
+  const countSpan = document.getElementById('selectedZipCount');
+
+  // Show loading state
+  checkboxesDiv.innerHTML = '<span class="text-purple-200">🔍 Finding nearby ZIP codes...</span>';
+  container.classList.remove('hidden');
+
+  try {
+    const response = await fetch('/api/zip-neighbors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ zipCode })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to find neighboring ZIP codes');
+    }
+
+    const data = await response.json();
+
+    // Build checkbox HTML - center ZIP first (pre-selected), then neighbors
+    let html = '';
+
+    // Center ZIP (always selected by default)
+    html += `
+      <label class="flex items-center gap-1 px-3 py-2 bg-green-500/30 border border-green-400/50 rounded-lg cursor-pointer hover:bg-green-500/40 transition">
+        <input type="checkbox" class="neighbor-zip-checkbox" value="${data.centerZip.zipCode}" checked onchange="updateSelectedZipCount()">
+        <span class="text-white font-semibold">${data.centerZip.zipCode}</span>
+        <span class="text-green-200 text-xs">${data.centerZip.city}</span>
+        <span class="text-green-300 text-xs font-bold">★</span>
+      </label>
+    `;
+
+    // Neighbor ZIPs (pre-selected up to 5 more, for total of 6)
+    data.neighbors.forEach((neighbor, index) => {
+      const isChecked = index < 5; // First 5 neighbors are checked by default
+      html += `
+        <label class="flex items-center gap-1 px-3 py-2 bg-white/20 border border-white/30 rounded-lg cursor-pointer hover:bg-white/30 transition">
+          <input type="checkbox" class="neighbor-zip-checkbox" value="${neighbor.zipCode}" ${isChecked ? 'checked' : ''} onchange="updateSelectedZipCount()">
+          <span class="text-white font-semibold">${neighbor.zipCode}</span>
+          <span class="text-purple-200 text-xs">${neighbor.city}</span>
+          <span class="text-purple-300 text-xs">${neighbor.distance}mi</span>
+        </label>
+      `;
+    });
+
+    checkboxesDiv.innerHTML = html;
+    updateSelectedZipCount();
+
+  } catch (error) {
+    console.error('Error finding neighbor ZIPs:', error);
+    checkboxesDiv.innerHTML = `<span class="text-red-300">❌ ${error.message}</span>`;
+  }
+}
+
+// Update the selected ZIP count display and enforce max of 6
+function updateSelectedZipCount() {
+  const checkboxes = document.querySelectorAll('.neighbor-zip-checkbox');
+  const checkedBoxes = document.querySelectorAll('.neighbor-zip-checkbox:checked');
+  const countSpan = document.getElementById('selectedZipCount');
+
+  const count = checkedBoxes.length;
+  countSpan.textContent = count;
+
+  // Visual feedback based on count
+  if (count === 0) {
+    countSpan.className = 'text-red-400 font-bold';
+  } else if (count > 6) {
+    countSpan.className = 'text-red-400 font-bold';
+  } else {
+    countSpan.className = 'text-green-400 font-bold';
+  }
+
+  // Disable unchecked boxes if we're at 6
+  checkboxes.forEach(cb => {
+    if (!cb.checked && count >= 6) {
+      cb.disabled = true;
+      cb.parentElement.classList.add('opacity-50');
+    } else {
+      cb.disabled = false;
+      cb.parentElement.classList.remove('opacity-50');
+    }
+  });
+}
+
+// Run bulk auto-populate with multiple categories - shows results in modal
+async function runBulkAutoPopulate() {
+  const radius = 8047; // 5 miles in meters
+
+  // Get selected ZIP codes from checkboxes (new approach) or fallback to input field
+  const neighborCheckboxes = document.querySelectorAll('.neighbor-zip-checkbox:checked');
+  let zipCodes = [];
+
+  if (neighborCheckboxes.length > 0) {
+    // Use selected neighbor ZIPs
+    neighborCheckboxes.forEach(cb => zipCodes.push(cb.value));
+  } else {
+    // Fallback: use the input field directly (for backwards compatibility)
+    const zipCodeInput = document.getElementById('bulkPopZipCode').value.trim();
+    zipCodes = zipCodeInput.split(',').map(z => z.trim()).filter(z => z);
+  }
+
+  // Validation
+  if (zipCodes.length === 0) {
+    toast('Please enter at least one ZIP code', false);
+    return;
+  }
+
+  // Validate all ZIP codes are 5 digits
+  const invalidZips = zipCodes.filter(z => !/^\d{5}$/.test(z));
+  if (invalidZips.length > 0) {
+    toast(`Invalid ZIP code(s): ${invalidZips.join(', ')}. Must be 5 digits.`, false);
+    return;
+  }
+
+  // Get selected categories
+  const categoryCheckboxes = document.querySelectorAll('.category-checkbox:checked');
+  const selectedCategories = [];
+
+  categoryCheckboxes.forEach(checkbox => {
+    if (checkbox.id === 'enableCustomCategory') {
+      // Handle custom category
+      const customInput = document.getElementById('bulkCustomCategory');
+      if (customInput.value.trim()) {
+        selectedCategories.push(customInput.value.trim());
+      }
+    } else {
+      selectedCategories.push(checkbox.value);
+    }
+  });
+
+  if (selectedCategories.length === 0) {
+    toast('Please select at least one business category', false);
+    return;
+  }
+
+  // Disable button during search
+  const btn = document.getElementById('btnRunBulkPopulate');
+  const originalText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Searching...';
+
+  try {
+    // Track all businesses found across all categories and ZIP codes
+    const allBusinesses = [];
+    const seenPlaceIds = new Set();
+    const categorizedResults = {}; // Track counts per category
+    let successfulSearches = 0;
+    let failedSearches = 0;
+    const totalSearches = zipCodes.length * selectedCategories.length;
+
+    // Search each ZIP code and category combination
+    for (const zipCode of zipCodes) {
+      for (const category of selectedCategories) {
+        try {
+          const currentSearch = successfulSearches + failedSearches + 1;
+          btn.innerHTML = `⏳ Searching ${category} in ${zipCode}... (${currentSearch}/${totalSearches})`;
+
+          const businesses = await searchGooglePlaces(zipCode, category, radius, {
+            currentSearch: currentSearch,
+            totalSearches: totalSearches,
+            totalCategories: selectedCategories.length,
+            totalZipCodes: zipCodes.length,
+            totalBusinessesFound: allBusinesses.length // Running total
+          });
+
+          let categoryCount = 0;
+          // Deduplicate by place ID and filter out "not interested"
+          businesses.forEach(business => {
+            if (!seenPlaceIds.has(business.placeId) && !notInterestedState.placeIds.has(business.placeId)) {
+              seenPlaceIds.add(business.placeId);
+              allBusinesses.push(business);
+              categoryCount++;
+            }
+          });
+
+          if (categoryCount > 0) {
+            categorizedResults[category] = (categorizedResults[category] || 0) + categoryCount;
+          }
+
+          successfulSearches++;
+
+          // Small delay between requests to be polite to the API
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (err) {
+          console.error(`Failed to search category ${category} in ${zipCode}:`, err);
+          failedSearches++;
+        }
+      }
+    }
+
+    // Remove progress overlay after all searches complete
+    const existingProgressOverlay = document.getElementById('enrichment-progress-overlay');
+    if (existingProgressOverlay && existingProgressOverlay.parentNode) {
+      existingProgressOverlay.remove();
+    }
+
+    if (allBusinesses.length === 0) {
+      toast(`Searched ${selectedCategories.length} categories in ${zipCodes.length} ZIP code${zipCodes.length > 1 ? 's' : ''}. No new businesses found.`, false);
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+      updateQuickApiUsage();
+
+      // Still switch to Prospect Pool to show existing cached searches
+      setTimeout(() => {
+        switchTab('prospects');
+      }, 1500);
+      return;
+    }
+
+    // Check which businesses already exist
+    const existingLeads = new Set();
+    Object.values(kanbanState.columns).forEach(column => {
+      if (Array.isArray(column)) {
+        column.forEach(lead => {
+          if (lead && lead.placeId) {
+            existingLeads.add(lead.placeId);
+          }
+        });
+      }
+    });
+
+    Object.values(crmState.clients).forEach(client => {
+      if (client.placeId) {
+        existingLeads.add(client.placeId);
+      }
+    });
+
+    // Mark businesses with status
+    allBusinesses.forEach(business => {
+      business.alreadyExists = existingLeads.has(business.placeId);
+    });
+
+    // AUTO-ENRICHMENT STRATEGY - ENRICH ALL BUSINESSES
+    const businessesWithWebsites = allBusinesses.filter(b => b.website && !b.enriched);
+
+    if (businessesWithWebsites.length > 0) {
+      console.log(`🎯 Enriching ${businessesWithWebsites.length} businesses...`);
+
+      // Enrich ALL businesses with websites
+      for (let i = 0; i < businessesWithWebsites.length; i++) {
+        const business = businessesWithWebsites[i];
+        btn.innerHTML = `🎯 Enriching ${business.name}... (${i + 1}/${businessesWithWebsites.length})`;
+
+        try {
+          const enrichedData = await fetchSmartEnrichment(business.website, business.name);
+
+          // Update business in cache
+          const cacheKey = `${business.searchedZipCode}-${business.category}`;
+          const cached = placesCache.searches[cacheKey];
+          if (cached && cached.cachedData) {
+            const businessIndex = cached.cachedData.findIndex(b => b.placeId === business.placeId);
+            if (businessIndex !== -1) {
+              cached.cachedData[businessIndex] = {
+                ...cached.cachedData[businessIndex],
+                email: enrichedData.email || '',
+                // ALWAYS keep Google's phone number - more reliable than scraped data
+                phone: cached.cachedData[businessIndex].phone || enrichedData.phone || '',
+                facebook: enrichedData.facebook || '',
+                instagram: enrichedData.instagram || '',
+                linkedin: enrichedData.linkedin || '',
+                twitter: enrichedData.twitter || '',
+                contactNames: enrichedData.contactNames || [],
+                enriched: true,
+                enrichmentSource: '9x12pro-scraper',
+                pagesScraped: enrichedData.pagesScraped || 0,
+                contactScore: calculateContactScore({
+                  phone: cached.cachedData[businessIndex].phone, // Use Google's phone for scoring
+                  email: enrichedData.email,
+                  website: cached.cachedData[businessIndex].website,
+                  facebook: enrichedData.facebook,
+                  instagram: enrichedData.instagram,
+                  linkedin: enrichedData.linkedin,
+                  twitter: enrichedData.twitter
+                })
+              };
+
+              // Recalculate lead score with enriched data
+              cached.cachedData[businessIndex].leadScore = calculateProspectScore(cached.cachedData[businessIndex]);
+              cached.cachedData[businessIndex].scoreCategory = getScoreCategory(cached.cachedData[businessIndex].leadScore);
+            }
+          }
+
+          // Log progress
+          if ((i + 1) % 5 === 0 || i === businessesWithWebsites.length - 1) {
+            console.log(`✅ Enriched ${i + 1}/${businessesWithWebsites.length} businesses`);
+          }
+        } catch (err) {
+          console.error(`❌ Failed to enrich ${business.name}:`, err);
+        }
+      }
+
+      // Save all enriched data to cache
+      await savePlacesCache();
+      console.log(`✅ Enrichment complete! ${businessesWithWebsites.length} businesses enriched.`);
+    }
+
+    // Just cache results - don't auto-add to prospecting
+    // Update API usage display
+    updateQuickApiUsage();
+
+    // Show success modal with category breakdown (BEFORE enrichment toast)
+    showProspectSuccessModal(categorizedResults, allBusinesses.length);
+
+    // Show enrichment status toast AFTER modal
+    if (businessesWithWebsites.length > 0) {
+      setTimeout(() => {
+        toast(`✅ All ${businessesWithWebsites.length} prospects enriched with emails & social media!`, true);
+      }, 500);
+    }
+
+    // Refresh Prospect Pool to show enriched data if currently viewing it
+    const prospectsTab = document.querySelector('[data-content="prospects"]');
+    if (prospectsTab && !prospectsTab.classList.contains('hidden')) {
+      setTimeout(() => renderProspectPool(), 500);
+    }
+
+  } catch(err) {
+    console.error('Bulk auto-populate error:', err);
+    toast('Search failed. Please try again.', false);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+  }
+}
+
+/* ========= PROSPECTS RESULTS MODAL FUNCTIONS ========= */
+
+function openProspectsResultsModal() {
+  const modal = document.getElementById('prospectsResultsModal');
+  modal.style.display = 'flex';
+  modal.setAttribute('aria-hidden', 'false');
+  trapModalFocus(modal);
+}
+
+function closeProspectsResultsModal() {
+  const modal = document.getElementById('prospectsResultsModal');
+  modal.style.display = 'none';
+  modal.setAttribute('aria-hidden', 'true');
+  releaseModalFocus(modal);
+}
+
+function renderProspectsResults() {
+  const { businesses, selectedIds } = prospectsResultsState;
+  const container = document.getElementById('prospectsResultsContainer');
+  const statsContainer = document.getElementById('prospectsResultsStats');
+
+  // Calculate stats
+  const newBusinesses = businesses.filter(b => !b.alreadyExists).length;
+  const existingBusinesses = businesses.filter(b => b.alreadyExists).length;
+  const selectedCount = selectedIds.size;
+
+  // Render stats
+  statsContainer.innerHTML = `
+    <div class="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+      <div class="text-2xl font-bold text-green-600">${newBusinesses}</div>
+      <div class="text-xs text-green-800">New Businesses</div>
+    </div>
+    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 text-center">
+      <div class="text-2xl font-bold text-gray-600">${existingBusinesses}</div>
+      <div class="text-xs text-gray-800">Already in System</div>
+    </div>
+    <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-3 text-center">
+      <div class="text-2xl font-bold text-indigo-600">${selectedCount}</div>
+      <div class="text-xs text-indigo-800">Selected to Add</div>
+    </div>
+  `;
+
+  // Render business list
+  container.innerHTML = businesses.map(business => {
+    const isSelected = selectedIds.has(business.placeId);
+    const isDisabled = business.alreadyExists;
+
+    return `
+      <div class="border rounded-lg p-3 ${isDisabled ? 'bg-gray-50 opacity-60' : 'bg-white hover:shadow-md'} transition">
+        <div class="flex items-start gap-3">
+          <input
+            type="checkbox"
+            ${isSelected ? 'checked' : ''}
+            ${isDisabled ? 'disabled' : ''}
+            onchange="toggleProspectSelection('${business.placeId}')"
+            class="mt-1 w-5 h-5 text-indigo-600 rounded cursor-pointer"
+          />
+          <div class="flex-1 min-w-0">
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex-1 min-w-0">
+                <h4 class="font-semibold text-gray-900 truncate">${esc(business.name)}</h4>
+                <p class="text-sm text-gray-600 mt-0.5">${esc(business.address)}</p>
+                <div class="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                  ${business.rating ? `<span>⭐ ${business.rating} (${business.userRatingsTotal || 0} reviews)</span>` : ''}
+                </div>
+              </div>
+              ${isDisabled
+                ? '<span class="text-xs font-medium px-2 py-1 bg-gray-200 text-gray-600 rounded whitespace-nowrap">Already in System</span>'
+                : `<button onclick="markNotInterested('${business.placeId}')" class="text-xs font-medium px-2 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100 whitespace-nowrap">Not Interested</button>`
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Update button text
+  const addButton = document.getElementById('btnAddSelectedProspects');
+  addButton.textContent = `Add ${selectedCount} to Pipeline`;
+  addButton.disabled = selectedCount === 0;
+  addButton.classList.toggle('opacity-50', selectedCount === 0);
+  addButton.classList.toggle('cursor-not-allowed', selectedCount === 0);
+}
+
+function toggleProspectSelection(placeId) {
+  if (prospectsResultsState.selectedIds.has(placeId)) {
+    prospectsResultsState.selectedIds.delete(placeId);
+  } else {
+    prospectsResultsState.selectedIds.add(placeId);
+  }
+  renderProspectsResults();
+}
+
+function markNotInterested(placeId) {
+  // Find the business
+  const business = prospectsResultsState.businesses.find(b => b.placeId === placeId);
+  if (!business) return;
+
+  // Confirmation dialog
+  if (!confirm(`Mark "${business.name}" as "Not Interested"?\n\nThis business will be permanently hidden from all future searches.\n\nYou can undo this later from the Not Interested list.`)) {
+    return;
+  }
+
+  // Add to not interested list
+  notInterestedState.placeIds.add(placeId);
+  notInterestedState.businesses[placeId] = {
+    name: business.name,
+    address: business.address,
+    addedDate: new Date().toISOString()
+  };
+  saveNotInterestedList();
+
+  // Remove from results
+  prospectsResultsState.businesses = prospectsResultsState.businesses.filter(b => b.placeId !== placeId);
+  prospectsResultsState.selectedIds.delete(placeId);
+
+  toast(`"${business.name}" marked as not interested and will be hidden from future searches`, true);
+  renderProspectsResults();
+}
+
+async function addSelectedProspects() {
+  const { businesses, selectedIds } = prospectsResultsState;
+
+  if (selectedIds.size === 0) {
+    toast('No businesses selected', false);
+    return;
+  }
+
+  // Disable button while fetching details
+  const btn = document.getElementById('btnAddSelectedProspects');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ Fetching details...';
+
+  const prospectingColumn = 'prospect-list';
+  let addedCount = 0;
+  const selectedBusinesses = businesses.filter(b => selectedIds.has(b.placeId) && !b.alreadyExists);
+
+  try {
+    // Fetch details for all selected businesses
+    for (let i = 0; i < selectedBusinesses.length; i++) {
+      const business = selectedBusinesses[i];
+
+      btn.textContent = `⏳ Fetching details... (${i + 1}/${selectedBusinesses.length})`;
+
+      // Fetch basic details from Google Places API
+      let details = { phone: '', website: '', email: '', facebook: '', instagram: '', source: 'google-places' };
+
+      if (business.placeId) {
+        details = await fetchPlaceDetails(business.placeId);
+      }
+
+      const newLead = {
+        id: Date.now() + Math.random(),
+        businessName: business.name,
+        contactName: '',
+        phone: details.phone || '',
+        email: details.email || '',
+        estimatedValue: 500,
+        notes: `Found via Google Places\nAddress: ${business.address}\nRating: ${business.rating} (${business.userRatingsTotal} reviews)\n${details.phone ? `Phone: ${details.phone}\n` : ''}${details.website ? `Website: ${details.website}\n` : ''}Place ID: ${business.placeId}\n\n💡 Use CSV export/import to add Facebook/Instagram URLs`,
+        source: 'google-places',
+        placeId: business.placeId,
+        address: business.address || '', // Store address as separate field
+        rating: business.rating || 0, // Store rating as separate field
+        userRatingsTotal: business.userRatingsTotal || 0, // Store review count
+        website: details.website || '',
+        facebook: '',
+        instagram: '',
+        category: business.category || 'other',
+        zipCode: business.zipCode || null, // Tag with ZIP code from search
+        mailerId: state.current?.Mailer_ID || null, // Tag with current postcard
+        addedDate: new Date().toISOString(),
+        interactions: [] // Interaction history: [{date, type, notes, nextFollowUp}]
+      };
+
+      kanbanState.columns[prospectingColumn].push(newLead);
+      addedCount++;
+
+      // Small delay to avoid rate limiting
+      if (i < selectedBusinesses.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+    }
+
+    saveKanban();
+    renderKanban();
+    closeProspectsResultsModal();
+
+    // Show success message
+    toast(`✅ Added ${addedCount} new prospect${addedCount === 1 ? '' : 's'} to pipeline! Use CSV export/import to add social media URLs.`, true);
+
+    // Scroll to kanban section
+    setTimeout(() => {
+      const kanbanSection = document.querySelector('[data-content="pipeline"]');
+      if (kanbanSection) {
+        kanbanSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+  } catch(err) {
+    console.error('Error adding prospects:', err);
+    toast('Failed to fetch all details. Some prospects may be incomplete.', false);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
+/* ========= PROSPECT POOL FUNCTIONS ========= */
+
+// State for prospect pool selections and manual moves
+let prospectPoolState = {
+  selectedIds: new Set(),
+  manualProspects: [] // Prospects manually moved from Prospecting to Pool
+};
+
+// Track daily Google Custom Search API usage (resets at midnight)
+let enrichmentQuota = {
+  dailyLimit: 100,
+  queriesUsed: 0,
+  lastResetDate: null
+};
+
+// Load enrichment quota from localStorage
+function loadEnrichmentQuota() {
+  const saved = localStorage.getItem('9x12_enrichment_quota');
+  if (saved) {
+    const data = JSON.parse(saved);
+    const today = new Date().toDateString();
+
+    // Reset if it's a new day
+    if (data.lastResetDate !== today) {
+      enrichmentQuota.queriesUsed = 0;
+      enrichmentQuota.lastResetDate = today;
+      saveEnrichmentQuota();
+    } else {
+      enrichmentQuota.queriesUsed = data.queriesUsed || 0;
+      enrichmentQuota.lastResetDate = data.lastResetDate;
+    }
+  } else {
+    enrichmentQuota.lastResetDate = new Date().toDateString();
+    saveEnrichmentQuota();
+  }
+  updateEnrichmentCounter();
+}
+
+// Save enrichment quota to localStorage
+function saveEnrichmentQuota() {
+  localStorage.setItem('9x12_enrichment_quota', JSON.stringify({
+    queriesUsed: enrichmentQuota.queriesUsed,
+    lastResetDate: enrichmentQuota.lastResetDate
+  }));
+  updateEnrichmentCounter();
+}
+
+// Increment the query counter
+function trackEnrichmentQuery(count = 1) {
+  enrichmentQuota.queriesUsed += count;
+  saveEnrichmentQuota();
+}
+
+// Update the UI counter
+function updateEnrichmentCounter() {
+  const counter = document.getElementById('enrichmentQuotaCounter');
+  if (counter) {
+    const remaining = Math.max(0, enrichmentQuota.dailyLimit - enrichmentQuota.queriesUsed);
+    const percentage = (enrichmentQuota.queriesUsed / enrichmentQuota.dailyLimit) * 100;
+
+    let colorClass = 'text-green-600';
+    if (percentage >= 80) colorClass = 'text-red-600';
+    else if (percentage >= 50) colorClass = 'text-yellow-600';
+
+    counter.innerHTML = `
+      <span class="${colorClass} font-bold">${enrichmentQuota.queriesUsed}</span>
+      <span class="text-gray-500">/ ${enrichmentQuota.dailyLimit}</span>
+      <span class="text-gray-400 text-xs ml-1">searches today</span>
+    `;
+  }
+}
+
+// State for tracking selected prospects in Prospecting column
+let prospectingSelectionState = {
+  selectedIds: new Set()
+};
+
+// To Contact selection state for bulk messaging
+let toContactSelectionState = {
+  selectedIds: new Set()
+};
+
+// Business Categories State
+let businessCategories = [
+  // AUTOMOTIVE
+  { value: "auto_body_shop", label: "Auto Body Shop" },
+  { value: "auto_detailing", label: "Auto Detailing" },
+  { value: "auto_glass", label: "Auto Glass Repair" },
+  { value: "car_repair", label: "Auto Repair" },
+  { value: "car_dealer", label: "Car Dealer" },
+  { value: "car_wash", label: "Car Wash" },
+  { value: "motorcycle_dealer", label: "Motorcycle Dealer" },
+  { value: "rv_dealer", label: "RV Dealer" },
+  { value: "tire_shop", label: "Tire Shop" },
+  { value: "towing_service", label: "Towing Service" },
+  { value: "truck_repair", label: "Truck Repair" },
+
+  // CONSTRUCTION & CONTRACTORS
+  { value: "cabinet_maker", label: "Cabinet Maker" },
+  { value: "carpenter", label: "Carpenter" },
+  { value: "concrete_contractor", label: "Concrete Contractor" },
+  { value: "deck_builder", label: "Deck Builder" },
+  { value: "drywall_contractor", label: "Drywall Contractor" },
+  { value: "electrician", label: "Electrician" },
+  { value: "fence_contractor", label: "Fence Installation" },
+  { value: "flooring_contractor", label: "Flooring Contractor" },
+  { value: "foundation_repair", label: "Foundation Repair" },
+  { value: "general_contractor", label: "General Contractor" },
+  { value: "gutter_service", label: "Gutter Installation/Repair" },
+  { value: "handyman", label: "Handyman" },
+  { value: "hvac_contractor", label: "HVAC" },
+  { value: "insulation_contractor", label: "Insulation Contractor" },
+  { value: "kitchen_remodeling", label: "Kitchen & Bath Remodeling" },
+  { value: "masonry", label: "Masonry" },
+  { value: "painter", label: "Painter" },
+  { value: "plumber", label: "Plumber" },
+  { value: "roofing_contractor", label: "Roofer" },
+  { value: "siding_contractor", label: "Siding Contractor" },
+  { value: "waterproofing", label: "Waterproofing" },
+  { value: "window_installation", label: "Window Installation" },
+
+  // FOOD & BEVERAGE
+  { value: "bakery", label: "Bakery" },
+  { value: "bar", label: "Bar/Pub" },
+  { value: "bbq_restaurant", label: "BBQ Restaurant" },
+  { value: "cafe", label: "Cafe/Coffee Shop" },
+  { value: "meal_delivery", label: "Catering" },
+  { value: "food_truck", label: "Food Truck" },
+  { value: "ice_cream_shop", label: "Ice Cream Shop" },
+  { value: "pizza", label: "Pizzeria" },
+  { value: "restaurant", label: "Restaurant" },
+
+  // HEALTH & MEDICAL
+  { value: "acupuncture", label: "Acupuncture" },
+  { value: "chiropractor", label: "Chiropractor" },
+  { value: "dentist", label: "Dentist" },
+  { value: "doctor", label: "Doctor/Physician" },
+  { value: "hearing_aid", label: "Hearing Aid Provider" },
+  { value: "medical_spa", label: "Medical Spa" },
+  { value: "mental_health", label: "Mental Health Services" },
+  { value: "optometrist", label: "Optometrist" },
+  { value: "pediatrician", label: "Pediatrician" },
+  { value: "pharmacy", label: "Pharmacy" },
+  { value: "physiotherapist", label: "Physical Therapy" },
+  { value: "senior_care", label: "Senior Care/Assisted Living" },
+  { value: "urgent_care", label: "Urgent Care" },
+  { value: "veterinary_care", label: "Veterinarian" },
+
+  // HOME & OUTDOOR SERVICES
+  { value: "cleaning", label: "Cleaning Service" },
+  { value: "gutter_cleaning", label: "Gutter Cleaning" },
+  { value: "home_inspection", label: "Home Inspection" },
+  { value: "junk_removal", label: "Junk Removal" },
+  { value: "landscaping", label: "Landscaping" },
+  { value: "lawn_care", label: "Lawn Care/Mowing" },
+  { value: "locksmith", label: "Locksmith" },
+  { value: "moving_company", label: "Moving Company" },
+  { value: "pest_control", label: "Pest Control" },
+  { value: "pool_service", label: "Pool Service & Repair" },
+  { value: "pressure_washing", label: "Pressure Washing" },
+  { value: "septic_service", label: "Septic Service" },
+  { value: "tree_service", label: "Tree Service" },
+  { value: "well_drilling", label: "Well Drilling & Repair" },
+  { value: "window_cleaning", label: "Window Washing" },
+
+  // REGIONAL: NORTHERN STATES (Snow/Winter)
+  { value: "firewood_delivery", label: "Firewood Delivery" },
+  { value: "heating_oil", label: "Heating Oil Delivery" },
+  { value: "ice_dam_removal", label: "Ice Dam Removal" },
+  { value: "snowplowing", label: "Snow Plowing" },
+  { value: "snow_removal", label: "Snow Removal" },
+
+  // REGIONAL: SOUTHERN/COASTAL (Hurricane/Tropical)
+  { value: "hurricane_shutters", label: "Hurricane Shutters" },
+  { value: "storm_cleanup", label: "Storm Cleanup & Restoration" },
+
+  // REGIONAL: SOUTHWEST (Desert/Arid)
+  { value: "desert_landscaping", label: "Desert Landscaping/Xeriscaping" },
+  { value: "irrigation_systems", label: "Irrigation Systems" },
+
+  // REGIONAL: COASTAL (Marine)
+  { value: "boat_repair", label: "Boat Repair & Service" },
+  { value: "dock_builder", label: "Dock & Pier Construction" },
+  { value: "marina", label: "Marina" },
+
+  // PERSONAL SERVICES
+  { value: "barber", label: "Barber Shop" },
+  { value: "beauty_salon", label: "Beauty Salon" },
+  { value: "day_spa", label: "Day Spa" },
+  { value: "dog_grooming", label: "Dog Grooming" },
+  { value: "dry_cleaning", label: "Dry Cleaner" },
+  { value: "gym", label: "Gym/Fitness Center" },
+  { value: "hair_care", label: "Hair Salon" },
+  { value: "laundromat", label: "Laundromat" },
+  { value: "massage_therapy", label: "Massage Therapy" },
+  { value: "nail_salon", label: "Nail Salon" },
+  { value: "personal_trainer", label: "Personal Trainer" },
+  { value: "tanning_salon", label: "Tanning Salon" },
+  { value: "tattoo_shop", label: "Tattoo Shop" },
+  { value: "yoga_studio", label: "Yoga Studio" },
+
+  // PROFESSIONAL SERVICES
+  { value: "accountant", label: "Accountant/CPA" },
+  { value: "attorney", label: "Attorney/Lawyer" },
+  { value: "financial_advisor", label: "Financial Advisor" },
+  { value: "insurance_agency", label: "Insurance Agency" },
+  { value: "marketing_agency", label: "Marketing Agency" },
+  { value: "photographer", label: "Photography" },
+  { value: "printing_service", label: "Printing Service" },
+  { value: "real_estate_agency", label: "Real Estate" },
+  { value: "tax_service", label: "Tax Preparation" },
+  { value: "web_design", label: "Web Design" },
+
+  // RETAIL
+  { value: "antique_store", label: "Antique Store" },
+  { value: "bicycle_store", label: "Bicycle Shop" },
+  { value: "boat_dealer", label: "Boat Dealer" },
+  { value: "boutique", label: "Boutique" },
+  { value: "furniture_store", label: "Furniture Store" },
+  { value: "garden_center", label: "Garden Center/Nursery" },
+  { value: "gun_shop", label: "Gun Shop" },
+  { value: "hardware_store", label: "Hardware Store" },
+  { value: "jewelry_store", label: "Jewelry Store" },
+  { value: "liquor_store", label: "Liquor Store" },
+  { value: "mattress_store", label: "Mattress Store" },
+  { value: "pet_store", label: "Pet Store" },
+  { value: "sporting_goods", label: "Sporting Goods" },
+  { value: "thrift_store", label: "Thrift Store" },
+
+  // RECREATION & ENTERTAINMENT
+  { value: "bowling_alley", label: "Bowling Alley" },
+  { value: "golf_course", label: "Golf Course" },
+  { value: "mini_golf", label: "Mini Golf" },
+  { value: "movie_theater", label: "Movie Theater" },
+
+  // EDUCATION & CHILDCARE
+  { value: "dance_studio", label: "Dance Studio" },
+  { value: "daycare", label: "Daycare/Preschool" },
+  { value: "martial_arts", label: "Martial Arts Studio" },
+  { value: "music_school", label: "Music School" },
+  { value: "tutoring", label: "Tutoring Service" },
+
+  // OTHER SERVICES
+  { value: "event_planning", label: "Event Planning" },
+  { value: "florist", label: "Florist" },
+  { value: "funeral_home", label: "Funeral Home" },
+  { value: "hotel", label: "Hotel/Motel" },
+  { value: "storage", label: "Storage Facility" },
+  { value: "wedding_venue", label: "Wedding Venue" }
+];
+
+// Load business categories from cloud/localStorage
+async function loadBusinessCategories() {
+  try {
+    const cloudData = await loadFromCloud('businessCategories');
+
+    // ONE-TIME MIGRATION: Force update to comprehensive nationwide category list
+    const CATEGORY_VERSION = '2025-01-22-v3';
+    const currentVersion = localStorage.getItem('categoryVersion');
+
+    if (currentVersion !== CATEGORY_VERSION) {
+      console.log('🔄 Migrating to new business categories (160+ categories - comprehensive nationwide coverage with regional specialties)');
+      // Use the new default categories
+      businessCategories.sort((a, b) => a.label.localeCompare(b.label));
+      await saveToCloud('businessCategories', businessCategories);
+      localStorage.setItem('categoryVersion', CATEGORY_VERSION);
+      console.log('✅ Categories migrated and saved to cloud');
+    } else if (cloudData && Array.isArray(cloudData) && cloudData.length > 0) {
+      businessCategories = cloudData;
+    }
+
+    // Sort alphabetically by label
+    businessCategories.sort((a, b) => a.label.localeCompare(b.label));
+    renderBusinessCategories();
+  } catch(err) {
+    console.warn('Using default business categories:', err);
+    businessCategories.sort((a, b) => a.label.localeCompare(b.label));
+    renderBusinessCategories();
+  }
+}
+
+// Save business categories to cloud
+async function saveBusinessCategories() {
+  try {
+    // Sort alphabetically before saving
+    businessCategories.sort((a, b) => a.label.localeCompare(b.label));
+    await saveToCloud('businessCategories', businessCategories);
+    toast('Categories saved', true);
+  } catch(err) {
+    console.warn('Failed to save categories:', err);
+    toast('Categories saved locally only', false);
+  }
+}
+
+// Render business categories dynamically
+function renderBusinessCategories() {
+  const container = document.getElementById('categoryCheckboxContainer');
+  if (!container) return;
+
+  container.innerHTML = businessCategories.map(cat => `
+    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
+      <input type="checkbox" value="${cat.value}" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
+      <span>${cat.label}</span>
+    </label>
+  `).join('');
+
+  // Also update client category dropdowns
+  populateClientCategoryDropdowns();
+}
+
+// Populate client category dropdowns with current businessCategories
+function populateClientCategoryDropdowns() {
+  // Update client modal category dropdown
+  const clientCategorySelect = document.getElementById('clientCategory');
+  if (clientCategorySelect) {
+    const currentValue = clientCategorySelect.value;
+    const options = businessCategories.map(cat =>
+      `<option value="${esc(cat.label)}">${esc(cat.label)}</option>`
+    ).join('');
+    clientCategorySelect.innerHTML = `<option value="">Select category...</option>${options}`;
+    if (currentValue) clientCategorySelect.value = currentValue;
+  }
+
+  // Update business modal category dropdown (unified modal)
+  const businessCategorySelect = document.getElementById('businessCategory');
+  if (businessCategorySelect) {
+    const currentValue = businessCategorySelect.value;
+    const options = businessCategories.map(cat =>
+      `<option value="${esc(cat.label)}">${esc(cat.label)}</option>`
+    ).join('');
+    businessCategorySelect.innerHTML = `<option value="">Select category...</option>${options}`;
+    if (currentValue) businessCategorySelect.value = currentValue;
+  }
+
+  // Update manual business category dropdown
+  const manualBusinessCategorySelect = document.getElementById('manualBusinessCategory');
+  if (manualBusinessCategorySelect) {
+    const currentValue = manualBusinessCategorySelect.value;
+    const options = businessCategories.map(cat =>
+      `<option value="${esc(cat.label)}">${esc(cat.label)}</option>`
+    ).join('');
+    manualBusinessCategorySelect.innerHTML = `<option value="">Select category...</option>${options}`;
+    if (currentValue) manualBusinessCategorySelect.value = currentValue;
+  }
+
+  // Update client filter dropdown
+  const categoryFilter = document.getElementById('categoryFilter');
+  if (categoryFilter) {
+    const currentValue = categoryFilter.value;
+    const options = businessCategories.map(cat =>
+      `<option value="${esc(cat.label)}">${esc(cat.label)}</option>`
+    ).join('');
+    categoryFilter.innerHTML = `<option value="">All Categories</option>${options}`;
+    if (currentValue) categoryFilter.value = currentValue;
+  }
+}
+
+// Open Manage Categories Modal
+function openManageCategoriesModal() {
+  const modal = document.getElementById('manageCategoriesModal');
+  if (!modal) return;
+
+  // Sort categories alphabetically before displaying
+  businessCategories.sort((a, b) => a.label.localeCompare(b.label));
+  renderManageCategoriesList();
+
+  lastFocusedElementBeforeModal = document.activeElement;
+  modal.style.display = "flex";
+  modal.setAttribute('aria-hidden', 'false');
+  trapModalFocus(modal);
+
+  // Focus on input field
+  const input = document.getElementById('newCategoryInput');
+  if (input) input.focus();
+}
+
+// Close Manage Categories Modal
+function closeManageCategoriesModal() {
+  const modal = document.getElementById('manageCategoriesModal');
+  if (!modal) return;
+
+  modal.style.display = "none";
+  modal.setAttribute('aria-hidden', 'true');
+  releaseModalFocus(modal);
+  if (lastFocusedElementBeforeModal) lastFocusedElementBeforeModal.focus();
+
+  // Clear input field
+  const input = document.getElementById('newCategoryInput');
+  if (input) input.value = '';
+}
+
+// Render the categories list in the manage modal
+function renderManageCategoriesList() {
+  const container = document.getElementById('manageCategoriesList');
+  if (!container) return;
+
+  if (businessCategories.length === 0) {
+    container.innerHTML = '<p class="text-gray-500 text-sm italic">No categories yet. Add one above!</p>';
+    return;
+  }
+
+  container.innerHTML = businessCategories.map((cat, index) => `
+    <div class="flex items-center justify-between p-3 bg-white/10 border border-white/20 rounded-lg hover:bg-white/20 transition">
+      <span class="font-medium">${cat.label}</span>
+      <button
+        onclick="removeCategory(${index})"
+        class="px-3 py-1 text-sm bg-red-500 hover:bg-red-600 text-white rounded transition font-semibold"
+        title="Remove ${cat.label}"
+      >
+        ❌ Remove
+      </button>
+    </div>
+  `).join('');
+}
+
+// Add a new category
+function addNewCategory() {
+  const input = document.getElementById('newCategoryInput');
+  if (!input) return;
+
+  const newLabel = input.value.trim();
+  if (!newLabel) {
+    toast('Please enter a category name', false);
+    return;
+  }
+
+  // Check for duplicates (case-insensitive)
+  const exists = businessCategories.some(cat =>
+    cat.label.toLowerCase() === newLabel.toLowerCase()
+  );
+
+  if (exists) {
+    toast('Category already exists', false);
+    return;
+  }
+
+  // Create a value from the label (lowercase, replace spaces with hyphens)
+  const newValue = newLabel.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+
+  // Add the new category
+  businessCategories.push({
+    value: newValue,
+    label: newLabel
+  });
+
+  // Sort alphabetically
+  businessCategories.sort((a, b) => a.label.localeCompare(b.label));
+
+  // Re-render the list
+  renderManageCategoriesList();
+
+  // Clear input
+  input.value = '';
+  input.focus();
+
+  toast(`Added "${newLabel}"`, true);
+}
+
+// Remove a category
+function removeCategory(index) {
+  if (index < 0 || index >= businessCategories.length) return;
+
+  const category = businessCategories[index];
+
+  if (!confirm(`Remove "${category.label}" from categories?`)) {
+    return;
+  }
+
+  businessCategories.splice(index, 1);
+  renderManageCategoriesList();
+  toast(`Removed "${category.label}"`, true);
+}
+
+// Save categories and close modal
+async function saveManageCategories() {
+  await saveBusinessCategories();
+  renderBusinessCategories();
+  closeManageCategoriesModal();
+}
+
+// Deduplicate manual prospects pool
+function deduplicateManualProspects() {
+  const seenPlaceIds = new Set();
+  const seenBusinessNames = new Map();
+  const deduped = [];
+  let totalRemoved = 0;
+
+  prospectPoolState.manualProspects.forEach(prospect => {
+    if (typeof prospect !== 'object') {
+      deduped.push(prospect);
+      return;
+    }
+
+    // Skip if we've seen this placeId
+    if (prospect.placeId) {
+      if (seenPlaceIds.has(prospect.placeId)) {
+        totalRemoved++;
+        return; // Skip duplicate
+      }
+      seenPlaceIds.add(prospect.placeId);
+    }
+    // Fallback to businessName + mailerId
+    else if (prospect.businessName && prospect.mailerId) {
+      const key = `${prospect.businessName.toLowerCase()}|${prospect.mailerId}`;
+      if (seenBusinessNames.has(key)) {
+        totalRemoved++;
+        return; // Skip duplicate
+      }
+      seenBusinessNames.set(key, true);
+    }
+
+    deduped.push(prospect);
+  });
+
+  prospectPoolState.manualProspects = deduped;
+
+  if (totalRemoved > 0) {
+    console.log(`🧹 Removed ${totalRemoved} duplicate prospect(s) from manual prospects pool`);
+  }
+
+  return totalRemoved;
+}
+
+// Load manual prospects from localStorage
+async function loadManualProspects() {
+  console.log('📥 LOADING MANUAL PROSPECTS...');
+  try {
+    // Try loading from cloud first
+    const cloudData = await loadFromCloud('manualProspects');
+    console.log('📥 Manual prospects cloud data:', cloudData ? `${cloudData.length} items` : 'null');
+
+    if (cloudData && Array.isArray(cloudData)) {
+      prospectPoolState.manualProspects = cloudData;
+    } else {
+      // Fallback to localStorage
+      const saved = localStorage.getItem('9x12_manual_prospects');
+      if (saved) {
+        prospectPoolState.manualProspects = JSON.parse(saved);
+        // Sync to cloud
+        saveToCloud('manualProspects', prospectPoolState.manualProspects).catch(e => console.warn('Failed to sync manual prospects to cloud:', e));
+      }
+    }
+
+    // Deduplicate after loading
+    const duplicatesRemoved = deduplicateManualProspects();
+    if (duplicatesRemoved > 0) {
+      // Save cleaned data back
+      await saveToCloud('manualProspects', prospectPoolState.manualProspects).catch(e => console.warn('Failed to save deduplicated manual prospects:', e));
+    }
+
+    // Auto-cleanup: Run once to remove town field (v4 - preserves isEnriched)
+    const hasRunCleanup = localStorage.getItem('hasRunProspectPoolCleanup_v4');
+    console.log('🔍 Checking cleanup status:', hasRunCleanup ? 'Already run' : 'Need to run');
+    console.log('🔍 Manual prospects count:', prospectPoolState.manualProspects.length);
+
+    if (!hasRunCleanup) {
+      console.log('🔧 Running one-time prospect pool cleanup (v4 - remove town field, preserve enrichment)...');
+      await cleanupProspectPoolEnrichment();
+      localStorage.setItem('hasRunProspectPoolCleanup_v4', 'true');
+      console.log('✅ One-time cleanup complete. Will not run again.');
+    } else {
+      console.log('⏭️ Cleanup already completed previously.');
+    }
+  } catch(err) {
+    console.error('Error loading manual prospects:', err);
+  }
+}
+
+// Save manual prospects to cloud and localStorage
+async function saveManualProspects() {
+  try {
+    // Deduplicate before saving
+    deduplicateManualProspects();
+
+    await saveToCloud('manualProspects', prospectPoolState.manualProspects);
+  } catch(err) {
+    console.warn('⚠️ Manual prospects saved to localStorage only (cloud sync failed):', err);
+  }
+}
+
+// One-time cleanup: Remove town field and restore enrichment flags
+// v4: Intelligently restore isEnriched flag based on actual enrichment data
+async function cleanupProspectPoolEnrichment() {
+  console.log('🧹 Starting prospect pool cleanup v4...');
+  console.log(`Total items before cleanup: ${prospectPoolState.manualProspects.length}`);
+
+  let townFieldsRemoved = 0;
+  let enrichmentRestored = 0;
+  prospectPoolState.manualProspects = prospectPoolState.manualProspects.map(prospect => {
+    let needsUpdate = false;
+    const updated = { ...prospect };
+
+    // Remove town field (campaign name should not be stored in prospect data)
+    if (prospect.town) {
+      delete updated.town;
+      needsUpdate = true;
+      townFieldsRemoved++;
+      console.log(`🗑️ Removed town field from: ${prospect.businessName || prospect.name}`);
+    }
+
+    // RESTORE isEnriched flag if prospect has enrichment data
+    // Check if prospect has email, social media, or came from kanban
+    const hasEnrichmentData = !!(
+      prospect.email ||
+      prospect.facebook ||
+      prospect.instagram ||
+      prospect.linkedin ||
+      prospect.twitter ||
+      prospect.contactName
+    );
+
+    if (hasEnrichmentData && prospect.isEnriched !== true) {
+      updated.isEnriched = true;
+      needsUpdate = true;
+      enrichmentRestored++;
+      console.log(`✅ Restored isEnriched flag for: ${prospect.businessName || prospect.name}`);
+    }
+
+    return needsUpdate ? updated : prospect;
+  });
+
+  console.log(`✅ Removed town field from ${townFieldsRemoved} prospects`);
+  console.log(`✅ Restored isEnriched flag for ${enrichmentRestored} prospects with enrichment data`);
+
+  // Save to cloud and localStorage
+  await saveManualProspects();
+
+  // Re-render prospect pool
+  renderProspectPool();
+
+  toast(`🧹 Restored enrichment data for ${enrichmentRestored} prospects`, true);
+  console.log('✅ Cleanup complete! Enrichment data restored.');
+}
+
+// Expose cleanup function globally (can be called from console)
+window.cleanupProspectPoolEnrichment = cleanupProspectPoolEnrichment;
+
+// Toggle selection of a prospect in Prospecting column
+function toggleProspectingSelection(leadId) {
+  // Ensure consistent type - convert to string for comparison
+  const id = String(leadId);
+
+  console.log('🔵 toggleProspectingSelection called with:', leadId, 'converted to:', id);
+  console.log('🔵 Current selection state:', Array.from(prospectingSelectionState.selectedIds));
+
+  if (prospectingSelectionState.selectedIds.has(id)) {
+    prospectingSelectionState.selectedIds.delete(id);
+    console.log('🔵 Deselected:', id);
+  } else {
+    prospectingSelectionState.selectedIds.add(id);
+    console.log('🔵 Selected:', id);
+  }
+
+  console.log('🔵 New selection state:', Array.from(prospectingSelectionState.selectedIds));
+
+  updateMoveToPoolButton();
+  renderKanban();
+}
+
+// Select all prospects in the prospect-list column
+function selectAllProspects() {
+  const prospectingColumn = 'prospect-list';
+  const items = kanbanState.columns[prospectingColumn] || [];
+
+  // Clear existing selections first
+  prospectingSelectionState.selectedIds.clear();
+
+  // Add all prospect IDs to selection
+  items.forEach((item, idx) => {
+    if (typeof item === 'object' && item) {
+      const leadId = item.id || idx;
+      prospectingSelectionState.selectedIds.add(leadId);
+    }
+  });
+
+  // Update UI
+  updateMoveToPoolButton();
+  renderKanban();
+
+  toast(`Selected ${prospectingSelectionState.selectedIds.size} prospects`, true);
+}
+
+// Toggle selection of a prospect in To Contact column for bulk messaging
+function toggleToContactSelection(leadId) {
+  // Ensure consistent type - convert to string for comparison
+  const id = String(leadId);
+
+  if (toContactSelectionState.selectedIds.has(id)) {
+    toContactSelectionState.selectedIds.delete(id);
+  } else {
+    toContactSelectionState.selectedIds.add(id);
+  }
+  updateBulkSendSection();
+  renderKanban();
+}
+
+// Update bulk send section visibility and content
+function updateBulkSendSection() {
+  const bulkSection = document.getElementById('bulkSendSection');
+  const bulkCount = document.getElementById('bulkSendCount');
+  const btnSMS = document.getElementById('btnBulkSendSMS');
+  const btnGoogleVoice = document.getElementById('btnBulkSendGoogleVoice');
+  const btnEmail = document.getElementById('btnBulkSendEmail');
+
+  if (!bulkSection || !bulkCount) return;
+
+  const selectedCount = toContactSelectionState.selectedIds.size;
+
+  if (selectedCount > 0) {
+    bulkSection.classList.remove('hidden');
+    bulkCount.textContent = `(${selectedCount} selected)`;
+    if (btnSMS) btnSMS.disabled = false;
+    if (btnGoogleVoice) btnGoogleVoice.disabled = false;
+    if (btnEmail) btnEmail.disabled = false;
+  } else {
+    bulkSection.classList.add('hidden');
+    if (btnSMS) btnSMS.disabled = true;
+    if (btnGoogleVoice) btnGoogleVoice.disabled = true;
+    if (btnEmail) btnEmail.disabled = true;
+  }
+}
+
+// Update visibility of "Move Selected to Pool" button
+function updateMoveToPoolButton() {
+  const btn = document.getElementById('btnMoveSelectedToPool');
+  if (btn) {
+    if (prospectingSelectionState.selectedIds.size > 0) {
+      btn.classList.remove('hidden');
+      btn.textContent = `⬅ Move ${prospectingSelectionState.selectedIds.size} to Pool`;
+    } else {
+      btn.classList.add('hidden');
+    }
+  }
+}
+
+// Move all selected prospects to Prospect Pool (bulk operation)
+async function moveSelectedToPool() {
+  console.log('🔵 moveSelectedToPool CALLED - Starting');
+  const selectedCount = prospectingSelectionState.selectedIds.size;
+
+  if (selectedCount === 0) {
+    toast('No prospects selected', false);
+    return;
+  }
+
+  // Single confirmation for all
+  if (!confirm(`Move ${selectedCount} prospect${selectedCount === 1 ? '' : 's'} to Prospect Pool?`)) {
+    return;
+  }
+
+  const prospectingColumn = 'prospect-list';
+  const items = kanbanState.columns[prospectingColumn] || [];
+  console.log(`🔵 moveSelectedToPool - prospect-list has ${items.length} items before removal`);
+  const movedProspects = [];
+
+  // Collect all selected prospects
+  prospectingSelectionState.selectedIds.forEach(leadId => {
+    const leadIndex = items.findIndex(item => typeof item === 'object' && item.id === leadId);
+    if (leadIndex !== -1) {
+      movedProspects.push({
+        lead: items[leadIndex],
+        index: leadIndex
+      });
+    }
+  });
+
+  // Sort by index descending to safely remove from array
+  movedProspects.sort((a, b) => b.index - a.index);
+
+  // Move each prospect
+  movedProspects.forEach(({ lead, index }) => {
+    // Check if prospect already exists in pool (prevent duplicates)
+    const existingIndex = prospectPoolState.manualProspects.findIndex(p =>
+      p.id === lead.id ||
+      (p.placeId && p.placeId === lead.placeId) ||
+      (p.businessName && p.businessName.toLowerCase() === lead.businessName.toLowerCase() && p.mailerId === lead.mailerId)
+    );
+
+    if (existingIndex !== -1) {
+      // Update existing prospect instead of creating duplicate
+      prospectPoolState.manualProspects[existingIndex] = {
+        ...prospectPoolState.manualProspects[existingIndex],
+        ...lead,
+        movedToPoolDate: new Date().toISOString(),
+        mailerId: state.current?.Mailer_ID || null,
+        // DON'T overwrite town - keep the original town from the lead
+        isEnriched: false // Keep standard search result styling
+      };
+    } else {
+      // Add new prospect to pool
+      prospectPoolState.manualProspects.push({
+        ...lead,
+        movedToPoolDate: new Date().toISOString(),
+        mailerId: state.current?.Mailer_ID || null, // Tag with current postcard
+        // DON'T set town to campaign name - keep the original town from the lead
+        isEnriched: false // Keep standard search result styling
+      });
+    }
+
+    // Remove from prospecting
+    kanbanState.columns[prospectingColumn].splice(index, 1);
+  });
+
+  // Clear selections
+  prospectingSelectionState.selectedIds.clear();
+
+  console.log(`🔵 moveSelectedToPool - prospect-list has ${kanbanState.columns[prospectingColumn].length} items after removal`);
+  console.log('🔵 moveSelectedToPool - About to save');
+
+  saveManualProspects();
+  await saveKanban(); // AWAIT to prevent race condition
+
+  console.log(`🔵 moveSelectedToPool - After saveKanban, prospect-list has ${kanbanState.columns[prospectingColumn]?.length} items`);
+  console.log('🔵 moveSelectedToPool - About to renderKanban');
+  renderKanban();
+
+  toast(`✅ Moved ${selectedCount} prospect${selectedCount === 1 ? '' : 's'} to Prospect Pool for ${state.current?.Town || 'current campaign'}`, true);
+  console.log('🔵 moveSelectedToPool - COMPLETE');
+}
+
+// Legacy function - kept for backwards compatibility but now uses bulk selection
+async function moveProspectToPool(leadId, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+
+  const prospectingColumn = 'prospect-list';
+  const items = kanbanState.columns[prospectingColumn] || [];
+  const leadIndex = items.findIndex(item => typeof item === 'object' && item.id === leadId);
+
+  if (leadIndex === -1) {
+    toast('Prospect not found', false);
+    return;
+  }
+
+  const lead = items[leadIndex];
+
+  // Check if prospect already exists in pool (prevent duplicates)
+  const existingIndex = prospectPoolState.manualProspects.findIndex(p =>
+    p.id === lead.id ||
+    (p.placeId && p.placeId === lead.placeId) ||
+    (p.businessName && p.businessName.toLowerCase() === lead.businessName.toLowerCase() && p.mailerId === lead.mailerId)
+  );
+
+  if (existingIndex !== -1) {
+    // Update existing prospect instead of creating duplicate
+    prospectPoolState.manualProspects[existingIndex] = {
+      ...prospectPoolState.manualProspects[existingIndex],
+      ...lead,
+      movedToPoolDate: new Date().toISOString(),
+      mailerId: state.current?.Mailer_ID || null
+      // DON'T overwrite town - keep the original town from the lead
+    };
+  } else {
+    // Add new prospect to pool
+    prospectPoolState.manualProspects.push({
+      ...lead,
+      movedToPoolDate: new Date().toISOString(),
+      mailerId: state.current?.Mailer_ID || null // Tag with current postcard
+      // DON'T set town to campaign name - keep the original town from the lead
+    });
+  }
+
+  // Remove from prospecting
+  kanbanState.columns[prospectingColumn].splice(leadIndex, 1);
+
+  // Clear this prospect from selection if it was selected
+  prospectingSelectionState.selectedIds.delete(leadId);
+
+  saveManualProspects();
+  await saveKanban(); // AWAIT to prevent race condition
+  renderKanban();
+
+  toast(`"${lead.businessName}" moved to Prospect Pool for ${state.current?.Town || 'current campaign'}`, true);
+
+  // Ask if user wants to view the pool
+  setTimeout(() => {
+    if (confirm('Go to Prospect Pool to view this prospect?')) {
+      switchTab('prospects');
+    }
+  }, 500);
+}
+
+// Move prospect from Pool back to Prospecting
+function moveProspectFromPool(prospectId) {
+  const prospectIndex = prospectPoolState.manualProspects.findIndex(p => p.id === prospectId);
+
+  if (prospectIndex === -1) {
+    toast('Prospect not found in pool', false);
+    return;
+  }
+
+  const prospect = prospectPoolState.manualProspects[prospectIndex];
+
+  // Check for duplicate by placeId if exists
+  const prospectingColumn = 'prospect-list';
+  const existingLeads = kanbanState.columns[prospectingColumn] || [];
+
+  if (prospect.placeId) {
+    const currentMailerId = state.current?.Mailer_ID;
+    const duplicate = existingLeads.find(lead =>
+      lead.placeId === prospect.placeId &&
+      lead.mailerId === currentMailerId
+    );
+
+    if (duplicate) {
+      toast(`"${prospect.businessName}" already exists in Prospecting for this card`, false);
+      return;
+    }
+  }
+
+  // Remove from pool
+  prospectPoolState.manualProspects.splice(prospectIndex, 1);
+
+  // Add back to prospecting with mailerId
+  kanbanState.columns[prospectingColumn].push({
+    ...prospect,
+    mailerId: prospect.mailerId || state.current?.Mailer_ID, // Preserve or set mailerId
+    movedBackDate: new Date().toISOString()
+  });
+
+  saveManualProspects();
+  saveKanban();
+  renderProspectPool();
+  renderKanban();
+
+  toast(`"${prospect.businessName}" moved back to Prospecting`, true);
+}
+
+// Expose functions globally
+window.toggleProspectingSelection = toggleProspectingSelection;
+window.moveSelectedToPool = moveSelectedToPool;
+window.moveProspectToPool = moveProspectToPool;
+window.moveProspectFromPool = moveProspectFromPool;
+window.filterProspectPoolByDate = filterProspectPoolByDate;
+window.toggleAllZips = toggleAllZips;
+window.handleZipChange = handleZipChange;
+
+function filterProspectPoolByDate() {
+  renderProspectPool();
+}
+
+function toggleAllZips(checkbox) {
+  const container = document.getElementById('prospectPoolZipCheckboxes');
+  if (!container) return;
+
+  if (checkbox.checked) {
+    // When ALL is checked, uncheck all individual ZIPs
+    const individualCheckboxes = container.querySelectorAll('input[type="checkbox"]:not([value="all"])');
+    individualCheckboxes.forEach(cb => cb.checked = false);
+  }
+  // Re-render to apply filter
+  renderProspectPool();
+}
+
+function handleZipChange(checkbox) {
+  const container = document.getElementById('prospectPoolZipCheckboxes');
+  if (!container) return;
+
+  if (checkbox.checked) {
+    // When an individual ZIP is checked, uncheck ALL
+    const allCheckbox = container.querySelector('input[value="all"]');
+    if (allCheckbox) allCheckbox.checked = false;
+  }
+  // Re-render to apply filter
+  renderProspectPool();
+}
+
+// Contact data filter functions
+function applyProspectPoolFilters() {
+  renderProspectPool();
+}
+
+function clearContactFilters() {
+  document.getElementById('filterHasEmail').checked = false;
+  document.getElementById('filterHasPhone').checked = false;
+  document.getElementById('filterHasFacebook').checked = false;
+  document.getElementById('filterHasInstagram').checked = false;
+  document.getElementById('filterHasWebsite').checked = false;
+  renderProspectPool();
+}
+
+// Helper function to check if business matches contact filters
+function matchesContactFilters(business) {
+  // Get filter checkboxes - return true if they don't exist yet (during initial load)
+  const emailFilter = document.getElementById('filterHasEmail');
+  const phoneFilter = document.getElementById('filterHasPhone');
+  const facebookFilter = document.getElementById('filterHasFacebook');
+  const instagramFilter = document.getElementById('filterHasInstagram');
+  const websiteFilter = document.getElementById('filterHasWebsite');
+
+  // If filter elements don't exist yet, show all (during initial render)
+  if (!emailFilter || !phoneFilter || !facebookFilter || !instagramFilter || !websiteFilter) {
+    return true;
+  }
+
+  const hasEmail = emailFilter.checked;
+  const hasPhone = phoneFilter.checked;
+  const hasFacebook = facebookFilter.checked;
+  const hasInstagram = instagramFilter.checked;
+  const hasWebsite = websiteFilter.checked;
+
+  // If no filters are selected, show all
+  if (!hasEmail && !hasPhone && !hasFacebook && !hasInstagram && !hasWebsite) {
+    return true;
+  }
+
+  // Helper to check if a field has a valid value
+  const hasValue = (field) => {
+    if (!field) return false;
+    if (typeof field !== 'string') return false;
+    const trimmed = field.trim();
+    return trimmed !== '' && trimmed !== 'undefined' && trimmed !== 'null';
+  };
+
+  // Check each filter (AND logic - business must match ALL selected filters)
+  // Support both direct fields and nested contact object (for different data structures)
+  if (hasEmail) {
+    const email = business.email || business.contact?.email;
+    if (!hasValue(email)) return false;
+  }
+
+  if (hasPhone) {
+    const phone = business.phone || business.contact?.phone;
+    if (!hasValue(phone)) return false;
+  }
+
+  if (hasFacebook) {
+    const facebook = business.facebook || business.socialMedia?.facebook;
+    if (!hasValue(facebook)) return false;
+  }
+
+  if (hasInstagram) {
+    const instagram = business.instagram || business.socialMedia?.instagram;
+    if (!hasValue(instagram)) return false;
+  }
+
+  if (hasWebsite) {
+    const website = business.website;
+    if (!hasValue(website)) return false;
+  }
+
+  return true;
+}
+
+// Store search term to preserve during re-renders
+var prospectPoolSearchTerm = '';
+
+function renderProspectPool() {
+  console.log('🔵 DEBUG: renderProspectPool ENTRY - prospect-list length:', kanbanState.columns['prospect-list']?.length);
+  // Save current search value if it exists
+  const searchInput = document.getElementById('prospectPoolSearch');
+  if (searchInput) {
+    prospectPoolSearchTerm = searchInput.value;
+  }
+  const container = document.getElementById('prospectPoolContainer');
+  const statsContainer = document.getElementById('prospectPoolStats');
+  const zipCheckboxContainer = document.getElementById('prospectPoolZipCheckboxes');
+
+  if (!container || !statsContainer) return;
+
+  // Get selected ZIP codes from checkboxes
+  const selectedZips = [];
+  let allSelected = false;
+
+  // Check if this is first load (no checkboxes exist yet)
+  const isFirstLoad = !zipCheckboxContainer || !zipCheckboxContainer.querySelector('input[type="checkbox"]');
+
+  if (zipCheckboxContainer) {
+    const checkboxes = zipCheckboxContainer.querySelectorAll('input[type="checkbox"]:checked');
+    checkboxes.forEach(cb => {
+      if (cb.value === 'all') {
+        allSelected = true;
+      } else {
+        selectedZips.push(cb.value);
+      }
+    });
+  }
+
+  // On first load, default to showing ALL (no filter)
+  if (isFirstLoad) {
+    allSelected = true;
+  }
+
+  // ZIP filter logic:
+  // - ALL selected: show all ZIPs (no filter)
+  // - Specific ZIPs selected: show only those ZIPs
+  // - NONE selected: show nothing (filter with empty list)
+  const showAllZips = allSelected;
+  const showNoZips = !allSelected && selectedZips.length === 0;
+  const filterByZip = !allSelected; // Always filter unless ALL is checked
+
+  // Get date filter selection
+  const filterDays = document.getElementById('prospectPoolDateFilter')?.value || 'all';
+  const now = new Date();
+  const cutoffDate = filterDays === 'all' ? null : new Date(now.getTime() - (parseInt(filterDays) * 24 * 60 * 60 * 1000));
+
+  // Get all cached searches and organize by category
+  const categorizedProspects = {};
+  let totalProspects = 0;
+  let alreadyInSystem = 0;
+
+  // Check what's already in the system
+  const existingPlaceIds = new Set();
+  Object.values(kanbanState.columns).forEach(column => {
+    if (Array.isArray(column)) {
+      column.forEach(lead => {
+        if (lead && lead.placeId) {
+          existingPlaceIds.add(lead.placeId);
+        }
+      });
+    }
+  });
+
+  Object.values(crmState.clients).forEach(client => {
+    if (client.placeId) {
+      existingPlaceIds.add(client.placeId);
+    }
+  });
+
+  // Collect all available ZIP codes for the filter dropdown
+  const availableZips = new Set();
+
+  // Add ZIP codes from manual prospects FIRST (so they appear in filter)
+  prospectPoolState.manualProspects.forEach(prospect => {
+    if (prospect.zipCode) {
+      availableZips.add(prospect.zipCode);
+    }
+  });
+
+  // Process cached searches (with deduplication)
+  const seenPlaceIds = new Set(); // Track placeIds to prevent duplicates
+  let skippedByZip = 0;
+  let skippedByDate = 0;
+  let processedCaches = 0;
+
+  Object.keys(placesCache.searches).forEach(cacheKey => {
+    const [searchedZipCode, category] = cacheKey.split('-');
+    const cached = placesCache.searches[cacheKey];
+
+    // console.log(`🔍 DEBUG: Processing cache key: ${cacheKey}, has data: ${cached.cachedData ? cached.cachedData.length : 0}, lastFetched: ${cached.lastFetched}`);
+
+    if (!cached.cachedData || cached.cachedData.length === 0) return;
+
+    // NOTE: Don't check cache expiration - user should always see their prospect data
+    // even if it's older than 30 days. They worked hard to build this list!
+
+    // Apply date filter - ONLY if lastFetched exists and cutoff is set
+    if (cutoffDate && cached.lastFetched) {
+      const fetchedDate = new Date(cached.lastFetched);
+      if (fetchedDate < cutoffDate) {
+        skippedByDate++;
+        // console.log(`🔍 DEBUG: Skipping ${cacheKey} - Date filter (fetched: ${fetchedDate.toLocaleDateString()}, cutoff: ${cutoffDate.toLocaleDateString()})`);
+        return; // Skip if outside date range
+      }
+    }
+
+    processedCaches++;
+
+    if (!categorizedProspects[category]) {
+      categorizedProspects[category] = [];
+    }
+
+    cached.cachedData.forEach(business => {
+      // Skip if already seen (prevents duplicates across searches)
+      if (seenPlaceIds.has(business.placeId)) return;
+
+      if (!notInterestedState.placeIds.has(business.placeId)) {
+        const isInSystem = existingPlaceIds.has(business.placeId);
+
+        // Use actualZip if available, fallback to searchedZipCode
+        const businessZip = business.actualZip || searchedZipCode;
+
+        // Track this ZIP as available for filtering
+        availableZips.add(businessZip);
+
+        // Filter by selected ZIP codes (use actualZip, not searched ZIP)
+        if (filterByZip && !selectedZips.includes(businessZip)) {
+          skippedByZip++;
+          return; // Skip if this business's actual ZIP doesn't match filter
+        }
+
+        // Filter by contact data
+        if (!matchesContactFilters(business)) {
+          return; // Skip if business doesn't match contact filters
+        }
+
+        categorizedProspects[category].push({
+          ...business,
+          zipCode: searchedZipCode, // Keep track of which search found this
+          actualZip: business.actualZip, // Preserve the actual ZIP
+          inSystem: isInSystem
+        });
+        seenPlaceIds.add(business.placeId); // Mark as seen
+        totalProspects++;
+        if (isInSystem) alreadyInSystem++;
+      }
+    });
+  });
+
+  // console.log(`🔍 DEBUG SUMMARY: Total cache keys: ${Object.keys(placesCache.searches).length}, Processed: ${processedCaches}, Skipped by ZIP: ${skippedByZip}, Skipped by Date: ${skippedByDate}`);
+  // console.log(`🔍 DEBUG SUMMARY: Total prospects found: ${totalProspects}, Categories: ${Object.keys(categorizedProspects).length}`);
+
+  // Render stats
+  const categories = Object.keys(categorizedProspects).length;
+  const selectedCount = prospectPoolState.selectedIds.size;
+  const available = totalProspects - alreadyInSystem;
+
+  // Count total businesses across all 4 Kanban columns
+  const kanbanTotalCount =
+    (kanbanState.columns['prospect-list'] || []).length +
+    (kanbanState.columns['to-contact'] || []).length +
+    (kanbanState.columns['in-progress'] || []).length +
+    (kanbanState.columns['committed'] || []).length;
+
+  statsContainer.innerHTML = `
+    <div class="bg-white border rounded-lg p-4 text-center">
+      <div class="text-3xl font-bold text-purple-600">${kanbanTotalCount}</div>
+      <div class="text-xs text-gray-600 mt-1">My Prospect List</div>
+    </div>
+    <div class="bg-white border rounded-lg p-4 text-center">
+      <div class="text-3xl font-bold text-gray-900">${categories}</div>
+      <div class="text-xs text-gray-600 mt-1">Categories</div>
+    </div>
+    <div class="bg-white border rounded-lg p-4 text-center">
+      <div class="text-3xl font-bold text-indigo-600">${totalProspects}</div>
+      <div class="text-xs text-gray-600 mt-1">Total Businesses</div>
+    </div>
+    <div class="bg-white border rounded-lg p-4 text-center">
+      <div class="text-3xl font-bold text-green-600">${available}</div>
+      <div class="text-xs text-gray-600 mt-1">Available to Add</div>
+    </div>
+  `;
+
+  // Populate ZIP code checkboxes
+  if (zipCheckboxContainer) {
+    const sortedZips = Array.from(availableZips).sort();
+
+    // Determine what should be checked
+    // Default: ALL is checked
+    // If user has made selections: honor those
+    const isFirstLoad = !zipCheckboxContainer.querySelector('input[type="checkbox"]');
+    const shouldCheckAll = isFirstLoad || (allSelected && selectedZips.length === 0);
+
+    zipCheckboxContainer.innerHTML = `
+      <label class="inline-flex items-center gap-2 px-4 py-2 bg-white border-2 rounded-lg cursor-pointer hover:bg-blue-50 hover:border-blue-400 transition-colors font-semibold ${shouldCheckAll ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}">
+        <input type="checkbox" value="all" ${shouldCheckAll ? 'checked' : ''} onchange="toggleAllZips(this)" class="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500">
+        <span class="text-sm font-bold text-gray-900">ALL</span>
+      </label>
+    ` + sortedZips.map(zip => `
+      <div class="inline-flex items-center gap-1 px-3 py-2 bg-white border-2 rounded-lg hover:bg-indigo-50 hover:border-indigo-300 transition-colors ${selectedZips.includes(zip) ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300'}">
+        <label class="inline-flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" value="${zip}" ${selectedZips.includes(zip) ? 'checked' : ''} onchange="handleZipChange(this)" class="w-4 h-4 text-indigo-600 rounded focus:ring-2 focus:ring-indigo-500">
+          <span class="text-sm font-medium text-gray-700">${zip}</span>
+        </label>
+        <button
+          onclick="event.stopPropagation(); clearCacheByZip('${zip}')"
+          class="ml-1 px-2 py-1 text-xs text-red-600 hover:bg-red-100 rounded transition-colors"
+          title="Delete all cached searches for ZIP ${zip}"
+        >
+          🗑️
+        </button>
+      </div>
+    `).join('');
+  }
+
+  // ========= UNIFIED POOL: Merge manual prospects + search results by category =========
+
+  // Check if we have any prospects at all
+  if (Object.keys(categorizedProspects).length === 0 && prospectPoolState.manualProspects.length === 0) {
+    container.innerHTML = `
+      <div class="text-center py-16 bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl border-2 border-dashed border-purple-300">
+        <div class="text-7xl mb-6 animate-pulse">🎯</div>
+        <h3 class="text-3xl font-black text-gray-900 mb-3">Your Prospect Pool is Empty</h3>
+        <p class="text-lg text-gray-600 mb-8 max-w-md mx-auto">
+          Use the <strong>Prospect Generator</strong> to discover businesses in your area.
+          They'll appear here for review before adding to your sales pipeline.
+        </p>
+        <button onclick="switchTab('lead-generation')" class="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 font-black text-lg shadow-xl transform hover:scale-105 transition">
+          🔍 Generate Prospects Now →
+        </button>
+      </div>
+    `;
+    return;
+  }
+
+  // Merge both manual prospects and search results into unified categories
+  const unifiedByCategory = {};
+  // Track placeIds to prevent duplicates between manual prospects and search results
+  const unifiedSeenPlaceIds = new Set();
+  let manualProspectsAdded = 0;
+  let manualProspectsSkipped = 0;
+
+  // 1. Add manual prospects (enriched) to unified pool - filter by ZIP and date
+  prospectPoolState.manualProspects
+    .filter(prospect => {
+      // Filter by selected ZIP codes (use actualZip if available, fallback to zipCode)
+      const prospectZip = prospect.actualZip || prospect.zipCode;
+      if (filterByZip && prospectZip && !selectedZips.includes(prospectZip)) {
+        return false; // Skip if ZIP doesn't match filter
+      }
+      return true;
+    })
+    .filter(prospect => {
+      // Apply date filter
+      if (!cutoffDate) return true; // Show all if no date filter
+      if (!prospect.movedToPoolDate) return true; // Show if no date (legacy)
+      const movedDate = new Date(prospect.movedToPoolDate);
+      return movedDate >= cutoffDate;
+    })
+    .filter(prospect => {
+      // Filter by contact data
+      return matchesContactFilters(prospect);
+    })
+    .forEach(prospect => {
+      // Skip duplicates (prevent same placeId from appearing twice)
+      if (prospect.placeId && unifiedSeenPlaceIds.has(prospect.placeId)) {
+        manualProspectsSkipped++;
+        console.log(`🔵 Skipping duplicate manual prospect: ${prospect.businessName || prospect.name} (placeId: ${prospect.placeId})`);
+        return;
+      }
+
+      const category = prospect.category || 'other';
+      if (!unifiedByCategory[category]) {
+        unifiedByCategory[category] = [];
+      }
+      unifiedByCategory[category].push({
+        ...prospect,
+        // Respect existing isEnriched value (defaults to false for consistent checkbox UI)
+        isEnriched: prospect.isEnriched === true, // Only true if explicitly set
+        type: 'manual'
+      });
+
+      // Mark this placeId as seen
+      if (prospect.placeId) {
+        unifiedSeenPlaceIds.add(prospect.placeId);
+      }
+      manualProspectsAdded++;
+    });
+
+  // 2. Add search results (raw) to unified pool - SKIP duplicates already added from manual
+  let searchProspectsAdded = 0;
+  let searchProspectsSkipped = 0;
+
+  Object.keys(categorizedProspects).forEach(category => {
+    if (!unifiedByCategory[category]) {
+      unifiedByCategory[category] = [];
+    }
+    categorizedProspects[category].forEach(prospect => {
+      // Skip if this placeId was already added from manual prospects
+      if (prospect.placeId && unifiedSeenPlaceIds.has(prospect.placeId)) {
+        searchProspectsSkipped++;
+        return; // Skip duplicate
+      }
+
+      unifiedByCategory[category].push({
+        ...prospect,
+        isEnriched: false, // From search = no contact info yet
+        type: 'search'
+      });
+
+      // Mark as seen
+      if (prospect.placeId) {
+        unifiedSeenPlaceIds.add(prospect.placeId);
+      }
+      searchProspectsAdded++;
+    });
+  });
+
+  console.log(`🔵 Prospect Pool Deduplication: Manual=${manualProspectsAdded} added (${manualProspectsSkipped} duplicates skipped), Search=${searchProspectsAdded} added (${searchProspectsSkipped} duplicates skipped)`);
+
+  // Render unified pool header
+  container.innerHTML = `
+    <div class="bg-indigo-50 border-2 border-indigo-200 rounded-lg p-4 mb-6">
+      <div class="mb-4">
+        <h3 class="text-lg font-bold text-indigo-900">🎯 Prospect Pool</h3>
+        <p class="text-sm text-indigo-700 mt-1">All prospects organized by category - click to add to your pipeline</p>
+      </div>
+      <div class="relative">
+        <input
+          type="text"
+          id="prospectPoolSearch"
+          placeholder="Search businesses by name..."
+          oninput="filterProspectPool(this.value)"
+          value="${prospectPoolSearchTerm}"
+          class="w-full px-4 py-2 pl-10 border-2 border-indigo-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+        />
+        <svg class="absolute left-3 top-3 h-5 w-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+      </div>
+    </div>
+
+    ${Object.keys(unifiedByCategory).sort().map(category => {
+    const prospects = unifiedByCategory[category];
+
+    // Hide categories with zero businesses
+    if (!prospects || prospects.length === 0) {
+      return '';
+    }
+
+    const categoryName = category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    const enrichedCount = prospects.filter(p => p.isEnriched || p.enriched).length;
+    const rawCount = prospects.filter(p => !p.isEnriched && !p.enriched).length;
+
+    return `
+      <div class="mb-8">
+        <div class="flex items-center justify-between mb-4 pb-2 border-b-2 border-gray-200">
+          <div>
+            <h4 class="text-lg font-bold text-gray-900">${categoryName}</h4>
+            <p class="text-sm text-gray-600">${prospects.length} total • <span class="text-green-600">${enrichedCount} enriched</span> • <span class="text-blue-600">${rawCount} raw</span></p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          ${prospects
+            // Calculate scores for all prospects
+            .map(p => ({
+              ...p,
+              leadScore: p.leadScore || calculateProspectScore(p),
+              contactScore: p.contactScore || (p.enriched ? calculateContactScore(p) : 0)
+            }))
+            // Sort by physical ZIP code (geographic organization)
+            .sort((a, b) => {
+              const zipA = a.actualZip || a.zip || a.zipCode || '';
+              const zipB = b.actualZip || b.zip || b.zipCode || '';
+              return zipA.localeCompare(zipB);
+            })
+            .map(prospect => {
+            // For enriched prospects (from manual list) - show with green border and contact icons
+            if (prospect.isEnriched) {
+              const hasContact = prospect.phone || prospect.website || prospect.email || prospect.facebook || prospect.instagram || prospect.linkedin || prospect.twitter;
+
+              // Build compact clickable icon display (matching kanban style)
+              const contactIcons = [];
+              if (prospect.phone) contactIcons.push(`<a href="tel:${esc(prospect.phone)}" onclick="event.stopPropagation()" class="text-lg hover:scale-125 transition-transform" title="📞 ${esc(prospect.phone)}">📞</a>`);
+              if (prospect.website) contactIcons.push(`<a href="${esc(ensureHttps(prospect.website))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="🌐 ${esc(prospect.website)}">🌐</a>`);
+              if (prospect.email) contactIcons.push(`<a href="mailto:${esc(prospect.email)}" onclick="event.stopPropagation()" class="text-lg hover:scale-125 transition-transform" title="✉️ ${esc(prospect.email)}">✉️</a>`);
+              if (prospect.facebook) contactIcons.push(`<a href="${esc(ensureHttps(prospect.facebook))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="📘 ${esc(prospect.facebook)}">📘</a>`);
+              if (prospect.instagram) contactIcons.push(`<a href="${esc(ensureHttps(prospect.instagram))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="📷 ${esc(prospect.instagram)}">📷</a>`);
+              if (prospect.linkedin) contactIcons.push(`<a href="${esc(ensureHttps(prospect.linkedin))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="💼 ${esc(prospect.linkedin)}">💼</a>`);
+              if (prospect.twitter) contactIcons.push(`<a href="${esc(ensureHttps(prospect.twitter))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="🐦 ${esc(prospect.twitter)}">🐦</a>`);
+
+              // Extract address and rating from notes if not available as separate fields
+              let displayAddress = prospect.address || '';
+              let displayRating = prospect.rating || 0;
+
+              if (!displayAddress && prospect.notes) {
+                const addressMatch = prospect.notes.match(/Address:\s*([^\n]+)/);
+                if (addressMatch) displayAddress = addressMatch[1];
+              }
+
+              if (!displayRating && prospect.notes) {
+                const ratingMatch = prospect.notes.match(/Rating:\s*([\d.]+)/);
+                if (ratingMatch) displayRating = parseFloat(ratingMatch[1]);
+              }
+
+              // Show actual ZIP code (not the searched ZIP) - DON'T use town as fallback
+              const displayLocation = prospect.actualZip ? `📍 ${prospect.actualZip}` : (prospect.zipCode ? `📍 ${prospect.zipCode}` : '');
+
+              // Build metadata line (category only, since ZIP is shown above)
+              const metadata = [];
+              if (prospect.category) {
+                const categoryName = prospect.category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                metadata.push(categoryName);
+              }
+
+              // Calculate lead score for enriched prospects
+              const enrichedLeadScore = prospect.leadScore || calculateProspectScore(prospect);
+              const enrichedScoreCategory = getScoreCategory(enrichedLeadScore);
+              const enrichedContactScore = prospect.contactScore || calculateContactScore(prospect);
+
+              // Price level display
+              const priceLevel = prospect.priceLevel || 0;
+              const priceLevelDisplay = priceLevel > 0 ? '$'.repeat(priceLevel) : '';
+
+              // Owner name display
+              const ownerDisplay = prospect.ownerName ? `<div class="text-xs text-gray-600 mb-1">👤 Owner: ${esc(prospect.ownerName)}</div>` : '';
+
+              // Review count with rating
+              const reviewDisplay = displayRating ? `<div class="flex items-center gap-2 mb-2 text-xs text-gray-700">
+                <span class="font-semibold">⭐ ${displayRating}</span>
+                ${prospect.reviewCount ? `<span class="text-gray-500">(${prospect.reviewCount.toLocaleString()} reviews)</span>` : ''}
+                ${priceLevelDisplay ? `<span class="text-green-600 font-bold">${priceLevelDisplay}</span>` : ''}
+              </div>` : '';
+
+              return `
+                <div class="bg-white border-2 ${hasContact ? 'border-green-400' : 'border-gray-200'} rounded-lg p-3 hover:shadow-md transition cursor-pointer relative" onclick="openClientModalForProspect('${prospect.id}')">
+                  <!-- Contact Score Badge (top-right) -->
+                  <div class="absolute top-2 right-2">
+                    <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">
+                      📞 ${enrichedContactScore}/10
+                    </span>
+                  </div>
+
+                  <h5 class="font-semibold text-sm text-gray-900 mb-1 pr-20">${esc(prospect.businessName)}</h5>
+                  ${displayLocation ? `<p class="text-xs text-gray-600 mt-0.5 mb-2">${esc(displayLocation)}</p>` : ''}
+                  ${displayAddress ? `<p class="text-xs text-gray-600 mb-2">📍 ${esc(displayAddress)}</p>` : ''}
+                  ${ownerDisplay}
+                  ${metadata.length > 0 ? `<p class="text-xs text-gray-500 mb-2">${metadata.join(' • ')}</p>` : ''}
+                  ${reviewDisplay}
+                  ${prospect.description ? `<p class="text-xs text-gray-600 italic mb-2">"${esc(prospect.description.substring(0, 80))}${prospect.description.length > 80 ? '...' : ''}"</p>` : ''}
+                  ${prospect.followUpDate ? `<div class="text-xs text-purple-600 font-medium mb-2">📅 ${prospect.followUpDate}</div>` : ''}
+                  ${contactIcons.length > 0 ? `
+                    <div class="flex gap-2 items-center justify-center py-2 mb-2 border-t border-gray-200">
+                      ${contactIcons.join('')}
+                    </div>
+                  ` : '<div class="text-gray-400 italic text-center py-2 mb-2 text-xs border-t border-gray-200">No contact info</div>'}
+                  <div class="flex gap-2">
+                    <button onclick="event.stopPropagation(); moveProspectFromPool(${prospect.id})" class="flex-1 px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-semibold text-xs">
+                      Add to Prospecting →
+                    </button>
+                    <button onclick="event.stopPropagation(); markProspectNotInterested('${prospect.placeId || prospect.id}', '${esc(prospect.businessName).replace(/'/g, "\\'")}')" class="px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 font-semibold text-xs" title="Not Interested">
+                      🚫
+                    </button>
+                  </div>
+                </div>
+              `;
+            }
+
+            // For raw prospects (from search results) - show with checkbox
+            const prospectId = prospect.placeId || prospect.id;
+            const isSelected = prospectPoolState.selectedIds.has(prospectId);
+            const isDisabled = prospect.inSystem;
+
+            // Handle both name/businessName and address field variations
+            const displayName = prospect.name || prospect.businessName || 'Unnamed Business';
+            const displayAddress = prospect.address || '';
+
+            // Extract address from notes if not available
+            let addressToShow = displayAddress;
+            if (!addressToShow && prospect.notes) {
+              const addressMatch = prospect.notes.match(/Address:\s*([^\n]+)/);
+              if (addressMatch) addressToShow = addressMatch[1];
+            }
+
+            // Show actual ZIP code (not the searched ZIP) for raw prospects too - DON'T use town as fallback
+            const rawDisplayLocation = prospect.actualZip ? `📍 ${prospect.actualZip}` : (prospect.zipCode ? `📍 ${prospect.zipCode}` : '');
+
+            // Extract contact info from notes if available
+            let rawPhone = prospect.phone || '';
+            let rawEmail = prospect.email || '';
+            let rawWebsite = prospect.website || '';
+            let rawFacebook = prospect.facebook || '';
+            let rawInstagram = prospect.instagram || '';
+            let rawLinkedIn = prospect.linkedin || '';
+            let rawTwitter = prospect.twitter || '';
+
+            if (!rawPhone && prospect.notes) {
+              const phoneMatch = prospect.notes.match(/Phone:\s*([^\n]+)/);
+              if (phoneMatch) rawPhone = phoneMatch[1];
+            }
+            if (!rawEmail && prospect.notes) {
+              const emailMatch = prospect.notes.match(/Email:\s*([^\n]+)/);
+              if (emailMatch) rawEmail = emailMatch[1];
+            }
+            if (!rawWebsite && prospect.notes) {
+              const websiteMatch = prospect.notes.match(/Website:\s*([^\n]+)/);
+              if (websiteMatch) rawWebsite = websiteMatch[1];
+            }
+
+            // Build compact clickable icon display for raw prospects
+            const rawContactIcons = [];
+            if (rawPhone) rawContactIcons.push(`<a href="tel:${esc(rawPhone)}" onclick="event.stopPropagation()" class="text-lg hover:scale-125 transition-transform" title="📞 ${esc(rawPhone)}">📞</a>`);
+            if (rawWebsite) rawContactIcons.push(`<a href="${esc(ensureHttps(rawWebsite))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="🌐 ${esc(rawWebsite)}">🌐</a>`);
+            if (rawEmail) rawContactIcons.push(`<a href="mailto:${esc(rawEmail)}" onclick="event.stopPropagation()" class="text-lg hover:scale-125 transition-transform" title="✉️ ${esc(rawEmail)}">✉️</a>`);
+            if (rawFacebook) rawContactIcons.push(`<a href="${esc(ensureHttps(rawFacebook))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="📘 ${esc(rawFacebook)}">📘</a>`);
+            if (rawInstagram) rawContactIcons.push(`<a href="${esc(ensureHttps(rawInstagram))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="📷 ${esc(rawInstagram)}">📷</a>`);
+            if (rawLinkedIn) rawContactIcons.push(`<a href="${esc(ensureHttps(rawLinkedIn))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="💼 ${esc(rawLinkedIn)}">💼</a>`);
+            if (rawTwitter) rawContactIcons.push(`<a href="${esc(ensureHttps(rawTwitter))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="🐦 ${esc(rawTwitter)}">🐦</a>`);
+
+            // Build metadata line (category only, since ZIP is shown above)
+            const rawMetadata = [];
+            if (prospect.category) {
+              const categoryName = prospect.category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              rawMetadata.push(categoryName);
+            }
+
+            // Get lead score and category
+            const leadScore = prospect.leadScore || 0;
+            const scoreCategory = prospect.scoreCategory || getScoreCategory(leadScore);
+            const contactScore = prospect.contactScore || 0;
+
+            // Determine border color based on score
+            let borderColor = 'border-gray-200';
+            if (scoreCategory.color === 'red') borderColor = 'border-red-400';
+            else if (scoreCategory.color === 'orange') borderColor = 'border-orange-400';
+            else if (scoreCategory.color === 'blue') borderColor = 'border-blue-400';
+
+            return `
+              <div class="prospect-card border-2 border-gray-200 rounded-lg p-3 ${isDisabled ? 'bg-gray-50 opacity-60' : 'bg-white hover:shadow-md'} transition" data-place-id="${prospectId}">
+                <div class="flex items-start gap-2" onclick="openClientModalForProspect(${JSON.stringify(prospect).replace(/"/g, '&quot;')})">
+                  <input
+                    type="checkbox"
+                    ${isSelected ? 'checked' : ''}
+                    ${isDisabled ? 'disabled' : ''}
+                    onchange="event.stopPropagation(); togglePoolProspect('${prospectId}')"
+                    onclick="event.stopPropagation()"
+                    class="mt-1 w-4 h-4 text-indigo-600 rounded cursor-pointer flex-shrink-0"
+                  />
+                  <div class="flex-1 min-w-0 cursor-pointer">
+                    <h5 class="font-semibold text-sm text-gray-900 truncate">${esc(displayName)}</h5>
+                    ${rawDisplayLocation ? `<p class="text-xs text-gray-600 mt-0.5">${esc(rawDisplayLocation)}</p>` : ''}
+                    ${addressToShow ? `<p class="text-xs text-gray-600 mt-0.5">📍 ${esc(addressToShow)}</p>` : ''}
+                    ${rawMetadata.length > 0 ? `<p class="text-xs text-gray-500 mt-0.5">${rawMetadata.join(' • ')}</p>` : ''}
+                    <div class="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                      ${prospect.rating ? `<span>⭐ ${prospect.rating}</span>` : ''}
+                      ${prospect.userRatingsTotal ? `<span>(${prospect.userRatingsTotal} reviews)</span>` : ''}
+                      ${isDisabled ? '<span class="text-xs px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded">In System</span>' : ''}
+                    </div>
+
+                    <!-- Enrichment Status (only show if enriched) -->
+                    ${prospect.enriched ? `
+                      <div class="enrichment-status mt-2">
+                        <span class="text-xs text-green-600">✅ Enriched</span>
+                        <span class="text-xs text-gray-600">• Contact Score: ${contactScore}/10</span>
+                      </div>
+                    ` : ''}
+
+                    <!-- Contact Methods -->
+                    ${rawContactIcons.length > 0 ? `
+                      <div class="contact-methods flex gap-2 items-center mt-2 pt-2 border-t border-gray-200">
+                        ${rawContactIcons.join('')}
+                      </div>
+                    ` : ''}
+                  </div>
+                  ${!isDisabled ? `
+                  <button onclick="event.stopPropagation(); markProspectNotInterested('${prospectId}', '${esc(displayName).replace(/'/g, "\\'")}')" class="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs font-semibold flex-shrink-0" title="Not Interested">
+                    🚫
+                  </button>
+                  ` : ''}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  }).join('')}
+  `;
+
+  // ZIP code filter is now handled by checkboxes above
+  // No need to populate a dropdown anymore
+
+  // Update selected count
+  updatePoolSelectedCount();
+
+  // Re-apply search filter if one exists
+  if (prospectPoolSearchTerm) {
+    // Use setTimeout to ensure DOM is fully rendered
+    setTimeout(function() {
+      filterProspectPool(prospectPoolSearchTerm);
+    }, 0);
+  }
+  console.log('🔵 DEBUG: renderProspectPool EXIT - prospect-list length:', kanbanState.columns['prospect-list']?.length);
+}
+
+function togglePoolProspect(placeId) {
+  console.log('🟢 togglePoolProspect called with ID:', placeId);
+  if (prospectPoolState.selectedIds.has(placeId)) {
+    prospectPoolState.selectedIds.delete(placeId);
+    console.log('🟢 Removed from selection. Total selected:', prospectPoolState.selectedIds.size);
+  } else {
+    prospectPoolState.selectedIds.add(placeId);
+    console.log('🟢 Added to selection. Total selected:', prospectPoolState.selectedIds.size);
+  }
+  console.log('🟢 Selected IDs:', Array.from(prospectPoolState.selectedIds));
+  updatePoolSelectedCount();
+  // Just update the checkbox state, don't re-render everything
+}
+
+function areCategoryProspectsSelected(category) {
+  const cached = placesCache.searches;
+  let allSelected = true;
+  let hasAny = false;
+
+  Object.keys(cached).forEach(cacheKey => {
+    if (!cacheKey.endsWith(`-${category}`)) return;
+
+    cached[cacheKey].cachedData?.forEach(business => {
+      if (notInterestedState.placeIds.has(business.placeId)) return;
+
+      // Check if in system
+      const existingPlaceIds = new Set();
+      Object.values(kanbanState.columns).forEach(column => {
+        column.forEach(lead => {
+          if (lead && lead.placeId) existingPlaceIds.add(lead.placeId);
+        });
+      });
+
+      if (existingPlaceIds.has(business.placeId)) return;
+
+      hasAny = true;
+      if (!prospectPoolState.selectedIds.has(business.placeId)) {
+        allSelected = false;
+      }
+    });
+  });
+
+  return hasAny && allSelected;
+}
+
+function selectCategoryProspects(category, select) {
+  const cached = placesCache.searches;
+
+  // Get existing place IDs
+  const existingPlaceIds = new Set();
+  Object.values(kanbanState.columns).forEach(column => {
+    column.forEach(lead => {
+      if (lead && lead.placeId) existingPlaceIds.add(lead.placeId);
+    });
+  });
+
+  Object.keys(cached).forEach(cacheKey => {
+    if (!cacheKey.endsWith(`-${category}`)) return;
+
+    cached[cacheKey].cachedData?.forEach(business => {
+      if (notInterestedState.placeIds.has(business.placeId)) return;
+      if (existingPlaceIds.has(business.placeId)) return;
+
+      if (select) {
+        prospectPoolState.selectedIds.add(business.placeId);
+      } else {
+        prospectPoolState.selectedIds.delete(business.placeId);
+      }
+    });
+  });
+
+  renderProspectPool();
+}
+
+function updatePoolSelectedCount() {
+  const countEl = document.getElementById('prospectPoolSelectedCount');
+  const btnEl = document.getElementById('btnAddFromPool');
+  const actionBar = document.getElementById('prospectPoolActionBar');
+
+  const count = prospectPoolState.selectedIds.size;
+
+  if (countEl) {
+    countEl.textContent = count;
+  }
+
+  if (btnEl) {
+    btnEl.disabled = count === 0;
+  }
+
+  // Show/hide the action bar based on selection
+  if (actionBar) {
+    if (count > 0) {
+      actionBar.style.display = 'block';
+    } else {
+      actionBar.style.display = 'none';
+    }
+  }
+}
+
+function clearProspectPoolSelection() {
+  prospectPoolState.selectedIds.clear();
+  updatePoolSelectedCount();
+  renderProspectPool();
+}
+
+async function addFromProspectPool() {
+  console.log('🔵 addFromProspectPool called');
+  if (prospectPoolState.selectedIds.size === 0) {
+    toast('No prospects selected', false);
+    return;
+  }
+
+  // Get current mailer ID (optional - can be null)
+  const currentMailerId = state.current?.Mailer_ID || null;
+  console.log('🔵 currentMailerId:', currentMailerId);
+
+  const btn = document.getElementById('btnAddFromPool');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ Adding...';
+
+  try {
+    // Collect all selected businesses from both sources
+    const selectedBusinesses = [];
+    const seenPlaceIds = new Set(); // Prevent duplicates
+    console.log('🔵 Collecting selected businesses...');
+
+    // From Google Places searches
+    Object.values(placesCache.searches).forEach(cached => {
+      cached.cachedData?.forEach(business => {
+        if (prospectPoolState.selectedIds.has(business.placeId) && !seenPlaceIds.has(business.placeId)) {
+          selectedBusinesses.push(business);
+          seenPlaceIds.add(business.placeId);
+        }
+      });
+    });
+
+    // From manually added prospects
+    prospectPoolState.manualProspects?.forEach(business => {
+      const businessId = business.id || business.placeId;
+      if (prospectPoolState.selectedIds.has(businessId) && !seenPlaceIds.has(businessId)) {
+        selectedBusinesses.push(business);
+        seenPlaceIds.add(businessId);
+        console.log('🔵 Found selected manual business:', business.businessName, 'ID:', businessId);
+      }
+    });
+
+    console.log('🔵 Total selected businesses:', selectedBusinesses.length, '(deduplicated)');
+
+    // Fetch details and add to kanban
+    const prospectingColumn = 'prospect-list';
+    const existingLeads = kanbanState.columns[prospectingColumn] || [];
+    console.log('🔵 Existing leads in prospect-list:', existingLeads.length);
+
+    // Get existing placeIds to prevent duplicates (check all leads, not just current mailer)
+    const existingPlaceIds = new Set(
+      existingLeads
+        .filter(lead => lead.placeId)
+        .map(lead => lead.placeId)
+    );
+
+    let addedCount = 0;
+    let skippedCount = 0;
+
+    for (let i = 0; i < selectedBusinesses.length; i++) {
+      const business = selectedBusinesses[i];
+      const businessId = business.placeId || business.id;
+
+      // Skip if already exists for this mailer
+      if (existingPlaceIds.has(businessId)) {
+        skippedCount++;
+        continue;
+      }
+
+      btn.textContent = `⏳ Adding... (${i + 1}/${selectedBusinesses.length})`;
+
+      let newLead;
+
+      // Handle manually added businesses (no API fetch needed)
+      if (business.type === 'manual') {
+        console.log('🔵 Processing manual business:', business.businessName);
+        newLead = {
+          id: Date.now() + Math.random(),
+          businessName: business.businessName || business.name,
+          contactName: business.contactName || '',
+          phone: business.phone || '',
+          email: business.email || '',
+          estimatedValue: 500,
+          notes: business.notes || `Manually added business\nAddress: ${business.address}\nTown: ${business.town}`,
+          source: 'manual',
+          placeId: business.id || business.placeId, // Use the manual ID or placeId for tracking
+          website: business.website || '',
+          facebook: business.facebook || '',
+          instagram: business.instagram || '',
+          linkedin: business.linkedin || '',
+          twitter: business.twitter || '',
+          category: business.category || 'other',
+          zipCode: business.zipCode || null,
+          actualZip: business.actualZip || null,
+          town: business.town || business.actualCity || state.current?.Town,
+          address: business.address || '',
+          rating: business.rating || 0,
+          userRatingsTotal: business.userRatingsTotal || 0,
+          mailerId: currentMailerId,
+          addedDate: new Date().toISOString(),
+          interactions: []
+        };
+        console.log('🔵 Created newLead:', newLead);
+      } else {
+        // Handle Google Places businesses
+        // IMPORTANT: Use existing data from business object if already available (from cache)
+        btn.textContent = `⏳ Processing... (${i + 1}/${selectedBusinesses.length})`;
+
+        // Start with data already in the business object (may be enriched from previous scraping)
+        let details = {
+          phone: business.phone || '',
+          website: business.website || '',
+          email: business.email || '',
+          facebook: business.facebook || '',
+          instagram: business.instagram || '',
+          linkedin: business.linkedin || '',
+          twitter: business.twitter || '',
+          contactNames: [],
+          source: business.source || 'google-places',
+          enriched: business.enriched || false
+        };
+
+        // Step 1: Only fetch from API if we don't have basic data yet
+        if (business.placeId && !details.phone && !details.website) {
+          btn.textContent = `⏳ Fetching details... (${i + 1}/${selectedBusinesses.length})`;
+          const apiDetails = await fetchPlaceDetails(business.placeId);
+          // Merge API data (don't overwrite existing enriched data)
+          details.phone = details.phone || apiDetails.phone || '';
+          details.website = details.website || apiDetails.website || '';
+        }
+
+        // Step 2: Check if user wants Smart Enrichment AND we don't have enriched data yet
+        const enableSmartEnrichment = document.getElementById('enableSmartEnrichment')?.checked;
+        const needsEnrichment = !details.email && !details.facebook && !details.instagram;
+
+        if (enableSmartEnrichment && details.website && needsEnrichment) {
+          // Use our custom scraper to find emails, social media, etc.
+          btn.textContent = `🎯 Smart enriching... (${i + 1}/${selectedBusinesses.length})`;
+          const enrichedData = await fetchSmartEnrichment(details.website, business.name);
+
+          // Merge enriched data (preserve existing data)
+          details = {
+            phone: details.phone || enrichedData.phone || '',
+            website: details.website || '',
+            email: details.email || enrichedData.email || '',
+            facebook: details.facebook || enrichedData.facebook || '',
+            instagram: details.instagram || enrichedData.instagram || '',
+            linkedin: details.linkedin || enrichedData.linkedin || '',
+            twitter: details.twitter || enrichedData.twitter || '',
+            contactNames: enrichedData.contactNames || [],
+            source: enrichedData.enriched ? '9x12pro-scraper' : details.source,
+            enriched: enrichedData.enriched || details.enriched,
+            pagesScraped: enrichedData.pagesScraped
+          };
+        }
+
+        // Build notes based on enrichment source
+        let notes = `Found via ${details.source === '9x12pro-scraper' ? 'Google Places + Smart Enrichment' : 'Google Places'}\nAddress: ${business.address}\nRating: ${business.rating} (${business.userRatingsTotal} reviews)\n`;
+        if (details.phone) notes += `Phone: ${details.phone}\n`;
+        if (details.website) notes += `Website: ${details.website}\n`;
+        if (details.email) notes += `📧 Email: ${details.email}\n`;
+        if (details.facebook) notes += `📘 Facebook: ${details.facebook}\n`;
+        if (details.instagram) notes += `📷 Instagram: ${details.instagram}\n`;
+        if (details.linkedin) notes += `💼 LinkedIn: ${details.linkedin}\n`;
+        if (details.twitter) notes += `🐦 Twitter: ${details.twitter}\n`;
+        if (details.contactNames && details.contactNames.length > 0) {
+          notes += `👤 Contacts: ${details.contactNames.join(', ')}\n`;
+        }
+        notes += `Place ID: ${business.placeId}`;
+        if (details.source === '9x12pro-scraper' && details.enriched) {
+          notes += `\n\n✅ Enriched with Smart Scraper (${details.pagesScraped} pages scraped)`;
+        }
+
+        newLead = {
+          id: Date.now() + Math.random(),
+          businessName: business.name,
+          contactName: details.contactNames && details.contactNames.length > 0 ? details.contactNames[0] : '',
+          phone: details.phone || '',
+          email: details.email || '',
+          estimatedValue: 500,
+          notes: notes,
+          source: details.source || 'google-places',
+          placeId: business.placeId,
+          website: details.website || '',
+          facebook: details.facebook || '',
+          instagram: details.instagram || '',
+          linkedin: details.linkedin || '',
+          twitter: details.twitter || '',
+          category: business.category || 'other',
+          zipCode: business.zipCode || null,
+          actualZip: business.actualZip || null,
+          town: business.actualCity || state.current?.Town,
+          address: business.address || '',
+          rating: business.rating || 0,
+          userRatingsTotal: business.userRatingsTotal || 0,
+          mailerId: currentMailerId,
+          addedDate: new Date().toISOString(),
+          interactions: []
+        };
+      }
+
+      kanbanState.columns[prospectingColumn].push(newLead);
+      addedCount++;
+      console.log('🔵 Added to kanban. Total added:', addedCount);
+
+      // Enrich with website if from Yelp and no website yet
+      if (newLead.source === 'yelp' && !newLead.website && !newLead.enriched) {
+        enrichBusinessWebsite(newLead); // Fire and forget - runs async
+      }
+
+      // Small delay to avoid rate limiting
+      if (i < selectedBusinesses.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+    }
+
+    console.log('🔵 Saving kanban...');
+    console.log('🔵 DEBUG: Before saveKanban, prospect-list length:', kanbanState.columns['prospect-list']?.length);
+    await saveKanban(); // AWAIT to prevent race condition
+    console.log('🔵 DEBUG: After saveKanban, prospect-list length:', kanbanState.columns['prospect-list']?.length);
+    console.log('🔵 Rendering kanban...');
+    renderKanban();
+    console.log('🔵 DEBUG: After renderKanban, prospect-list length:', kanbanState.columns['prospect-list']?.length);
+
+    // Clear selections and re-render pool
+    console.log('🔵 Clearing selections and re-rendering pool...');
+    prospectPoolState.selectedIds.clear();
+    console.log('🔵 DEBUG: Before renderProspectPool, prospect-list length:', kanbanState.columns['prospect-list']?.length);
+    renderProspectPool();
+    console.log('🔵 DEBUG: After renderProspectPool, prospect-list length:', kanbanState.columns['prospect-list']?.length);
+
+    // Show success message
+    let message = `✅ Added ${addedCount} prospect${addedCount === 1 ? '' : 's'} to Pipeline!`;
+    if (skippedCount > 0) {
+      message += ` ${skippedCount} duplicate${skippedCount === 1 ? '' : 's'} skipped.`;
+    }
+    message += ` Use CSV export/import to add social media URLs.`;
+    toast(message, true);
+
+    // Switch to pipeline tab
+    console.log('🔵 DEBUG: Before switchTab, prospect-list length:', kanbanState.columns['prospect-list']?.length);
+    switchTab('pipeline');
+    console.log('🔵 DEBUG: After switchTab, prospect-list length:', kanbanState.columns['prospect-list']?.length);
+  } catch(err) {
+    console.error('Error adding from pool:', err);
+    toast('Failed to add prospects. Please try again.', false);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
+function clearProspectPool() {
+  if (!confirm('Are you sure you want to clear the entire prospect pool? This will remove all cached searches.')) {
+    return;
+  }
+
+  placesCache.searches = {};
+  savePlacesCache();
+  prospectPoolState.selectedIds.clear();
+  renderProspectPool();
+  toast('Prospect pool cleared', true);
+}
+
+// Clear prospects for CURRENT CARD only
+function clearAllProspects() {
+  const currentMailerId = state.current?.Mailer_ID;
+  if (!currentMailerId) {
+    toast('Please select a postcard first', false);
+    return;
+  }
+
+  const cardName = `${state.current.Town} — ${state.current.Mail_Date}`;
+
+  if (!confirm(`⚠️ This will clear all prospects for:\n"${cardName}"\n\n• All search results in the prospect pool\n• All prospects in the pipeline (all stages)\n\nAre you sure?`)) {
+    return;
+  }
+
+  // Clear ALL cached search results (entire prospect pool)
+  placesCache.searches = {};
+  savePlacesCache();
+
+  // Clear manual prospects for this card only
+  prospectPoolState.manualProspects = prospectPoolState.manualProspects.filter(
+    p => p.mailerId && p.mailerId !== currentMailerId
+  );
+
+  // Clear prospecting column for this card only
+  const prospectingColumn = 'prospect-list';
+  kanbanState.columns[prospectingColumn] = (kanbanState.columns[prospectingColumn] || []).filter(
+    lead => !lead.mailerId || lead.mailerId !== currentMailerId
+  );
+
+  // Clear all other kanban columns for this card
+  ['to-contact', 'in-progress', 'committed'].forEach(column => {
+    kanbanState.columns[column] = (kanbanState.columns[column] || []).filter(
+      lead => !lead.mailerId || lead.mailerId !== currentMailerId
+    );
+  });
+
+  prospectPoolState.selectedIds.clear();
+
+  saveManualProspects();
+  saveKanban();
+
+  renderProspectPool();
+  renderKanban();
+
+  toast(`✅ All prospects cleared for ${cardName}!`, true);
+}
+
+// Filter prospect pool by search term
+function filterProspectPool(searchTerm) {
+  prospectPoolSearchTerm = searchTerm; // Save for re-renders
+  const term = searchTerm.toLowerCase().trim();
+
+  // Get all category sections
+  const categorySections = document.querySelectorAll('#prospectPoolContainer > .mb-8');
+
+  categorySections.forEach(categorySection => {
+    // Find the grid container with all prospect cards
+    const grid = categorySection.querySelector('.grid');
+    if (!grid) return;
+
+    // Get all prospect cards (both types - enriched and raw)
+    const prospectCards = grid.querySelectorAll('div[onclick*="openProspectDetailModal"]');
+
+    let visibleCount = 0;
+
+    prospectCards.forEach(card => {
+      // Get the business name from h5 tag
+      const businessName = card.querySelector('h5')?.textContent || '';
+      // Get address from p tag (for raw prospects)
+      const addressElements = card.querySelectorAll('p');
+      let address = '';
+      addressElements.forEach(p => {
+        address += p.textContent + ' ';
+      });
+
+      const matches = businessName.toLowerCase().includes(term) || address.toLowerCase().includes(term);
+
+      if (term === '' || matches) {
+        card.style.display = '';
+        visibleCount++;
+      } else {
+        card.style.display = 'none';
+      }
+    });
+
+    // Hide entire category if no visible prospects
+    if (visibleCount === 0 && term !== '') {
+      categorySection.style.display = 'none';
+    } else {
+      categorySection.style.display = '';
+    }
+  });
+}
+
+/**
+ * Clear cached search results for a specific ZIP code
+ * @param {string} zipCode - The ZIP code to clear (e.g., '14150')
+ */
+function clearCacheByZip(zipCode) {
+  if (!zipCode) {
+    showError('Please provide a ZIP code (e.g., clearCacheByZip("14150"))');
+    return;
+  }
+
+  // Check for manual prospects with this ZIP first
+  const manualMatches = prospectPoolState.manualProspects.filter(p =>
+    (p.actualZip === zipCode) || (p.zipCode === zipCode) || (p.zip === zipCode)
+  );
+  const manualCount = manualMatches.length;
+  console.log(`🔍 DEBUG: Found ${manualCount} manual prospects for ZIP ${zipCode}`);
+
+  // Debug: Log all cache keys
+  const allKeys = Object.keys(placesCache.searches);
+  console.log(`🔍 DEBUG: All cache keys:`, allKeys);
+  console.log(`🔍 DEBUG: Looking for keys starting with: "${zipCode}-"`);
+
+  // Find all cache keys that start with this ZIP code
+  const keysToDelete = allKeys.filter(key => key.startsWith(`${zipCode}-`));
+
+  console.log(`🔍 DEBUG: Found ${keysToDelete.length} matching keys:`, keysToDelete);
+
+  // Check ALL cache entries for businesses with matching ZIP (handles legacy data and mismatched keys)
+  let otherKeysWithMatches = [];
+  let otherBusinessCount = 0;
+
+  allKeys.forEach(key => {
+    // Skip keys we're already deleting
+    if (keysToDelete.includes(key)) return;
+
+    const cache = placesCache.searches[key];
+    if (cache && cache.cachedData && Array.isArray(cache.cachedData)) {
+      const matchingBusinesses = cache.cachedData.filter(b =>
+        (b.actualZip === zipCode) || (b.zipCode === zipCode) || (b.zip === zipCode)
+      );
+      if (matchingBusinesses.length > 0) {
+        otherKeysWithMatches.push({ key, count: matchingBusinesses.length });
+        otherBusinessCount += matchingBusinesses.length;
+        console.log(`🔍 DEBUG: Found ${matchingBusinesses.length} businesses for ZIP ${zipCode} in cache key '${key}'`);
+      }
+    }
+  });
+
+  const hasOtherData = otherBusinessCount > 0;
+
+  if (keysToDelete.length === 0 && !hasOtherData && manualCount === 0) {
+    showWarning(`No prospects found for ZIP ${zipCode}\n\nAvailable cache keys: ${allKeys.join(', ')}`);
+    return;
+  }
+
+  const categoryCount = keysToDelete.length;
+  const businessCount = keysToDelete.reduce((sum, key) => {
+    const cached = placesCache.searches[key];
+    return sum + (cached.cachedData ? cached.cachedData.length : 0);
+  }, 0);
+
+  const totalBusinesses = businessCount + otherBusinessCount + manualCount;
+
+  // Build descriptive message
+  let messageParts = [];
+  if (categoryCount > 0) messageParts.push(`${businessCount} from ${categoryCount} category searches`);
+  if (otherBusinessCount > 0) messageParts.push(`${otherBusinessCount} from other cache entries`);
+  if (manualCount > 0) messageParts.push(`${manualCount} manual prospects`);
+
+  const message = `Clear all prospects for ZIP ${zipCode}?\n\nThis will remove ${totalBusinesses} businesses:\n- ${messageParts.join('\n- ')}\n\nYou can re-run searches to get fresh results.`;
+
+  if (!confirm(message)) {
+    return;
+  }
+
+  // Delete the cache entries for this ZIP
+  keysToDelete.forEach(key => {
+    delete placesCache.searches[key];
+  });
+
+  // Remove businesses from OTHER cache entries that have matching ZIP
+  if (hasOtherData) {
+    otherKeysWithMatches.forEach(({ key }) => {
+      const cache = placesCache.searches[key];
+      if (cache && cache.cachedData && Array.isArray(cache.cachedData)) {
+        const originalLength = cache.cachedData.length;
+        cache.cachedData = cache.cachedData.filter(b =>
+          (b.actualZip !== zipCode) && (b.zipCode !== zipCode) && (b.zip !== zipCode)
+        );
+        console.log(`🗑️ Removed ${originalLength - cache.cachedData.length} businesses from cache key '${key}'`);
+
+        // If cache is now empty, delete the key entirely
+        if (cache.cachedData.length === 0) {
+          delete placesCache.searches[key];
+          console.log(`🗑️ Removed empty cache key '${key}'`);
+        }
+      }
+    });
+  }
+
+  // Remove manual prospects with this ZIP
+  if (manualCount > 0) {
+    const originalLength = prospectPoolState.manualProspects.length;
+    prospectPoolState.manualProspects = prospectPoolState.manualProspects.filter(p =>
+      (p.actualZip !== zipCode) && (p.zipCode !== zipCode) && (p.zip !== zipCode)
+    );
+    console.log(`🗑️ Removed ${originalLength - prospectPoolState.manualProspects.length} manual prospects for ZIP ${zipCode}`);
+
+    // Save manual prospects to cloud
+    saveManualProspects();
+  }
+
+  // Save search cache to cloud and localStorage
+  savePlacesCache();
+
+  // Refresh the prospect pool display
+  renderProspectPool();
+
+  showSuccess(`✅ Cleared data for ZIP ${zipCode} (${totalBusinesses} businesses removed)`);
+  console.log(`🗑️ Cleared cache keys:`, keysToDelete, 'Other keys cleaned:', otherKeysWithMatches.map(k => k.key));
+}
+
+// Expose globally
+window.clearAllProspects = clearAllProspects;
+window.clearCacheByZip = clearCacheByZip;
+window.filterProspectPool = filterProspectPool;
+
+/* ========= PROSPECT POOL CSV EXPORT/IMPORT ========= */
+
+function exportProspectListCSV() {
+  // Export ONLY prospects from the "Prospect List" kanban column
+  const prospectList = kanbanState.columns['prospect-list'] || [];
+
+  if (prospectList.length === 0) {
+    toast('⚠️ No prospects in Prospect List to export', false);
+    return;
+  }
+
+  const allProspects = prospectList
+    .filter(item => item && typeof item === 'object')
+    .map(item => ({
+      businessName: item.businessName || item.name || '',
+      phone: item.phone || '',
+      website: item.website || '',
+      email: item.email || '',
+      facebook: item.facebook || '',
+      instagram: item.instagram || '',
+      category: item.category || '',
+      zipCode: item.zipCode || '',
+      address: item.address || '',
+      rating: item.rating || '',
+      reviewsCount: item.reviewsCount || item.userRatingsTotal || '',
+      placeId: item.placeId || '',
+      notes: item.notes || '',
+      dateAdded: item.dateAdded || new Date().toISOString().split('T')[0]
+    }));
+
+  // Create CSV
+  const headers = [
+    'Business Name',
+    'Phone',
+    'Website',
+    'Email',
+    'Facebook',
+    'Instagram',
+    'Category',
+    'ZIP Code',
+    'Address',
+    'Rating',
+    'Review Count',
+    'Place ID',
+    'Notes',
+    'Date Added'
+  ];
+
+  const csvContent = [
+    headers.join(','),
+    ...allProspects.map(p => [
+      `"${(p.businessName || '').replace(/"/g, '""')}"`,
+      `"${(p.phone || '').replace(/"/g, '""')}"`,
+      `"${(p.website || '').replace(/"/g, '""')}"`,
+      `"${(p.email || '').replace(/"/g, '""')}"`,
+      `"${(p.facebook || '').replace(/"/g, '""')}"`,
+      `"${(p.instagram || '').replace(/"/g, '""')}"`,
+      `"${(p.category || '').replace(/"/g, '""')}"`,
+      `"${(p.zipCode || '').replace(/"/g, '""')}"`,
+      `"${(p.address || '').replace(/"/g, '""')}"`,
+      `"${(p.rating || '').toString().replace(/"/g, '""')}"`,
+      `"${(p.reviewsCount || '').toString().replace(/"/g, '""')}"`,
+      `"${(p.placeId || '').replace(/"/g, '""')}"`,
+      `"${(p.notes || '').replace(/"/g, '""')}"`,
+      `"${(p.dateAdded || '').replace(/"/g, '""')}"`
+    ].join(','))
+  ].join('\n');
+
+  // Trigger download
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `prospect-list-${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  toast(`✅ Exported ${allProspects.length} prospects from Prospect List`, true);
+}
+
+function exportProspectPoolCSV() {
+  // Collect all prospects from searches cache
+  const allProspects = [];
+
+  Object.keys(placesCache.searches).forEach(cacheKey => {
+    const cached = placesCache.searches[cacheKey];
+    if (cached.cachedData && cached.cachedData.length > 0) {
+      cached.cachedData.forEach(business => {
+        // Skip if already in system
+        if (notInterestedState.placeIds.has(business.placeId)) return;
+
+        allProspects.push({
+          businessName: business.name || '',
+          phone: business.phone || '',
+          website: business.website || '',
+          email: business.email || '',
+          facebook: business.facebook || '',
+          instagram: business.instagram || '',
+          category: business.category || '',
+          zipCode: business.zipCode || '',
+          address: business.address || '',
+          rating: business.rating || '',
+          reviewsCount: business.reviewsCount || '',
+          placeId: business.placeId || '',
+          notes: business.notes || '',
+          dateAdded: business.dateAdded || new Date().toISOString().split('T')[0]
+        });
+      });
+    }
+  });
+
+  if (allProspects.length === 0) {
+    toast('⚠️ No prospects to export', false);
+    return;
+  }
+
+  // Create CSV
+  const headers = [
+    'Business Name',
+    'Phone',
+    'Website',
+    'Email',
+    'Facebook',
+    'Instagram',
+    'Category',
+    'ZIP Code',
+    'Address',
+    'Rating',
+    'Review Count',
+    'Place ID',
+    'Notes',
+    'Date Added'
+  ];
+
+  const rows = allProspects.map(p => [
+    p.businessName,
+    p.phone,
+    p.website,
+    p.email,
+    p.facebook,
+    p.instagram,
+    p.category,
+    p.zipCode,
+    p.address,
+    p.rating,
+    p.reviewsCount,
+    p.placeId,
+    p.notes,
+    p.dateAdded
+  ]);
+
+  let csv = headers.join(',') + '\n';
+  rows.forEach(row => {
+    csv += row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(',') + '\n';
+  });
+
+  // Download
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `prospect-pool-${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  toast(`✅ Exported ${allProspects.length} prospects to CSV`, true);
+}
+
+function importProspectPoolCSV(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const csv = e.target.result;
+      const lines = csv.split('\n').filter(line => line.trim());
+
+      if (lines.length < 2) {
+        toast('⚠️ CSV file is empty or invalid', false);
+        return;
+      }
+
+      // Parse CSV (simple parser for quoted fields)
+      const parseCsvLine = (line) => {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          if (char === '"') {
+            if (inQuotes && line[i + 1] === '"') {
+              current += '"';
+              i++;
+            } else {
+              inQuotes = !inQuotes;
+            }
+          } else if (char === ',' && !inQuotes) {
+            result.push(current);
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        result.push(current);
+        return result;
+      };
+
+      const headers = parseCsvLine(lines[0]);
+
+      // Find column indices
+      const colMap = {
+        businessName: headers.findIndex(h => h.toLowerCase().includes('business')),
+        phone: headers.findIndex(h => h.toLowerCase().includes('phone')),
+        website: headers.findIndex(h => h.toLowerCase().includes('website')),
+        email: headers.findIndex(h => h.toLowerCase().includes('email')),
+        facebook: headers.findIndex(h => h.toLowerCase().includes('facebook')),
+        instagram: headers.findIndex(h => h.toLowerCase().includes('instagram')),
+        category: headers.findIndex(h => h.toLowerCase().includes('category')),
+        zipCode: headers.findIndex(h => h.toLowerCase().includes('zip')),
+        address: headers.findIndex(h => h.toLowerCase().includes('address')),
+        rating: headers.findIndex(h => h.toLowerCase().includes('rating')),
+        reviewsCount: headers.findIndex(h => h.toLowerCase().includes('review')),
+        placeId: headers.findIndex(h => h.toLowerCase().includes('place')),
+        notes: headers.findIndex(h => h.toLowerCase().includes('notes')),
+        dateAdded: headers.findIndex(h => h.toLowerCase().includes('date'))
+      };
+
+      let updated = 0;
+      let added = 0;
+
+      // Process each row
+      for (let i = 1; i < lines.length; i++) {
+        const fields = parseCsvLine(lines[i]);
+        if (fields.length < 2) continue; // Skip empty/invalid rows
+
+        const businessName = fields[colMap.businessName] || '';
+        if (!businessName.trim()) continue;
+
+        const prospectData = {
+          name: businessName,
+          businessName: businessName,
+          phone: fields[colMap.phone] || '',
+          website: fields[colMap.website] || '',
+          email: fields[colMap.email] || '',
+          facebook: fields[colMap.facebook] || '',
+          instagram: fields[colMap.instagram] || '',
+          category: fields[colMap.category] || 'other',
+          zipCode: fields[colMap.zipCode] || '',
+          address: fields[colMap.address] || '',
+          rating: parseFloat(fields[colMap.rating]) || 0,
+          reviewsCount: parseInt(fields[colMap.reviewsCount]) || 0,
+          placeId: fields[colMap.placeId] || `MANUAL-${Date.now()}-${Math.random()}`,
+          notes: fields[colMap.notes] || '',
+          dateAdded: fields[colMap.dateAdded] || new Date().toISOString().split('T')[0]
+        };
+
+        // Try to find existing prospect by Place ID or business name
+        let found = false;
+
+        // FIRST: Check kanban columns (Prospect List, To Contact, In Progress, Committed)
+        Object.keys(kanbanState.columns).forEach(columnKey => {
+          const column = kanbanState.columns[columnKey];
+          if (!Array.isArray(column)) return;
+
+          const existingIndex = column.findIndex(item =>
+            item && typeof item === 'object' && (
+              item.placeId === prospectData.placeId ||
+              item.id === prospectData.placeId ||
+              (item.businessName && item.businessName.toLowerCase() === businessName.toLowerCase())
+            )
+          );
+
+          if (existingIndex !== -1) {
+            // Update existing prospect in kanban with enriched data
+            kanbanState.columns[columnKey][existingIndex] = {
+              ...kanbanState.columns[columnKey][existingIndex],
+              ...prospectData,
+              id: kanbanState.columns[columnKey][existingIndex].id || prospectData.placeId
+            };
+            found = true;
+            updated++;
+          }
+        });
+
+        // SECOND: Check places cache
+        if (!found) {
+          Object.keys(placesCache.searches).forEach(cacheKey => {
+            const cached = placesCache.searches[cacheKey];
+            if (cached.cachedData) {
+              const existingIndex = cached.cachedData.findIndex(p =>
+                p.placeId === prospectData.placeId ||
+                (p.name && p.name.toLowerCase() === businessName.toLowerCase())
+              );
+
+              if (existingIndex !== -1) {
+                // Update existing prospect with enriched data
+                cached.cachedData[existingIndex] = {
+                  ...cached.cachedData[existingIndex],
+                  ...prospectData,
+                  interactions: cached.cachedData[existingIndex].interactions || []
+                };
+                found = true;
+                updated++;
+              }
+            }
+          });
+        }
+
+        // If not found, add to appropriate category in cache
+        if (!found) {
+          const category = prospectData.category || 'other';
+          const cacheKey = `${prospectData.zipCode || 'UNKNOWN'}-${category}`;
+
+          if (!placesCache.searches[cacheKey]) {
+            placesCache.searches[cacheKey] = {
+              cachedData: [],
+              cachedAt: Date.now(),
+              zipCode: prospectData.zipCode,
+              category: category
+            };
+          }
+
+          placesCache.searches[cacheKey].cachedData.push({
+            ...prospectData,
+            interactions: []
+          });
+          added++;
+        }
+      }
+
+      // Save to localStorage
+      localStorage.setItem('mailslot-places-cache', JSON.stringify(placesCache));
+
+      // Save kanban changes to cloud
+      saveKanban();
+
+      // Re-render both prospect pool and kanban
+      renderProspectPool();
+      renderKanban();
+
+      toast(`✅ CSV Import Complete: ${updated} updated, ${added} added`, true);
+
+      // Reset file input
+      event.target.value = '';
+
+    } catch (error) {
+      console.error('CSV import error:', error);
+      toast('⚠️ Failed to import CSV. Check format and try again.', false);
+    }
+  };
+
+  reader.readAsText(file);
+}
+
+// Expose globally
+window.exportProspectListCSV = exportProspectListCSV;
+window.exportProspectPoolCSV = exportProspectPoolCSV;
+window.importProspectPoolCSV = importProspectPoolCSV;
+
+/* ========= PROSPECT DETAIL MODAL FUNCTIONS ========= */
+
+// Global variable to track current prospect being viewed
+let currentProspectDetail = null;
+
+function openProspectDetailModal(prospectData, source = 'prospect') {
+  const modal = document.getElementById('prospectDetailModal');
+  if (!modal) return;
+
+  // Normalize business name field (raw prospects have 'name', enriched have 'businessName')
+  const businessName = prospectData.businessName || prospectData.name || 'Unknown Business';
+
+  // Store current prospect data with normalized businessName
+  currentProspectDetail = { ...prospectData, businessName, source };
+
+  // Set title and subtitle
+  document.getElementById('prospectDetailTitle').textContent = businessName;
+  document.getElementById('prospectDetailSubtitle').textContent = source === 'client' ? 'Client' : 'Prospect';
+
+  // Populate business info
+  document.getElementById('detailBusinessName').textContent = businessName;
+
+  // Populate category dropdown
+  const categorySelect = document.getElementById('detailCategory');
+  categorySelect.innerHTML = '<option value="">— Select Category —</option>';
+  businessCategories.forEach(cat => {
+    const option = document.createElement('option');
+    option.value = cat.value;
+    option.textContent = cat.label;
+    if (cat.value === prospectData.category) {
+      option.selected = true;
+    }
+    categorySelect.appendChild(option);
+  });
+
+  document.getElementById('detailZipCode').textContent = prospectData.zipCode || prospectData.town || '—';
+
+  if (prospectData.rating) {
+    document.getElementById('detailRating').textContent = `⭐ ${prospectData.rating} (${prospectData.reviewsCount || 0} reviews)`;
+  } else {
+    document.getElementById('detailRating').textContent = '—';
+  }
+
+  // Populate contact info and enable/disable quick action buttons
+  const phone = prospectData.phone || '';
+  const email = prospectData.email || '';
+  const website = prospectData.website || '';
+  const facebook = prospectData.facebook || '';
+  const instagram = prospectData.instagram || '';
+  const linkedin = prospectData.linkedin || '';
+  const twitter = prospectData.twitter || '';
+
+  document.getElementById('detailPhone').textContent = phone || '—';
+  document.getElementById('btnCallAction').disabled = !phone;
+  document.getElementById('btnSMSAction').disabled = !phone;
+
+  document.getElementById('detailEmail').textContent = email || '—';
+  document.getElementById('btnEmailAction').disabled = !email;
+
+  document.getElementById('detailWebsite').textContent = website || '—';
+  document.getElementById('btnWebsiteAction').disabled = !website;
+
+  document.getElementById('detailFacebook').textContent = facebook || '—';
+  document.getElementById('btnFacebookAction').disabled = !facebook;
+
+  document.getElementById('detailInstagram').textContent = instagram || '—';
+  document.getElementById('btnInstagramAction').disabled = !instagram;
+
+  // LinkedIn and Twitter (if elements exist in the modal)
+  const linkedinEl = document.getElementById('detailLinkedIn');
+  const twitterEl = document.getElementById('detailTwitter');
+  const btnLinkedInAction = document.getElementById('btnLinkedInAction');
+  const btnTwitterAction = document.getElementById('btnTwitterAction');
+
+  if (linkedinEl) linkedinEl.textContent = linkedin || '—';
+  if (btnLinkedInAction) btnLinkedInAction.disabled = !linkedin;
+
+  if (twitterEl) twitterEl.textContent = twitter || '—';
+  if (btnTwitterAction) btnTwitterAction.disabled = !twitter;
+
+  // Render interaction timeline
+  renderInteractionTimeline(prospectData.interactions || []);
+
+  // Set default date for new interaction
+  document.getElementById('newInteractionDate').valueAsDate = new Date();
+
+  // Clear form
+  document.getElementById('newInteractionNotes').value = '';
+  document.getElementById('newInteractionFollowUp').value = '';
+  document.getElementById('templatePreview').classList.add('hidden');
+
+  // Populate quick send template selector
+  populateQuickSendTemplates();
+
+  // Show modal
+  modal.style.display = 'flex';
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+// Update prospect category when changed in detail modal
+async function updateProspectCategory(newCategory) {
+  if (!currentProspectDetail) return;
+
+  const prospectId = currentProspectDetail.id;
+  const placeId = currentProspectDetail.placeId;
+  const businessName = currentProspectDetail.businessName || currentProspectDetail.name;
+  const source = currentProspectDetail.source;
+
+  console.log('📝 Updating category for:', businessName, 'to:', newCategory, 'source:', source);
+
+  // Update in currentProspectDetail
+  currentProspectDetail.category = newCategory;
+
+  let updated = false;
+
+  // Update in kanban (all columns)
+  if (source === 'kanban') {
+    Object.keys(kanbanState.columns).forEach(columnKey => {
+      const items = kanbanState.columns[columnKey];
+      const index = items.findIndex(item =>
+        typeof item === 'object' && (
+          item.id === prospectId ||
+          (placeId && item.placeId === placeId) ||
+          (item.businessName && item.businessName === businessName)
+        )
+      );
+      if (index !== -1) {
+        kanbanState.columns[columnKey][index].category = newCategory;
+        updated = true;
+        console.log('✅ Updated category in kanban column:', columnKey);
+      }
+    });
+
+    if (updated) {
+      await saveKanban();
+      renderKanban();
+    }
+  }
+
+  // Update in prospect pool (manual prospects)
+  const manualIndex = prospectPoolState.manualProspects.findIndex(p =>
+    p.id === prospectId ||
+    (placeId && p.placeId === placeId) ||
+    (p.businessName && p.businessName === businessName)
+  );
+
+  if (manualIndex !== -1) {
+    prospectPoolState.manualProspects[manualIndex].category = newCategory;
+    saveManualProspects();
+    updated = true;
+    console.log('✅ Updated category in manual prospects');
+  }
+
+  // Update in places cache (search results)
+  if (placeId) {
+    let foundInCache = false;
+    Object.keys(placesCache.searches).forEach(searchKey => {
+      const search = placesCache.searches[searchKey];
+      if (search && search.results) {
+        Object.keys(search.results).forEach(category => {
+          const categoryResults = search.results[category];
+          if (Array.isArray(categoryResults)) {
+            const index = categoryResults.findIndex(p => p.placeId === placeId);
+            if (index !== -1) {
+              categoryResults[index].category = newCategory;
+              foundInCache = true;
+            }
+          }
+        });
+      }
+    });
+
+    if (foundInCache) {
+      savePlacesCache();
+      updated = true;
+      console.log('✅ Updated category in places cache');
+    }
+  }
+
+  // Update in clients (clients is an object, not array)
+  let clientKey = null;
+  Object.keys(crmState.clients).forEach(key => {
+    const c = crmState.clients[key];
+    if (c.id === prospectId ||
+        (placeId && c.placeId === placeId) ||
+        (c.businessName && c.businessName === businessName)) {
+      clientKey = key;
+    }
+  });
+
+  if (clientKey) {
+    crmState.clients[clientKey].category = newCategory;
+    await saveClients();
+    renderClientList();
+    updated = true;
+    console.log('✅ Updated category in clients');
+  }
+
+  if (updated) {
+    // Re-render prospect pool to show updated category
+    if (source === 'prospect') {
+      renderProspectPool();
+    }
+
+    // Get category label for display
+    const categoryObj = businessCategories.find(c => c.value === newCategory);
+    const categoryLabel = categoryObj ? categoryObj.label : newCategory;
+
+    toast(`✅ Category updated to "${categoryLabel}"`, true);
+  } else {
+    console.warn('⚠️ Could not find prospect to update category');
+  }
+}
+
+function populateQuickSendTemplates() {
+  const selector = document.getElementById('quickSendTemplateSelector');
+  if (!selector) return;
+
+  // Get all templates
+  const allTemplates = Object.values(userTemplatesState.templates);
+
+  // Build options HTML
+  let optionsHTML = '<option value="">-- Choose a template --</option>';
+
+  // Group by category
+  const categories = {
+    prospect: '🎯 Prospect Templates',
+    client: '👥 Client Templates',
+    followup: '🔄 Follow-up Templates'
+  };
+
+  Object.keys(categories).forEach(category => {
+    const templates = allTemplates.filter(t => t.category === category);
+    if (templates.length > 0) {
+      optionsHTML += `<optgroup label="${categories[category]}">`;
+      templates.forEach(t => {
+        const icon = t.type === 'email' ? '📧' : t.type === 'sms' ? '📱' : t.type === 'messenger' ? '📘' : '📷';
+        optionsHTML += `<option value="${t.id}">${icon} ${esc(t.name)}</option>`;
+      });
+      optionsHTML += '</optgroup>';
+    }
+  });
+
+  selector.innerHTML = optionsHTML;
+
+  // Reset preview and disable buttons
+  document.getElementById('quickSendPreview').classList.add('hidden');
+  document.getElementById('btnQuickSendSMS').disabled = true;
+  document.getElementById('btnQuickSendEmail').disabled = true;
+}
+
+let currentQuickSendTemplate = null;
+
+function previewQuickSendTemplate() {
+  const selector = document.getElementById('quickSendTemplateSelector');
+  const templateId = selector.value;
+
+  if (!templateId) {
+    document.getElementById('quickSendPreview').classList.add('hidden');
+    document.getElementById('btnQuickSendSMS').disabled = true;
+    document.getElementById('btnQuickSendEmail').disabled = true;
+    currentQuickSendTemplate = null;
+    return;
+  }
+
+  const template = userTemplatesState.templates[templateId];
+  if (!template) return;
+
+  currentQuickSendTemplate = template;
+
+  // Prepare data from current prospect
+  const data = {
+    businessName: currentProspectDetail.businessName || currentProspectDetail.name || 'Business',
+    contactName: currentProspectDetail.contactName || '',
+    phone: currentProspectDetail.phone || '',
+    email: currentProspectDetail.email || '',
+    town: currentProspectDetail.town || currentProspectDetail.zipCode || '',
+    zipCode: currentProspectDetail.zipCode || '',
+    campaign: '',
+    amount: '',
+    date: new Date().toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })
+  };
+
+  // Fill template variables
+  const filled = fillTemplateVariables(template, data);
+
+  // Show preview
+  const previewSubject = document.getElementById('quickSendPreviewSubject');
+  const previewBody = document.getElementById('quickSendPreviewBody');
+
+  if (filled.subject) {
+    previewSubject.textContent = `Subject: ${filled.subject}`;
+    previewSubject.style.display = 'block';
+  } else {
+    previewSubject.style.display = 'none';
+  }
+
+  previewBody.textContent = filled.body;
+  document.getElementById('quickSendPreview').classList.remove('hidden');
+
+  // Enable appropriate buttons based on template type and available contact info
+  const hasSMS = currentProspectDetail.phone && (template.type === 'sms' || template.type === 'messenger' || template.type === 'instagram');
+  const hasEmail = currentProspectDetail.email && template.type === 'email';
+
+  document.getElementById('btnQuickSendSMS').disabled = !hasSMS;
+  document.getElementById('btnQuickSendEmail').disabled = !hasEmail;
+}
+
+async function quickSendWithTemplate(sendType) {
+  if (!currentQuickSendTemplate || !currentProspectDetail) return;
+
+  // Prepare data
+  const data = {
+    businessName: currentProspectDetail.businessName || currentProspectDetail.name || 'Business',
+    contactName: currentProspectDetail.contactName || '',
+    phone: currentProspectDetail.phone || '',
+    email: currentProspectDetail.email || '',
+    town: currentProspectDetail.town || currentProspectDetail.zipCode || '',
+    zipCode: currentProspectDetail.zipCode || '',
+    campaign: '',
+    amount: '',
+    date: new Date().toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })
+  };
+
+  const filled = fillTemplateVariables(currentQuickSendTemplate, data);
+
+  if (sendType === 'sms') {
+    // Open SMS app with message
+    if (!currentProspectDetail.phone) {
+      toast('⚠️ No phone number available', false);
+      return;
+    }
+
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const cleanPhone = currentProspectDetail.phone.replace(/\D/g, '');
+
+    if (isMobile) {
+      window.location.href = `sms:${cleanPhone}?body=${encodeURIComponent(filled.body)}`;
+    } else {
+      // Copy to clipboard for desktop
+      navigator.clipboard.writeText(filled.body).then(() => {
+        toast('📋 Message copied to clipboard!', true);
+        window.open('https://voice.google.com/u/0/messages', '_blank');
+      });
+    }
+
+    // Auto-log interaction
+    await logQuickSendInteraction('sms', currentQuickSendTemplate.name);
+
+  } else if (sendType === 'email') {
+    // Open email client
+    if (!currentProspectDetail.email) {
+      toast('⚠️ No email address available', false);
+      return;
+    }
+
+    const mailtoLink = `mailto:${currentProspectDetail.email}?subject=${encodeURIComponent(filled.subject)}&body=${encodeURIComponent(filled.body)}`;
+    window.location.href = mailtoLink;
+
+    // Auto-log interaction
+    await logQuickSendInteraction('email', currentQuickSendTemplate.name);
+  }
+
+  toast(`✅ Opening ${sendType === 'sms' ? 'SMS' : 'Email'} app...`, true);
+}
+
+async function logQuickSendInteraction(type, templateName) {
+  if (!currentProspectDetail) return;
+
+  const newInteraction = {
+    type: type,
+    date: new Date().toISOString(),
+    notes: `Sent ${type === 'sms' ? 'SMS' : 'Email'} - Template: ${templateName}`,
+    nextFollowUp: null
+  };
+
+  // If this is a client, save to client database
+  if (currentProspectDetail.source === 'client') {
+    const clientId = currentProspectDetail.id;
+    if (crmState.clients[clientId]) {
+      if (!crmState.clients[clientId].interactions) crmState.clients[clientId].interactions = [];
+      crmState.clients[clientId].interactions.push(newInteraction);
+      saveClients();
+    }
+  } else {
+    // If prospect is in kanban, save to kanban
+    let foundInKanban = false;
+    Object.keys(kanbanState.columns).forEach(columnKey => {
+      kanbanState.columns[columnKey].forEach(prospect => {
+        if (prospect.id === currentProspectDetail.id || prospect.placeId === currentProspectDetail.placeId) {
+          if (!prospect.interactions) prospect.interactions = [];
+          prospect.interactions.push(newInteraction);
+          foundInKanban = true;
+        }
+      });
+    });
+    if (foundInKanban) {
+      saveKanban();
+    }
+  }
+
+  // Update current prospect detail and re-render timeline
+  if (!currentProspectDetail.interactions) currentProspectDetail.interactions = [];
+  currentProspectDetail.interactions.push(newInteraction);
+  renderInteractionTimeline(currentProspectDetail.interactions);
+
+  // Update last used timestamp on template
+  if (currentQuickSendTemplate) {
+    currentQuickSendTemplate.lastUsed = new Date().toISOString();
+    saveUserTemplates();
+  }
+
+  console.log('✅ Interaction logged:', newInteraction);
+}
+
+function closeProspectDetailModal() {
+  const modal = document.getElementById('prospectDetailModal');
+  if (!modal) return;
+
+  modal.style.display = 'none';
+  modal.setAttribute('aria-hidden', 'true');
+  currentProspectDetail = null;
+}
+
+// SMS/Email Templates for Prospect Outreach
+const prospectSMSTemplates = {
+  intro: "Hi! I'm reaching out from 9x12 Pro to help grow your business with targeted direct mail campaigns. Would you be interested in learning how we can help you reach more customers?",
+  'follow-up': "Just following up on my previous message. I'd love to show you how 9x12 Pro can help grow your customer base. Do you have 10 minutes this week to chat?"
+};
+
+const prospectEmailTemplates = {
+  intro: {
+    subject: "Grow Your Business with Targeted Direct Mail",
+    body: "Hi,\n\nI hope this email finds you well. I'm reaching out because I believe 9x12 Pro can help you reach more potential customers in your area.\n\nWe specialize in targeted direct mail campaigns that get results. Our clients typically see a significant increase in customer inquiries and sales.\n\nWould you be interested in a quick 15-minute call to discuss how we can help your business grow?\n\nBest regards"
+  },
+  'follow-up': {
+    subject: "Following Up - Direct Mail Opportunity",
+    body: "Hi,\n\nI wanted to follow up on my previous message about our direct mail services at 9x12 Pro.\n\nMany businesses in your area have seen great results with our campaigns. I'd love to share some success stories and discuss how we can help you reach new customers.\n\nDo you have time this week for a brief conversation?\n\nBest regards"
+  },
+  'special-offer': {
+    subject: "Special Offer - Limited Time Direct Mail Promotion",
+    body: "Hi,\n\nI have exciting news! We're currently running a special promotion for new clients.\n\nFor a limited time, we're offering a discount on your first direct mail campaign with 9x12 Pro. This is a great opportunity to test our services and see real results.\n\nWould you like to learn more about this exclusive offer?\n\nBest regards"
+  }
+};
+
+// Global variable to track which business we're sending to
+let currentSMSBusinessId = null;
+let currentEmailBusinessId = null;
+
+function openSendSMSModal(leadId, event) {
+  if (event) {
+    event.stopPropagation();
+  }
+
+  // Find the business in column 2
+  const business = (kanbanState.columns['to-contact'] || []).find(item => {
+    return typeof item === 'object' && item.id === leadId;
+  });
+
+  if (!business) {
+    showError('Business not found');
+    return;
+  }
+
+  currentSMSBusinessId = leadId;
+
+  // Populate modal
+  const businessName = business.businessName || business.name || 'Unknown Business';
+  const phone = business.phone || 'No phone on file';
+  document.getElementById('smsBusinessName').textContent = businessName;
+  document.getElementById('smsPhoneNumber').textContent = phone;
+
+  // Reset form
+  document.getElementById('smsTemplate').value = '';
+  document.getElementById('smsMessage').value = '';
+  updateSMSCharCount();
+
+  // Show modal
+  const modal = document.getElementById('sendSMSModal');
+  modal.style.display = 'flex';
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeSendSMSModal() {
+  const modal = document.getElementById('sendSMSModal');
+  modal.style.display = 'none';
+  modal.setAttribute('aria-hidden', 'true');
+  currentSMSBusinessId = null;
+}
+
+function loadSMSTemplate() {
+  const templateSelect = document.getElementById('smsTemplate');
+  const messageArea = document.getElementById('smsMessage');
+  const templateValue = templateSelect.value;
+
+  if (templateValue && templateValue !== 'custom') {
+    messageArea.value = prospectSMSTemplates[templateValue] || '';
+  } else if (templateValue === 'custom') {
+    messageArea.value = '';
+  }
+
+  updateSMSCharCount();
+}
+
+function updateSMSCharCount() {
+  const message = document.getElementById('smsMessage').value;
+  const charCount = document.getElementById('smsCharCount');
+  charCount.textContent = message.length;
+
+  // Change color if approaching limit
+  if (message.length > 160) {
+    charCount.parentElement.classList.add('text-red-600');
+    charCount.parentElement.classList.remove('text-gray-500');
+  } else {
+    charCount.parentElement.classList.add('text-gray-500');
+    charCount.parentElement.classList.remove('text-red-600');
+  }
+}
+
+function sendSMSMessage() {
+  const message = document.getElementById('smsMessage').value.trim();
+
+  if (!message) {
+    showWarning('Please enter a message');
+    return;
+  }
+
+  if (!currentSMSBusinessId) {
+    showWarning('No business selected');
+    return;
+  }
+
+  // Find the business
+  const business = (kanbanState.columns['to-contact'] || []).find(item => {
+    return typeof item === 'object' && item.id === currentSMSBusinessId;
+  });
+
+  if (!business) {
+    showError('Business not found');
+    return;
+  }
+
+  const phone = business.phone || '';
+
+  if (!phone) {
+    showWarning('This business does not have a phone number on file');
+    return;
+  }
+
+  // Detect if mobile or desktop
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  const cleanPhone = phone.replace(/\D/g, ''); // Remove non-digits
+
+  if (isMobile) {
+    // Mobile: Use native SMS protocol
+    const smsUrl = `sms:${cleanPhone}&body=${encodeURIComponent(message)}`;
+    window.location.href = smsUrl;
+  } else {
+    // Desktop: Open Google Voice and copy message
+    const googleVoiceUrl = `https://voice.google.com/u/0/messages`;
+    window.open(googleVoiceUrl, '_blank');
+
+    // Copy phone and message to clipboard
+    navigator.clipboard.writeText(`To: ${phone}\n\n${message}`).then(() => {
+      showSuccess(`📋 Message copied! Google Voice opened in new tab. Paste to send to: ${phone}`);
+    }).catch(() => {
+      showInfo(`Google Voice opened. Send to: ${phone}\n\nMessage: ${message}`);
+    });
+  }
+
+  // Log this interaction
+  if (!business.interactions) {
+    business.interactions = [];
+  }
+
+  business.interactions.push({
+    date: new Date().toISOString(),
+    type: 'sms',
+    notes: `SMS sent: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`
+  });
+
+  // Save to storage
+  saveKanbanStateToStorage();
+
+  closeSendSMSModal();
+}
+
+function openSendEmailModal(leadId, event) {
+  if (event) {
+    event.stopPropagation();
+  }
+
+  // Find the business in column 2
+  const business = (kanbanState.columns['to-contact'] || []).find(item => {
+    return typeof item === 'object' && item.id === leadId;
+  });
+
+  if (!business) {
+    showError('Business not found');
+    return;
+  }
+
+  currentEmailBusinessId = leadId;
+
+  // Populate modal
+  const businessName = business.businessName || business.name || 'Unknown Business';
+  document.getElementById('emailBusinessName').textContent = businessName;
+
+  const email = business.email || '';
+  document.getElementById('emailAddress').textContent = email || 'No email on file';
+
+  // Reset form
+  document.getElementById('emailTemplate').value = '';
+  document.getElementById('emailSubject').value = '';
+  document.getElementById('emailMessage').value = '';
+
+  // Show modal
+  const modal = document.getElementById('sendEmailModal');
+  modal.style.display = 'flex';
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeSendEmailModal() {
+  const modal = document.getElementById('sendEmailModal');
+  modal.style.display = 'none';
+  modal.setAttribute('aria-hidden', 'true');
+  currentEmailBusinessId = null;
+}
+
+function loadEmailTemplate() {
+  const templateSelect = document.getElementById('emailTemplate');
+  const subjectInput = document.getElementById('emailSubject');
+  const messageArea = document.getElementById('emailMessage');
+  const templateValue = templateSelect.value;
+
+  if (templateValue && templateValue !== 'custom') {
+    const template = prospectEmailTemplates[templateValue];
+    if (template) {
+      subjectInput.value = template.subject;
+      messageArea.value = template.body;
+    }
+  } else if (templateValue === 'custom') {
+    subjectInput.value = '';
+    messageArea.value = '';
+  }
+}
+
+function sendEmailMessage() {
+  const subject = document.getElementById('emailSubject').value.trim();
+  const message = document.getElementById('emailMessage').value.trim();
+
+  if (!subject) {
+    showWarning('Please enter a subject');
+    return;
+  }
+
+  if (!message) {
+    showWarning('Please enter a message');
+    return;
+  }
+
+  if (!currentEmailBusinessId) {
+    showWarning('No business selected');
+    return;
+  }
+
+  // Find the business
+  const business = (kanbanState.columns['to-contact'] || []).find(item => {
+    return typeof item === 'object' && item.id === currentEmailBusinessId;
+  });
+
+  if (!business) {
+    showError('Business not found');
+    return;
+  }
+
+  const email = business.email || '';
+
+  if (!email) {
+    showWarning('This business does not have an email address on file');
+    return;
+  }
+
+  // Log this interaction
+  if (!business.interactions) {
+    business.interactions = [];
+  }
+
+  business.interactions.push({
+    date: new Date().toISOString(),
+    type: 'email',
+    notes: `Email sent: ${subject}`
+  });
+
+  // Save to storage
+  saveKanbanStateToStorage();
+
+  // Open mailto link
+  const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
+  window.location.href = mailtoUrl;
+
+  closeSendEmailModal();
+}
+
+// Client Database SMS/Email Functions
+function openClientSMS(clientId) {
+  const client = crmState.clients[clientId];
+  if (!client) {
+    toast('Client not found', false);
+    return;
+  }
+
+  if (!client.contact || !client.contact.phone) {
+    toast('This client does not have a phone number on file', false);
+    return;
+  }
+
+  // Show inline template picker
+  showQuickTemplatePickerForClient(clientId, 'sms');
+}
+
+function openClientEmail(clientId) {
+  const client = crmState.clients[clientId];
+  if (!client) {
+    toast('Client not found', false);
+    return;
+  }
+
+  if (!client.contact || !client.contact.email) {
+    toast('This client does not have an email address on file', false);
+    return;
+  }
+
+  // Show inline template picker
+  showQuickTemplatePickerForClient(clientId, 'email');
+}
+
+// Quick Template Picker for Client Cards
+function showQuickTemplatePickerForClient(clientId, sendType) {
+  const client = crmState.clients[clientId];
+  if (!client) return;
+
+  // Get all templates matching the send type
+  const allTemplates = Object.values(userTemplatesState.templates);
+  const matchingTemplates = allTemplates.filter(t => {
+    if (sendType === 'sms') {
+      return t.type === 'sms' || t.type === 'messenger' || t.type === 'instagram';
+    } else if (sendType === 'email') {
+      return t.type === 'email';
+    }
+    return false;
+  });
+
+  if (matchingTemplates.length === 0) {
+    toast(`No ${sendType.toUpperCase()} templates found. Create one in Settings → Message Templates.`, false);
+    return;
+  }
+
+  // Build template options HTML
+  const templateOptions = matchingTemplates.map(t => {
+    const icon = t.type === 'email' ? '📧' : t.type === 'sms' ? '📱' : t.type === 'messenger' ? '📘' : '📷';
+    const categoryLabel = t.category === 'prospect' ? '🎯' : t.category === 'client' ? '👥' : '🔄';
+    return `<option value="${t.id}">${icon} ${categoryLabel} ${esc(t.name)}</option>`;
+  }).join('');
+
+  // Create modal HTML
+  const modalHTML = `
+    <div id="quickTemplatePicker" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target.id==='quickTemplatePicker') closeQuickTemplatePicker()">
+      <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+        <div class="border-b border-gray-200 px-6 py-4 flex justify-between items-center sticky top-0 bg-white">
+          <h3 class="text-lg font-semibold text-gray-900">
+            ${sendType === 'sms' ? '📱 Send SMS' : '✉️ Send Email'} - ${esc(client.businessName)}
+          </h3>
+          <button onclick="closeQuickTemplatePicker()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+        </div>
+        <div class="px-6 py-4 space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Select Template:</label>
+            <select id="quickTemplateSelect" class="w-full border border-gray-300 rounded-md p-2 text-sm" onchange="previewQuickTemplate('${clientId}', '${sendType}')">
+              <option value="">-- Choose a template --</option>
+              ${templateOptions}
+            </select>
+          </div>
+          <div id="quickTemplatePreview" class="hidden">
+            <div class="flex justify-between items-center mb-2">
+              <label class="block text-sm font-medium text-gray-700">Preview:</label>
+              <button id="btnEditTemplate" onclick="toggleTemplateEdit()" class="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium">
+                ✏️ Edit Message
+              </button>
+            </div>
+
+            <!-- Read-only preview -->
+            <div id="templateReadOnlyView" class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <div id="quickTemplatePreviewSubject" class="font-semibold text-gray-900 mb-2"></div>
+              <pre id="quickTemplatePreviewBody" class="text-sm text-gray-700 whitespace-pre-wrap font-sans max-h-64 overflow-y-auto"></pre>
+            </div>
+
+            <!-- Editable view (hidden by default) -->
+            <div id="templateEditView" class="hidden space-y-3">
+              <div id="editSubjectContainer" class="hidden">
+                <label class="block text-xs font-medium text-gray-700 mb-1">Subject:</label>
+                <input id="editTemplateSubject" type="text" class="w-full border border-gray-300 rounded-md p-2 text-sm" placeholder="Email subject...">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Message:</label>
+                <textarea id="editTemplateBody" rows="8" class="w-full border border-gray-300 rounded-md p-2 text-sm font-sans" placeholder="Message body..."></textarea>
+              </div>
+              <div class="flex gap-2">
+                <button onclick="saveTemplateEdits()" class="flex-1 px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium">
+                  ✓ Save Edits
+                </button>
+                <button onclick="cancelTemplateEdits()" class="flex-1 px-3 py-2 bg-gray-400 text-white rounded-md hover:bg-gray-500 text-sm font-medium">
+                  ✕ Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="flex gap-3 pt-4">
+            <button onclick="closeQuickTemplatePicker()" class="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 font-medium">
+              Cancel
+            </button>
+            <button id="btnSendQuickTemplate" onclick="sendQuickTemplateFromPicker('${clientId}', '${sendType}')" class="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-medium disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
+              ${sendType === 'sms' ? '📱 Send SMS' : '✉️ Send Email'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Insert modal into page
+  const existingModal = document.getElementById('quickTemplatePicker');
+  if (existingModal) existingModal.remove();
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+  // Store current client ID
+  window.currentQuickTemplateClientId = clientId;
+  window.currentQuickTemplateSendType = sendType;
+}
+
+function previewQuickTemplate(clientId, sendType) {
+  const templateId = document.getElementById('quickTemplateSelect').value;
+  const previewContainer = document.getElementById('quickTemplatePreview');
+  const sendButton = document.getElementById('btnSendQuickTemplate');
+
+  if (!templateId) {
+    previewContainer.classList.add('hidden');
+    sendButton.disabled = true;
+    return;
+  }
+
+  const template = userTemplatesState.templates[templateId];
+  const client = crmState.clients[clientId];
+
+  if (!template || !client) {
+    previewContainer.classList.add('hidden');
+    sendButton.disabled = true;
+    return;
+  }
+
+  // Prepare data with EXPANDED fields
+  const data = {
+    // Business info
+    businessName: client.businessName || '',
+    name: client.businessName || '',
+
+    // Contact person info
+    contactName: client.contact?.name || client.ownerName || '',
+    firstName: client.contact?.firstName || (client.contact?.name?.split(' ')[0]) || '',
+    lastName: client.contact?.lastName || (client.contact?.name?.split(' ').slice(1).join(' ')) || '',
+    ownerName: client.ownerName || client.contact?.name || '',
+
+    // Business details
+    industry: client.industry || client.category || '',
+    category: client.category || client.industry || '',
+    website: client.website || '',
+    phone: client.contact?.phone || client.phone || '',
+    email: client.contact?.email || client.email || '',
+
+    // Location
+    address: client.address || '',
+    city: client.city || client.town || '',
+    town: client.town || client.city || '',
+    state: client.state || '',
+    zipCode: client.zipCode || '',
+    zip: client.zipCode || '',
+
+    // Pricing
+    price: client.pricing?.finalPrice ? `$${client.pricing.finalPrice}` : '',
+    amount: client.pricing?.finalPrice ? `$${client.pricing.finalPrice}` : '',
+    discount: client.pricing?.discount || '',
+
+    // Campaign info
+    campaign: state.current?.mailerName || '',
+
+    // User info (TODO: Get from user settings)
+    yourName: '',
+    yourPhone: '',
+    yourEmail: '',
+    yourCompany: '',
+    yourWebsite: '',
+
+    // Date
+    date: new Date().toLocaleDateString()
+  };
+
+  const filled = fillTemplateVariables(template, data);
+
+  // Detect missing variables
+  const missingVars = detectMissingVariables(filled.subject + ' ' + filled.body);
+
+  // Show preview
+  const previewSubject = document.getElementById('quickTemplatePreviewSubject');
+  const previewBody = document.getElementById('quickTemplatePreviewBody');
+
+  if (template.type === 'email' && filled.subject) {
+    previewSubject.textContent = filled.subject;
+    previewSubject.style.display = 'block';
+  } else {
+    previewSubject.style.display = 'none';
+  }
+
+  previewBody.textContent = filled.body;
+
+  // Show warning if there are missing variables
+  let warningDiv = document.getElementById('templateWarning');
+  if (missingVars.length > 0) {
+    if (!warningDiv) {
+      warningDiv = document.createElement('div');
+      warningDiv.id = 'templateWarning';
+      previewContainer.insertBefore(warningDiv, previewContainer.firstChild);
+    }
+    warningDiv.className = 'bg-yellow-50 border border-yellow-300 rounded-md p-3 mb-3';
+    warningDiv.innerHTML = `
+      <div class="flex items-start gap-2">
+        <span class="text-yellow-600 text-lg">⚠️</span>
+        <div class="flex-1">
+          <div class="font-semibold text-yellow-900 text-sm">Missing Information</div>
+          <div class="text-yellow-800 text-xs mt-1">
+            The following variables are not filled: <strong>${missingVars.join(', ')}</strong>
+            <br>Please review the message carefully before sending.
+          </div>
+        </div>
+      </div>
+    `;
+    sendButton.textContent = `⚠️ Send Anyway (${missingVars.length} missing)`;
+    sendButton.className = 'flex-1 px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 font-medium';
+  } else {
+    if (warningDiv) warningDiv.remove();
+    sendButton.textContent = sendType === 'sms' ? '📱 Send SMS' : '✉️ Send Email';
+    sendButton.className = 'flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-medium';
+  }
+
+  previewContainer.classList.remove('hidden');
+  sendButton.disabled = false;
+
+  // Store selected template and data for editing
+  window.currentQuickTemplateSelected = template;
+  window.currentQuickTemplateData = data;
+  window.currentQuickTemplateFilled = filled;
+}
+
+// Toggle between read-only preview and editable mode
+function toggleTemplateEdit() {
+  const readOnlyView = document.getElementById('templateReadOnlyView');
+  const editView = document.getElementById('templateEditView');
+  const editButton = document.getElementById('btnEditTemplate');
+  const editSubject = document.getElementById('editTemplateSubject');
+  const editBody = document.getElementById('editTemplateBody');
+  const subjectContainer = document.getElementById('editSubjectContainer');
+
+  if (!window.currentQuickTemplateFilled) return;
+
+  const sendType = window.currentQuickTemplateSendType;
+
+  // Show edit view
+  readOnlyView.classList.add('hidden');
+  editView.classList.remove('hidden');
+  editButton.classList.add('hidden');
+
+  // Populate edit fields
+  if (sendType === 'email' && window.currentQuickTemplateFilled.subject) {
+    subjectContainer.classList.remove('hidden');
+    editSubject.value = window.currentQuickTemplateFilled.subject;
+  } else {
+    subjectContainer.classList.add('hidden');
+  }
+  editBody.value = window.currentQuickTemplateFilled.body;
+
+  // Focus on body
+  editBody.focus();
+}
+
+// Save edits to the template
+function saveTemplateEdits() {
+  const editSubject = document.getElementById('editTemplateSubject');
+  const editBody = document.getElementById('editTemplateBody');
+  const sendType = window.currentQuickTemplateSendType;
+
+  if (!editBody.value.trim()) {
+    toast('Message cannot be empty', false);
+    return;
+  }
+
+  // Update the filled template with edited content
+  window.currentQuickTemplateFilled = {
+    subject: sendType === 'email' ? editSubject.value : '',
+    body: editBody.value
+  };
+
+  // Update read-only preview
+  const previewSubject = document.getElementById('quickTemplatePreviewSubject');
+  const previewBody = document.getElementById('quickTemplatePreviewBody');
+
+  if (sendType === 'email' && editSubject.value) {
+    previewSubject.textContent = editSubject.value;
+    previewSubject.style.display = 'block';
+  } else {
+    previewSubject.style.display = 'none';
+  }
+  previewBody.textContent = editBody.value;
+
+  // Check for missing variables after editing
+  const missingVars = detectMissingVariables(editSubject.value + ' ' + editBody.value);
+  const sendButton = document.getElementById('btnSendQuickTemplate');
+  let warningDiv = document.getElementById('templateWarning');
+
+  if (missingVars.length > 0) {
+    if (!warningDiv) {
+      warningDiv = document.createElement('div');
+      warningDiv.id = 'templateWarning';
+      const previewContainer = document.getElementById('quickTemplatePreview');
+      previewContainer.insertBefore(warningDiv, previewContainer.firstChild);
+    }
+    warningDiv.className = 'bg-yellow-50 border border-yellow-300 rounded-md p-3 mb-3';
+    warningDiv.innerHTML = `
+      <div class="flex items-start gap-2">
+        <span class="text-yellow-600 text-lg">⚠️</span>
+        <div class="flex-1">
+          <div class="font-semibold text-yellow-900 text-sm">Missing Information</div>
+          <div class="text-yellow-800 text-xs mt-1">
+            The following variables are not filled: <strong>${missingVars.join(', ')}</strong>
+            <br>Please review the message carefully before sending.
+          </div>
+        </div>
+      </div>
+    `;
+    sendButton.textContent = `⚠️ Send Anyway (${missingVars.length} missing)`;
+    sendButton.className = 'flex-1 px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 font-medium';
+  } else {
+    if (warningDiv) warningDiv.remove();
+    sendButton.textContent = sendType === 'sms' ? '📱 Send SMS' : '✉️ Send Email';
+    sendButton.className = 'flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-medium';
+  }
+
+  // Switch back to read-only view
+  cancelTemplateEdits();
+
+  toast('✓ Message updated', true);
+}
+
+// Cancel editing and return to read-only view
+function cancelTemplateEdits() {
+  const readOnlyView = document.getElementById('templateReadOnlyView');
+  const editView = document.getElementById('templateEditView');
+  const editButton = document.getElementById('btnEditTemplate');
+
+  editView.classList.add('hidden');
+  readOnlyView.classList.remove('hidden');
+  editButton.classList.remove('hidden');
+}
+
+async function sendQuickTemplateFromPicker(clientId, sendType) {
+  const template = window.currentQuickTemplateSelected;
+  const client = crmState.clients[clientId];
+
+  if (!template || !client) {
+    toast('Template or client not found', false);
+    return;
+  }
+
+  // Use the filled template (which may have been edited by user)
+  const filled = window.currentQuickTemplateFilled;
+
+  if (!filled || !filled.body) {
+    toast('No message to send', false);
+    return;
+  }
+
+  // Send based on type
+  if (sendType === 'sms') {
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const cleanPhone = client.contact.phone.replace(/\D/g, '');
+
+    if (isMobile) {
+      window.location.href = `sms:${cleanPhone}?body=${encodeURIComponent(filled.body)}`;
+    } else {
+      try {
+        await navigator.clipboard.writeText(filled.body);
+        toast('📋 Message copied to clipboard!', true);
+        window.open('https://voice.google.com/u/0/messages', '_blank');
+      } catch (err) {
+        toast('Failed to copy message. Please copy manually.', false);
+        console.error('Clipboard error:', err);
+      }
+    }
+
+    // Log interaction
+    await logClientInteraction(clientId, 'sms', `Sent SMS - Template: ${template.name}`);
+
+  } else if (sendType === 'email') {
+    const mailtoLink = `mailto:${client.contact.email}?subject=${encodeURIComponent(filled.subject || '')}&body=${encodeURIComponent(filled.body)}`;
+    window.location.href = mailtoLink;
+
+    // Log interaction
+    await logClientInteraction(clientId, 'email', `Sent Email - Template: ${template.name}`);
+  }
+
+  // Update template last used
+  template.lastUsed = new Date().toISOString();
+  saveUserTemplates();
+
+  // Close modal
+  closeQuickTemplatePicker();
+
+  toast(`✅ Opening ${sendType === 'sms' ? 'SMS' : 'Email'} app...`, true);
+}
+
+async function logClientInteraction(clientId, type, notes) {
+  const client = crmState.clients[clientId];
+  if (!client) return;
+
+  const newInteraction = {
+    type: type,
+    date: new Date().toISOString(),
+    notes: notes,
+    nextFollowUp: null
+  };
+
+  if (!client.interactions) client.interactions = [];
+  client.interactions.push(newInteraction);
+
+  await saveClients();
+}
+
+function closeQuickTemplatePicker() {
+  const modal = document.getElementById('quickTemplatePicker');
+  if (modal) modal.remove();
+  window.currentQuickTemplateClientId = null;
+  window.currentQuickTemplateSendType = null;
+  window.currentQuickTemplateSelected = null;
+}
+
+// Variables to track which client we're messaging
+let currentSMSClientId = null;
+let currentEmailClientId = null;
+
+// Move Client to Kanban "To Contact" Column
+function moveClientToKanban(clientId) {
+  console.log('🔵 moveClientToKanban called with clientId:', clientId);
+
+  const client = crmState.clients[clientId];
+  if (!client) {
+    console.error('❌ Client not found:', clientId);
+    toast('Client not found', false);
+    return;
+  }
+
+  console.log('🔵 Client found:', client.businessName);
+
+  // Check if already in Kanban - only check if they have a valid placeId or exact originalClientId match
+  const alreadyInKanban = Object.values(kanbanState.columns).some(column =>
+    column.some(item => {
+      if (typeof item !== 'object') return false;
+
+      // Check if this exact client is already there via originalClientId
+      if (item.originalClientId && item.originalClientId === client.id) {
+        console.log('🔵 Already in Kanban via originalClientId');
+        return true;
+      }
+
+      // Check placeId only if both exist and are not null/empty
+      if (client.placeId && item.placeId && client.placeId === item.placeId) {
+        console.log('🔵 Already in Kanban via placeId');
+        return true;
+      }
+
+      return false;
+    })
+  );
+
+  if (alreadyInKanban) {
+    console.log('❌ Already in Kanban, stopping');
+    toast(`${client.businessName} is already in the Kanban board`, false);
+    return;
+  }
+
+  // Create prospect object from client
+  const prospect = {
+    id: `client_${client.id}_${Date.now()}`,
+    businessName: client.businessName,
+    contactName: client.contact?.name || '',
+    phone: client.contact?.phone || '',
+    email: client.contact?.email || '',
+    website: client.contact?.website || '',
+    facebook: client.contact?.facebook || '',
+    instagram: client.contact?.instagram || '',
+    town: client.town || '',
+    zipCode: client.zipCode || '',
+    placeId: client.placeId || null,
+    category: client.category || '',
+    interactions: client.interactions || [],
+    source: 'client',
+    originalClientId: client.id,
+    addedAt: new Date().toISOString()
+  };
+
+  console.log('🔵 Created prospect:', prospect);
+
+  // Add to "To Contact" column
+  if (!kanbanState.columns['to-contact']) {
+    kanbanState.columns['to-contact'] = [];
+  }
+
+  console.log('🔵 Before adding - to-contact column length:', kanbanState.columns['to-contact'].length);
+  kanbanState.columns['to-contact'].unshift(prospect); // Add to top
+  console.log('🔵 After adding - to-contact column length:', kanbanState.columns['to-contact'].length);
+
+  // Save kanban state
+  console.log('🔵 Calling saveKanban...');
+  saveKanban();
+  console.log('🔵 saveKanban complete');
+
+  // Re-render Kanban to show the new client immediately
+  console.log('🔵 Calling renderKanban...');
+  renderKanban();
+  console.log('🔵 renderKanban complete');
+
+  // Stay on Client Database - just show success message
+  toast(`✅ ${client.businessName} added to Kanban - To Contact`, true);
+}
+
+// Complete and Remove Client from Kanban
+function completeAndRemoveFromKanban(leadId, columnName) {
+  console.log('completeAndRemoveFromKanban called with:', leadId, columnName);
+
+  // Find the prospect in the specified column
+  const prospect = (kanbanState.columns[columnName] || []).find(item => {
+    return typeof item === 'object' && String(item.id) === String(leadId);
+  });
+
+  if (!prospect) {
+    console.log('Prospect not found. Available IDs:', kanbanState.columns[columnName]?.map(i => i.id));
+    toast('Prospect not found in Kanban', false);
+    return;
+  }
+
+  const businessName = prospect.businessName || prospect.name || 'this business';
+
+  // Remove from kanban column (no confirmation needed)
+  const columnIndex = kanbanState.columns[columnName].findIndex(item =>
+    typeof item === 'object' && String(item.id) === String(leadId)
+  );
+
+  if (columnIndex > -1) {
+    kanbanState.columns[columnName].splice(columnIndex, 1);
+    saveKanban();
+    renderKanban();
+    toast(`✅ ${businessName} marked complete and removed from Kanban`, true);
+  } else {
+    toast('Failed to remove from Kanban', false);
+  }
+}
+
+// Convert Prospect to Client Function
+function convertProspectToClient(leadId, columnName) {
+  // Find the prospect in the specified column - use string comparison for floating point IDs
+  const prospect = (kanbanState.columns[columnName] || []).find(item => {
+    if (typeof item !== 'object' || !item) return false;
+    return String(item.id) === String(leadId);
+  });
+
+  if (!prospect) {
+    showError('Prospect not found');
+    return;
+  }
+
+  // Check if already exists in clients
+  const existingClient = Object.values(crmState.clients).find(c =>
+    c.businessName.toLowerCase() === prospect.businessName.toLowerCase()
+  );
+
+  if (existingClient) {
+    showInfo('This business is already in your Client Database');
+    return;
+  }
+
+  // Create new client from prospect data
+  const clientId = `client_${Date.now()}`;
+  const newClient = {
+    id: clientId,
+    businessName: prospect.businessName,
+    category: prospect.category || 'Other',
+    contact: {
+      name: prospect.contactName || '',
+      phone: prospect.phone || '',
+      email: prospect.email || ''
+    },
+    address: prospect.notes ? prospect.notes.split('\n')[1] || '' : '',
+    lifetime: {
+      totalSpent: 0,
+      cardsBought: 0
+    },
+    history: [],
+    notes: prospect.notes || '',
+    createdDate: new Date().toISOString()
+  };
+
+  // Add to clients
+  crmState.clients[clientId] = newClient;
+
+  // Save and refresh
+  saveClients();
+  renderClientList();
+
+  // Show success message
+  toast(`✅ ${prospect.businessName} added to Client Database!`, true);
+
+  // Switch to clients tab
+  switchTab('clients');
+}
+
+// Manual Business Entry Functions
+function openAddManualBusinessModal() {
+  const modal = document.getElementById('addManualBusinessModal');
+  modal.style.display = 'flex';
+  modal.setAttribute('aria-hidden', 'false');
+
+  // Reset form
+  document.getElementById('addManualBusinessForm').reset();
+}
+
+function closeAddManualBusinessModal() {
+  const modal = document.getElementById('addManualBusinessModal');
+  modal.style.display = 'none';
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+async function lookupBusinessOnGoogle() {
+  const searchQuery = document.getElementById('googlePlacesLookup').value.trim();
+  const statusEl = document.getElementById('lookupStatus');
+
+  if (!searchQuery) {
+    statusEl.textContent = '⚠️ Please enter a business name to search';
+    statusEl.className = 'text-xs text-orange-600 mt-2';
+    return;
+  }
+
+  statusEl.textContent = '🔍 Searching Google Places...';
+  statusEl.className = 'text-xs text-blue-600 mt-2';
+
+  try {
+    const service = new google.maps.places.PlacesService(document.createElement('div'));
+
+    const request = {
+      query: searchQuery,
+      fields: ['name', 'formatted_address', 'formatted_phone_number', 'website', 'types']
+    };
+
+    service.textSearch(request, (results, status) => {
+      if (status === google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
+        const place = results[0];
+
+        // Get detailed information
+        service.getDetails({ placeId: place.place_id, fields: ['name', 'formatted_address', 'formatted_phone_number', 'website', 'types', 'address_components'] }, (details, detailsStatus) => {
+          if (detailsStatus === google.maps.places.PlacesServiceStatus.OK) {
+            // Auto-fill form fields
+            document.getElementById('manualBusinessName').value = details.name || '';
+
+            // Extract address components
+            let city = '', zip = '', address = '';
+            if (details.address_components) {
+              for (const component of details.address_components) {
+                if (component.types.includes('locality')) {
+                  city = component.long_name;
+                } else if (component.types.includes('postal_code')) {
+                  zip = component.short_name;
+                } else if (component.types.includes('street_number') || component.types.includes('route')) {
+                  address += component.long_name + ' ';
+                }
+              }
+            }
+
+            document.getElementById('manualBusinessAddress').value = address.trim() || details.formatted_address || '';
+            document.getElementById('manualBusinessTown').value = city;
+            document.getElementById('manualBusinessZip').value = zip;
+            document.getElementById('manualBusinessPhone').value = details.formatted_phone_number || '';
+            document.getElementById('manualBusinessWebsite').value = details.website || '';
+
+            // Guess category from types
+            if (details.types && details.types.length > 0) {
+              const categoryMap = {
+                'restaurant': 'Restaurant',
+                'food': 'Restaurant',
+                'cafe': 'Cafe',
+                'hair_care': 'Hair Salon',
+                'beauty_salon': 'Beauty Salon',
+                'car_repair': 'Auto Repair',
+                'lawyer': 'Legal Services',
+                'doctor': 'Medical',
+                'dentist': 'Dental',
+                'plumber': 'Plumbing',
+                'electrician': 'Electrical',
+                'real_estate_agency': 'Real Estate',
+                'gym': 'Fitness'
+              };
+
+              for (const type of details.types) {
+                if (categoryMap[type]) {
+                  document.getElementById('manualBusinessCategory').value = categoryMap[type];
+                  break;
+                }
+              }
+            }
+
+            statusEl.textContent = `✅ Found: ${details.name}! Review and submit below.`;
+            statusEl.className = 'text-xs text-green-600 mt-2 font-medium';
+          }
+        });
+      } else {
+        statusEl.textContent = '❌ No results found. Try a different search or fill manually.';
+        statusEl.className = 'text-xs text-red-600 mt-2';
+      }
+    });
+  } catch (error) {
+    console.error('Google Places lookup error:', error);
+    statusEl.textContent = '❌ Lookup failed. Please fill in manually.';
+    statusEl.className = 'text-xs text-red-600 mt-2';
+  }
+}
+
+// Handle form submission
+document.getElementById('addManualBusinessForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+
+  // Get form values
+  const businessData = {
+    id: 'manual_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+    name: document.getElementById('manualBusinessName').value.trim(),
+    businessName: document.getElementById('manualBusinessName').value.trim(),
+    category: document.getElementById('manualBusinessCategory').value.trim(),
+    address: document.getElementById('manualBusinessAddress').value.trim(),
+    town: document.getElementById('manualBusinessTown').value.trim(),
+    zipCode: document.getElementById('manualBusinessZip').value.trim(),
+    phone: document.getElementById('manualBusinessPhone').value.trim(),
+    email: document.getElementById('manualBusinessEmail').value.trim(),
+    website: document.getElementById('manualBusinessWebsite').value.trim(),
+    notes: document.getElementById('manualBusinessNotes').value.trim(),
+    type: 'manual',
+    isEnriched: false,
+    addedAt: new Date().toISOString()
+  };
+
+  // Add to manualProspects
+  if (!prospectPoolState.manualProspects) {
+    prospectPoolState.manualProspects = [];
+  }
+  prospectPoolState.manualProspects.push(businessData);
+
+  // Save to storage and cloud
+  saveManualProspects();
+
+  // Re-render prospect pool to show new business
+  renderProspectPool();
+
+  // Show success message
+  toast(`✅ ${businessData.businessName} added to Prospect Pool`, true);
+
+  // Close modal
+  closeAddManualBusinessModal();
+});
+
+function renderInteractionTimeline(interactions) {
+  const timeline = document.getElementById('interactionTimeline');
+  if (!timeline) return;
+
+  if (!interactions || interactions.length === 0) {
+    timeline.innerHTML = '<div class="text-sm text-gray-400 italic text-center py-4">No interactions yet</div>';
+    return;
+  }
+
+  // Sort interactions by date (newest first)
+  const sorted = [...interactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  timeline.innerHTML = sorted.map(interaction => {
+    const date = new Date(interaction.date).toLocaleDateString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric'
+    });
+
+    const typeIcons = {
+      call: '📞',
+      email: '✉️',
+      messenger: '📘',
+      instagram: '📷',
+      'in-person': '🤝',
+      other: '📝'
+    };
+
+    const icon = typeIcons[interaction.type] || '📝';
+    const typeLabel = interaction.type.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+    let html = `
+      <div class="border-l-4 border-blue-400 pl-3 py-2">
+        <div class="flex justify-between items-start mb-1">
+          <div class="font-medium text-sm">${icon} ${esc(typeLabel)}</div>
+          <div class="text-xs text-gray-500">${date}</div>
+        </div>
+        <div class="text-sm text-gray-700">${esc(interaction.notes || 'No notes')}</div>
+    `;
+
+    if (interaction.nextFollowUp) {
+      const followUpDate = new Date(interaction.nextFollowUp).toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric'
+      });
+      html += `<div class="text-xs text-purple-600 mt-1">📅 Follow-up: ${followUpDate}</div>`;
+    }
+
+    html += `</div>`;
+    return html;
+  }).join('');
+}
+
+function quickAction(type) {
+  if (!currentProspectDetail) return;
+
+  const prospect = currentProspectDetail;
+
+  switch (type) {
+    case 'call':
+      if (prospect.phone) {
+        window.location.href = `tel:${prospect.phone}`;
+      }
+      break;
+    case 'sms':
+      if (prospect.phone) {
+        // Detect if mobile or desktop
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const cleanPhone = prospect.phone.replace(/\D/g, ''); // Remove non-digits
+
+        if (isMobile) {
+          // Mobile: Use native SMS protocol
+          window.location.href = `sms:${cleanPhone}`;
+        } else {
+          // Desktop: Open Google Voice
+          const googleVoiceUrl = `https://voice.google.com/u/0/messages`;
+          window.open(googleVoiceUrl, '_blank');
+
+          // Copy phone to clipboard
+          navigator.clipboard.writeText(prospect.phone).then(() => {
+            toast(`📋 Phone number copied: ${prospect.phone}\nGoogle Voice opened in new tab.`, true);
+          }).catch(() => {
+            toast(`📱 Google Voice opened. Send to: ${prospect.phone}`, true);
+          });
+        }
+      }
+      break;
+    case 'email':
+      if (prospect.email) {
+        const subject = encodeURIComponent(`Re: ${prospect.businessName}`);
+        window.location.href = `mailto:${prospect.email}?subject=${subject}`;
+      }
+      break;
+    case 'website':
+      if (prospect.website) {
+        window.open(ensureHttps(prospect.website), '_blank');
+      }
+      break;
+    case 'facebook':
+      if (prospect.facebook) {
+        window.open(ensureHttps(prospect.facebook), '_blank');
+      }
+      break;
+    case 'instagram':
+      if (prospect.instagram) {
+        window.open(ensureHttps(prospect.instagram), '_blank');
+      }
+      break;
+    case 'linkedin':
+      if (prospect.linkedin) {
+        window.open(ensureHttps(prospect.linkedin), '_blank');
+      }
+      break;
+    case 'twitter':
+      if (prospect.twitter) {
+        window.open(ensureHttps(prospect.twitter), '_blank');
+      }
+      break;
+  }
+}
+
+function addNewInteraction() {
+  if (!currentProspectDetail) return;
+
+  const type = document.getElementById('newInteractionType').value;
+  const date = document.getElementById('newInteractionDate').value;
+  const notes = document.getElementById('newInteractionNotes').value.trim();
+  const followUp = document.getElementById('newInteractionFollowUp').value;
+
+  if (!date) {
+    toast('⚠️ Please select a date', false);
+    return;
+  }
+
+  if (!notes) {
+    toast('⚠️ Please enter notes about the interaction', false);
+    return;
+  }
+
+  const newInteraction = {
+    type,
+    date,
+    notes,
+    nextFollowUp: followUp || null
+  };
+
+  // Find the prospect in the appropriate data source and update it
+  const prospectId = currentProspectDetail.id;
+  const source = currentProspectDetail.source;
+
+  if (source === 'prospect') {
+    // Update in prospect pool (searches cache)
+    Object.keys(placesCache.searches).forEach(cacheKey => {
+      const cached = placesCache.searches[cacheKey];
+      if (cached.cachedData) {
+        const prospect = cached.cachedData.find(p => p.placeId === prospectId || p.id === prospectId);
+        if (prospect) {
+          if (!prospect.interactions) prospect.interactions = [];
+          prospect.interactions.push(newInteraction);
+        }
+      }
+    });
+    localStorage.setItem('mailslot-places-cache', JSON.stringify(placesCache));
+  } else if (source === 'kanban') {
+    // Update in kanban
+    Object.keys(kanbanState.columns).forEach(columnKey => {
+      const item = kanbanState.columns[columnKey].find(i => i.id === prospectId);
+      if (item) {
+        if (!item.interactions) item.interactions = [];
+        item.interactions.push(newInteraction);
+      }
+    });
+    saveKanban();
+  } else if (source === 'client') {
+    // Update in clients
+    if (crmState.clients[prospectId]) {
+      if (!crmState.clients[prospectId].interactions) crmState.clients[prospectId].interactions = [];
+      crmState.clients[prospectId].interactions.push(newInteraction);
+      saveClients();
+    }
+  }
+
+  // Update the current prospect detail and re-render timeline
+  if (!currentProspectDetail.interactions) currentProspectDetail.interactions = [];
+  currentProspectDetail.interactions.push(newInteraction);
+  renderInteractionTimeline(currentProspectDetail.interactions);
+
+  // Clear form
+  document.getElementById('newInteractionNotes').value = '';
+  document.getElementById('newInteractionFollowUp').value = '';
+
+  toast('✅ Interaction logged!', true);
+}
+
+let currentTemplate = null;
+
+function showMessageTemplate(templateType) {
+  if (!MESSAGE_TEMPLATES[templateType]) return;
+
+  const template = MESSAGE_TEMPLATES[templateType];
+  currentTemplate = template;
+
+  // Populate template with prospect data
+  let body = template.body;
+  if (currentProspectDetail) {
+    body = body.replace(/\[BUSINESS_NAME\]/g, currentProspectDetail.businessName || '[BUSINESS_NAME]');
+    body = body.replace(/\[TOWN\]/g, currentProspectDetail.zipCode || currentProspectDetail.town || '[TOWN]');
+    body = body.replace(/\[DATE\]/g, new Date().toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }));
+  }
+
+  // Show template preview
+  document.getElementById('templateTitle').textContent = template.name;
+  document.getElementById('templateSubject').textContent = template.subject ? `Subject: ${template.subject}` : '';
+  document.getElementById('templateBody').textContent = body;
+  document.getElementById('templatePreview').classList.remove('hidden');
+}
+
+function copyTemplate() {
+  const body = document.getElementById('templateBody').textContent;
+
+  navigator.clipboard.writeText(body).then(() => {
+    toast('✅ Template copied to clipboard!', true);
+  }).catch(err => {
+    console.error('Failed to copy:', err);
+    toast('⚠️ Failed to copy template', false);
+  });
+}
+
+/* ========= TEMPLATE MANAGER UI FUNCTIONS ========= */
+
+let currentEditingTemplateId = null;
+
+function renderTemplateManager(filteredTemplates = null) {
+  // Support both Dashboard and Clients tab template lists
+  const prospectList = document.getElementById('prospectTemplatesList') || document.getElementById('dashboardProspectTemplatesList');
+  const clientList = document.getElementById('clientTemplatesList') || document.getElementById('dashboardClientTemplatesList');
+  const followupList = document.getElementById('followupTemplatesList') || document.getElementById('dashboardFollowupTemplatesList');
+
+  const prospectCount = document.getElementById('prospectTemplateCount') || document.getElementById('dashboardProspectTemplateCount');
+  const clientCount = document.getElementById('clientTemplateCount') || document.getElementById('dashboardClientTemplateCount');
+  const followupCount = document.getElementById('followupTemplateCount') || document.getElementById('dashboardFollowupTemplateCount');
+
+  // Use filtered templates if provided, otherwise get all
+  let prospectTemplates, clientTemplates, followupTemplates;
+
+  if (filteredTemplates) {
+    prospectTemplates = filteredTemplates.filter(t => t.category === 'prospect');
+    clientTemplates = filteredTemplates.filter(t => t.category === 'client');
+    followupTemplates = filteredTemplates.filter(t => t.category === 'followup');
+  } else {
+    prospectTemplates = getTemplatesByCategory('prospect');
+    clientTemplates = getTemplatesByCategory('client');
+    followupTemplates = getTemplatesByCategory('followup');
+  }
+
+  // Update counts
+  if (prospectCount) prospectCount.textContent = `(${prospectTemplates.length})`;
+  if (clientCount) clientCount.textContent = `(${clientTemplates.length})`;
+  if (followupCount) followupCount.textContent = `(${followupTemplates.length})`;
+
+  // Render prospect templates
+  if (prospectList) {
+    prospectList.innerHTML = prospectTemplates.length === 0
+      ? '<div class="text-sm text-gray-500 italic">No templates yet. Click "+ New Template" to create one.</div>'
+      : prospectTemplates.map(t => renderTemplateCard(t)).join('');
+  }
+
+  // Render client templates
+  if (clientList) {
+    clientList.innerHTML = clientTemplates.length === 0
+      ? '<div class="text-sm text-gray-500 italic">No templates yet. Click "+ New Template" to create one.</div>'
+      : clientTemplates.map(t => renderTemplateCard(t)).join('');
+  }
+
+  // Render followup templates
+  if (followupList) {
+    followupList.innerHTML = followupTemplates.length === 0
+      ? '<div class="text-sm text-gray-500 italic">No templates yet. Click "+ New Template" to create one.</div>'
+      : followupTemplates.map(t => renderTemplateCard(t)).join('');
+  }
+}
+
+function filterTemplates() {
+  const searchInput = document.getElementById('templateSearch');
+  const typeFilter = document.getElementById('templateTypeFilter');
+
+  if (!searchInput) {
+    // If search elements don't exist, just render normally
+    renderTemplateManager();
+    return;
+  }
+
+  const searchTerm = searchInput.value.toLowerCase().trim();
+  const selectedType = typeFilter ? typeFilter.value : '';
+
+  // Get all templates
+  const allTemplates = Object.values(userTemplatesState.templates || {});
+
+  // Filter templates
+  const filtered = allTemplates.filter(template => {
+    // Type filter
+    if (selectedType && template.type !== selectedType) {
+      return false;
+    }
+
+    // Search filter
+    if (searchTerm) {
+      const matchesName = template.name.toLowerCase().includes(searchTerm);
+      const matchesType = template.type.toLowerCase().includes(searchTerm);
+      const matchesSubject = template.subject && template.subject.toLowerCase().includes(searchTerm);
+      const matchesBody = template.body.toLowerCase().includes(searchTerm);
+      const matchesVariables = template.variables.some(v => v.toLowerCase().includes(searchTerm));
+
+      return matchesName || matchesType || matchesSubject || matchesBody || matchesVariables;
+    }
+
+    return true;
+  });
+
+  // Render with filtered templates
+  renderTemplateManager(filtered);
+}
+
+function renderTemplateCard(template) {
+  const typeIcons = {
+    email: '📧',
+    sms: '📱',
+    messenger: '📘',
+    instagram: '📷'
+  };
+
+  const icon = typeIcons[template.type] || '📝';
+
+  // Format usage stats
+  const usageCount = template.usageCount || 0;
+  const lastUsed = template.lastUsed;
+  let lastUsedText = '';
+  if (lastUsed) {
+    const daysAgo = Math.floor((Date.now() - new Date(lastUsed).getTime()) / (1000 * 60 * 60 * 24));
+    lastUsedText = daysAgo === 0 ? 'Today' : daysAgo === 1 ? 'Yesterday' : `${daysAgo} days ago`;
+  }
+
+  return `
+    <div class="flex items-center justify-between p-3 bg-gray-50 border rounded-lg hover:bg-gray-100 transition-colors">
+      <div class="flex-1">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span>${icon}</span>
+          <span class="font-medium text-gray-900">${esc(template.name)}</span>
+          ${usageCount > 0 ? `<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">${usageCount} use${usageCount > 1 ? 's' : ''}</span>` : ''}
+        </div>
+        ${template.subject ? `<div class="text-xs text-gray-600 mt-1">Subject: ${esc(template.subject)}</div>` : ''}
+        <div class="text-xs text-gray-500 mt-1">
+          ${template.variables.length > 0 ? `Variables: ${template.variables.map(v => `{${v}}`).join(', ')}` : 'No variables'}
+          ${lastUsedText ? ` • Last used: ${lastUsedText}` : ''}
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="openEditTemplateModal('${template.id}')" class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">
+          Edit
+        </button>
+        <button onclick="confirmDeleteTemplate('${template.id}')" class="px-3 py-1.5 text-sm bg-red-50 text-red-600 border border-red-200 rounded-md hover:bg-red-100">
+          Delete
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function openCreateTemplateModal() {
+  currentEditingTemplateId = null;
+  document.getElementById('templateModalTitle').textContent = 'Create Template';
+  document.getElementById('saveTemplateBtn').textContent = 'Save Template';
+
+  // Clear form
+  document.getElementById('templateName').value = '';
+  document.getElementById('templateCategory').value = '';
+  document.getElementById('templateType').value = '';
+  document.getElementById('templateSubject').value = '';
+  document.getElementById('templateBody').value = '';
+  document.getElementById('templatePreviewSection').classList.add('hidden');
+
+  // Show modal
+  document.getElementById('templateModal').style.display = 'flex';
+  document.getElementById('templateModal').setAttribute('aria-hidden', 'false');
+}
+
+function openEditTemplateModal(templateId) {
+  const template = userTemplatesState.templates[templateId];
+  if (!template) {
+    toast('⚠️ Template not found', false);
+    return;
+  }
+
+  if (template.isDefault) {
+    toast('⚠️ Cannot edit default templates. Use Duplicate instead.', false);
+    return;
+  }
+
+  currentEditingTemplateId = templateId;
+  document.getElementById('templateModalTitle').textContent = 'Edit Template';
+  document.getElementById('saveTemplateBtn').textContent = 'Save Changes';
+
+  // Populate form
+  document.getElementById('templateName').value = template.name;
+  document.getElementById('templateCategory').value = template.category;
+  document.getElementById('templateType').value = template.type;
+  document.getElementById('templateSubject').value = template.subject || '';
+  document.getElementById('templateBody').value = template.body;
+  document.getElementById('templatePreviewSection').classList.add('hidden');
+
+  // Show modal
+  document.getElementById('templateModal').style.display = 'flex';
+  document.getElementById('templateModal').setAttribute('aria-hidden', 'false');
+}
+
+function duplicateAndEditTemplate(templateId) {
+  const duplicate = duplicateTemplate(templateId);
+  if (duplicate) {
+    toast(`✅ Template duplicated!`, true);
+    renderTemplateManager();
+    openEditTemplateModal(duplicate.id);
+  }
+}
+
+function closeTemplateModal() {
+  document.getElementById('templateModal').style.display = 'none';
+  document.getElementById('templateModal').setAttribute('aria-hidden', 'true');
+  currentEditingTemplateId = null;
+}
+
+function insertVariable(variableName) {
+  const bodyTextarea = document.getElementById('templateBody');
+  const subjectInput = document.getElementById('templateSubject');
+
+  // Determine which field has focus or use body as default
+  const activeElement = document.activeElement;
+  let targetField = bodyTextarea;
+
+  if (activeElement && activeElement.id === 'templateSubject') {
+    targetField = subjectInput;
+  }
+
+  // Insert variable at cursor position
+  const start = targetField.selectionStart;
+  const end = targetField.selectionEnd;
+  const text = targetField.value;
+  const variable = `{${variableName}}`;
+
+  targetField.value = text.substring(0, start) + variable + text.substring(end);
+
+  // Move cursor after inserted variable
+  const newCursorPos = start + variable.length;
+  targetField.setSelectionRange(newCursorPos, newCursorPos);
+  targetField.focus();
+
+  // Auto-update preview
+  debounceAutoPreview();
+}
+
+function showVariableMenu(event) {
+  // This function can be expanded later to show a dropdown menu
+  // For now, the variable buttons are always visible in the helper section
+  const helperSection = event.target.closest('.space-y-4').querySelector('.bg-blue-50');
+  if (helperSection) {
+    helperSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+// Auto-preview functionality with debounce
+let autoPreviewTimeout = null;
+function debounceAutoPreview() {
+  clearTimeout(autoPreviewTimeout);
+  autoPreviewTimeout = setTimeout(() => {
+    const body = document.getElementById('templateBody')?.value;
+    if (body && body.length > 10) {
+      updateTemplatePreview();
+    }
+  }, 1000); // 1 second debounce
+}
+
+// Add auto-preview on body changes
+document.addEventListener('DOMContentLoaded', function() {
+  const bodyField = document.getElementById('templateBody');
+  const subjectField = document.getElementById('templateSubject');
+
+  if (bodyField) {
+    bodyField.addEventListener('input', debounceAutoPreview);
+  }
+
+  if (subjectField) {
+    subjectField.addEventListener('input', debounceAutoPreview);
+  }
+});
+
+function updateTemplatePreview() {
+  const name = document.getElementById('templateName').value;
+  const category = document.getElementById('templateCategory').value;
+  const type = document.getElementById('templateType').value;
+  const subject = document.getElementById('templateSubject').value;
+  const body = document.getElementById('templateBody').value;
+
+  if (!body) {
+    toast('⚠️ Enter a message body first', false);
+    return;
+  }
+
+  // Sample data for preview
+  const sampleData = {
+    businessName: 'Joe\'s Pizza',
+    contactName: 'Joe Smith',
+    phone: '(716) 555-1234',
+    email: 'joe@joespizza.com',
+    town: 'Grand Island',
+    zipCode: '14072',
+    campaign: 'Grand Island - January 2025',
+    amount: '$500',
+    date: new Date().toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })
+  };
+
+  // Create temporary template for preview
+  const tempTemplate = {
+    id: 'preview',
+    name,
+    category,
+    type,
+    subject,
+    body,
+    variables: []
+  };
+
+  // Extract variables
+  const variablePattern = /\{([^}]+)\}/g;
+  const variablesSet = new Set();
+  let match;
+  while ((match = variablePattern.exec(subject + ' ' + body)) !== null) {
+    variablesSet.add(match[1]);
+  }
+  tempTemplate.variables = Array.from(variablesSet);
+
+  // Fill with sample data
+  const filled = fillTemplateVariables(tempTemplate, sampleData);
+
+  // Show preview
+  const previewSection = document.getElementById('templatePreviewSection');
+  const previewSubject = document.getElementById('templatePreviewSubject');
+  const previewBody = document.getElementById('templatePreviewBody');
+
+  if (filled.subject) {
+    previewSubject.textContent = `Subject: ${filled.subject}`;
+    previewSubject.style.display = 'block';
+  } else {
+    previewSubject.style.display = 'none';
+  }
+
+  previewBody.textContent = filled.body;
+  previewSection.classList.remove('hidden');
+}
+
+function confirmDeleteTemplate(templateId) {
+  const template = userTemplatesState.templates[templateId];
+  if (!template) return;
+
+  const confirmed = confirm(`Delete template "${template.name}"?\n\nThis action cannot be undone.`);
+  if (!confirmed) return;
+
+  const success = deleteTemplate(templateId);
+  if (success) {
+    toast(`✅ Template deleted`, true);
+    renderTemplateManager();
+  }
+}
+
+// Handle template form submission
+document.addEventListener('DOMContentLoaded', function() {
+  const templateForm = document.getElementById('templateForm');
+  if (templateForm) {
+    templateForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+
+      const name = document.getElementById('templateName').value.trim();
+      const category = document.getElementById('templateCategory').value;
+      const type = document.getElementById('templateType').value;
+      const subject = document.getElementById('templateSubject').value.trim();
+      const body = document.getElementById('templateBody').value.trim();
+
+      if (!name || !category || !type || !body) {
+        toast('⚠️ Please fill in all required fields', false);
+        return;
+      }
+
+      if (currentEditingTemplateId) {
+        // Update existing template
+        const updated = updateTemplate(currentEditingTemplateId, {
+          name,
+          category,
+          type,
+          subject,
+          body
+        });
+
+        if (updated) {
+          toast('✅ Template updated!', true);
+          closeTemplateModal();
+          renderTemplateManager();
+        }
+      } else {
+        // Create new template
+        const created = createTemplate(name, category, type, subject, body);
+        if (created) {
+          toast('✅ Template created!', true);
+          closeTemplateModal();
+          renderTemplateManager();
+        }
+      }
+    });
+  }
+});
+
+async function markNotInterested() {
+  if (!currentProspectDetail) return;
+
+  const businessName = currentProspectDetail.businessName;
+  const confirmed = confirm(`Are you sure you want to mark "${businessName}" as Not Interested?\n\nThis business will be permanently removed from your prospect pool and won't appear in future searches.`);
+
+  if (!confirmed) return;
+
+  const prospectId = currentProspectDetail.id;
+  const placeId = currentProspectDetail.placeId || prospectId;
+
+  // Add to Not Interested list
+  if (!notInterestedState.placeIds) notInterestedState.placeIds = new Set();
+  if (!notInterestedState.businesses) notInterestedState.businesses = {};
+
+  notInterestedState.placeIds.add(placeId);
+  notInterestedState.businesses[placeId] = {
+    businessName,
+    placeId: placeId,
+    dateMarked: new Date().toISOString(),
+    reason: 'User marked as not interested'
+  };
+
+  // Save to cloud database
+  const cloudData = {
+    placeIds: Array.from(notInterestedState.placeIds),
+    businesses: notInterestedState.businesses
+  };
+
+  try {
+    await saveToCloud('notInterested', cloudData);
+  } catch (err) {
+    console.error('Failed to save not interested to cloud:', err);
+    // Still save to localStorage as backup
+    localStorage.setItem('mailslot-not-interested', JSON.stringify(cloudData));
+  }
+
+  // Remove from prospect pool (searches cache)
+  let removedCount = 0;
+  Object.keys(placesCache.searches).forEach(cacheKey => {
+    const cached = placesCache.searches[cacheKey];
+    if (cached.cachedData) {
+      const beforeLength = cached.cachedData.length;
+      cached.cachedData = cached.cachedData.filter(p => {
+        // Keep item unless it matches the one we want to remove
+        // Match by placeId
+        if (placeId && p.placeId === placeId) return false;
+        // Match by id
+        if (prospectId && p.id === prospectId) return false;
+        // Match by business name (fallback)
+        if (businessName && (p.name === businessName || p.businessName === businessName)) return false;
+        // Keep all others
+        return true;
+      });
+      removedCount += (beforeLength - cached.cachedData.length);
+    }
+  });
+  localStorage.setItem('mailslot-places-cache', JSON.stringify(placesCache));
+
+  console.log(`Removed ${removedCount} items from prospect pool for: ${businessName}`);
+
+  // Remove from kanban
+  Object.keys(kanbanState.columns).forEach(columnKey => {
+    kanbanState.columns[columnKey] = kanbanState.columns[columnKey].filter(item => {
+      // Keep item unless it matches the one we want to remove
+      if (placeId && item.placeId === placeId) return false;
+      if (prospectId && item.id === prospectId) return false;
+      if (businessName && (item.businessName === businessName || item.name === businessName)) return false;
+      return true;
+    });
+  });
+  saveKanban();
+
+  toast(`✅ "${businessName}" marked as Not Interested and removed`, true);
+  closeProspectDetailModal();
+
+  // Refresh displays
+  renderProspectPool();
+  renderKanban();
+}
+
+// Mark prospect as not interested directly from the pool
+async function markProspectNotInterested(placeId, businessName) {
+  const confirmed = confirm(`Mark "${businessName}" as Not Interested?\n\nThis business will be removed from your prospect pool.`);
+
+  if (!confirmed) return;
+
+  // Add to Not Interested list
+  if (!notInterestedState.placeIds) notInterestedState.placeIds = new Set();
+  if (!notInterestedState.businesses) notInterestedState.businesses = {};
+
+  notInterestedState.placeIds.add(placeId);
+  notInterestedState.businesses[placeId] = {
+    businessName,
+    placeId: placeId,
+    dateMarked: new Date().toISOString(),
+    reason: 'User marked as not interested from prospect pool'
+  };
+
+  // Save to cloud database
+  const cloudData = {
+    placeIds: Array.from(notInterestedState.placeIds),
+    businesses: notInterestedState.businesses
+  };
+
+  try {
+    await saveToCloud('notInterested', cloudData);
+  } catch (err) {
+    console.error('Failed to save not interested to cloud:', err);
+    // Still save to localStorage as backup
+    localStorage.setItem('mailslot-not-interested', JSON.stringify(cloudData));
+  }
+
+  // Remove from prospect pool (searches cache)
+  let removedCount = 0;
+  Object.keys(placesCache.searches).forEach(cacheKey => {
+    const cached = placesCache.searches[cacheKey];
+    if (cached.cachedData) {
+      const beforeLength = cached.cachedData.length;
+      cached.cachedData = cached.cachedData.filter(p => {
+        // Keep item unless it matches the one we want to remove
+        if (p.placeId === placeId) return false;
+        if (p.id === placeId) return false;
+        if (p.name === businessName || p.businessName === businessName) return false;
+        return true;
+      });
+      removedCount += (beforeLength - cached.cachedData.length);
+    }
+  });
+  localStorage.setItem('mailslot-places-cache', JSON.stringify(placesCache));
+
+  toast(`✅ "${businessName}" marked as Not Interested`, true);
+
+  // Refresh prospect pool display
+  renderProspectPool();
+}
+
+// Expose functions globally
+window.openProspectDetailModal = openProspectDetailModal;
+window.closeProspectDetailModal = closeProspectDetailModal;
+window.quickAction = quickAction;
+window.addNewInteraction = addNewInteraction;
+window.showMessageTemplate = showMessageTemplate;
+window.copyTemplate = copyTemplate;
+window.markNotInterested = markNotInterested;
+window.markProspectNotInterested = markProspectNotInterested;
+
+/* ========= KANBAN FUNCTIONS ========= */
+
+async function loadKanban() {
+  try {
+    // Try loading from cloud first
+    const cloudData = await loadFromCloud('kanban');
+
+    if (cloudData && typeof cloudData === 'object' && Object.keys(cloudData).length > 0) {
+      kanbanState.columns = cloudData;
+    } else {
+      // Fallback to localStorage
+      const saved = localStorage.getItem('mailslot-kanban');
+      if (saved) {
+        kanbanState.columns = JSON.parse(saved);
+      }
+      // Sync default/localStorage data to cloud if cloud was empty
+      saveToCloud('kanban', kanbanState.columns).catch(e => console.warn('Failed to sync kanban to cloud:', e));
+    }
+
+    // MIGRATION: Move data from old column keys to new keys
+    const columnMigrations = {
+      'new-lead': 'prospect-list',
+      'proposal-sent': 'to-contact',
+      'negotiation': 'in-progress',
+      'closed-won': 'committed'
+    };
+
+    let migrationNeeded = false;
+    Object.keys(columnMigrations).forEach(oldKey => {
+      if (kanbanState.columns[oldKey] && Array.isArray(kanbanState.columns[oldKey]) && kanbanState.columns[oldKey].length > 0) {
+        const newKey = columnMigrations[oldKey];
+        console.log(`🔄 Migrating ${kanbanState.columns[oldKey].length} items from '${oldKey}' to '${newKey}'`);
+
+        // Initialize new column if it doesn't exist
+        if (!kanbanState.columns[newKey]) {
+          kanbanState.columns[newKey] = [];
+        }
+
+        // Move all items from old key to new key
+        kanbanState.columns[newKey].push(...kanbanState.columns[oldKey]);
+
+        // Delete old key
+        delete kanbanState.columns[oldKey];
+        migrationNeeded = true;
+      }
+    });
+
+    // Save if migration occurred
+    if (migrationNeeded) {
+      console.log('✅ Column migration complete, saving to cloud...');
+      await saveToCloud('kanban', kanbanState.columns).catch(e => console.warn('Failed to save migrated kanban:', e));
+      localStorage.setItem('mailslot-kanban', JSON.stringify(kanbanState.columns));
+    }
+
+    // Ensure all required columns exist
+    const requiredColumns = ['prospect-list', 'to-contact', 'in-progress', 'committed'];
+    requiredColumns.forEach(col => {
+      if (!kanbanState.columns[col]) {
+        kanbanState.columns[col] = [];
+      }
+    });
+
+    // Clean up any null/undefined items from all columns
+    Object.keys(kanbanState.columns).forEach(key => {
+      if (Array.isArray(kanbanState.columns[key])) {
+        kanbanState.columns[key] = kanbanState.columns[key].filter(item => item != null);
+      }
+    });
+
+    // Deduplicate data after loading (clean up any existing duplicates)
+    const duplicatesRemoved = deduplicateKanbanData();
+    if (duplicatesRemoved > 0) {
+      // Save cleaned data back to database
+      await saveToCloud('kanban', kanbanState.columns).catch(e => console.warn('Failed to save deduplicated kanban:', e));
+    }
+
+  } catch(e) {
+    console.error('Error loading kanban:', e);
+  }
+  renderKanban();
+}
+
+// Remove all duplicate prospects from kanban data (not just rendering)
+function deduplicateKanbanData() {
+  let totalRemoved = 0;
+  console.log('🧹 DEBUG: deduplicateKanbanData ENTRY - prospect-list length:', kanbanState.columns['prospect-list']?.length);
+
+  Object.keys(kanbanState.columns).forEach(columnKey => {
+    const items = kanbanState.columns[columnKey];
+    if (!Array.isArray(items)) return;
+
+    console.log(`🧹 DEBUG: Deduping column ${columnKey} with ${items.length} items`);
+    const seenIds = new Set(); // Track by unique ID first
+    const seenPlaceIds = new Set();
+    const seenBusinessNames = new Map(); // Map to track businessName+mailerId combos
+    const deduped = [];
+
+    items.forEach(item => {
+      if (typeof item !== 'object') {
+        deduped.push(item);
+        return;
+      }
+
+      // First check unique ID (most reliable for all items)
+      if (item.id) {
+        if (seenIds.has(item.id)) {
+          totalRemoved++;
+          return; // Skip duplicate
+        }
+        seenIds.add(item.id);
+      }
+
+      // Skip if we've seen this placeId (reliable for Google Maps prospects)
+      if (item.placeId) {
+        if (seenPlaceIds.has(item.placeId)) {
+          totalRemoved++;
+          return; // Skip duplicate
+        }
+        seenPlaceIds.add(item.placeId);
+      }
+      // Fallback to businessName + mailerId for prospects without placeId
+      else if (item.businessName && item.mailerId) {
+        const key = `${item.businessName.toLowerCase()}|${item.mailerId}`;
+        if (seenBusinessNames.has(key)) {
+          totalRemoved++;
+          return; // Skip duplicate
+        }
+        seenBusinessNames.set(key, true);
+      }
+      // For items from Client Database (no mailerId, no placeId), use originalClientId
+      else if (item.originalClientId) {
+        // These are already checked by item.id above, so just add them
+      }
+
+      deduped.push(item);
+    });
+
+    console.log(`🧹 DEBUG: Column ${columnKey} - Before: ${items.length}, After: ${deduped.length}, Removed: ${items.length - deduped.length}`);
+    kanbanState.columns[columnKey] = deduped;
+  });
+
+  if (totalRemoved > 0) {
+    console.log(`🧹 Removed ${totalRemoved} duplicate prospect(s) from kanban data`);
+  }
+  console.log('🧹 DEBUG: deduplicateKanbanData EXIT - prospect-list length:', kanbanState.columns['prospect-list']?.length);
+
+  return totalRemoved;
+}
+
+async function saveKanban() {
+  try {
+    // Log who called this function
+    const stack = new Error().stack;
+    const caller = stack.split('\n')[2]?.trim() || 'unknown';
+    console.log('🔵 saveKanban CALLED FROM:', caller);
+    console.log('🔵 saveKanban - Before dedup, prospect-list length:', kanbanState.columns['prospect-list']?.length);
+    console.log('🔵 saveKanban - Before dedup, to-contact length:', kanbanState.columns['to-contact']?.length);
+
+    // Deduplicate before saving
+    const removed = deduplicateKanbanData();
+    console.log('🔵 saveKanban - After dedup, prospect-list length:', kanbanState.columns['prospect-list']?.length);
+    console.log('🔵 saveKanban - After dedup, to-contact length:', kanbanState.columns['to-contact']?.length, 'Removed:', removed);
+
+    // Save to cloud and localStorage
+    await saveToCloud('kanban', kanbanState.columns);
+    console.log('🔵 saveKanban - Saved to cloud, prospect-list length:', kanbanState.columns['prospect-list']?.length);
+  } catch(e) {
+    console.warn('Kanban saved to localStorage only (cloud sync failed):', e);
+  }
+}
+
+// CLOUD PROSPECTS SYNC FUNCTIONS
+async function saveSelectedProspectsToCloud() {
+  if (cloudSyncSelection.selectedIds.size === 0) {
+    toast('No prospects selected', false);
+    return;
+  }
+
+  try {
+    const prospectsToSync = [];
+
+    // Collect selected prospects from all columns
+    Object.keys(kanbanState.columns).forEach(columnKey => {
+      const items = kanbanState.columns[columnKey];
+
+      // Safety check - ensure column is an array
+      if (!Array.isArray(items)) {
+        console.warn(`Column ${columnKey} is not an array:`, items);
+        return;
+      }
+
+      items.forEach(item => {
+        if (typeof item === 'object' && item && cloudSyncSelection.selectedIds.has(item.id)) {
+          prospectsToSync.push({
+            ...item,
+            column: columnKey // Store which column it's in
+          });
+        }
+      });
+    });
+
+    if (prospectsToSync.length === 0) {
+      toast('Selected prospects not found', false);
+      return;
+    }
+
+    // Use POST request to avoid URL length limits
+    const response = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'saveCloudProspects',
+        user: ACTIVE_USER,
+        prospects: prospectsToSync
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    if (result.success) {
+      toast(`✅ Synced ${result.count} prospect(s) to cloud!`, true);
+      cloudSyncSelection.selectedIds.clear();
+      renderKanban();
+    } else {
+      throw new Error(result.error || 'Unknown error');
+    }
+
+  } catch (err) {
+    console.error('Failed to sync prospects to cloud:', err);
+    toast('Failed to sync prospects to cloud', false);
+  }
+}
+
+async function loadCloudProspects() {
+  try {
+    const url = `${GAS_URL}?action=loadCloudProspects&user=${encodeURIComponent(ACTIVE_USER)}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    if (result.success && result.prospects) {
+      return result.prospects;
+    }
+
+    return [];
+
+  } catch (err) {
+    console.error('Failed to load cloud prospects:', err);
+    return [];
+  }
+}
+
+async function deleteCloudProspect(prospectId) {
+  try {
+    const url = `${GAS_URL}?action=deleteCloudProspect&user=${encodeURIComponent(ACTIVE_USER)}&prospectId=${encodeURIComponent(prospectId)}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.success;
+
+  } catch (err) {
+    console.error('Failed to delete cloud prospect:', err);
+    return false;
+  }
+}
+
+function toggleCloudSyncUI() {
+  cloudSyncSelection.showSyncUI = !cloudSyncSelection.showSyncUI;
+  if (!cloudSyncSelection.showSyncUI) {
+    cloudSyncSelection.selectedIds.clear();
+  }
+  renderKanban();
+}
+
+function toggleProspectForSync(prospectId) {
+  if (cloudSyncSelection.selectedIds.has(prospectId)) {
+    cloudSyncSelection.selectedIds.delete(prospectId);
+  } else {
+    cloudSyncSelection.selectedIds.add(prospectId);
+  }
+  debouncedRenderKanban(); // Use debounced version for checkbox toggles
+}
+
+// Debounce utility to prevent excessive re-renders
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
+// Debounced version of renderKanban for non-critical updates
+const debouncedRenderKanban = debounce(() => renderKanban(), DEBOUNCE_RENDER_DELAY);
+
+function renderKanban() {
+  try {
+    const dailyGoalContainer = document.getElementById('dailyGoalContainer');
+    const kanbanColumnsContainer = document.getElementById('salesActivityKanbanColumns');
+
+    // Safety check - if containers don't exist, bail out
+    if (!dailyGoalContainer || !kanbanColumnsContainer) {
+      console.warn('Kanban containers not found, skipping render');
+      return;
+    }
+
+    const currentMailerId = state.current?.Mailer_ID;
+
+  const columnDefs = [
+    { key: 'prospect-list', title: '1. Prospect List', color: 'blue' },
+    { key: 'to-contact', title: '2. To Contact', color: 'purple' },
+    { key: 'in-progress', title: '3. In Progress', color: 'green' },
+    { key: 'committed', title: '4. Committed', color: 'yellow' }
+  ];
+
+  // Cloud Sync UI at top (HIDDEN temporarily - needs more testing)
+  const cloudSyncBar = cloudSyncSelection.showSyncUI
+    ? `
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="font-semibold text-blue-900">☁️ Cloud Sync Mode</span>
+          <span class="text-sm text-blue-700">${cloudSyncSelection.selectedIds.size} selected</span>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="saveSelectedProspectsToCloud()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium" ${cloudSyncSelection.selectedIds.size === 0 ? 'disabled' : ''}>
+            ☁️ Sync to Cloud
+          </button>
+          <button onclick="toggleCloudSyncUI()" class="px-4 py-2 bg-gray-400 text-white rounded hover:bg-gray-500 text-sm">
+            Cancel
+          </button>
+        </div>
+      </div>
+    `
+    : ''; // Hidden for now
+
+  const columnsHTML = columnDefs.map(col => {
+    const rawItems = kanbanState.columns[col.key] || [];
+    console.log(`Rendering column ${col.key}: ${rawItems.length} raw items, currentMailerId: ${currentMailerId}`);
+
+    let items = rawItems
+      .filter(item => item != null); // Filter out null/undefined
+
+      // REMOVED mailerId filter - show all items regardless of campaign
+      // This prevents the kanban from emptying when switching campaigns
+      // Items are stored globally and can be used across all campaigns
+
+    console.log(`After mailerId filter: ${items.length} items`);
+
+    // Deduplicate by placeId (keep first occurrence)
+    const seenPlaceIds = new Set();
+    items = items.filter(item => {
+      if (typeof item !== 'object' || !item.placeId) return true; // Keep items without placeId
+      if (seenPlaceIds.has(item.placeId)) return false; // Skip duplicates
+      seenPlaceIds.add(item.placeId);
+      return true;
+    });
+
+    // Sort Prospecting column: items with phone/website/email first
+    if (col.key === 'prospect-list') {
+      items = items.sort((a, b) => {
+        const aHasContact = (a.phone || a.website || a.email) ? 1 : 0;
+        const bHasContact = (b.phone || b.website || b.email) ? 1 : 0;
+        return bHasContact - aHasContact; // Sort descending (with contact first)
+      });
+    }
+
+    // Add buttons for columns
+    const buttons = `
+        <button onclick="openLeadModal('${col.key}')" class="text-xs px-2 py-1 bg-${col.color}-600 text-white rounded hover:bg-${col.color}-700" title="Add lead manually">
+          +
+        </button>
+      `;
+
+    return `
+      <div class="kanban-column" data-column="${col.key}">
+        <div class="flex justify-between items-center mb-2">
+          <div class="font-semibold text-sm text-${col.color}-600">${col.title} (${items.length})</div>
+          ${buttons}
+        </div>
+        ${items.map((item, idx) => {
+          // Support both string (legacy) and object format
+          // Add safety check for null/undefined items
+          if (!item) return '';
+
+          const leadName = typeof item === 'string' ? item : (item.businessName || 'Unnamed Business');
+          const leadId = typeof item === 'string' ? String(idx) : String(item.id || idx);
+
+          // Enhanced display for Prospecting column
+          if (col.key === 'prospect-list' && typeof item === 'object') {
+            const hasContact = item.phone || item.website || item.email;
+            const isProspectingSelected = prospectingSelectionState.selectedIds.has(leadId);
+            const isCloudSyncSelected = cloudSyncSelection.selectedIds.has(leadId);
+
+            // Check if this is a client from the Client Database
+            const isClient = item.source === 'client' ||
+              item.originalClientId ||
+              (item.businessName && Object.values(crmState.clients || {}).some(c =>
+                c.businessName.toLowerCase() === item.businessName.toLowerCase()
+              ));
+
+            // Build compact icon display
+            const contactIcons = [];
+            if (item.phone) contactIcons.push(`<a href="tel:${esc(item.phone)}" class="text-lg hover:text-blue-600" title="📞 ${esc(item.phone)}">📞</a>`);
+            if (item.website) contactIcons.push(`<a href="${esc(ensureHttps(item.website))}" target="_blank" class="text-lg hover:text-blue-600" title="🌐 ${esc(item.website)}">🌐</a>`);
+            if (item.email) contactIcons.push(`<a href="mailto:${esc(item.email)}" class="text-lg hover:text-blue-600" title="✉️ ${esc(item.email)}">✉️</a>`);
+            if (item.facebook) contactIcons.push(`<a href="${esc(ensureHttps(item.facebook))}" target="_blank" class="text-lg hover:text-blue-600" title="Facebook">📘</a>`);
+            if (item.instagram) contactIcons.push(`<a href="${esc(ensureHttps(item.instagram))}" target="_blank" class="text-lg hover:text-blue-600" title="Instagram">📷</a>`);
+            if (item.linkedin) contactIcons.push(`<a href="${esc(ensureHttps(item.linkedin))}" target="_blank" class="text-lg hover:text-blue-600" title="LinkedIn">💼</a>`);
+            if (item.twitter) contactIcons.push(`<a href="${esc(ensureHttps(item.twitter))}" target="_blank" class="text-lg hover:text-blue-600" title="Twitter">🐦</a>`);
+
+            return `
+              <div class="kanban-item text-xs p-2 bg-white border rounded ${hasContact ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'}" data-item-id="${leadId}" data-column="${col.key}" ondblclick="openClientModalForProspect('${leadId}')">
+                <div class="flex justify-between items-start gap-2 mb-2">
+                  ${cloudSyncSelection.showSyncUI ? `
+                    <input
+                      type="checkbox"
+                      ${isCloudSyncSelected ? 'checked' : ''}
+                      onchange="toggleProspectForSync('${leadId}')"
+                      onclick="event.stopPropagation()"
+                      class="mt-1 w-4 h-4 text-blue-600 rounded cursor-pointer flex-shrink-0"
+                    />
+                  ` : `
+                    <input
+                      type="checkbox"
+                      ${isProspectingSelected ? 'checked' : ''}
+                      onchange="toggleProspectingSelection('${leadId}')"
+                      onclick="event.stopPropagation()"
+                      class="mt-1 w-4 h-4 text-purple-600 rounded cursor-pointer flex-shrink-0"
+                    />
+                  `}
+                  <div class="flex-1 drag-handle">
+                    <div class="font-medium text-xs break-words">${esc(leadName)}</div>
+                    ${item.zipCode ? `<div class="text-xs text-gray-500 font-medium mt-0.5">📍 ${esc(item.zipCode)}</div>` : ''}
+                  </div>
+                  <div class="flex gap-1 flex-shrink-0">
+                    <button onclick="event.stopPropagation(); openClientModalForProspect('${leadId}')" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View/Edit Business">👁</button>
+                    <button onclick="openContactLaterModal('${leadId}', event)" class="text-purple-600 hover:text-purple-800 text-sm cursor-pointer" title="Contact Later">📅</button>
+                    ${isClient
+                      ? `<button onclick="event.stopPropagation(); completeAndRemoveFromKanban('${leadId}', 'prospect-list');" class="text-orange-600 hover:text-orange-800 text-sm cursor-pointer" title="Remove from Kanban (returns to Client Database)">🗑</button>`
+                      : `<button onclick="moveProspectBackToPool('${leadId}', event)" class="text-orange-600 hover:text-orange-800 text-sm cursor-pointer" title="Send back to Pool">🗑</button>`
+                    }
+                  </div>
+                </div>
+                ${contactIcons.length > 0 ? `
+                  <div class="flex gap-2 items-center justify-center py-1">
+                    ${contactIcons.join('')}
+                  </div>
+                ` : '<div class="text-gray-400 italic text-center py-1">No contact info</div>'}
+              </div>
+            `;
+          }
+
+          // Standard display for other columns
+          const isCloudSyncSelected = cloudSyncSelection.selectedIds.has(leadId);
+          const isToContactSelected = toContactSelectionState.selectedIds.has(leadId);
+
+          return `
+            <div class="kanban-item text-xs p-2 bg-white border rounded" data-item-id="${leadId}" data-column="${col.key}" ondblclick="${typeof item === 'object' ? `openClientModalForProspect('${leadId}')` : ''}">
+              <div class="flex justify-between items-start gap-2">
+                ${cloudSyncSelection.showSyncUI && typeof item === 'object' ? `
+                  <input
+                    type="checkbox"
+                    ${isCloudSyncSelected ? 'checked' : ''}
+                    onchange="toggleProspectForSync('${leadId}')"
+                    onclick="event.stopPropagation()"
+                    class="mt-0.5 w-4 h-4 text-blue-600 rounded cursor-pointer flex-shrink-0"
+                  />
+                ` : col.key === 'to-contact' && typeof item === 'object' ? `
+                  <input
+                    type="checkbox"
+                    ${isToContactSelected ? 'checked' : ''}
+                    onchange="toggleToContactSelection('${leadId}')"
+                    onclick="event.stopPropagation()"
+                    class="mt-0.5 w-4 h-4 text-purple-600 rounded cursor-pointer flex-shrink-0"
+                  />
+                ` : `
+                  <div class="drag-handle text-gray-400 hover:text-gray-600 cursor-grab flex-shrink-0 px-1" title="Drag to move">⋮⋮</div>
+                `}
+                <div class="flex-1 drag-handle">
+                  <div class="font-medium">${esc(leadName)}</div>
+                  ${typeof item === 'object' && item.zipCode ? `<div class="text-xs text-gray-500 font-medium mt-0.5">📍 ${esc(item.zipCode)}</div>` : ''}
+                </div>
+                <div class="flex gap-1 flex-shrink-0">
+                  ${typeof item === 'object' ? `<button onclick="event.stopPropagation(); openClientModalForProspect('${leadId}')" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View/Edit Business">👁</button>` : ''}
+                  <button onclick="openContactLaterModal('${leadId}', event)" class="text-purple-600 hover:text-purple-800 text-sm cursor-pointer" title="Contact Later">📅</button>
+                  <button onclick="editLead('${col.key}', '${leadId}', event)" class="text-blue-600 hover:text-blue-800 text-sm cursor-pointer" title="Edit">✎</button>
+                  ${(() => {
+                    // Check if this is a client - if so, send back to client list instead of deleting
+                    const isClient = typeof item === 'object' && (
+                      item.source === 'client' ||
+                      item.originalClientId ||
+                      (item.businessName && Object.values(crmState.clients || {}).some(c =>
+                        c.businessName.toLowerCase() === item.businessName.toLowerCase()
+                      ))
+                    );
+                    if (isClient) {
+                      return `<button onclick="event.stopPropagation(); completeAndRemoveFromKanban('${leadId}', '${col.key}');" class="text-orange-600 hover:text-orange-800 text-sm cursor-pointer" title="Remove from Kanban (returns to Client Database)">🗑</button>`;
+                    } else {
+                      return `<button onclick="deleteLead('${col.key}', '${leadId}', event)" class="text-red-600 hover:text-red-800 text-sm cursor-pointer" title="Delete">🗑</button>`;
+                    }
+                  })()}
+                </div>
+              </div>
+              ${col.key === 'to-contact' && typeof item === 'object' ? (() => {
+                // Build contact icons for to-contact column
+                const contactIcons = [];
+                if (item.phone) contactIcons.push(`<a href="tel:${esc(item.phone)}" class="text-lg hover:text-blue-600" title="📞 ${esc(item.phone)}">📞</a>`);
+                if (item.website) contactIcons.push(`<a href="${esc(ensureHttps(item.website))}" target="_blank" class="text-lg hover:text-blue-600" title="🌐 ${esc(item.website)}">🌐</a>`);
+                if (item.email) contactIcons.push(`<a href="mailto:${esc(item.email)}" class="text-lg hover:text-blue-600" title="✉️ ${esc(item.email)}">✉️</a>`);
+                if (item.facebook) contactIcons.push(`<a href="${esc(ensureHttps(item.facebook))}" target="_blank" class="text-lg hover:text-blue-600" title="Facebook">📘</a>`);
+                if (item.instagram) contactIcons.push(`<a href="${esc(ensureHttps(item.instagram))}" target="_blank" class="text-lg hover:text-blue-600" title="Instagram">📷</a>`);
+                if (item.linkedin) contactIcons.push(`<a href="${esc(ensureHttps(item.linkedin))}" target="_blank" class="text-lg hover:text-blue-600" title="LinkedIn">💼</a>`);
+                if (item.twitter) contactIcons.push(`<a href="${esc(ensureHttps(item.twitter))}" target="_blank" class="text-lg hover:text-blue-600" title="Twitter">🐦</a>`);
+
+                return contactIcons.length > 0 ? `
+                  <div class="flex gap-2 items-center justify-center py-2 mt-2 border-t border-gray-200">
+                    ${contactIcons.join('')}
+                  </div>
+                ` : '';
+              })() : ''}
+              ${col.key === 'to-contact' ? `
+                <div class="mt-2 pt-2 border-t border-gray-200 space-y-2">
+                  <div class="flex gap-2">
+                    <button onclick="handleNotInterested('${leadId}', event)" class="flex-1 px-3 py-1.5 bg-red-600 text-white text-xs rounded hover:bg-red-700 font-medium">
+                      🚫 Not Interested
+                    </button>
+                    ${(() => {
+                      // Check if this prospect came from Client Database or is already a client
+                      const isClient = typeof item === 'object' && (
+                        item.source === 'client' ||
+                        item.originalClientId ||
+                        (item.businessName && Object.values(crmState.clients || {}).some(c =>
+                          c.businessName.toLowerCase() === item.businessName.toLowerCase()
+                        ))
+                      );
+                      if (isClient) {
+                        return `<button onclick="event.stopPropagation(); completeAndRemoveFromKanban('${leadId}', 'to-contact');" class="flex-1 px-3 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 font-medium" title="Mark as current client and remove from Kanban (keeps in Client Database)">
+                          ✅ Current Client
+                        </button>`;
+                      } else {
+                        return `<button onclick="convertProspectToClient('${leadId}', 'to-contact'); event.stopPropagation();" class="flex-1 px-3 py-1.5 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 font-medium" title="Add to Client Database">
+                          👤 Convert to Client
+                        </button>`;
+                      }
+                    })()}
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }).join('');
+
+  // Daily Goal Tracker UI
+  const dailyGoalHTML = `
+    <div class="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-300 rounded-lg p-4 mb-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <div class="text-2xl">🎯</div>
+          <div>
+            <div class="text-sm text-gray-600 font-medium">Daily Outreach Goal</div>
+            <div class="text-2xl font-bold text-purple-700">
+              ${dailyGoalState.todayCount} <span class="text-gray-400">/</span> ${dailyGoalState.dailyGoal}
+              <span class="text-sm text-gray-500 font-normal">contacts today</span>
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="text-right">
+            <div class="text-xs text-gray-500 mb-1">Completion</div>
+            <div class="text-lg font-bold ${dailyGoalState.todayCount >= dailyGoalState.dailyGoal ? 'text-green-600' : 'text-purple-600'}">
+              ${Math.round((dailyGoalState.todayCount / dailyGoalState.dailyGoal) * 100)}%
+            </div>
+          </div>
+          <button onclick="openDailyGoalSettings()" class="px-4 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 font-medium" title="Change daily goal and reset count">
+            ⚙️ Settings
+          </button>
+        </div>
+      </div>
+      <div class="mt-3 w-full h-3 bg-gray-200 rounded-full overflow-hidden">
+        <div class="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full transition-all duration-300" style="width: ${Math.min((dailyGoalState.todayCount / dailyGoalState.dailyGoal) * 100, 100)}%;"></div>
+      </div>
+      ${dailyGoalState.todayCount >= dailyGoalState.dailyGoal ? `
+        <div class="mt-2 text-center text-green-700 font-semibold text-sm">
+          🎉 Goal achieved! Great work today!
+        </div>
+      ` : ''}
+    </div>
+  `;
+
+  // Wrap columns in flex container
+  const columnsWrapperHTML = `
+    <div style="display: flex; gap: 1rem; padding-bottom: 0.5rem; overflow-x: auto; scrollbar-width: thin; -webkit-overflow-scrolling: touch;">
+      ${columnsHTML}
+    </div>
+  `;
+
+  // Set daily goal in its own container (always visible)
+  dailyGoalContainer.innerHTML = dailyGoalHTML;
+
+  // Set kanban columns in collapsible container
+  kanbanColumnsContainer.innerHTML = cloudSyncBar + columnsWrapperHTML;
+
+  setupKanbanDrag();
+  updateMoveToPoolButton();
+  } catch (err) {
+    console.error('Error rendering kanban:', err);
+    toast('⚠️ Error displaying kanban. Please refresh.', false);
+  }
+}
+
+function setupKanbanDrag() {
+  // Set draggable attribute and attach listeners to each item
+  const items = document.querySelectorAll('.kanban-item');
+
+  items.forEach(item => {
+    item.setAttribute('draggable', 'true');
+
+    item.ondragstart = function(e) {
+      // ALWAYS allow drag if started from drag handle
+      let element = e.target;
+      let isDragHandle = false;
+
+      while (element && element !== this) {
+        if (element.classList && element.classList.contains('drag-handle')) {
+          isDragHandle = true;
+          break;
+        }
+        element = element.parentElement;
+      }
+
+      // If not from drag handle, prevent drag if click started on interactive elements
+      if (!isDragHandle) {
+        element = e.target;
+        while (element && element !== this) {
+          if (element.tagName === 'INPUT' ||
+              element.tagName === 'BUTTON' ||
+              element.tagName === 'A' ||
+              element.tagName === 'SELECT' ||
+              element.tagName === 'TEXTAREA') {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+          }
+          element = element.parentElement;
+        }
+      }
+
+      console.log('🟢 DRAG START - Item ID:', this.dataset.itemId, 'From column:', this.dataset.column);
+      draggedItem = this;
+      this.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', this.dataset.itemId);
+    };
+
+    item.ondragend = function(e) {
+      this.classList.remove('dragging');
+      draggedItem = null;
+
+      // Clean up all visual indicators
+      document.querySelectorAll('.kanban-item.drag-over').forEach(el => {
+        el.classList.remove('drag-over');
+      });
+      document.querySelectorAll('.kanban-column.drag-over-column').forEach(el => {
+        el.classList.remove('drag-over-column');
+      });
+    };
+
+    // Add drag over for individual items to show drop position
+    item.ondragover = function(e) {
+      e.preventDefault();
+      e.stopPropagation(); // Prevent column ondragover from interfering
+      if (draggedItem && draggedItem !== this) {
+        // Remove previous indicators
+        document.querySelectorAll('.kanban-item.drag-over').forEach(el => {
+          el.classList.remove('drag-over');
+        });
+        // Add indicator to this item
+        this.classList.add('drag-over');
+      }
+    };
+
+    item.ondragleave = function(e) {
+      // Only remove if actually leaving the item
+      if (!this.contains(e.relatedTarget)) {
+        this.classList.remove('drag-over');
+      }
+    };
+
+    // Handle drop on individual items to insert at position
+    item.ondrop = async function(e) {
+      e.preventDefault();
+      e.stopPropagation(); // Prevent column ondrop from also firing
+
+      console.log('🔵 DROP on item - draggedItem exists:', !!draggedItem);
+
+      // Clean up all visual indicators immediately
+      document.querySelectorAll('.kanban-item.drag-over').forEach(el => {
+        el.classList.remove('drag-over');
+      });
+      document.querySelectorAll('.kanban-column.drag-over-column').forEach(el => {
+        el.classList.remove('drag-over-column');
+      });
+
+      if (!draggedItem || draggedItem === this) {
+        console.log('⚠️ DROP ABORTED - draggedItem is null or same item');
+        return;
+      }
+
+      const fromColumn = draggedItem.closest('.kanban-column').dataset.column;
+      const toColumn = this.closest('.kanban-column').dataset.column;
+      const itemId = draggedItem.dataset.itemId;
+      const targetItemId = this.dataset.itemId;
+
+      console.log(`🟣 DROPPING item ${itemId} before item ${targetItemId} in column ${toColumn} (from ${fromColumn})`);
+
+      // Find and remove from old column
+      const fromItems = kanbanState.columns[fromColumn] || [];
+      const fromIdx = fromItems.findIndex(item => {
+        if (typeof item === 'string') return false;
+        // Handle both string IDs and numeric IDs
+        return String(item.id) === String(itemId);
+      });
+
+      if (fromIdx > -1) {
+        const itemToMove = fromItems[fromIdx];
+        fromItems.splice(fromIdx, 1);
+
+        // Add to new column at the position BEFORE the target item
+        if (!kanbanState.columns[toColumn]) {
+          kanbanState.columns[toColumn] = [];
+        }
+
+        const toItems = kanbanState.columns[toColumn];
+        const targetIdx = toItems.findIndex(item => {
+          if (typeof item === 'string') return false;
+          // Handle both string IDs and numeric IDs
+          return String(item.id) === String(targetItemId);
+        });
+
+        // Insert before target, or at end if not found
+        if (targetIdx > -1) {
+          toItems.splice(targetIdx, 0, itemToMove);
+        } else {
+          toItems.push(itemToMove);
+        }
+
+        // Track daily goal
+        const businessName = typeof itemToMove === 'string' ? itemToMove : (itemToMove.businessName || 'Unnamed Business');
+        const forwardColumns = ['in-progress', 'committed'];
+
+        if (fromColumn === 'to-contact' && forwardColumns.includes(toColumn)) {
+          incrementDailyGoal(businessName);
+        } else if (forwardColumns.includes(fromColumn) && toColumn === 'to-contact') {
+          decrementDailyGoal(businessName);
+        }
+
+        // Save and render
+        try {
+          await saveKanban();
+          renderKanban();
+        } catch (err) {
+          console.error('Error saving kanban after move:', err);
+          toast('⚠️ Error saving changes. Refreshing...', false);
+          renderKanban();
+        }
+
+        const columnTitles = {
+          'prospect-list': '1. Prospect List',
+          'to-contact': '2. To Contact',
+          'in-progress': '3. In Progress',
+          'committed': '4. Committed'
+        };
+        toast(`Moved to ${columnTitles[toColumn] || toColumn}`);
+      }
+    };
+
+    // Add mobile touch support for drag-and-drop
+    let touchStartX, touchStartY, touchMoveX, touchMoveY;
+    let isTouchDragging = false;
+    let touchClone = null;
+    let touchStartTime = 0;
+
+    item.addEventListener('touchstart', function(e) {
+      // Only allow touch drag from drag handle
+      let element = e.target;
+      let isDragHandle = false;
+
+      while (element && element !== this) {
+        if (element.classList && element.classList.contains('drag-handle')) {
+          isDragHandle = true;
+          break;
+        }
+        element = element.parentElement;
+      }
+
+      if (!isDragHandle) return;
+
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      touchStartTime = Date.now();
+      isTouchDragging = false;
+    }, { passive: true });
+
+    item.addEventListener('touchmove', function(e) {
+      // Check if we've moved enough to start dragging
+      if (!isTouchDragging) {
+        const deltaX = Math.abs(e.touches[0].clientX - touchStartX);
+        const deltaY = Math.abs(e.touches[0].clientY - touchStartY);
+        const timeDelta = Date.now() - touchStartTime;
+
+        // Start dragging if moved >10px or held for >150ms
+        if ((deltaX > 10 || deltaY > 10) && timeDelta > 50) {
+          isTouchDragging = true;
+        } else {
+          return; // Not dragging yet, allow normal scrolling
+        }
+      }
+
+      e.preventDefault(); // Prevent scrolling while dragging
+
+      touchMoveX = e.touches[0].clientX;
+      touchMoveY = e.touches[0].clientY;
+
+      if (!draggedItem) {
+        draggedItem = this;
+        this.classList.add('dragging');
+
+        // Create visual clone for touch dragging
+        touchClone = this.cloneNode(true);
+        touchClone.style.position = 'fixed';
+        touchClone.style.zIndex = '10000';
+        touchClone.style.pointerEvents = 'none';
+        touchClone.style.width = this.offsetWidth + 'px';
+        touchClone.style.opacity = '0.8';
+        touchClone.classList.add('dragging');
+        document.body.appendChild(touchClone);
+      }
+
+      // Move clone with finger
+      if (touchClone) {
+        touchClone.style.left = (touchMoveX - (this.offsetWidth / 2)) + 'px';
+        touchClone.style.top = (touchMoveY - 30) + 'px';
+      }
+
+      // Highlight drop zone under finger
+      const elementUnder = document.elementFromPoint(touchMoveX, touchMoveY);
+      if (elementUnder) {
+        const columnUnder = elementUnder.closest('.kanban-column');
+        const itemUnder = elementUnder.closest('.kanban-item:not(.dragging)');
+
+        // Remove previous highlights
+        document.querySelectorAll('.kanban-item.drag-over').forEach(el => {
+          el.classList.remove('drag-over');
+        });
+        document.querySelectorAll('.kanban-column.drag-over-column').forEach(el => {
+          el.classList.remove('drag-over-column');
+        });
+
+        // Add highlights
+        if (itemUnder && itemUnder !== draggedItem) {
+          itemUnder.classList.add('drag-over');
+        } else if (columnUnder) {
+          columnUnder.classList.add('drag-over-column');
+        }
+      }
+    }, { passive: false });
+
+    item.addEventListener('touchend', async function(e) {
+      if (!isTouchDragging || !draggedItem) {
+        isTouchDragging = false;
+        return;
+      }
+
+      e.preventDefault();
+
+      // Find element under touch point
+      const elementUnder = document.elementFromPoint(touchMoveX, touchMoveY);
+      const targetColumn = elementUnder?.closest('.kanban-column');
+      const targetItem = elementUnder?.closest('.kanban-item:not(.dragging)');
+
+      // Clean up visual clone
+      if (touchClone) {
+        touchClone.remove();
+        touchClone = null;
+      }
+
+      // Clean up highlights
+      document.querySelectorAll('.kanban-item.drag-over').forEach(el => {
+        el.classList.remove('drag-over');
+      });
+      document.querySelectorAll('.kanban-column.drag-over-column').forEach(el => {
+        el.classList.remove('drag-over-column');
+      });
+      this.classList.remove('dragging');
+
+      if (!targetColumn) {
+        draggedItem = null;
+        isTouchDragging = false;
+        return;
+      }
+
+      const fromColumn = draggedItem.dataset.column;
+      const toColumn = targetColumn.dataset.column;
+      const itemId = draggedItem.dataset.itemId;
+
+      // Find and move the item
+      const fromItems = kanbanState.columns[fromColumn] || [];
+      const fromIdx = fromItems.findIndex(item => {
+        if (typeof item === 'string') return false;
+        return String(item.id) === String(itemId);
+      });
+
+      if (fromIdx > -1) {
+        const itemToMove = fromItems[fromIdx];
+        fromItems.splice(fromIdx, 1);
+
+        if (!kanbanState.columns[toColumn]) {
+          kanbanState.columns[toColumn] = [];
+        }
+
+        const toItems = kanbanState.columns[toColumn];
+
+        // If dropped on specific item, insert before it
+        if (targetItem) {
+          const targetItemId = targetItem.dataset.itemId;
+          const targetIdx = toItems.findIndex(item => {
+            if (typeof item === 'string') return false;
+            return String(item.id) === String(targetItemId);
+          });
+          if (targetIdx > -1) {
+            toItems.splice(targetIdx, 0, itemToMove);
+          } else {
+            toItems.push(itemToMove);
+          }
+        } else {
+          toItems.push(itemToMove);
+        }
+
+        // Track daily goal
+        const businessName = typeof itemToMove === 'string' ? itemToMove : (itemToMove.businessName || 'Unnamed Business');
+        const forwardColumns = ['in-progress', 'committed'];
+
+        if (fromColumn === 'to-contact' && forwardColumns.includes(toColumn)) {
+          incrementDailyGoal(businessName);
+        } else if (forwardColumns.includes(fromColumn) && toColumn === 'to-contact') {
+          decrementDailyGoal(businessName);
+        }
+
+        // Save and render
+        try {
+          await saveKanban();
+          renderKanban();
+        } catch (err) {
+          console.error('Error saving kanban after touch move:', err);
+          renderKanban();
+        }
+
+        const columnTitles = {
+          'prospect-list': '1. Prospect List',
+          'to-contact': '2. To Contact',
+          'in-progress': '3. In Progress',
+          'committed': '4. Committed'
+        };
+        toast(`Moved to ${columnTitles[toColumn] || toColumn}`);
+      }
+
+      draggedItem = null;
+      isTouchDragging = false;
+    }, { passive: false });
+  });
+
+  // Set up drop zones on columns
+  const columns = document.querySelectorAll('.kanban-column');
+
+  columns.forEach(col => {
+    col.ondragover = function(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+
+      // Add column highlight
+      if (!this.classList.contains('drag-over-column')) {
+        this.classList.add('drag-over-column');
+      }
+    };
+
+    col.ondragleave = function(e) {
+      // Only remove if leaving the column entirely
+      if (e.target === this) {
+        this.classList.remove('drag-over-column');
+      }
+    };
+
+    col.ondrop = async function(e) {
+      e.preventDefault();
+
+      console.log('🟠 DROP on column - draggedItem exists:', !!draggedItem);
+
+      // Clean up all visual indicators immediately
+      document.querySelectorAll('.kanban-item.drag-over').forEach(el => {
+        el.classList.remove('drag-over');
+      });
+      document.querySelectorAll('.kanban-column.drag-over-column').forEach(el => {
+        el.classList.remove('drag-over-column');
+      });
+
+      if (!draggedItem) {
+        console.log('⚠️ COLUMN DROP ABORTED - draggedItem is null');
+        return;
+      }
+
+      const fromColumn = draggedItem.closest('.kanban-column').dataset.column;
+      const toColumn = this.dataset.column;
+      const itemId = draggedItem.dataset.itemId;
+
+      console.log(`🟡 COLUMN DROP - Moving item ${itemId} from ${fromColumn} to ${toColumn}`);
+
+      // Find and remove from old column
+      const fromItems = kanbanState.columns[fromColumn] || [];
+      const fromIdx = fromItems.findIndex(item => {
+        if (typeof item === 'string') return false;
+        // Handle both string IDs and numeric IDs
+        return String(item.id) === String(itemId);
+      });
+
+      if (fromIdx > -1) {
+        const itemToMove = fromItems[fromIdx];
+        console.log(`Found item to move:`, itemToMove);
+        console.log(`Column ${fromColumn} had ${fromItems.length} items before removal`);
+        fromItems.splice(fromIdx, 1);
+        console.log(`Column ${fromColumn} now has ${fromItems.length} items after removal`);
+
+        // Add to new column
+        if (!kanbanState.columns[toColumn]) {
+          kanbanState.columns[toColumn] = [];
+        }
+
+        // Check if item already exists in destination
+        const alreadyExists = kanbanState.columns[toColumn].some(item => {
+          if (typeof item === 'string') return false;
+          // Handle both string IDs and numeric IDs
+          return String(item.id) === String(itemId);
+        });
+
+        if (!alreadyExists) {
+          // Enrich with website if not already enriched (from Yelp source)
+          if (itemToMove && !itemToMove.website && !itemToMove.enriched && itemToMove.source === 'yelp') {
+            enrichBusinessWebsite(itemToMove);
+          }
+          kanbanState.columns[toColumn].push(itemToMove);
+        }
+
+        // Track daily goal:
+        // INCREMENT only when moving FORWARD from "To Contact" (to In Progress or Committed)
+        // DECREMENT when moving back TO "To Contact" from forward columns
+        const businessName = typeof itemToMove === 'string' ? itemToMove : (itemToMove.businessName || 'Unnamed Business');
+
+        // Define forward columns (after "To Contact")
+        const forwardColumns = ['in-progress', 'committed'];
+
+        if (fromColumn === 'to-contact' && forwardColumns.includes(toColumn)) {
+          // Moving FORWARD from "To Contact" to "In Progress" or "Committed" - increment
+          incrementDailyGoal(businessName);
+        } else if (forwardColumns.includes(fromColumn) && toColumn === 'to-contact') {
+          // Moving back TO "To Contact" from forward columns - decrement
+          decrementDailyGoal(businessName);
+        }
+        // Moving from "To Contact" to "Prospect List" (backwards) - don't count
+
+        // IMPORTANT: await saveKanban before rendering to prevent race condition
+        try {
+          await saveKanban();
+          renderKanban();
+        } catch (err) {
+          console.error('Error saving kanban after move:', err);
+          toast('⚠️ Error saving changes. Refreshing...', false);
+          // Still render even if save fails
+          renderKanban();
+        }
+
+        // Map column key to display title
+        const columnTitles = {
+          'prospect-list': '1. Prospect List',
+          'to-contact': '2. To Contact',
+          'in-progress': '3. In Progress',
+          'committed': '4. Committed'
+        };
+        toast(`Moved to ${columnTitles[toColumn] || toColumn}`);
+      }
+    };
+  });
+}
+
+/* ========= TASKS FUNCTIONS ========= */
+
+async function loadTasks() {
+  try {
+    // Try loading from cloud first
+    const cloudData = await loadFromCloud('tasks');
+
+    if (cloudData && Array.isArray(cloudData)) {
+      tasksState.tasks = cloudData;
+    } else {
+      // Check localStorage as fallback
+      const saved = localStorage.getItem('mailslot-tasks');
+      if (saved) {
+        tasksState.tasks = JSON.parse(saved);
+        // Sync to cloud if we loaded from localStorage
+        saveToCloud('tasks', tasksState.tasks).catch(e => console.warn('Failed to sync tasks to cloud:', e));
+      } else {
+        // Initialize with default tasks
+        tasksState.tasks = [
+          { id: 1, text: 'Call Royco Partners about Renewal', dueDate: '2025-11-20', completed: false },
+          { id: 2, text: 'Follow up Capital Systems Group', dueDate: '2025-11-22', completed: false },
+          { id: 3, text: 'Check Print Status: Boston Card', dueDate: '2025-11-25', completed: false },
+          { id: 4, text: 'SMS Client: Stone Solutions Maine', dueDate: '2025-11-25', completed: false },
+          { id: 5, text: 'Prep Renewal Pitch: Adam\'s Pizza', dueDate: '2025-11-28', completed: false },
+          { id: 6, text: 'Design Ad Proof for Royco', dueDate: '2025-11-30', completed: false }
+        ];
+        saveTasks();
+      }
+    }
+  } catch(e) {
+    console.error('Error loading tasks:', e);
+  }
+  updateTasksDisplay();
+}
+
+async function saveTasks() {
+  try {
+    // Save to cloud and localStorage
+    await saveToCloud('tasks', tasksState.tasks);
+  } catch(e) {
+    console.error('❌ Tasks save failed:', e);
+    console.warn('Tasks saved to localStorage only (cloud sync failed):', e);
+    // Show user-visible error
+    toast('⚠️ Cloud sync failed - saved locally only', false);
+  }
+}
+
+function updateTasksDisplay() {
+  const container = document.getElementById('taskList');
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Filter: hide completed tasks that are overdue
+  let visibleTasks = tasksState.tasks.filter(task => {
+    if (task.completed) {
+      // Parse in local timezone to avoid UTC issues
+      const parts = task.dueDate.split('-');
+      const dueDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+      return dueDate >= today; // Only show completed if not overdue
+    }
+    return true;
+  });
+
+  // Auto-sort by due date (earliest first)
+  visibleTasks.sort((a, b) => {
+    const dateA = new Date(a.dueDate);
+    const dateB = new Date(b.dueDate);
+    return dateA - dateB;
+  });
+
+  if (visibleTasks.length === 0) {
+    container.innerHTML = '<p class="text-sm text-gray-500 text-center py-4">All tasks complete!</p>';
+    document.getElementById('overdueText').textContent = 'All tasks complete';
+    document.getElementById('overdueText').className = 'text-sm text-green-600 mb-2';
+    return;
+  }
+
+  container.innerHTML = visibleTasks.map(task => {
+    // Parse in local timezone to avoid UTC issues
+    const parts = task.dueDate.split('-');
+    const dueDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    const overdueClass = dueDate < today && !task.completed ? 'overdue' : '';
+    const completedClass = task.completed ? 'completed' : '';
+
+    return `
+      <div class="task-row ${completedClass}" draggable="true" data-task-id="${task.id}" data-due-date="${task.dueDate}">
+        <input type="checkbox" class="task-checkbox" ${task.completed ? 'checked' : ''} onchange="toggleTaskComplete(this)" />
+        <span class="task-text">${esc(task.text)}</span>
+        <input type="date" class="task-date ${overdueClass}" value="${task.dueDate}" onchange="updateTaskDate(this)" />
+        <div style="display: flex; gap: 0.5rem; margin-left: auto;">
+          <button onclick="editTask(${task.id})" class="text-blue-600 hover:text-blue-800 text-xs" title="Edit task">
+            ✎
+          </button>
+          <button onclick="deleteTask(${task.id})" class="text-red-600 hover:text-red-800 text-xs" title="Delete task">
+            🗑
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  // Update overdue count
+  const incompleteTasks = visibleTasks.filter(t => !t.completed);
+  const overdueCount = incompleteTasks.filter(t => {
+    // Parse in local timezone to avoid UTC issues
+    const parts = t.dueDate.split('-');
+    const dueDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    return dueDate < today;
+  }).length;
+  
+  const overdueText = document.getElementById('overdueText');
+  if (overdueCount > 0) {
+    overdueText.textContent = `${overdueCount} Task${overdueCount > 1 ? 's' : ''} Overdue`;
+    overdueText.className = 'text-sm text-red-500 mb-2 font-bold';
+  } else if (incompleteTasks.length > 0) {
+    overdueText.textContent = `${incompleteTasks.length} Task${incompleteTasks.length > 1 ? 's' : ''} Pending`;
+    overdueText.className = 'text-sm text-blue-600 mb-2';
+  } else {
+    overdueText.textContent = 'All tasks complete';
+    overdueText.className = 'text-sm text-green-600 mb-2';
+  }
+  
+  setupTaskDrag();
+}
+
+function setupTaskDrag() {
+  const taskList = document.getElementById('taskList');
+
+  taskList.querySelectorAll('.task-row').forEach(row => {
+    row.addEventListener('dragstart', e => {
+      draggedTask = row;
+      row.classList.add('dragging');
+    });
+
+    row.addEventListener('dragend', e => {
+      row.classList.remove('dragging');
+      // Remove all drag-over indicators
+      document.querySelectorAll('.task-row.drag-over').forEach(el => {
+        el.classList.remove('drag-over');
+      });
+      draggedTask = null;
+    });
+
+    // Add dragover to show blue line indicator
+    row.addEventListener('dragover', e => {
+      e.preventDefault();
+      if (draggedTask && draggedTask !== row) {
+        // Remove previous drag-over
+        document.querySelectorAll('.task-row.drag-over').forEach(el => {
+          el.classList.remove('drag-over');
+        });
+        // Add to current target
+        row.classList.add('drag-over');
+      }
+    });
+
+    row.addEventListener('dragleave', e => {
+      row.classList.remove('drag-over');
+    });
+  });
+
+  taskList.addEventListener('dragover', e => {
+    e.preventDefault();
+  });
+
+  taskList.addEventListener('drop', e => {
+    e.preventDefault();
+
+    // Remove all drag-over indicators
+    document.querySelectorAll('.task-row.drag-over').forEach(el => {
+      el.classList.remove('drag-over');
+    });
+
+    if (draggedTask) {
+      const afterElement = getDragAfterElement(taskList, e.clientY);
+      if (afterElement == null) {
+        taskList.appendChild(draggedTask);
+      } else {
+        taskList.insertBefore(draggedTask, afterElement);
+      }
+
+      // Get the dragged task's ID and new position
+      const draggedTaskId = parseInt(draggedTask.dataset.taskId);
+      const draggedTaskObj = tasksState.tasks.find(t => t.id === draggedTaskId);
+
+      // Get new order from DOM
+      const newOrder = Array.from(taskList.querySelectorAll('.task-row')).map(row => {
+        const taskId = parseInt(row.dataset.taskId);
+        return tasksState.tasks.find(t => t.id === taskId);
+      }).filter(t => t != null);
+
+      // Check if task was moved to a different date position
+      if (afterElement) {
+        const targetDate = afterElement.dataset.dueDate;
+        const draggedDate = draggedTask.dataset.dueDate;
+
+        if (targetDate && draggedDate && targetDate !== draggedDate) {
+          // Task dragged to a different date - update the date
+          if (confirm(`Change task due date from ${draggedDate} to ${targetDate}?`)) {
+            draggedTaskObj.dueDate = targetDate;
+            toast('Task date updated', true);
+          }
+        }
+      }
+
+      tasksState.tasks = newOrder;
+      saveTasks();
+      updateTasksDisplay(); // Re-render to show updated date and sorting
+    }
+  });
+
+  function getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll('.task-row:not(.dragging)')];
+    return draggableElements.reduce((closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      if (offset < 0 && offset > closest.offset) {
+        return { offset: offset, element: child };
+      } else {
+        return closest;
+      }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+  }
+}
+
+/* ========= SALES ACTIVITY TOGGLE ========= */
+function toggleSalesActivity() {
+  const kanbanColumns = document.getElementById('salesActivityKanbanColumns');
+  const icon = document.getElementById('salesActivityToggleIcon');
+
+  if (kanbanColumns.style.maxHeight && kanbanColumns.style.maxHeight !== '0px') {
+    // Collapse
+    kanbanColumns.style.maxHeight = '0px';
+    kanbanColumns.style.marginTop = '0px';
+    icon.style.transform = 'rotate(-90deg)';
+    safeSetItem('salesActivityCollapsed', 'true');
+  } else {
+    // Expand
+    kanbanColumns.style.maxHeight = kanbanColumns.scrollHeight + 'px';
+    kanbanColumns.style.marginTop = '';
+    icon.style.transform = 'rotate(0deg)';
+    safeSetItem('salesActivityCollapsed', 'false');
+
+    // Remove max-height after transition so content can grow dynamically
+    setTimeout(() => {
+      if (kanbanColumns.style.maxHeight !== '0px') {
+        kanbanColumns.style.maxHeight = 'none';
+      }
+    }, 300);
+  }
+}
+
+// Initialize sales activity state on page load
+function initSalesActivityState() {
+  const kanbanColumns = document.getElementById('salesActivityKanbanColumns');
+  const icon = document.getElementById('salesActivityToggleIcon');
+  const isCollapsed = safeGetItem('salesActivityCollapsed') === 'true';
+
+  if (isCollapsed) {
+    kanbanColumns.style.maxHeight = '0px';
+    kanbanColumns.style.marginTop = '0px';
+    icon.style.transform = 'rotate(-90deg)';
+  } else {
+    kanbanColumns.style.maxHeight = 'none';
+  }
+}
+
+/* ========= TASK MANAGEMENT CRUD ========= */
+function openTaskModal(taskId = null) {
+  const modal = document.getElementById("taskModal");
+  const title = document.getElementById("taskModalTitle");
+  const textInput = document.getElementById("taskText");
+  const dateInput = document.getElementById("taskDueDate");
+  const idInput = document.getElementById("taskId");
+
+  if (taskId) {
+    // Edit existing task
+    const task = tasksState.tasks.find(t => t.id === taskId);
+    if (task) {
+      title.textContent = "Edit Task";
+      textInput.value = task.text;
+      dateInput.value = task.dueDate;
+      idInput.value = task.id;
+    }
+  } else {
+    // New task
+    title.textContent = "Add New Task";
+    textInput.value = "";
+    // Set default date to today
+    const today = new Date().toISOString().split('T')[0];
+    dateInput.value = today;
+    idInput.value = "";
+  }
+
+  lastFocusedElementBeforeModal = document.activeElement;
+  modal.style.display = "flex";
+  modal.setAttribute('aria-hidden', 'false');
+  trapModalFocus(modal);
+  textInput.focus();
+}
+
+function closeTaskModal() {
+  const modal = document.getElementById("taskModal");
+  modal.style.display = "none";
+  modal.setAttribute('aria-hidden', 'true');
+  releaseModalFocus(modal);
+  if (lastFocusedElementBeforeModal) {
+    lastFocusedElementBeforeModal.focus();
+    lastFocusedElementBeforeModal = null;
+  }
+}
+
+function saveTaskModal() {
+  const textInput = document.getElementById("taskText");
+  const dateInput = document.getElementById("taskDueDate");
+  const idInput = document.getElementById("taskId");
+
+  const text = textInput.value.trim();
+  const dueDate = dateInput.value;
+
+  if (!text) {
+    toast("Please enter a task description", false);
+    return;
+  }
+
+  if (!dueDate) {
+    toast("Please select a due date", false);
+    return;
+  }
+
+  // Warn if date is in the past (but still allow it)
+  const today = new Date().toISOString().split('T')[0];
+  if (dueDate < today) {
+    if (!confirm(`⚠️ Warning: This date is in the past (${dueDate}).\n\nDo you want to continue?`)) {
+      return;
+    }
+  }
+
+  const taskId = idInput.value;
+
+  if (taskId) {
+    // Edit existing task
+    const task = tasksState.tasks.find(t => t.id == taskId);
+    if (task) {
+      task.text = text;
+      task.dueDate = dueDate;
+      toast("Task updated successfully");
+    }
+  } else {
+    // Create new task
+    const newTask = {
+      id: Date.now(),
+      text: text,
+      dueDate: dueDate,
+      completed: false
+    };
+    tasksState.tasks.push(newTask);
+    toast("Task added successfully");
+  }
+
+  saveTasks();
+  updateTasksDisplay();
+  closeTaskModal();
+}
+
+function editTask(taskId) {
+  openTaskModal(taskId);
+}
+
+function deleteTask(taskId) {
+  const index = tasksState.tasks.findIndex(t => t.id === taskId);
+
+  if (index === -1) {
+    toast("Task not found", false);
+    return;
+  }
+
+  const task = tasksState.tasks[index];
+  const taskText = task.text || 'Unnamed task';
+
+  if (!confirm(`Are you sure you want to delete this task?\n\n"${taskText}"\n\nThis action cannot be undone.`)) {
+    return;
+  }
+
+  tasksState.tasks.splice(index, 1);
+  saveTasks();
+  updateTasksDisplay();
+  toast("Task deleted successfully");
+}
+
+/* ========= LEAD/PROSPECT MANAGEMENT CRUD ========= */
+// Render activity log
+function renderActivityLog(activityLog = []) {
+  const container = document.getElementById('leadActivityLog');
+  if (!activityLog || activityLog.length === 0) {
+    container.innerHTML = '<div class="text-gray-400 italic">No activity yet</div>';
+    return;
+  }
+
+  container.innerHTML = activityLog.map(activity => {
+    const date = new Date(activity.timestamp);
+    const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    return `
+      <div class="text-gray-700">
+        <span class="text-gray-500">${dateStr}:</span> ${esc(activity.note)}
+      </div>
+    `;
+  }).join('');
+}
+
+// Add activity note to current lead
+function addActivityNote() {
+  const noteInput = document.getElementById('leadNewActivity');
+  const note = noteInput.value.trim();
+
+  if (!note) {
+    toast('Please enter a note', false);
+    return;
+  }
+
+  const leadId = document.getElementById("leadId").value;
+  const column = document.getElementById("leadColumn").value;
+
+  if (!leadId) {
+    toast('Please save the lead first before adding notes', false);
+    return;
+  }
+
+  // Find the lead
+  const items = kanbanState.columns[column] || [];
+  const lead = items.find(item => typeof item === 'object' && item.id === parseFloat(leadId));
+
+  if (!lead) {
+    toast('Lead not found', false);
+    return;
+  }
+
+  // Add note to activity log
+  if (!lead.activityLog) {
+    lead.activityLog = [];
+  }
+
+  lead.activityLog.push({
+    timestamp: new Date().toISOString(),
+    note: note
+  });
+
+  // Re-render activity log
+  renderActivityLog(lead.activityLog);
+
+  // Clear input
+  noteInput.value = '';
+
+  // Save changes
+  saveKanban();
+
+  toast('Note added', true);
+}
+
+// Expose functions globally
+window.addActivityNote = addActivityNote;
+
+/* ========= CONTACT LATER MODAL ========= */
+function openContactLaterModal(leadId, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+
+  const prospectingColumn = 'prospect-list';
+  const items = kanbanState.columns[prospectingColumn] || [];
+
+  // Convert leadId to number for comparison
+  const numericLeadId = typeof leadId === 'string' ? parseFloat(leadId) : leadId;
+
+  const lead = items.find(item => {
+    if (typeof item !== 'object' || !item) return false;
+    const itemId = typeof item.id === 'string' ? parseFloat(item.id) : item.id;
+    return itemId === numericLeadId;
+  });
+
+  if (!lead) {
+    console.error('Lead not found. Looking for ID:', numericLeadId, 'in items:', items);
+    toast('Prospect not found', false);
+    return;
+  }
+
+  // Set modal data
+  document.getElementById('contactLaterBusinessName').textContent = lead.businessName;
+  document.getElementById('contactLaterLeadId').value = numericLeadId;
+
+  // Set default date to tomorrow
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  document.getElementById('contactLaterDate').value = tomorrow.toISOString().split('T')[0];
+
+  document.getElementById('contactLaterNote').value = '';
+
+  // Show modal
+  const modal = document.getElementById('contactLaterModal');
+  modal.style.display = 'flex';
+  modal.setAttribute('aria-hidden', 'false');
+  document.getElementById('contactLaterDate').focus();
+}
+
+function closeContactLaterModal() {
+  const modal = document.getElementById('contactLaterModal');
+  modal.style.display = 'none';
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+function saveContactLater() {
+  const leadId = parseFloat(document.getElementById('contactLaterLeadId').value);
+  const followUpDate = document.getElementById('contactLaterDate').value;
+  const note = document.getElementById('contactLaterNote').value.trim();
+
+  if (!followUpDate) {
+    toast('Please select a follow-up date', false);
+    return;
+  }
+
+  const prospectingColumn = 'prospect-list';
+  const items = kanbanState.columns[prospectingColumn] || [];
+  const leadIndex = items.findIndex(item => typeof item === 'object' && item.id === leadId);
+
+  if (leadIndex === -1) {
+    toast('Prospect not found', false);
+    return;
+  }
+
+  const lead = items[leadIndex];
+
+  // Set follow-up date
+  lead.followUpDate = followUpDate;
+
+  // Add activity note if provided
+  if (note) {
+    if (!lead.activityLog) {
+      lead.activityLog = [];
+    }
+    lead.activityLog.push({
+      timestamp: new Date().toISOString(),
+      note: `📅 Set follow-up for ${followUpDate}: ${note}`
+    });
+  } else {
+    if (!lead.activityLog) {
+      lead.activityLog = [];
+    }
+    lead.activityLog.push({
+      timestamp: new Date().toISOString(),
+      note: `📅 Set follow-up for ${followUpDate}`
+    });
+  }
+
+  // Move to pool - check if already exists to avoid duplicates
+  const existingIndex = prospectPoolState.manualProspects.findIndex(p =>
+    p.id === lead.id ||
+    (p.placeId && p.placeId === lead.placeId) ||
+    (p.businessName && p.businessName.toLowerCase() === lead.businessName.toLowerCase() && p.mailerId === lead.mailerId)
+  );
+
+  if (existingIndex !== -1) {
+    // Update existing prospect
+    prospectPoolState.manualProspects[existingIndex] = {
+      ...prospectPoolState.manualProspects[existingIndex],
+      ...lead,
+      movedToPoolDate: new Date().toISOString(),
+      isEnriched: false // Keep standard search result styling
+    };
+  } else {
+    // Add new prospect
+    prospectPoolState.manualProspects.push({
+      ...lead,
+      movedToPoolDate: new Date().toISOString(),
+      isEnriched: false // Keep standard search result styling
+    });
+  }
+
+  // Remove from prospecting
+  kanbanState.columns[prospectingColumn].splice(leadIndex, 1);
+
+  saveManualProspects();
+  saveKanban();
+  renderKanban();
+  closeContactLaterModal();
+
+  toast(`📅 "${lead.businessName}" moved to pool. Follow up on ${followUpDate}`, true);
+}
+
+// Expose functions globally
+window.openContactLaterModal = openContactLaterModal;
+window.closeContactLaterModal = closeContactLaterModal;
+window.saveContactLater = saveContactLater;
+
+function openLeadModal(column = null, leadId = null) {
+  const modal = document.getElementById("leadModal");
+  const title = document.getElementById("leadModalTitle");
+  const columnInput = document.getElementById("leadColumn");
+  const idInput = document.getElementById("leadId");
+
+  if (leadId !== null && column) {
+    // Edit existing lead
+    const items = kanbanState.columns[column] || [];
+    const numericLeadId = typeof leadId === 'string' ? parseFloat(leadId) : leadId;
+    const lead = items.find(item => {
+      if (typeof item !== 'object') return false;
+      const itemId = typeof item.id === 'string' ? parseFloat(item.id) : item.id;
+      return itemId === numericLeadId;
+    });
+
+    if (lead) {
+      title.textContent = "Edit Lead";
+      document.getElementById("leadBusinessName").value = lead.businessName || '';
+      document.getElementById("leadContactName").value = lead.contactName || '';
+      document.getElementById("leadPhone").value = lead.phone || '';
+      document.getElementById("leadEmail").value = lead.email || '';
+      document.getElementById("leadWebsite").value = lead.website || '';
+      document.getElementById("leadFacebook").value = lead.facebook || '';
+      document.getElementById("leadInstagram").value = lead.instagram || '';
+      document.getElementById("leadValue").value = lead.value || '';
+      document.getElementById("leadNotes").value = lead.notes || '';
+      document.getElementById("leadFollowUpDate").value = lead.followUpDate || '';
+
+      // Render activity log
+      renderActivityLog(lead.activityLog || []);
+
+      columnInput.value = column;
+      idInput.value = leadId;
+    }
+  } else {
+    // New lead
+    title.textContent = "Add New Lead";
+    document.getElementById("leadBusinessName").value = '';
+    document.getElementById("leadContactName").value = '';
+    document.getElementById("leadPhone").value = '';
+    document.getElementById("leadEmail").value = '';
+    document.getElementById("leadWebsite").value = '';
+    document.getElementById("leadFacebook").value = '';
+    document.getElementById("leadInstagram").value = '';
+    document.getElementById("leadValue").value = '';
+    document.getElementById("leadNotes").value = '';
+    document.getElementById("leadFollowUpDate").value = '';
+
+    // Clear activity log
+    renderActivityLog([]);
+
+    columnInput.value = column || 'prospect-list';
+    idInput.value = '';
+  }
+
+  lastFocusedElementBeforeModal = document.activeElement;
+  modal.style.display = "flex";
+  modal.setAttribute('aria-hidden', 'false');
+  trapModalFocus(modal);
+  document.getElementById("leadBusinessName").focus();
+}
+
+function closeLeadModal() {
+  const modal = document.getElementById("leadModal");
+  modal.style.display = "none";
+  modal.setAttribute('aria-hidden', 'true');
+  releaseModalFocus(modal);
+  if (lastFocusedElementBeforeModal) {
+    lastFocusedElementBeforeModal.focus();
+    lastFocusedElementBeforeModal = null;
+  }
+}
+
+function saveLeadModal() {
+  const businessName = document.getElementById("leadBusinessName").value.trim();
+  const contactName = document.getElementById("leadContactName").value.trim();
+  const phone = document.getElementById("leadPhone").value.trim();
+  const email = document.getElementById("leadEmail").value.trim();
+  const website = document.getElementById("leadWebsite").value.trim();
+  const facebook = document.getElementById("leadFacebook").value.trim();
+  const instagram = document.getElementById("leadInstagram").value.trim();
+  const value = document.getElementById("leadValue").value.trim();
+  const notes = document.getElementById("leadNotes").value.trim();
+  const followUpDate = document.getElementById("leadFollowUpDate").value;
+  const column = document.getElementById("leadColumn").value;
+  const leadId = document.getElementById("leadId").value;
+
+  if (!businessName) {
+    toast("Please enter a business name", false);
+    return;
+  }
+
+  // Get existing activity log if editing
+  let activityLog = [];
+  if (leadId) {
+    const items = kanbanState.columns[column] || [];
+    const existingLead = items.find(item => typeof item === 'object' && item.id === parseFloat(leadId));
+    if (existingLead && existingLead.activityLog) {
+      activityLog = existingLead.activityLog;
+    }
+  }
+
+  const leadData = {
+    id: leadId ? parseFloat(leadId) : Date.now() + Math.random(),
+    businessName: businessName,
+    contactName: contactName,
+    phone: phone,
+    email: email,
+    website: website,
+    facebook: facebook,
+    instagram: instagram,
+    value: value ? parseFloat(value) : 0,
+    notes: notes,
+    followUpDate: followUpDate,
+    activityLog: activityLog,
+    createdDate: new Date().toISOString()
+  };
+
+  if (leadId) {
+    // Edit existing lead
+    const items = kanbanState.columns[column] || [];
+    const index = items.findIndex(item => typeof item === 'object' && item.id === parseFloat(leadId));
+    if (index !== -1) {
+      items[index] = leadData;
+      toast("Lead updated successfully");
+    }
+  } else {
+    // Add new lead
+    if (!kanbanState.columns[column]) {
+      kanbanState.columns[column] = [];
+    }
+    kanbanState.columns[column].push(leadData);
+    toast("Lead added successfully");
+  }
+
+  saveKanban();
+  renderKanban();
+  closeLeadModal();
+}
+
+function editLead(column, leadId, event) {
+  // Stop event propagation to prevent drag behavior
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+  // Normalize ID type (handle both string and number)
+  const numericLeadId = typeof leadId === 'string' ? parseFloat(leadId) : leadId;
+  openLeadModal(column, numericLeadId);
+}
+
+async function deleteLead(column, leadId, event) {
+  // Stop event propagation
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+
+  const items = kanbanState.columns[column] || [];
+
+  // Find by ID - convert both to strings for comparison to avoid floating point precision issues
+  const index = items.findIndex((item, idx) => {
+    if (typeof item === 'string') return false;
+    if (!item) return false;
+
+    // Convert both IDs to strings for comparison (handles floating point precision)
+    const leadIdStr = String(leadId);
+    const itemIdStr = String(item.id);
+
+    // Check if item.id matches (string comparison)
+    if (item.id !== undefined && itemIdStr === leadIdStr) {
+      return true;
+    }
+
+    // Fallback: check if leadId matches the array index
+    return idx === leadId || String(idx) === leadIdStr;
+  });
+
+  if (index === -1) {
+    toast("Lead not found", false);
+    return;
+  }
+
+  const lead = items[index];
+  const leadName = typeof lead === 'string' ? lead : (lead.businessName || 'Unnamed Lead');
+
+  if (!confirm(`Are you sure you want to delete "${leadName}"?\n\nThis action cannot be undone.`)) {
+    return;
+  }
+
+  if (index !== -1) {
+    items.splice(index, 1);
+
+    // Clear this prospect from selection if it was selected
+    prospectingSelectionState.selectedIds.delete(leadId);
+
+    await saveKanban(); // AWAIT to prevent race condition
+    renderKanban();
+    toast("Lead deleted successfully");
+  }
+}
+
+async function moveProspectBackToPool(leadId, event) {
+  // Stop event propagation
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+
+  const items = kanbanState.columns['prospect-list'] || [];
+
+  // Find by ID - convert both to strings for comparison to avoid floating point precision issues
+  let index = items.findIndex((item, idx) => {
+    if (typeof item === 'string') return false;
+    if (!item) return false;
+
+    // Convert both IDs to strings for comparison (handles floating point precision)
+    const leadIdStr = String(leadId);
+    const itemIdStr = String(item.id);
+
+    // Check if item.id matches (string comparison)
+    if (item.id !== undefined && itemIdStr === leadIdStr) {
+      return true;
+    }
+
+    // Fallback: check if leadId matches the array index
+    return idx === leadId || String(idx) === leadIdStr;
+  });
+
+  if (index === -1) {
+    console.error("Prospect not found. leadId:", leadId, "type:", typeof leadId, "Available items:", items.map((item, idx) => ({idx, id: item?.id, idType: typeof item?.id, name: item?.businessName})));
+    toast("Prospect not found", false);
+    return;
+  }
+
+  const prospect = items[index];
+  const prospectName = typeof prospect === 'string' ? prospect : (prospect.businessName || 'Unnamed Prospect');
+
+  // Remove from Prospecting column
+  items.splice(index, 1);
+
+  // Add to manual prospects in pool ONLY if not already there
+  if (!prospectPoolState.manualProspects) {
+    prospectPoolState.manualProspects = [];
+  }
+
+  // Check if already exists in pool (by placeId or businessName)
+  const alreadyInPool = prospectPoolState.manualProspects.some(p => {
+    if (prospect.placeId && p.placeId) {
+      return p.placeId === prospect.placeId;
+    }
+    if (prospect.businessName && p.businessName) {
+      return p.businessName.toLowerCase() === prospect.businessName.toLowerCase();
+    }
+    return false;
+  });
+
+  if (!alreadyInPool) {
+    prospectPoolState.manualProspects.push({
+      ...prospect,
+      isEnriched: true // Mark as enriched since it came from the kanban
+    });
+  } else {
+    console.log(`⏭️ Prospect "${prospectName}" already exists in pool, skipping duplicate`);
+  }
+
+  // Clear from selection if it was selected
+  prospectingSelectionState.selectedIds.delete(leadId);
+
+  await saveKanban(); // Save kanban without this prospect
+  // Save pool with this prospect (triggers deduplication)
+  await saveManualProspects();
+  renderKanban();
+  renderProspectPool();
+  toast(`"${prospectName}" moved back to Prospect Pool`, true);
+}
+
+/* ========= DAILY GOAL TRACKING FUNCTIONS ========= */
+
+// Increment daily outreach count (called when: button clicks, manual moves)
+function incrementDailyGoal(businessName = '') {
+  checkAndResetDailyGoal(); // Always check for date change first
+  dailyGoalState.todayCount++;
+
+  // Add to today's history
+  const today = new Date().toDateString();
+  let todayRecord = dailyGoalState.history.find(h => h.date === today);
+  if (!todayRecord) {
+    todayRecord = { date: today, goal: dailyGoalState.dailyGoal, actual: 0, businesses: [] };
+    dailyGoalState.history.push(todayRecord);
+  }
+  todayRecord.actual = dailyGoalState.todayCount;
+  if (businessName) {
+    todayRecord.businesses.push({ name: businessName, timestamp: new Date().toISOString() });
+  }
+
+  saveDailyGoalState();
+  // NOTE: Don't call renderKanban() here - let the calling function handle it
+  // This prevents double-render issues and race conditions
+}
+
+// Decrement daily outreach count (called when moving back TO "To Contact")
+function decrementDailyGoal(businessName = '') {
+  checkAndResetDailyGoal(); // Always check for date change first
+
+  // Don't go below 0
+  if (dailyGoalState.todayCount > 0) {
+    dailyGoalState.todayCount--;
+  }
+
+  // Update today's history
+  const today = new Date().toDateString();
+  let todayRecord = dailyGoalState.history.find(h => h.date === today);
+  if (todayRecord) {
+    todayRecord.actual = dailyGoalState.todayCount;
+    // Remove last business entry if it exists
+    if (businessName && todayRecord.businesses.length > 0) {
+      todayRecord.businesses.pop();
+    }
+  }
+
+  saveDailyGoalState();
+}
+
+// Check if it's a new day and reset if needed
+function checkAndResetDailyGoal() {
+  const today = new Date().toDateString();
+  if (dailyGoalState.lastResetDate !== today) {
+    // New day! Save yesterday's final count to history (if not already saved)
+    if (dailyGoalState.todayCount > 0) {
+      const yesterdayRecord = dailyGoalState.history.find(h => h.date === dailyGoalState.lastResetDate);
+      if (yesterdayRecord) {
+        yesterdayRecord.actual = dailyGoalState.todayCount;
+      }
+    }
+
+    // Reset for new day
+    dailyGoalState.todayCount = 0;
+    dailyGoalState.lastResetDate = today;
+    saveDailyGoalState();
+    console.log('Daily goal reset for new day:', today);
+  }
+}
+
+// Save daily goal state to localStorage
+function saveDailyGoalState() {
+  try {
+    localStorage.setItem('dailyGoalState', JSON.stringify(dailyGoalState));
+  } catch (e) {
+    console.error('Failed to save daily goal state:', e);
+  }
+}
+
+// Load daily goal state from localStorage
+function loadDailyGoalState() {
+  try {
+    const saved = localStorage.getItem('dailyGoalState');
+    if (saved) {
+      const loaded = JSON.parse(saved);
+      dailyGoalState.dailyGoal = loaded.dailyGoal || 10;
+      dailyGoalState.todayCount = loaded.todayCount || 0;
+      dailyGoalState.lastResetDate = loaded.lastResetDate || new Date().toDateString();
+      dailyGoalState.history = loaded.history || [];
+    }
+    checkAndResetDailyGoal(); // Check if we need to reset for new day
+  } catch (e) {
+    console.error('Failed to load daily goal state:', e);
+  }
+}
+
+// Handle "Communicating" button click
+function handleCommunicating(leadId, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+
+  // Find lead in to-contact column
+  const items = kanbanState.columns['to-contact'] || [];
+  const numericLeadId = typeof leadId === 'string' ? parseFloat(leadId) : leadId;
+  const index = items.findIndex(item => {
+    if (typeof item === 'string') return false;
+    const itemId = typeof item.id === 'string' ? parseFloat(item.id) : item.id;
+    return itemId === numericLeadId;
+  });
+
+  if (index === -1) {
+    toast("Lead not found", false);
+    return;
+  }
+
+  // Move to in-progress column
+  const lead = items[index];
+  items.splice(index, 1);
+  kanbanState.columns['in-progress'] = kanbanState.columns['in-progress'] || [];
+  kanbanState.columns['in-progress'].push(lead);
+
+  // Increment daily goal
+  const businessName = typeof lead === 'string' ? lead : (lead.businessName || 'Unnamed Lead');
+  incrementDailyGoal(businessName);
+
+  saveKanban();
+  renderKanban();
+  toast(`${businessName} moved to In Progress`);
+}
+
+// Handle "Not Interested" button click
+function handleNotInterested(leadId, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+
+  // Find lead in to-contact column - use string comparison for floating point IDs
+  const items = kanbanState.columns['to-contact'] || [];
+  const index = items.findIndex((item, idx) => {
+    if (typeof item === 'string') return false;
+    if (!item) return false;
+
+    // Convert both IDs to strings for comparison (handles floating point precision)
+    const leadIdStr = String(leadId);
+    const itemIdStr = String(item.id);
+
+    // Check if item.id matches (string comparison)
+    if (item.id !== undefined && itemIdStr === leadIdStr) {
+      return true;
+    }
+
+    // Fallback: check if leadId matches the array index
+    return idx === leadId || String(idx) === leadIdStr;
+  });
+
+  if (index === -1) {
+    toast("Lead not found", false);
+    return;
+  }
+
+  const lead = items[index];
+  const businessName = typeof lead === 'string' ? lead : (lead.businessName || 'Unnamed Lead');
+
+  if (!confirm(`Mark "${businessName}" as Not Interested?\n\nThis will remove them from your pipeline.`)) {
+    return;
+  }
+
+  // Remove from kanban
+  items.splice(index, 1);
+
+  // Add to not interested list (if it's an object with placeId)
+  if (typeof lead === 'object' && lead.placeId) {
+    addToNotInterestedList(lead);
+  }
+
+  // Increment daily goal
+  incrementDailyGoal(businessName);
+
+  saveKanban();
+  renderKanban();
+  toast(`${businessName} marked as not interested`);
+}
+
+// Reset daily goal count to 0
+function resetDailyGoal() {
+  if (!confirm('Reset today\'s outreach count to 0?\n\nThis will clear your progress for today but keep your goal and history.')) {
+    return;
+  }
+
+  dailyGoalState.todayCount = 0;
+
+  // Update today's history record if it exists
+  const today = new Date().toDateString();
+  let todayRecord = dailyGoalState.history.find(h => h.date === today);
+  if (todayRecord) {
+    todayRecord.actual = 0;
+    todayRecord.businesses = [];
+  }
+
+  saveDailyGoalState();
+  renderKanban();
+  toast('Daily count reset to 0');
+}
+
+// Open daily goal settings modal
+function openDailyGoalSettings() {
+  const modal = document.getElementById('dailyGoalSettingsModal');
+  if (!modal) return;
+
+  // Pre-fill current goal
+  const input = document.getElementById('dailyGoalInput');
+  if (input) {
+    input.value = dailyGoalState.dailyGoal;
+  }
+
+  lastFocusedElementBeforeModal = document.activeElement;
+  modal.style.display = "flex";
+  modal.setAttribute('aria-hidden', 'false');
+  trapModalFocus(modal);
+
+  // Focus on input
+  if (input) input.focus();
+}
+
+function closeDailyGoalSettings() {
+  const modal = document.getElementById('dailyGoalSettingsModal');
+  if (!modal) return;
+
+  modal.style.display = "none";
+  modal.setAttribute('aria-hidden', 'true');
+  releaseModalFocus();
+
+  if (lastFocusedElementBeforeModal) {
+    lastFocusedElementBeforeModal.focus();
+  }
+}
+
+function saveDailyGoalFromModal() {
+  const input = document.getElementById('dailyGoalInput');
+  if (!input) return;
+
+  const goalNumber = parseInt(input.value);
+  if (isNaN(goalNumber) || goalNumber < 1) {
+    toast("Please enter a valid number (minimum 1)", false);
+    return;
+  }
+
+  dailyGoalState.dailyGoal = goalNumber;
+  saveDailyGoalState();
+  renderKanban();
+  closeDailyGoalSettings();
+  toast(`Daily goal updated to ${goalNumber} contacts`, true);
+}
+
+function resetDailyGoalFromModal() {
+  if (!confirm("Are you sure you want to reset today's count to 0?")) {
+    return;
+  }
+
+  dailyGoalState.todayCount = 0;
+  dailyGoalState.todayDate = new Date().toISOString().split('T')[0];
+  saveDailyGoalState();
+  renderKanban();
+  toast('Daily count reset to 0', true);
+  // Don't close modal - user might want to adjust goal too
+}
+
+/* ========= NEW POSTCARD CREATION WORKFLOW ========= */
+function openNewPostcardModal() {
+  const modal = document.getElementById("newPostcardModal");
+
+  // Populate town dropdown with unique towns from existing postcards
+  const towns = [...new Set(state.mailers.map(m => m.Town))].sort();
+  const townSelect = document.getElementById("newPostcardTownSelect");
+  townSelect.innerHTML = '<option value="">— Select existing town —</option>' +
+    towns.map(town => `<option value="${esc(town)}">${esc(town)}</option>`).join('');
+
+  // Populate year dropdown (current year and next 2 years)
+  const currentYear = new Date().getFullYear();
+  const yearSelect = document.getElementById("newPostcardYear");
+  yearSelect.innerHTML = [currentYear, currentYear + 1, currentYear + 2]
+    .map(year => `<option value="${year}">${year}</option>`).join('');
+
+  // Set default month to next month
+  const nextMonth = new Date();
+  nextMonth.setMonth(nextMonth.getMonth() + 1);
+  document.getElementById("newPostcardMonth").value = String(nextMonth.getMonth() + 1).padStart(2, '0');
+
+  // Populate copy source dropdown
+  const copySelect = document.getElementById("copySourcePostcard");
+  copySelect.innerHTML = '<option value="">— Select postcard —</option>' +
+    state.mailers.map((m, i) => `<option value="${i}">${esc(m.Town)} — ${esc(m.Mail_Date)}</option>`).join('');
+
+  // Reset form
+  document.querySelector('input[name="townOption"][value="existing"]').checked = true;
+  document.getElementById("newPostcardTownInput").disabled = true;
+  document.getElementById("copyFromPrevious").checked = false;
+  document.getElementById("copyOptions").classList.add('hidden');
+  document.getElementById("advertiserChecklistContainer").classList.add('hidden');
+
+  lastFocusedElementBeforeModal = document.activeElement;
+  modal.style.display = "flex";
+  modal.setAttribute('aria-hidden', 'false');
+  trapModalFocus(modal);
+}
+
+function closeNewPostcardModal() {
+  const modal = document.getElementById("newPostcardModal");
+  modal.style.display = "none";
+  modal.setAttribute('aria-hidden', 'true');
+  releaseModalFocus(modal);
+  if (lastFocusedElementBeforeModal) {
+    lastFocusedElementBeforeModal.focus();
+    lastFocusedElementBeforeModal = null;
+  }
+}
+
+/* ========= DUPLICATE POSTCARD MODAL ========= */
+function openDuplicatePostcardModal() {
+  const modal = document.getElementById("duplicatePostcardModal");
+
+  // Populate source postcard dropdown
+  const sourceSelect = document.getElementById("duplicateSourcePostcard");
+  sourceSelect.innerHTML = '<option value="">— Select postcard —</option>' +
+    state.mailers.map((m, i) => {
+      let displayDate = m.Mail_Date || "";
+      if (/^\d{4}-\d{2}-\d{2}/.test(displayDate)) {
+        const [year, month] = displayDate.split('-');
+        const monthNames = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        displayDate = `${monthNames[parseInt(month)]} ${year}`;
+      }
+      const sizeLabel = m.Postcard_Size ? ` (${m.Postcard_Size})` : '';
+      return `<option value="${i}">${esc(m.Town)} — ${esc(displayDate)}${sizeLabel}</option>`;
+    }).join('');
+
+  modal.style.display = "flex";
+  modal.setAttribute('aria-hidden', 'false');
+  trapModalFocus(modal);
+}
+
+function closeDuplicatePostcardModal() {
+  const modal = document.getElementById("duplicatePostcardModal");
+  modal.style.display = "none";
+  modal.setAttribute('aria-hidden', 'true');
+  releaseModalFocus(modal);
+}
+
+async function createDuplicatePostcard() {
+  const sourceIndex = document.getElementById("duplicateSourcePostcard").value;
+  if (!sourceIndex) {
+    toast("Please select a postcard to duplicate", false);
+    return;
+  }
+
+  const sourcePostcard = state.mailers[parseInt(sourceIndex)];
+  const newTown = document.getElementById("duplicateTown").value.trim();
+  const newMonth = document.getElementById("duplicateMonth").value;
+  const newYear = document.getElementById("duplicateYear").value;
+  const newSize = document.getElementById("duplicateSize").value;
+
+  // Must change at least one thing
+  const isSameTown = !newTown || newTown === sourcePostcard.Town;
+  const isSameMonth = !newMonth || !newYear;
+  const isSameSize = !newSize || newSize === sourcePostcard.Postcard_Size;
+
+  if (isSameTown && isSameMonth && isSameSize) {
+    toast("You must change at least one: town, month/year, or size", false);
+    return;
+  }
+
+  const btn = document.getElementById('btnCreateDuplicate');
+  const originalText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Duplicating...';
+
+  try {
+    // Determine new values
+    const finalTown = newTown || sourcePostcard.Town;
+    const sourceDate = new Date(sourcePostcard.Mail_Date);
+    const finalMonth = newMonth ? newMonth.padStart(2, '0') : String(sourceDate.getMonth() + 1).padStart(2, '0');
+    const finalYear = newYear || sourceDate.getFullYear();
+    const finalSize = newSize || sourcePostcard.Postcard_Size || '9x12';
+
+    const mailDate = `${finalYear}-${finalMonth}-01`;
+    const mailerId = `${finalTown.replace(/\s+/g, '-')}-${finalMonth}-${finalYear}`;
+
+    // Check for duplicates
+    const duplicate = state.mailers.find(m => m.Mailer_ID === mailerId);
+    if (duplicate) {
+      toast("A postcard with this combination already exists!", false);
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+      return;
+    }
+
+    // Create new postcard object
+    const newPostcard = {
+      Mailer_ID: mailerId,
+      Town: finalTown,
+      Mail_Date: mailDate,
+      In_Homes_Date: sourcePostcard.In_Homes_Date, // Can be edited later
+      Payment_Status: "Active",
+      Postcard_Size: finalSize,
+      availability: {},
+      Postcard_BG: document.getElementById("duplicateCopyColors").checked ? sourcePostcard.Postcard_BG : "#000000",
+      Banner_BG: document.getElementById("duplicateCopyColors").checked ? sourcePostcard.Banner_BG : "#000000"
+    };
+
+    // Initialize all spots as available
+    for (let i = 1; i <= 18; i++) {
+      newPostcard.availability[`Spot_${i}`] = "Available";
+    }
+
+    // Copy advertisers if checked
+    if (document.getElementById("duplicateCopyAdvertisers").checked) {
+      for (let i = 1; i <= 18; i++) {
+        const spotKey = `Spot_${i}`;
+        // Check both availability object and direct spot properties (Supabase format)
+        const raw = (sourcePostcard.availability && sourcePostcard.availability[spotKey]) || sourcePostcard[spotKey] || "Available";
+        if (!/^available$/i.test(raw)) {
+          // Has an advertiser - copy as Reserved
+          const match = String(raw).match(/^(.+?)\s*:\s*(.*)$/);
+          if (match) {
+            const name = match[2].trim();
+            if (name) {
+              newPostcard.availability[spotKey] = `Reserved: ${name}`;
+            }
+          }
+        }
+      }
+    }
+
+    // Copy expenses if checked
+    if (document.getElementById("duplicateCopyExpenses").checked && productionState.expenses[sourcePostcard.Mailer_ID]) {
+      const sourceExpenses = productionState.expenses[sourcePostcard.Mailer_ID];
+      productionState.expenses[mailerId] = {
+        printing: sourceExpenses.printing || 0,
+        postage: sourceExpenses.postage || 0,
+        design: sourceExpenses.design || 0,
+        misc: sourceExpenses.misc || 0
+      };
+      await saveExpenses();
+    }
+
+    // Copy pricing if checked
+    if (document.getElementById("duplicateCopyPricing").checked && productionState.pricing[sourcePostcard.Mailer_ID]) {
+      const sourcePricing = productionState.pricing[sourcePostcard.Mailer_ID];
+      productionState.pricing[mailerId] = {
+        singleAd: sourcePricing.singleAd || 0,
+        doubleAd: sourcePricing.doubleAd || 0,
+        bannerAd: sourcePricing.bannerAd || 0
+      };
+      await savePricing();
+    }
+
+    // Add to state
+    state.mailers.push(newPostcard);
+
+    // Sort mailers
+    state.mailers = state.mailers.sort((a, b) => {
+      const dateA = a.Mail_Date || '';
+      const dateB = b.Mail_Date || '';
+      if (dateA !== dateB) {
+        return dateB.localeCompare(dateA);
+      }
+      const townA = (a.Town || '').toLowerCase();
+      const townB = (b.Town || '').toLowerCase();
+      return townA.localeCompare(townB);
+    });
+
+    // Repopulate selectors
+    populateTownAndMonthSelectors();
+
+    // Select new postcard
+    const newIndex = state.mailers.findIndex(m => m.Mailer_ID === mailerId);
+    selectPostcard(newIndex);
+    switchTab('manager');
+
+    // Save to Supabase
+    try {
+      const { error } = await supabaseClient
+        .from('postcards')
+        .insert({
+          user_email: ACTIVE_USER,
+          mailer_id: newPostcard.Mailer_ID,
+          town: newPostcard.Town,
+          mail_date: newPostcard.Mail_Date,
+          in_homes_date: newPostcard.In_Homes_Date,
+          payment_status: newPostcard.Payment_Status,
+          postcard_size: newPostcard.Postcard_Size || '9x12',
+          postcard_bg: newPostcard.Postcard_BG,
+          banner_bg: newPostcard.Banner_BG,
+          spot_1: newPostcard.availability.Spot_1 || 'Available',
+          spot_2: newPostcard.availability.Spot_2 || 'Available',
+          spot_3: newPostcard.availability.Spot_3 || 'Available',
+          spot_4: newPostcard.availability.Spot_4 || 'Available',
+          spot_5: newPostcard.availability.Spot_5 || 'Available',
+          spot_6: newPostcard.availability.Spot_6 || 'Available',
+          spot_7: newPostcard.availability.Spot_7 || 'Available',
+          spot_8: newPostcard.availability.Spot_8 || 'Available',
+          spot_9: newPostcard.availability.Spot_9 || 'Available',
+          spot_10: newPostcard.availability.Spot_10 || 'Available',
+          spot_11: newPostcard.availability.Spot_11 || 'Available',
+          spot_12: newPostcard.availability.Spot_12 || 'Available',
+          spot_13: newPostcard.availability.Spot_13 || 'Available',
+          spot_14: newPostcard.availability.Spot_14 || 'Available',
+          spot_15: newPostcard.availability.Spot_15 || 'Available',
+          spot_16: newPostcard.availability.Spot_16 || 'Available',
+          spot_17: newPostcard.availability.Spot_17 || 'Available',
+          spot_18: newPostcard.availability.Spot_18 || 'Available'
+        });
+
+      if (error) throw error;
+
+    } catch (cloudErr) {
+      console.error("Failed to save duplicated postcard to cloud:", cloudErr);
+      toast("⚠️ Postcard duplicated locally. Will sync on next spot edit.", false);
+    }
+
+    closeDuplicatePostcardModal();
+    toast(`✅ Duplicated postcard: ${finalTown} — ${finalMonth}/${finalYear}`);
+
+  } catch (error) {
+    console.error('Error duplicating postcard:', error);
+    toast('Failed to duplicate postcard', false);
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+  }
+}
+
+/* ========= PRICING MODAL ========= */
+async function loadPricing() {
+  try {
+    const cloudData = await loadFromCloud('pricing');
+    if (cloudData) {
+      // Ensure all pricing values are numbers, not strings
+      productionState.pricing = {};
+      Object.keys(cloudData).forEach(mailerId => {
+        const pricing = cloudData[mailerId];
+        productionState.pricing[mailerId] = {
+          singleAd: parseFloat(pricing.singleAd) || 0,
+          doubleAd: parseFloat(pricing.doubleAd) || 0,
+          bannerAd: parseFloat(pricing.bannerAd) || 0
+        };
+      });
+    }
+  } catch (e) {
+    // Silently handle error - pricing table may not exist yet in Supabase
+    // This is expected on first use before running migration
+    console.log('Pricing not available yet (this is normal on first use)');
+  }
+}
+
+async function savePricing() {
+  try {
+    await saveToCloud('pricing', productionState.pricing);
+    await saveToCloud('revenueGoals', productionState.revenueGoals);
+  } catch (e) {
+    console.warn('Pricing saved locally only (cloud sync failed):', e);
+  }
+}
+
+async function loadRevenueGoals() {
+  try {
+    const cloudData = await loadFromCloud('revenueGoals');
+    if (cloudData) {
+      productionState.revenueGoals = cloudData;
+    }
+  } catch (e) {
+    console.log('Revenue goals not available');
+  }
+}
+
+/* ========= SPOT PRICING (PER-SPOT CUSTOM PRICES) ========= */
+
+// Helper function to normalize pricing keys (ALL UPPERCASE for consistency)
+// This fixes case mismatch between old data and new data
+function normalizePriceKey(mailerId, spotNum = null) {
+  const base = String(mailerId).toUpperCase();
+  return spotNum ? `${base}-SPOT_${spotNum}`.toUpperCase() : base;
+}
+
+async function loadSpotPricing() {
+  try {
+    const cloudData = await loadFromCloud('spotPricing');
+    console.log('💰 [LOAD SPOT PRICING] Cloud data received:', cloudData ? 'YES' : 'NO');
+    if (cloudData) {
+      const keys = Object.keys(cloudData);
+      console.log('💰 [LOAD SPOT PRICING] Found', keys.length, 'entries in cloud data');
+      console.log('💰 [LOAD SPOT PRICING] Sample keys (raw):', keys.slice(0, 3));
+
+      // Clean and normalize: only load valid spot pricing (numeric values with SPOT_ in key)
+      // This filters out any Set Pricing data that got mixed in
+      productionState.spotPricing = {};
+      let skippedCount = 0;
+
+      Object.keys(cloudData).forEach(key => {
+        const value = cloudData[key];
+        const normalizedKey = key.toUpperCase();
+
+        // Skip if value is an object (Set Pricing data) or not a valid number
+        if (typeof value === 'object') {
+          console.log('💰 [LOAD SPOT PRICING] ⚠️ Skipping invalid entry (object):', key);
+          skippedCount++;
+          return;
+        }
+
+        const numValue = parseFloat(value);
+        if (isNaN(numValue)) {
+          console.log('💰 [LOAD SPOT PRICING] ⚠️ Skipping invalid entry (not a number):', key, '=', value);
+          skippedCount++;
+          return;
+        }
+
+        // Only load entries that look like spot pricing (contain SPOT_) or are explicitly 0
+        if (normalizedKey.includes('SPOT_') || numValue === 0) {
+          productionState.spotPricing[normalizedKey] = numValue;
+          if (normalizedKey !== key) {
+            console.log('💰 [LOAD SPOT PRICING] Normalized key:', key, '→', normalizedKey);
+          }
+        } else {
+          console.log('💰 [LOAD SPOT PRICING] ⚠️ Skipping non-spot entry:', key, '=', value);
+          skippedCount++;
+        }
+      });
+
+      console.log('💰 [LOAD SPOT PRICING] ✅ Loaded', Object.keys(productionState.spotPricing).length, 'valid spot prices');
+      if (skippedCount > 0) {
+        console.log('💰 [LOAD SPOT PRICING] ⚠️ Skipped', skippedCount, 'invalid entries');
+      }
+      console.log('💰 [LOAD SPOT PRICING] Sample loaded keys:', Object.keys(productionState.spotPricing).slice(0, 5));
+    } else {
+      console.log('💰 [LOAD SPOT PRICING] No cloud data found, starting fresh');
+    }
+  } catch (e) {
+    console.log('💰 [LOAD SPOT PRICING] Error:', e.message);
+  }
+}
+
+async function saveSpotPricing() {
+  try {
+    // FILTER OUT campaign-level pricing objects before saving
+    // Only save individual spot prices (numbers with SPOT_ in key)
+    const cleanedSpotPricing = {};
+    Object.keys(productionState.spotPricing).forEach(key => {
+      const value = productionState.spotPricing[key];
+      // Only save if value is a number AND key contains SPOT_
+      if (typeof value === 'number' && !isNaN(value) && key.toUpperCase().includes('SPOT_')) {
+        cleanedSpotPricing[key.toUpperCase()] = value;
+      } else if (typeof value === 'object') {
+        console.log('💾 [SAVE SPOT PRICING] ⚠️ Filtering out campaign-level pricing:', key);
+      }
+    });
+
+    const keys = Object.keys(cleanedSpotPricing);
+    console.log('💾 [SAVE SPOT PRICING] Saving', keys.length, 'spot prices to cloud');
+    console.log('💾 [SAVE SPOT PRICING] Sample keys:', keys.slice(0, 3));
+    console.log('💾 [SAVE SPOT PRICING] Sample values:', keys.slice(0, 3).map(k => `${k}: ${cleanedSpotPricing[k]}`));
+    console.log('💾 [SAVE SPOT PRICING] Full data being saved:', JSON.stringify(cleanedSpotPricing).substring(0, 200) + '...');
+
+    await saveToCloud('spotPricing', cleanedSpotPricing);
+
+    console.log('💾 [SAVE SPOT PRICING] ✅ Successfully saved to cloud');
+
+    // Update productionState to match cleaned data
+    productionState.spotPricing = cleanedSpotPricing;
+
+    // Also save to localStorage as backup (cleaned version only)
+    safeSetItem('mailslot-pricing', JSON.stringify(cleanedSpotPricing));
+  } catch (e) {
+    console.error('💾 [SAVE SPOT PRICING] ❌ Failed to save:', e);
+  }
+}
+
+// Sync top pricing inputs to bottom calculator price fields
+function syncPricingToCalculator() {
+  const singlePrice = parseFloat(document.getElementById("pricingSingleAd").value) || 0;
+  const doublePrice = parseFloat(document.getElementById("pricingDoubleAd").value) || 0;
+  const bannerPrice = parseFloat(document.getElementById("pricingBannerAd").value) || 0;
+
+  document.getElementById("goalSinglePrice").value = singlePrice;
+  document.getElementById("goalDoublePrice").value = doublePrice;
+  document.getElementById("goalBannerPrice").value = bannerPrice;
+
+  updateRevenueGoalCalculator();
+}
+
+function updateRevenueGoalCalculator() {
+  const singleCount = parseFloat(document.getElementById("goalSingleCount").value) || 0;
+  const singlePrice = parseFloat(document.getElementById("goalSinglePrice").value) || 0;
+  const doubleCount = parseFloat(document.getElementById("goalDoubleCount").value) || 0;
+  const doublePrice = parseFloat(document.getElementById("goalDoublePrice").value) || 0;
+  const bannerCount = parseFloat(document.getElementById("goalBannerCount").value) || 0;
+  const bannerPrice = parseFloat(document.getElementById("goalBannerPrice").value) || 0;
+
+  const singleTotal = singleCount * singlePrice;
+  const doubleTotal = doubleCount * doublePrice;
+  const bannerTotal = bannerCount * bannerPrice;
+  const total = singleTotal + doubleTotal + bannerTotal;
+
+  document.getElementById("goalSingleTotal").textContent = formatCurrency(singleTotal);
+  document.getElementById("goalDoubleTotal").textContent = formatCurrency(doubleTotal);
+  document.getElementById("goalBannerTotal").textContent = formatCurrency(bannerTotal);
+  document.getElementById("goalTotalRevenue").textContent = formatCurrency(total);
+
+  // Calculate expenses and profit
+  if (state.current) {
+    const mailerId = state.current.Mailer_ID;
+    const expenses = productionState.expenses[mailerId] || { printing: 0, postage: 0, design: 0, misc: 0 };
+    const totalExpenses = (expenses.printing || 0) + (expenses.postage || 0) + (expenses.design || 0) + (expenses.misc || 0);
+    const profit = total - totalExpenses;
+
+    document.getElementById("goalTotalExpenses").textContent = formatCurrency(totalExpenses);
+    document.getElementById("goalProfit").textContent = formatCurrency(profit);
+
+    // Color profit based on positive/negative
+    const profitElement = document.getElementById("goalProfit");
+    if (profit >= 0) {
+      profitElement.className = "text-lg font-bold text-blue-700";
+    } else {
+      profitElement.className = "text-lg font-bold text-red-700";
+    }
+  }
+}
+
+function openPricingModal() {
+  if (!state.current) {
+    toast('Please select a postcard first', false);
+    return;
+  }
+
+  const modal = document.getElementById("pricingModal");
+  const mailerId = state.current.Mailer_ID;
+
+  // Load existing pricing for this postcard
+  const pricing = productionState.pricing[mailerId] || { singleAd: 0, doubleAd: 0, bannerAd: 0 };
+
+  document.getElementById("pricingSingleAd").value = pricing.singleAd || '';
+  document.getElementById("pricingDoubleAd").value = pricing.doubleAd || '';
+  document.getElementById("pricingBannerAd").value = pricing.bannerAd || '';
+
+  // Load existing revenue goal for this postcard
+  const revenueGoal = productionState.revenueGoals[mailerId] || {
+    singleCount: 0, singlePrice: pricing.singleAd || 0,
+    doubleCount: 0, doublePrice: pricing.doubleAd || 0,
+    bannerCount: 0, bannerPrice: pricing.bannerAd || 0
+  };
+
+  document.getElementById("goalSingleCount").value = revenueGoal.singleCount || '';
+  document.getElementById("goalSinglePrice").value = revenueGoal.singlePrice || pricing.singleAd || '';
+  document.getElementById("goalDoubleCount").value = revenueGoal.doubleCount || '';
+  document.getElementById("goalDoublePrice").value = revenueGoal.doublePrice || pricing.doubleAd || '';
+  document.getElementById("goalBannerCount").value = revenueGoal.bannerCount || '';
+  document.getElementById("goalBannerPrice").value = revenueGoal.bannerPrice || pricing.bannerAd || '';
+
+  updateRevenueGoalCalculator();
+
+  modal.style.display = "flex";
+  modal.setAttribute('aria-hidden', 'false');
+  trapModalFocus(modal);
+}
+
+function closePricingModal() {
+  const modal = document.getElementById("pricingModal");
+  modal.style.display = "none";
+  modal.setAttribute('aria-hidden', 'true');
+  releaseModalFocus(modal);
+}
+
+async function savePricingModal() {
+  if (!state.current) return;
+
+  const mailerId = state.current.Mailer_ID;
+  const singleAd = parseFloat(document.getElementById("pricingSingleAd").value) || 0;
+  const doubleAd = parseFloat(document.getElementById("pricingDoubleAd").value) || 0;
+  const bannerAd = parseFloat(document.getElementById("pricingBannerAd").value) || 0;
+
+  productionState.pricing[mailerId] = { singleAd, doubleAd, bannerAd };
+
+  // Save revenue goal
+  const singleCount = parseFloat(document.getElementById("goalSingleCount").value) || 0;
+  const singlePrice = parseFloat(document.getElementById("goalSinglePrice").value) || 0;
+  const doubleCount = parseFloat(document.getElementById("goalDoubleCount").value) || 0;
+  const doublePrice = parseFloat(document.getElementById("goalDoublePrice").value) || 0;
+  const bannerCount = parseFloat(document.getElementById("goalBannerCount").value) || 0;
+  const bannerPrice = parseFloat(document.getElementById("goalBannerPrice").value) || 0;
+
+  const total = (singleCount * singlePrice) + (doubleCount * doublePrice) + (bannerCount * bannerPrice);
+
+  productionState.revenueGoals[mailerId] = {
+    singleCount, singlePrice,
+    doubleCount, doublePrice,
+    bannerCount, bannerPrice,
+    total
+  };
+
+  await savePricing();
+
+  closePricingModal();
+  toast('Pricing and revenue goal saved');
+
+  // Refresh financials display
+  updateFinancialDashboard();
+  renderCardsInProgress();
+}
+
+function openEditDetailsModal() {
+  if (!state.current) {
+    toast('Please select a postcard first', false);
+    return;
+  }
+
+  const modal = document.getElementById("editDetailsModal");
+  const inHomesDate = state.current.In_Homes_Date;
+
+  if (inHomesDate) {
+    // Parse date string without timezone conversion
+    // If already in YYYY-MM-DD format, use it directly
+    if (/^\d{4}-\d{2}-\d{2}/.test(inHomesDate)) {
+      document.getElementById("editInHomesDate").value = inHomesDate.substring(0, 10);
+    } else {
+      // Fallback: parse as local date
+      const dateObj = new Date(inHomesDate);
+      const yyyy = dateObj.getFullYear();
+      const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const dd = String(dateObj.getDate()).padStart(2, '0');
+      document.getElementById("editInHomesDate").value = `${yyyy}-${mm}-${dd}`;
+    }
+  } else {
+    document.getElementById("editInHomesDate").value = '';
+  }
+
+  modal.style.display = "flex";
+  modal.setAttribute('aria-hidden', 'false');
+  trapModalFocus(modal);
+}
+
+function closeEditDetailsModal() {
+  const modal = document.getElementById("editDetailsModal");
+  modal.style.display = "none";
+  modal.setAttribute('aria-hidden', 'true');
+  releaseModalFocus(modal);
+}
+
+async function saveEditDetailsModal() {
+  if (!state.current) return;
+
+  const inHomesDateValue = document.getElementById("editInHomesDate").value;
+
+  if (inHomesDateValue) {
+    state.current.In_Homes_Date = inHomesDateValue;
+
+    try {
+      const { error } = await supabaseClient
+        .from('postcards')
+        .update({ in_homes_date: inHomesDateValue })
+        .eq('user_email', ACTIVE_USER)
+        .eq('mailer_id', state.current.Mailer_ID);
+
+      if (error) throw error;
+
+      toast('✅ In homes date updated successfully');
+      closeEditDetailsModal();
+    } catch (err) {
+      console.error('Error updating in homes date:', err);
+      toast('❌ Failed to update in homes date', false);
+    }
+  }
+}
+
+function toggleTownInput() {
+  const isNew = document.querySelector('input[name="townOption"][value="new"]').checked;
+  document.getElementById("newPostcardTownSelect").disabled = isNew;
+  document.getElementById("newPostcardTownInput").disabled = !isNew;
+}
+
+function toggleCopyOptions() {
+  const checked = document.getElementById("copyFromPrevious").checked;
+  document.getElementById("copyOptions").classList.toggle('hidden', !checked);
+  if (!checked) {
+    document.getElementById("advertiserChecklistContainer").classList.add('hidden');
+  }
+}
+
+function loadAdvertisersForCopy() {
+  const sourceIndex = document.getElementById("copySourcePostcard").value;
+  if (!sourceIndex) {
+    document.getElementById("advertiserChecklistContainer").classList.add('hidden');
+    return;
+  }
+
+  const sourcePostcard = state.mailers[sourceIndex];
+  if (!sourcePostcard) return;
+
+  // Extract advertisers from the source postcard
+  const advertisers = [];
+  for (let i = 1; i <= 18; i++) {
+    const spotKey = `Spot_${i}`;
+    const raw = (sourcePostcard.availability || {})[spotKey] || "Available";
+    if (!/^available$/i.test(raw)) {
+      const match = String(raw).match(/^(.+?)\s*:\s*(.*)$/);
+      if (match) {
+        const status = match[1].trim();
+        const name = match[2].trim();
+        if (name) {
+          // Check if this advertiser is already in the list (merged spots)
+          const existing = advertisers.find(a => a.name.toLowerCase() === name.toLowerCase());
+          if (existing) {
+            existing.spots.push(i);
+          } else {
+            advertisers.push({ name, status, spots: [i] });
+          }
+        }
+      }
+    }
+  }
+
+  // Render checklist
+  const checklist = document.getElementById("advertiserChecklist");
+  if (advertisers.length === 0) {
+    checklist.innerHTML = '<p class="text-sm text-gray-500">No advertisers found in this postcard.</p>';
+    document.getElementById("advertiserChecklistContainer").classList.remove('hidden');
+    return;
+  }
+
+  checklist.innerHTML = advertisers.map((adv, idx) => {
+    const spotText = adv.spots.length > 1 ? `Spots ${adv.spots.join(', ')}` : `Spot ${adv.spots[0]}`;
+    return `
+      <label class="flex items-start gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+        <input type="checkbox" value="${idx}" checked class="mt-0.5" />
+        <div class="flex-1">
+          <div class="font-medium text-sm">${esc(adv.name)}</div>
+          <div class="text-xs text-gray-600">${spotText} • Status: ${esc(adv.status)}</div>
+        </div>
+      </label>
+    `;
+  }).join('');
+
+  document.getElementById("advertiserChecklistContainer").classList.remove('hidden');
+}
+
+async function createNewPostcard() {
+  // Get form values
+  const isNewTown = document.querySelector('input[name="townOption"][value="new"]').checked;
+  const town = isNewTown ?
+    document.getElementById("newPostcardTownInput").value.trim() :
+    document.getElementById("newPostcardTownSelect").value;
+
+  const month = document.getElementById("newPostcardMonth").value;
+  const year = document.getElementById("newPostcardYear").value;
+  const inHomesDate = document.getElementById("newPostcardInHomesDate").value;
+  const postcardSize = document.getElementById("newPostcardSize").value;
+
+  // Validation
+  if (!town) {
+    toast("Please select or enter a town name", false);
+    return;
+  }
+
+  if (!inHomesDate) {
+    toast("Please select an in-homes date", false);
+    return;
+  }
+
+  // Show loading state
+  const btn = document.getElementById('btnCreatePostcard');
+  const originalText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Creating...';
+
+  try {
+
+    // Build mail date - store in ISO format (YYYY-MM-DD) to avoid timezone issues
+    const mailDate = `${year}-${month.padStart(2, '0')}-01`;  // e.g., "2025-12-01"
+
+    // Build display name for duplicate check
+    const monthNames = ["", "January", "February", "March", "April", "May", "June",
+                        "July", "August", "September", "October", "November", "December"];
+    const displayDate = `${monthNames[parseInt(month)]} ${year}`;
+
+    // Check for duplicates using town and month/year
+    const duplicate = state.mailers.find(m => {
+      const mDate = new Date(m.Mail_Date);
+      return m.Town.toLowerCase() === town.toLowerCase() &&
+             mDate.getMonth() + 1 === parseInt(month) &&
+             mDate.getFullYear() === parseInt(year);
+    });
+    if (duplicate) {
+      toast("A postcard for this town and date already exists!", false);
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+      return;
+    }
+
+    // Create new postcard object
+    const newPostcard = {
+      Mailer_ID: `${town.replace(/\s+/g, '-')}-${month.padStart(2, '0')}-${year}`,
+      Town: town,
+      Mail_Date: mailDate,  // Store as "12/1/2025" format
+      In_Homes_Date: inHomesDate,
+      Payment_Status: "Active",  // Set to Active by default
+      Postcard_Size: postcardSize,  // Store size (9x12)
+      availability: {},
+      Postcard_BG: "#000000",
+      Banner_BG: "#000000"  // Black background (will display white text via useLightTextOn)
+    };
+
+    // Initialize all spots as available
+    for (let i = 1; i <= 18; i++) {
+      newPostcard.availability[`Spot_${i}`] = "Available";
+    }
+
+    // Handle copy from previous
+    if (document.getElementById("copyFromPrevious").checked) {
+      const sourceIndex = document.getElementById("copySourcePostcard").value;
+      if (sourceIndex) {
+        const sourcePostcard = state.mailers[sourceIndex];
+        const checklist = document.getElementById("advertiserChecklist");
+        const checkedBoxes = checklist.querySelectorAll('input[type="checkbox"]:checked');
+
+        // Collect selected advertisers
+        const advertisers = [];
+        for (let i = 1; i <= 18; i++) {
+          const spotKey = `Spot_${i}`;
+          const raw = (sourcePostcard.availability || {})[spotKey] || "Available";
+          if (!/^available$/i.test(raw)) {
+            const match = String(raw).match(/^(.+?)\s*:\s*(.*)$/);
+            if (match) {
+              const name = match[2].trim();
+              if (name) {
+                const existing = advertisers.find(a => a.name.toLowerCase() === name.toLowerCase());
+                if (existing) {
+                  existing.spots.push(i);
+                } else {
+                  advertisers.push({ name, spots: [i] });
+                }
+              }
+            }
+          }
+        }
+
+        // Apply selected advertisers to new postcard with "Reserved" status
+        checkedBoxes.forEach(checkbox => {
+          const idx = parseInt(checkbox.value);
+          const adv = advertisers[idx];
+          if (adv) {
+            adv.spots.forEach(spotNum => {
+              newPostcard.availability[`Spot_${spotNum}`] = `Reserved:${adv.name}`;
+            });
+          }
+        });
+      }
+    }
+
+    // Handle copy expenses from previous
+    if (document.getElementById("copyExpensesFromPrevious").checked) {
+      const sourceIndex = document.getElementById("copySourcePostcard").value;
+      if (sourceIndex) {
+        const sourcePostcard = state.mailers[sourceIndex];
+        const sourceMailerId = sourcePostcard.Mailer_ID;
+
+        // Check if source postcard has expenses
+        if (productionState.expenses[sourceMailerId]) {
+          const sourceExpenses = productionState.expenses[sourceMailerId];
+
+          // Copy expenses to new postcard
+          productionState.expenses[newPostcard.Mailer_ID] = {
+            printing: sourceExpenses.printing || 0,
+            postage: sourceExpenses.postage || 0,
+            design: sourceExpenses.design || 0,
+            misc: sourceExpenses.misc || 0
+          };
+
+          // Save expenses to cloud
+          await saveExpenses();
+
+          console.log(`✅ Copied expenses from ${sourceMailerId} to ${newPostcard.Mailer_ID}`);
+        }
+      }
+    }
+
+    // Add the new postcard to state.mailers
+    state.mailers.push(newPostcard);
+
+    // Sort mailers by date (newest first), then by town (alphabetically)
+    state.mailers = state.mailers.sort((a, b) => {
+      const dateA = a.Mail_Date || '';
+      const dateB = b.Mail_Date || '';
+      if (dateA !== dateB) {
+        return dateB.localeCompare(dateA); // Reverse order for descending
+      }
+      const townA = (a.Town || '').toLowerCase();
+      const townB = (b.Town || '').toLowerCase();
+      return townA.localeCompare(townB);
+    });
+
+    // Find the index of the newly created postcard after sorting
+    const newIndex = state.mailers.findIndex(m => m.Mailer_ID === newPostcard.Mailer_ID);
+
+    // Update the dropdown selectors
+    const selManager = document.getElementById("postcardSelect");
+
+    const selectHtml = '<option value="">— Select —</option>' +
+      state.mailers.map((m,i)=>{
+        // Format date display
+        let displayDate = m.Mail_Date || "";
+        if (/^\d{4}-\d{2}-\d{2}/.test(displayDate)) {
+          const [year, month] = displayDate.split('-');
+          const monthNames = ["", "January", "February", "March", "April", "May", "June",
+                              "July", "August", "September", "October", "November", "December"];
+          displayDate = `${monthNames[parseInt(month)]} ${year}`;
+        }
+        // Add size indicator to label
+        const sizeLabel = m.Postcard_Size ? ` (${m.Postcard_Size})` : '';
+        return `<option value="${i}">${esc(m.Town)} — ${esc(displayDate)}${sizeLabel}</option>`;
+      }).join("");
+
+    if (selManager) {
+      selManager.innerHTML = selectHtml;
+      selManager.value = newIndex.toString();
+    }
+
+    // Repopulate town and month selectors and set to new postcard
+    populateTownAndMonthSelectors();
+    const townSelect = document.getElementById("headerTownSelect");
+    const monthSelect = document.getElementById("headerMonthSelect");
+    if (townSelect && newPostcard.Town) {
+      townSelect.value = newPostcard.Town;
+      onTownChanged(); // Populate month dropdown for this town
+      if (monthSelect && newPostcard.Mail_Date) monthSelect.value = newPostcard.Mail_Date;
+    }
+
+    // Save to cloud immediately with retry logic for mobile
+    btn.innerHTML = '☁️ Saving to cloud...';
+
+    let cloudSaveSuccess = false;
+    let retryCount = 0;
+    const maxRetries = 2;
+
+    while (!cloudSaveSuccess && retryCount <= maxRetries) {
+      try {
+        console.log(`💾 Attempting cloud save (attempt ${retryCount + 1}/${maxRetries + 1})...`);
+
+        // Insert into Supabase with snake_case column names
+        const { data, error } = await supabaseClient
+          .from('postcards')
+          .insert({
+            user_email: ACTIVE_USER,
+            mailer_id: newPostcard.Mailer_ID,
+            town: newPostcard.Town,
+            mail_date: newPostcard.Mail_Date,
+            in_homes_date: newPostcard.In_Homes_Date,
+            payment_status: newPostcard.Payment_Status,
+            postcard_size: newPostcard.Postcard_Size || '9x12',
+            postcard_bg: newPostcard.Postcard_BG,
+            banner_bg: newPostcard.Banner_BG,
+            spot_1: newPostcard.availability.Spot_1 || 'Available',
+            spot_2: newPostcard.availability.Spot_2 || 'Available',
+            spot_3: newPostcard.availability.Spot_3 || 'Available',
+            spot_4: newPostcard.availability.Spot_4 || 'Available',
+            spot_5: newPostcard.availability.Spot_5 || 'Available',
+            spot_6: newPostcard.availability.Spot_6 || 'Available',
+            spot_7: newPostcard.availability.Spot_7 || 'Available',
+            spot_8: newPostcard.availability.Spot_8 || 'Available',
+            spot_9: newPostcard.availability.Spot_9 || 'Available',
+            spot_10: newPostcard.availability.Spot_10 || 'Available',
+            spot_11: newPostcard.availability.Spot_11 || 'Available',
+            spot_12: newPostcard.availability.Spot_12 || 'Available',
+            spot_13: newPostcard.availability.Spot_13 || 'Available',
+            spot_14: newPostcard.availability.Spot_14 || 'Available',
+            spot_15: newPostcard.availability.Spot_15 || 'Available',
+            spot_16: newPostcard.availability.Spot_16 || 'Available',
+            spot_17: newPostcard.availability.Spot_17 || 'Available',
+            spot_18: newPostcard.availability.Spot_18 || 'Available'
+          });
+
+        if (error) {
+          console.error(`❌ Cloud save attempt ${retryCount + 1} failed:`, error);
+          throw error;
+        }
+
+        console.log('✅ Cloud save successful!', data);
+        cloudSaveSuccess = true;
+        toast("✅ Postcard created and saved to cloud!", true);
+
+      } catch (cloudErr) {
+        retryCount++;
+        console.error(`Failed to save to cloud (attempt ${retryCount}/${maxRetries + 1}):`, cloudErr);
+
+        if (retryCount > maxRetries) {
+          // Final failure after all retries
+          toast("⚠️ Cloud save failed after retries. Postcard created locally. Will sync on next edit.", false);
+        } else {
+          // Wait before retry
+          btn.innerHTML = `☁️ Retrying... (${retryCount}/${maxRetries + 1})`;
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+      }
+    }
+
+    // Switch to the new postcard
+    pickCampaign({ target: { value: newIndex.toString() } });
+
+    // Reset button
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+
+    closeNewPostcardModal();
+
+  } catch (err) {
+    console.error("Failed to create postcard:", err);
+    toast("⚠️ Error creating postcard: " + err.message, false);
+
+    // Reset button
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+  }
+}
+
+/* ========= RENEWAL AUTOMATION ========= */
+
+function checkRenewals() {
+  if (!state.current) return;
+  
+  const mailDate = new Date(state.current.Mail_Date);
+  const today = new Date();
+  const daysSinceDrop = Math.floor((today - mailDate) / (1000 * 60 * 60 * 24));
+  
+  const renewalContainer = document.getElementById('renewalList');
+  if (!renewalContainer) return;
+  
+  if (daysSinceDrop >= 30) {
+    const clients = Object.values(crmState.clients).filter(c => 
+      c.history.some(h => h.campaign.includes(state.current.Town))
+    );
+    
+    renewalContainer.innerHTML = clients.map(c => `
+      <div class="p-3 border rounded-lg bg-white">
+        <div class="font-semibold">${esc(c.businessName)}</div>
+        <div class="text-sm text-gray-600">Ready for renewal outreach</div>
+        <button onclick="openEmailRenewal('${c.id}')" class="mt-2 text-sm px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">
+          Send Renewal Email
+        </button>
+      </div>
+    `).join('');
+  } else {
+    renewalContainer.innerHTML = `<p class="text-sm text-gray-500">No renewals due yet (${30 - daysSinceDrop} days remaining)</p>`;
+  }
+}
+
+function openEmailRenewal(clientId) {
+  const client = crmState.clients[clientId];
+  if (!client) return;
+  
+  openEmailModal();
+  document.getElementById('emailTemplate').value = 'renewal';
+  loadEmailTemplate();
+  document.getElementById('emailTo').value = client.contact.email;
+  
+  // Replace placeholders
+  let subject = document.getElementById('emailSubject').value;
+  let body = document.getElementById('emailBody').value;
+  subject = subject.replace('{businessName}', client.businessName);
+  body = body.replace('{contactName}', client.contact.name || 'there');
+  body = body.replace('{campaign}', state.current ? `${state.current.Town} ${state.current.Mail_Date}` : 'our campaign');
+  
+  document.getElementById('emailSubject').value = subject;
+  document.getElementById('emailBody').value = body;
+}
+
+// Delete the current postcard
+async function deleteCurrentPostcard() {
+  if (!state.current) {
+    toast('No postcard selected', false);
+    return;
+  }
+
+  const postcard = state.current;
+  const confirmMsg = `Are you sure you want to delete the postcard for ${postcard.Town} — ${postcard.Mail_Date}?\n\nThis action cannot be undone.`;
+
+  if (!confirm(confirmMsg)) return;
+
+  try {
+    // Delete from Supabase
+    const { error } = await supabaseClient
+      .from('postcards')
+      .delete()
+      .eq('user_email', ACTIVE_USER)
+      .eq('mailer_id', postcard.Mailer_ID);
+
+    if (error) throw error;
+
+    // Remove from state
+    const currentIndex = state.mailers.findIndex(m => m.Mailer_ID === postcard.Mailer_ID);
+    if (currentIndex !== -1) {
+      state.mailers.splice(currentIndex, 1);
+    }
+
+    // Clear current selection
+    state.current = null;
+    state.availability = {};
+    state.initial = {};
+    state.merged.clear();
+    state.selected.clear();
+    state.dirty = false;
+
+    // Refresh dropdowns
+    populateTownAndMonthSelectors();
+
+    // Select first postcard if available
+    if (state.mailers.length > 0) {
+      pickCampaign({ target: { value: '0' } });
+    } else {
+      renderAll();
+    }
+
+    toast(`✅ Postcard for ${postcard.Town} deleted successfully`, true);
+
+  } catch (err) {
+    console.error('Error deleting postcard:', err);
+    toast('Failed to delete postcard', false);
+  }
+}
+
+/* ========= PERSISTED COLORS ========= */
+const POSTCARD_BG_KEY = "mailslot-postcard-bg";
+const BANNER_BG_KEY = "mailslot-banner-bg";
+
+function loadPostcardBg() {
+  try {
+    const v = localStorage.getItem(POSTCARD_BG_KEY) || "#000000";
+    return v;
+  } catch (_) { return "#000000"; }
+}
+
+function loadBannerBg() {
+  try {
+    const v = localStorage.getItem(BANNER_BG_KEY) || "#000000";
+    return v;
+  } catch (_) { return "#000000"; }
+}
+
+function savePostcardBg(hex) {
+  try { localStorage.setItem(POSTCARD_BG_KEY, hex); } catch(_) {}
+}
+
+function saveBannerBg(hex) {
+  try { localStorage.setItem(BANNER_BG_KEY, hex); } catch(_) {}
+}
+
+function applyStagedColors() {
+  document.querySelectorAll('.postcard').forEach(el => {
+    el.style.backgroundColor = stagedColors.Postcard_BG;
+    const border = shadeBlend(stagedColors.Postcard_BG, -0.15) || '#e5e7eb';
+    el.style.borderColor = border;
+  });
+  document.querySelectorAll('.banner').forEach(b => {
+    b.style.backgroundColor = stagedColors.Banner_BG;
+    const border = shadeBlend(stagedColors.Banner_BG, -0.12) || '#e5e7eb';
+    b.style.borderColor = border;
+    b.style.color = useLightTextOn(stagedColors.Banner_BG) ? '#fff' : '#0f172a';
+  });
+  const previewPostcard = document.getElementById('previewPostcard');
+  const previewBanner = document.getElementById('previewBanner');
+  if (previewPostcard) previewPostcard.style.backgroundColor = stagedColors.Postcard_BG;
+  if (previewBanner) {
+    previewBanner.style.backgroundColor = stagedColors.Banner_BG;
+    previewBanner.style.color = useLightTextOn(stagedColors.Banner_BG) ? '#fff' : '#0f172a';
+  }
+}
+
+function shadeBlend(hex, percent) {
+  try {
+    const h = hex.replace('#','');
+    const r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
+    const t = percent < 0 ? 0 : 255;
+    const p = Math.abs(percent);
+    const R = Math.round((t - r) * p) + r;
+    const G = Math.round((t - g) * p) + g;
+    const B = Math.round((t - b) * p) + b;
+    return '#' + [R,G,B].map(x => x.toString(16).padStart(2,'0')).join('');
+  } catch (e) { return null; }
+}
+
+function linearize(v){ return v <= 0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4); }
+function useLightTextOn(hex){ try{ const h = hex.replace('#',''); const r=parseInt(h.slice(0,2),16), g=parseInt(h.slice(2,4),16), b=parseInt(h.slice(4,6),16); const L = 0.2126*linearize(r/255)+0.7152*linearize(g/255)+0.0722*linearize(b/255); return L < 0.45; }catch(e){ return true; } }
+
+/* ========= FILTER BAR INITIALIZATION ========= */
+// FilterBar removed - using built-in search in Prospect Pool instead
+// Auto-enrichment is now automatic, no checkbox needed
+
+/* ========= INIT ========= */
+document.addEventListener("DOMContentLoaded", () => {
+  try {
+    const saved = JSON.parse(safeGetItem("mailslot-sort") || "{}");
+    sortOrder = saved.order || [...CANONICAL_STATUSES];
+    visibleStatuses = saved.visible || [...CANONICAL_STATUSES];
+  } catch(_) {}
+  updateColorMappings();
+  renderLegend();
+  
+  stagedColors.Postcard_BG = loadPostcardBg();
+  stagedColors.Banner_BG = loadBannerBg();
+  document.getElementById('pickerPostcard').value = stagedColors.Postcard_BG;
+  document.getElementById('pickerBanner').value = stagedColors.Banner_BG;
+  applyStagedColors();
+
+  // Load daily goal state from localStorage
+  loadDailyGoalState();
+
+  // Wait for auth to complete before loading user data
+  console.log('⏳ Waiting for authentication before loading data...');
+  var waitForAuth = setInterval(function() {
+    if (window.authReady && ACTIVE_USER) {
+      clearInterval(waitForAuth);
+      console.log('✅ Auth ready, loading user data for:', ACTIVE_USER);
+      loadAllData();
+    }
+  }, 100);
+});
+
+// Separate function for loading all data (called after auth is ready)
+function loadAllData() {
+  // Load all state from cloud (with localStorage fallback)
+  Promise.allSettled([
+    loadExpenses(),
+    loadPricing(),
+    loadRevenueGoals(),
+    loadSpotPricing(),
+    loadClients(),
+    loadKanban(),
+    loadTasks(),
+    loadNotInterestedList(),
+    loadManualProspects(),
+    loadBusinessCategories(),
+    loadUserTemplates()
+  ]).then(results => {
+    const succeeded = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.filter(r => r.status === 'rejected').length;
+
+    if (failed > 0) {
+      console.warn(`⚠️ ${succeeded} data types loaded, ${failed} failed (using localStorage cache)`);
+      const failedTypes = results
+        .map((r, i) => r.status === 'rejected' ? ['expenses', 'pricing', 'revenueGoals', 'spotPricing', 'clients', 'kanban', 'tasks', 'notInterested', 'manualProspects', 'businessCategories', 'userTemplates'][i] : null)
+        .filter(t => t !== null);
+      console.warn('Failed types:', failedTypes.join(', '));
+
+      // Show user notification about partial cloud sync failure
+      toast(`⚠️ ${failed} data type(s) loaded from local cache (cloud unavailable)`, false);
+    }
+
+    // Load campaigns AFTER expenses and pricing are loaded so financial dashboard shows correct data
+    console.log('✅ Pricing data loaded. Loading campaigns...');
+    loadCampaigns();
+  });
+
+  // Load API quota (local only)
+  loadApiQuota();
+
+  // Load enrichment quota counter
+  loadEnrichmentQuota();
+
+  // Load prospect cache from cloud with merge
+  loadPlacesCache().then(() => {
+    renderProspectPool(); // Re-render to show loaded prospects
+
+    // Save to cloud to ensure computer's data is uploaded
+    savePlacesCache();
+  }).catch(e => {
+    console.error('Failed to load prospect cache:', e);
+  });
+
+  // Auto-sync prospect cache every 2 minutes to keep devices in sync
+  setInterval(async () => {
+    console.log('🔄 Auto-syncing prospect cache from cloud...');
+    try {
+      const cloudData = await loadFromCloud('placesCache');
+
+      if (cloudData && Object.keys(cloudData).length > 0) {
+        // Merge cloud data with local
+        const currentLocal = { ...placesCache.searches };
+        let newEntriesCount = 0;
+
+        Object.keys(cloudData).forEach(cacheKey => {
+          const cloud = cloudData[cacheKey];
+          const local = currentLocal[cacheKey];
+
+          if (!local) {
+            // New entry from cloud - add it
+            placesCache.searches[cacheKey] = cloud;
+            newEntriesCount++;
+          } else if (cloud.lastFetched && local.lastFetched) {
+            // Both exist - keep newer one
+            const cloudDate = new Date(cloud.lastFetched);
+            const localDate = new Date(local.lastFetched);
+            if (cloudDate > localDate) {
+              placesCache.searches[cacheKey] = cloud;
+              newEntriesCount++;
+            }
+          }
+        });
+
+        if (newEntriesCount > 0) {
+          console.log(`✅ Auto-sync: Found ${newEntriesCount} new/updated searches from cloud`);
+
+          // Save merged data locally
+          safeSetItem('mailslot-places-cache', JSON.stringify(placesCache.searches));
+
+          // Refresh prospect pool if user is viewing it
+          const prospectTab = document.querySelector('.tab-pane[data-content="prospects"]');
+          const isViewingProspects = prospectTab && !prospectTab.classList.contains('hidden');
+
+          if (isViewingProspects) {
+            console.log('📥 User is viewing Prospect Pool - refreshing...');
+            renderProspectPool();
+            showInfo(`📥 Synced ${newEntriesCount} new searches from cloud`);
+          } else {
+            console.log('📥 User not viewing Prospect Pool - data synced silently');
+          }
+        } else {
+          console.log('✅ Auto-sync: Prospect cache is up to date');
+        }
+      }
+    } catch(e) {
+      console.error('Auto-sync failed:', e);
+    }
+  }, 2 * 60 * 1000); // Every 2 minutes
+
+  // Load spot pricing from localStorage as fallback (cloud load happens earlier)
+  // This will be used if cloud sync fails or for migration
+  try {
+    const savedPricing = safeGetItem('mailslot-pricing');
+    if (savedPricing && Object.keys(productionState.spotPricing).length === 0) {
+      const rawPricing = JSON.parse(savedPricing);
+
+      // FILTER: Only load valid spot prices (numbers with SPOT_ in key)
+      // Prevents corrupted campaign-level pricing from localStorage
+      productionState.spotPricing = {};
+      Object.keys(rawPricing).forEach(key => {
+        const value = rawPricing[key];
+        if (typeof value === 'number' && !isNaN(value) && key.toUpperCase().includes('SPOT_')) {
+          productionState.spotPricing[key.toUpperCase()] = value;
+        }
+      });
+
+      console.log('💰 [LOCALSTORAGE MIGRATION] Loaded', Object.keys(productionState.spotPricing).length, 'valid spot prices from localStorage');
+
+      // Migrate cleaned data to cloud
+      if (Object.keys(productionState.spotPricing).length > 0) {
+        saveSpotPricing();
+      }
+    }
+  } catch(e) {}
+  // Don't call updateAutoSaveStatus() on page load - only show after actual saves
+  updateQuickApiUsage(); // Initialize API usage display in prospecting section
+
+  // Initialize sales activity collapse state
+  initSalesActivityState();
+
+  // Restore last active tab, or default to dashboard
+  const lastTab = localStorage.getItem('9x12_active_tab') || 'dashboard';
+  switchTab(lastTab);
+
+  // If starting on dashboard, refresh it after data loads
+  if (lastTab === 'dashboard') {
+    setTimeout(() => refreshDashboard(), 1000);
+  }
+
+  window.addEventListener('resize', () => renderLegend());
+  bindUI();
+
+  // Ensure critical functions are globally accessible
+  window.openExpenseModal = openExpenseModal;
+  window.openReportsModal = openReportsModal;
+  window.openEmailModal = openEmailModal;
+  window.manualSaveNow = manualSaveNow;
+  window.pickCampaign = pickCampaign;
+  // toggleCustomCategory removed - categories now populated dynamically
+  window.toggleBulkCustomCategory = toggleBulkCustomCategory;
+  window.importClientsCSV = importClientsCSV;
+  window.openAutoPopulateModal = openAutoPopulateModal;
+  window.runBulkAutoPopulate = runBulkAutoPopulate;
+  window.openProspectsResultsModal = openProspectsResultsModal;
+  window.closeProspectsResultsModal = closeProspectsResultsModal;
+  window.toggleProspectSelection = toggleProspectSelection;
+  window.markNotInterested = markNotInterested;
+  window.addSelectedProspects = addSelectedProspects;
+  window.editLead = editLead;
+  window.deleteLead = deleteLead;
+  window.moveProspectBackToPool = moveProspectBackToPool;
+  window.openLeadModal = openLeadModal;
+  window.saveLeadModal = saveLeadModal;
+  window.toggleCloudSyncUI = toggleCloudSyncUI;
+  window.toggleProspectForSync = toggleProspectForSync;
+  window.saveSelectedProspectsToCloud = saveSelectedProspectsToCloud;
+  window.closeLeadModal = closeLeadModal;
+  window.togglePoolProspect = togglePoolProspect;
+  window.selectCategoryProspects = selectCategoryProspects;
+  window.addFromProspectPool = addFromProspectPool;
+  window.clearProspectPool = clearProspectPool;
+  window.renderProspectPool = renderProspectPool;
+  window.switchTab = switchTab;
+  window.deleteCurrentPostcard = deleteCurrentPostcard;
+}
+
+function bindUI(){
+  const btn = (id, handler) => {
+    const el = document.getElementById(id);
+    if (el) el.onclick = handler;
+  };
+
+  btn("btnCancelEdit", closeEditModal);
+  btn("btnApplyEdit", applyEditModal);
+  btn("btnCancelPostcard", closePostcardModal);
+  btn("btnApplyPostcard", applyPostcardModal);
+  btn("btnAdjustPostcard", openPostcardModal);
+  btn("btnCancelEditStatus", closeEditStatusModal);
+  btn("btnSaveEditStatus", saveEditStatusModal);
+
+  // Duplicate modal
+  btn("btnCancelDuplicate", closeDuplicatePostcardModal);
+  btn("btnCreateDuplicate", createDuplicatePostcard);
+
+  // Pricing modal
+  btn("btnCancelPricing", closePricingModal);
+  btn("btnSavePricing", savePricingModal);
+
+  // Sync top pricing inputs to bottom calculator
+  ["pricingSingleAd", "pricingDoubleAd", "pricingBannerAd"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', syncPricingToCalculator);
+  });
+
+  // Expense modal
+  btn("btnCancelExpense", closeExpenseModal);
+  btn("btnSaveExpense", saveExpenseModal);
+  ["expensePrinting", "expensePostage", "expenseDesign", "expenseMisc"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateExpenseTotal);
+  });
+  
+  // Client modal
+  document.getElementById('btnCancelClient').onclick = closeClientModal;
+  document.getElementById('btnSaveClient').onclick = saveClientModal;
+  document.getElementById('btnDeleteClient').onclick = deleteClientModal;
+  
+  // Email modal
+  document.getElementById('btnCancelEmail').onclick = closeEmailModal;
+  document.getElementById('btnSendEmail').onclick = sendEmail;
+  
+  // Reports modal
+  document.getElementById('btnCloseReports').onclick = closeReportsModal;
+
+  // Task modal
+  document.getElementById('btnCancelTask').onclick = closeTaskModal;
+  document.getElementById('btnSaveTask').onclick = saveTaskModal;
+
+  // Lead modal
+  document.getElementById('btnCancelLead').onclick = closeLeadModal;
+  document.getElementById('btnSaveLead').onclick = saveLeadModal;
+
+  // Contact Later modal
+  document.getElementById('btnCancelContactLater').onclick = closeContactLaterModal;
+  document.getElementById('btnSaveContactLater').onclick = saveContactLater;
+
+  // Auto-populate modal
+  document.getElementById('btnCancelAutoPopulate').onclick = closeAutoPopulateModal;
+  document.getElementById('btnRunAutoPopulate').onclick = runAutoPopulate;
+
+  // Financial transaction modals
+  document.getElementById('btnCancelAddTransaction').onclick = closeAddTransactionModal;
+  document.getElementById('btnSaveAddTransaction').onclick = saveAddTransaction;
+  document.getElementById('btnCancelEditTransaction').onclick = closeEditTransactionModal;
+  document.getElementById('btnSaveEditTransaction').onclick = saveEditTransaction;
+
+  // New Postcard modal
+  document.getElementById('btnCancelNewPostcard').onclick = closeNewPostcardModal;
+  document.getElementById('btnCreatePostcard').onclick = createNewPostcard;
+  
+  document.getElementById("pickerPostcard").addEventListener('input', (e)=> { stagedColors.Postcard_BG = e.target.value; previewPostcardModal(); });
+  document.getElementById("pickerBanner").addEventListener('input', (e)=> { stagedColors.Banner_BG = e.target.value; previewPostcardModal(); });
+ 
+  const commitBtn = document.getElementById("btnSaveCommit");
+  if (commitBtn) {
+    commitBtn.onclick = function() {
+      return saveToSheet();
+    };
+  } else {
+    console.error('❌ btnSaveCommit not found!');
+  }
+ 
+  window.addEventListener('beforeunload', (e) => {
+    if (state.dirty) {
+      // Attempt to auto-save before leaving
+      performAutoSave();
+
+      // Still show warning in case save isn't complete
+      e.preventDefault();
+      e.returnValue = 'You have unsaved changes. We are attempting to save them now.';
+    }
+  });
+  
+  document.addEventListener('click', (e)=> {
+    if (e.target.matches('.sort-up') || e.target.matches('.sort-down')) handleSortUpDown(e);
+  });
+  
+  document.getElementById("navTabs").addEventListener('click', (e) => {
+      const target = e.target.closest('.tab-btn');
+      if (!target) return;
+      const tabName = target.dataset.tab;
+      switchTab(tabName);
+  });
+
+  // Don't call switchTab here - it's already restored at line 6730
+}
+
+function switchTab(tabName) {
+    // Auto-save before switching tabs if there are unsaved changes
+    if (state.dirty) {
+        performAutoSave(); // Immediate save on tab switch
+    }
+
+    // Save current tab to remember it on refresh
+    localStorage.setItem('9x12_active_tab', tabName);
+
+    // Remove active state from all nav buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+        btn.classList.remove('bg-white', 'shadow-md');
+    });
+
+    // Add active state to current tab button
+    const activeBtn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+    if (activeBtn) {
+        activeBtn.classList.add('active', 'bg-white', 'shadow-md');
+    }
+
+    document.querySelectorAll('.tab-pane').forEach(pane => {
+        pane.classList.add('hidden');
+        pane.classList.remove('active-pane');
+    });
+    const activePane = document.querySelector(`.tab-pane[data-content="${tabName}"]`);
+    if (activePane) {
+        activePane.classList.remove('hidden');
+        activePane.classList.add('active-pane');
+    }
+
+    const legendArea = document.getElementById("legendArea");
+    if (legendArea) show(legendArea, tabName === 'manager');
+
+    // Show/hide postcard selector - only visible on Postcards & Activation tab
+    const selectorContainer = document.getElementById("postcardSelectorContainer");
+    if (selectorContainer) {
+        if (tabName === 'manager') {
+            selectorContainer.classList.remove('hidden');
+        } else {
+            selectorContainer.classList.add('hidden');
+        }
+    }
+
+    // Update breadcrumb active state
+    updateBreadcrumbHighlight(tabName);
+
+    // Refresh dashboard when switching to it
+    if (tabName === 'dashboard') {
+        setTimeout(() => {
+            refreshDashboard();
+            initializeDashboardTemplatesState();
+        }, 100);
+    }
+
+    // Render template manager when clients tab is opened
+    if (tabName === 'clients') {
+        setTimeout(() => renderTemplateManager(), 100);
+    }
+
+    if (tabName === 'manager') {
+        renderAll();
+    } else if (tabName === 'pipeline') {
+        renderCardsInProgress();
+        renderGettingStartedChecklist();
+        renderContractsExpiring();
+        // Populate bulk send templates
+        setTimeout(() => populateBulkSendTemplates(), 100);
+    } else if (tabName === 'clients') {
+        renderClientList();
+    } else if (tabName === 'admin') {
+        // Load financial data when Financials tab is opened
+        if (!financialState.loaded) {
+            loadFinancialData();
+        } else {
+            renderFinancialRegister();
+        }
+    } else if (tabName === 'prospects') {
+        renderProspectPool();
+    }
+}
+
+/**
+ * Switch between Dashboard sub-tabs (Overview, Tasks, Reports, Templates, Renewals)
+ */
+function switchDashboardTab(subTabName) {
+    // Remove active state from all dashboard sub-tab buttons
+    document.querySelectorAll('.dashboard-tab-btn').forEach(btn => {
+        btn.classList.remove('active', 'bg-white', 'shadow-md');
+    });
+
+    // Add active state to selected dashboard sub-tab button
+    const activeBtn = document.querySelector(`.dashboard-tab-btn[data-dashboard-tab="${subTabName}"]`);
+    if (activeBtn) {
+        activeBtn.classList.add('active', 'bg-white', 'shadow-md');
+    }
+
+    // Hide all dashboard sub-panes
+    document.querySelectorAll('.dashboard-sub-pane').forEach(pane => {
+        pane.classList.add('hidden');
+    });
+
+    // Show selected dashboard sub-pane
+    const activePane = document.getElementById(`dashboard-${subTabName}`);
+    if (activePane) {
+        activePane.classList.remove('hidden');
+    }
+
+    // Handle specific tab loading logic
+    if (subTabName === 'reports') {
+        // Load financial data
+        if (!financialState.loaded) {
+            loadFinancialData();
+        } else {
+            renderFinancialRegister();
+        }
+    } else if (subTabName === 'templates') {
+        // Render templates
+        setTimeout(() => renderTemplateManager(), 100);
+    } else if (subTabName === 'renewals') {
+        // Render contract renewals
+        renderContractsExpiring();
+    }
+}
+
+/* ========= TEMPLATE MANAGEMENT FUNCTIONS ========= */
+
+// Alias for backward compatibility - now uses consolidated renderTemplateManager
+function renderDashboardTemplates() {
+    renderTemplateManager();
+}
+
+// Toggle dashboard templates section visibility
+function toggleDashboardTemplates() {
+    const content = document.getElementById('dashboardTemplatesContent');
+    const icon = document.getElementById('dashboardTemplatesToggleIcon');
+
+    if (content && icon) {
+        if (content.classList.contains('hidden')) {
+            content.classList.remove('hidden');
+            icon.textContent = '▼';
+            icon.style.transform = 'rotate(0deg)';
+            // Save preference
+            safeSetItem('dashboardTemplatesExpanded', 'true');
+        } else {
+            content.classList.add('hidden');
+            icon.textContent = '▶';
+            icon.style.transform = 'rotate(0deg)';
+            // Save preference
+            safeSetItem('dashboardTemplatesExpanded', 'false');
+        }
+    }
+}
+
+// Initialize dashboard templates collapsed state on load
+function initializeDashboardTemplatesState() {
+    const expanded = safeGetItem('dashboardTemplatesExpanded');
+    const content = document.getElementById('dashboardTemplatesContent');
+    const icon = document.getElementById('dashboardTemplatesToggleIcon');
+
+    // Default to collapsed (hidden)
+    if (content && icon) {
+        if (expanded === 'true') {
+            content.classList.remove('hidden');
+            icon.textContent = '▼';
+        } else {
+            content.classList.add('hidden');
+            icon.textContent = '▶';
+        }
+    }
+}
+
+/* ========= QUICK SEND FUNCTIONS ========= */
+
+function populateBulkSendTemplates() {
+    const templates = Object.values(userTemplatesState.templates || {});
+
+    // Populate bulk send template selector
+    const bulkSelector = document.getElementById('bulkSendTemplateSelector');
+    if (bulkSelector) {
+        bulkSelector.innerHTML = '<option value="">— Choose a template —</option>' +
+            templates.map(t => `<option value="${t.id}">[${t.type.toUpperCase()}] ${t.name}</option>`).join('');
+
+        // Add event listener for template preview
+        bulkSelector.onchange = function() {
+            const previewDiv = document.getElementById('bulkSendPreview');
+            const previewText = document.getElementById('bulkSendPreviewText');
+
+            if (this.value && previewDiv && previewText) {
+                const template = userTemplatesState.templates[this.value];
+                if (template) {
+                    previewText.textContent = template.body;
+                    previewDiv.classList.remove('hidden');
+                } else {
+                    previewDiv.classList.add('hidden');
+                }
+            } else if (previewDiv) {
+                previewDiv.classList.add('hidden');
+            }
+        };
+    }
+}
+
+
+function bulkSendSMS() {
+    const templateSelector = document.getElementById('bulkSendTemplateSelector');
+    if (!templateSelector || !templateSelector.value) {
+        toast('⚠️ Please select a template first', false);
+        return;
+    }
+
+    const templateId = templateSelector.value;
+    const template = userTemplatesState.templates[templateId];
+
+    if (!template) {
+        toast('⚠️ Template not found', false);
+        return;
+    }
+
+    if (template.type !== 'sms') {
+        toast('⚠️ Please select an SMS template', false);
+        return;
+    }
+
+    const selectedCount = toContactSelectionState.selectedIds.size;
+
+    if (confirm(`Send SMS to ${selectedCount} selected prospect${selectedCount > 1 ? 's' : ''}?\n\nThis will open your SMS app for each contact with a delay between each.`)) {
+        const toContactColumn = kanbanState.columns['to-contact'] || [];
+        const selectedIds = Array.from(toContactSelectionState.selectedIds);
+
+        let successCount = 0;
+        let currentIndex = 0;
+
+        // Process SMS sequentially with delay
+        const processNextSMS = () => {
+            if (currentIndex >= selectedIds.length) {
+                // All done - show final toast
+                toast(`✅ Opened SMS for ${successCount} of ${selectedCount} prospect${successCount > 1 ? 's' : ''}`, true);
+
+                // Track template usage
+                if (template) {
+                    template.lastUsed = new Date().toISOString();
+                    template.usageCount = (template.usageCount || 0) + successCount;
+                    saveUserTemplates();
+                }
+
+                // Clear selections
+                toContactSelectionState.selectedIds.clear();
+                updateBulkSendSection();
+                renderKanban();
+                return;
+            }
+
+            const leadId = selectedIds[currentIndex];
+            const prospect = toContactColumn.find(item => String(item.id || item) === String(leadId));
+
+            if (prospect && typeof prospect === 'object' && prospect.phone) {
+                // Fill template variables
+                const filled = fillTemplateVariables(template, prospect);
+                const message = filled.body;
+
+                // Show progress toast
+                toast(`📱 Opening SMS ${currentIndex + 1} of ${selectedCount}: ${prospect.businessName}`, true);
+
+                window.open(`sms:${prospect.phone}?body=${encodeURIComponent(message)}`, '_blank');
+                successCount++;
+            } else if (prospect && !prospect.phone) {
+                toast(`⚠️ Skipping ${prospect.businessName} - no phone number`, false);
+            }
+
+            currentIndex++;
+
+            // Wait 2 seconds before next SMS to avoid popup blocker
+            setTimeout(processNextSMS, 2000);
+        };
+
+        // Start processing
+        processNextSMS();
+    }
+}
+
+function bulkSendEmail() {
+    const templateSelector = document.getElementById('bulkSendTemplateSelector');
+    if (!templateSelector || !templateSelector.value) {
+        toast('⚠️ Please select a template first', false);
+        return;
+    }
+
+    const templateId = templateSelector.value;
+    const template = userTemplatesState.templates[templateId];
+
+    if (!template) {
+        toast('⚠️ Template not found', false);
+        return;
+    }
+
+    if (template.type !== 'email') {
+        toast('⚠️ Please select an Email template', false);
+        return;
+    }
+
+    const selectedCount = toContactSelectionState.selectedIds.size;
+
+    if (confirm(`Send Email to ${selectedCount} selected prospect${selectedCount > 1 ? 's' : ''}?\n\nYou'll be prompted before each email.`)) {
+        const toContactColumn = kanbanState.columns['to-contact'] || [];
+        const selectedIds = Array.from(toContactSelectionState.selectedIds);
+
+        console.log('🔵 Bulk Email - Selected IDs:', selectedIds);
+        console.log('🔵 Bulk Email - To Contact Column:', toContactColumn.map(item => ({ id: item.id, name: item.businessName })));
+
+        let successCount = 0;
+        let currentIndex = 0;
+
+        // Process emails sequentially with user confirmation AFTER opening email
+        const processNextEmail = () => {
+            if (currentIndex >= selectedIds.length) {
+                // All done - show final toast
+                toast(`✅ Sent to ${successCount} of ${selectedCount} prospect${successCount > 1 ? 's' : ''}`, true);
+
+                // Track template usage
+                if (template) {
+                    template.lastUsed = new Date().toISOString();
+                    template.usageCount = (template.usageCount || 0) + successCount;
+                    saveUserTemplates();
+                }
+
+                // Clear selections
+                toContactSelectionState.selectedIds.clear();
+                updateBulkSendSection();
+                renderKanban();
+                return;
+            }
+
+            const leadId = selectedIds[currentIndex];
+            const prospect = toContactColumn.find(item => String(item.id || item) === String(leadId));
+
+            console.log('🔵 Looking for leadId:', leadId, 'Found:', prospect ? prospect.businessName : 'NOT FOUND');
+
+            if (prospect && typeof prospect === 'object' && prospect.email) {
+                // Fill template variables
+                const filled = fillTemplateVariables(template, prospect);
+                const subject = filled.subject;
+                const body = filled.body;
+
+                // Open email window FIRST (while in user gesture context)
+                window.open(`mailto:${prospect.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+                successCount++;
+                console.log('✅ Opened email for:', prospect.businessName);
+
+                currentIndex++;
+
+                // THEN ask if they want to continue to next (after they send this one)
+                if (currentIndex < selectedIds.length) {
+                    setTimeout(() => {
+                        const continueNext = confirm(`Email opened for ${prospect.businessName}\n\nEmail ${currentIndex} of ${selectedCount} sent.\n\nClick OK to continue to next email, or Cancel to stop.`);
+                        if (continueNext) {
+                            processNextEmail();
+                        } else {
+                            toast(`✅ Sent to ${successCount} of ${selectedCount} prospect${successCount > 1 ? 's' : ''}`, true);
+                            toContactSelectionState.selectedIds.clear();
+                            updateBulkSendSection();
+                            renderKanban();
+                        }
+                    }, 500); // Short delay to let email client open
+                } else {
+                    // Last email - finish up
+                    processNextEmail();
+                }
+            } else if (prospect && !prospect.email) {
+                console.warn('⚠️ No email for:', prospect.businessName);
+                alert(`⚠️ ${prospect.businessName} has no email address. Skipping.`);
+                currentIndex++;
+                processNextEmail();
+            } else {
+                currentIndex++;
+                processNextEmail();
+            }
+        };
+
+        // Start processing
+        processNextEmail();
+    }
+}
+
+function bulkSendGoogleVoice() {
+    const templateSelector = document.getElementById('bulkSendTemplateSelector');
+    if (!templateSelector || !templateSelector.value) {
+        toast('⚠️ Please select a template first', false);
+        return;
+    }
+
+    const templateId = templateSelector.value;
+    const template = userTemplatesState.templates[templateId];
+
+    if (!template) {
+        toast('⚠️ Template not found', false);
+        return;
+    }
+
+    if (template.type !== 'sms') {
+        toast('⚠️ Please select an SMS template (Google Voice uses SMS format)', false);
+        return;
+    }
+
+    const selectedCount = toContactSelectionState.selectedIds.size;
+
+    if (confirm(`Send via Google Voice to ${selectedCount} selected prospect${selectedCount > 1 ? 's' : ''}?\n\nThis will:\n1. Copy each message to your clipboard\n2. Open Google Voice for each contact with a delay\n3. You can paste (Ctrl+V) the message and send`)) {
+        const toContactColumn = kanbanState.columns['to-contact'] || [];
+        const selectedIds = Array.from(toContactSelectionState.selectedIds);
+
+        let successCount = 0;
+        let currentIndex = 0;
+
+        // Process Google Voice messages sequentially with delay
+        const processNextGoogleVoice = () => {
+            if (currentIndex >= selectedIds.length) {
+                // All done - show final toast
+                toast(`✅ Opened Google Voice for ${successCount} of ${selectedCount} prospect${successCount > 1 ? 's' : ''}`, true);
+
+                // Track template usage
+                if (template) {
+                    template.lastUsed = new Date().toISOString();
+                    template.usageCount = (template.usageCount || 0) + successCount;
+                    saveUserTemplates();
+                }
+
+                // Clear selections
+                toContactSelectionState.selectedIds.clear();
+                updateBulkSendSection();
+                renderKanban();
+                return;
+            }
+
+            const leadId = selectedIds[currentIndex];
+            const prospect = toContactColumn.find(item => String(item.id || item) === String(leadId));
+
+            if (prospect && typeof prospect === 'object' && prospect.phone) {
+                // Fill template variables
+                const filled = fillTemplateVariables(template, prospect);
+                const message = filled.body;
+
+                // Google Voice web URL - opens to messages with phone number
+                const cleanPhone = prospect.phone.replace(/\D/g, ''); // Remove non-digits
+                const formattedPhone = cleanPhone.length === 10 ? `+1${cleanPhone}` : `+${cleanPhone}`;
+                const googleVoiceUrl = `https://voice.google.com/u/0/messages?itemId=${formattedPhone}`;
+
+                // Copy message to clipboard so user can easily paste
+                navigator.clipboard.writeText(message).then(() => {
+                    toast(`📱 Opening Google Voice ${currentIndex + 1} of ${selectedCount}: ${prospect.businessName} (message copied!)`, true);
+                }).catch(err => {
+                    console.warn('Could not copy to clipboard:', err);
+                    toast(`📱 Opening Google Voice ${currentIndex + 1} of ${selectedCount}: ${prospect.businessName}`, true);
+                });
+
+                window.open(googleVoiceUrl, '_blank');
+                successCount++;
+            } else if (prospect && !prospect.phone) {
+                toast(`⚠️ Skipping ${prospect.businessName} - no phone number`, false);
+            }
+
+            currentIndex++;
+
+            // Wait 3 seconds for Google Voice (slightly longer to allow clipboard and page load)
+            setTimeout(processNextGoogleVoice, 3000);
+        };
+
+        // Start processing
+        processNextGoogleVoice();
+    }
+}
+
+/* ========= LOAD CAMPAIGNS ========= */
+async function loadCampaigns(restoreMailerId = null) {
+  try {
+    console.log('📥 LOADING FROM SUPABASE for user:', ACTIVE_USER, 'restoreMailerId:', restoreMailerId);
+
+    const { data, error } = await supabaseClient
+      .from('postcards')
+      .select('*')
+      .eq('user_email', ACTIVE_USER)
+      .order('mail_date', { ascending: false });
+
+    if (error) throw error;
+
+    console.log('📥 SUPABASE LOAD SUCCESS:', data?.length, 'postcards loaded');
+    if (data && data.length > 0) {
+      console.log('📥 First postcard sample:', data[0]);
+    }
+
+    // Transform Supabase column names to match app expectations
+    const mailers = (data || []).map(postcard => ({
+      Mailer_ID: postcard.mailer_id,
+      Town: postcard.town,
+      Mail_Date: postcard.mail_date,
+      In_Homes_Date: postcard.in_homes_date,
+      Payment_Status: postcard.payment_status,
+      Postcard_Size: postcard.postcard_size || '9x12',
+      Postcard_BG: postcard.postcard_bg,
+      Banner_BG: postcard.banner_bg,
+      Spot_1: postcard.spot_1,
+      Spot_2: postcard.spot_2,
+      Spot_3: postcard.spot_3,
+      Spot_4: postcard.spot_4,
+      Spot_5: postcard.spot_5,
+      Spot_6: postcard.spot_6,
+      Spot_7: postcard.spot_7,
+      Spot_8: postcard.spot_8,
+      Spot_9: postcard.spot_9,
+      Spot_10: postcard.spot_10,
+      Spot_11: postcard.spot_11,
+      Spot_12: postcard.spot_12,
+      Spot_13: postcard.spot_13,
+      Spot_14: postcard.spot_14,
+      Spot_15: postcard.spot_15,
+      Spot_16: postcard.spot_16,
+      Spot_17: postcard.spot_17,
+      Spot_18: postcard.spot_18
+    }));
+
+    onCampaignsLoaded(mailers, restoreMailerId);
+  } catch (err) {
+    console.error('Failed to load campaigns from Supabase:', err);
+    toast("⚠️ Failed to load campaigns. Please refresh.", false);
+  }
+}
+
+function jsonpLoad(url, cb){
+  const cbName = "cb_" + Math.random().toString(36).slice(2);
+  window[cbName] = (data) => { try{ cb(data); } finally { delete window[cbName]; s.remove(); } };
+  const s = document.createElement("script");
+  s.src = url + (url.includes("?") ? "&" : "?") + "callback=" + cbName;
+  s.async = true;
+  s.onerror = () => toast("Load failed", false);
+  document.head.appendChild(s);
+}
+
+function onCampaignsLoaded(res, restoreMailerId = null){
+  // Backend returns array directly, not wrapped in {mailers: []}
+  let mailers = Array.isArray(res) ? res : (res && res.mailers) ? res.mailers : [];
+
+  // Sort by date (newest first), then by town (alphabetically)
+  mailers = mailers.sort((a, b) => {
+    // Compare dates in descending order (newest first)
+    const dateA = a.Mail_Date || '';
+    const dateB = b.Mail_Date || '';
+    if (dateA !== dateB) {
+      return dateB.localeCompare(dateA); // Reverse order for descending
+    }
+    // If dates are the same, sort by town alphabetically
+    const townA = (a.Town || '').toLowerCase();
+    const townB = (b.Town || '').toLowerCase();
+    return townA.localeCompare(townB);
+  });
+
+  state.mailers = mailers;
+  const selectHtml = '<option value="">— Select —</option>' +
+    mailers.map((m,i)=>{
+      // Format date: handle both formatted strings and date objects
+      let displayDate = m.Mail_Date || "";
+
+      // Check if it's already in "Month Year" format (like "December 2025")
+      const isMonthYearFormat = displayDate && /^[A-Za-z]+ \d{4}$/.test(displayDate);
+
+      if (!isMonthYearFormat && displayDate) {
+        // Parse and format the date (handle ISO format YYYY-MM-DD)
+        try {
+          // If it's ISO format (YYYY-MM-DD), parse it without timezone issues
+          if (/^\d{4}-\d{2}-\d{2}/.test(displayDate)) {
+            const [year, month] = displayDate.split('-');
+            const monthNames = ["", "January", "February", "March", "April", "May", "June",
+                                "July", "August", "September", "October", "November", "December"];
+            displayDate = `${monthNames[parseInt(month)]} ${year}`;
+          } else {
+            const date = new Date(displayDate);
+            if (!isNaN(date.getTime())) {
+              displayDate = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            }
+          }
+        } catch (e) {
+          // Keep original if parsing fails
+        }
+      }
+
+      const sizeLabel = m.Postcard_Size ? ` (${m.Postcard_Size})` : '';
+      return `<option value="${i}">${esc(m.Town)} — ${displayDate}${sizeLabel}</option>`;
+    }).join("");
+  const selManager = document.getElementById("postcardSelect");
+
+  if (selManager) {
+    selManager.innerHTML = selectHtml;
+    selManager.onchange = pickCampaign;
+  }
+
+  // Populate town and month dropdowns
+  populateTownAndMonthSelectors();
+
+  renderAll();
+
+  // Determine which postcard to select
+  let selectedIndex = -1;
+
+  // If restoring a specific campaign, find it by Mailer_ID
+  let mailerIdToRestore = restoreMailerId;
+
+  // If no restoreMailerId provided, check localStorage (for page refresh)
+  if (!mailerIdToRestore) {
+    const savedMailerId = safeGetItem('mailslot-selectedMailerId');
+    if (savedMailerId) {
+      mailerIdToRestore = savedMailerId;
+      console.log('📂 Found saved campaign in localStorage:', savedMailerId);
+    }
+  }
+
+  if (mailerIdToRestore) {
+    console.log('🔍 Looking for mailer_id:', mailerIdToRestore, 'type:', typeof mailerIdToRestore);
+    console.log('🔍 Available mailer_ids:', mailers.map(m => ({id: m.Mailer_ID, type: typeof m.Mailer_ID, town: m.Town})));
+
+    // Try both strict and loose comparison in case of type mismatch
+    selectedIndex = mailers.findIndex(m => m.Mailer_ID === mailerIdToRestore || m.Mailer_ID == mailerIdToRestore);
+
+    if (selectedIndex !== -1) {
+      console.log('📌 Restoring campaign:', mailers[selectedIndex].Town, mailers[selectedIndex].Mail_Date);
+    } else {
+      console.warn('⚠️ Could not find campaign with mailer_id:', mailerIdToRestore);
+    }
+  }
+
+  // If not found or no restore ID, auto-select the most recent postcard (last in array)
+  if (selectedIndex === -1 && mailers.length > 0) {
+    selectedIndex = mailers.length - 1;
+  }
+
+  if (selectedIndex !== -1) {
+    if (selManager) selManager.value = selectedIndex.toString();
+
+    // Set town and month selectors to match the selected postcard
+    const selected = mailers[selectedIndex];
+    const townSelect = document.getElementById("headerTownSelect");
+    const monthSelect = document.getElementById("headerMonthSelect");
+    if (townSelect && selected.Town) {
+      townSelect.value = selected.Town;
+      populateMonthsForTown(selected.Town); // Populate month dropdown without triggering events
+      if (monthSelect && selected.Mail_Date) monthSelect.value = selected.Mail_Date;
+    }
+
+    pickCampaign({ target: { value: selectedIndex.toString() } });
+  }
+
+  // Render cards in progress on dashboard
+  renderCardsInProgress();
+}
+
+// Populate town selector from available mailers
+function populateTownAndMonthSelectors() {
+  const townSelect = document.getElementById("headerTownSelect");
+
+  if (!townSelect) return;
+
+  // Get unique towns (sorted alphabetically)
+  const towns = [...new Set(state.mailers.map(m => m.Town))].sort();
+
+  // Populate town dropdown
+  townSelect.innerHTML = '<option value="">— Select Town —</option>' +
+    towns.map(town => `<option value="${esc(town)}">${esc(town)}</option>`).join('');
+
+  // Month dropdown will be populated when town is selected
+  const monthSelect = document.getElementById("headerMonthSelect");
+  if (monthSelect) {
+    monthSelect.innerHTML = '<option value="">— Select Town First —</option>';
+    monthSelect.disabled = true;
+  }
+}
+
+// When town changes, populate month dropdown with only months for that town
+function onTownChanged() {
+  // Prevent circular updates when syncing dropdowns programmatically
+  if (state.updatingSelectors) return;
+
+  const townSelect = document.getElementById("headerTownSelect");
+  const monthSelect = document.getElementById("headerMonthSelect");
+
+  if (!townSelect || !monthSelect) return;
+
+  const selectedTown = townSelect.value;
+
+  if (!selectedTown) {
+    // No town selected, disable month dropdown
+    monthSelect.innerHTML = '<option value="">— Select Town First —</option>';
+    monthSelect.disabled = true;
+    return;
+  }
+
+  // Filter mailers for this town only
+  const townMailers = state.mailers.filter(m => m.Town === selectedTown);
+
+  if (townMailers.length === 0) {
+    monthSelect.innerHTML = '<option value="">— No cards for this town —</option>';
+    monthSelect.disabled = true;
+    return;
+  }
+
+  // Get months for this town (sorted by date descending - newest first)
+  const monthDates = townMailers.map(m => m.Mail_Date).sort((a, b) => b.localeCompare(a));
+
+  // Enable and populate month dropdown
+  monthSelect.disabled = false;
+  monthSelect.innerHTML = '<option value="">— Select Month —</option>' +
+    monthDates.map(date => {
+      // Find the mailer for this date to get its size
+      const mailer = townMailers.find(m => m.Mail_Date === date);
+      let displayDate = date;
+      if (/^\d{4}-\d{2}-\d{2}/.test(date)) {
+        const [year, month] = date.split('-');
+        const monthNames = ["", "January", "February", "March", "April", "May", "June",
+                            "July", "August", "September", "October", "November", "December"];
+        displayDate = `${monthNames[parseInt(month)]} ${year}`;
+      }
+      // Add size indicator to label
+      const sizeLabel = mailer?.Postcard_Size ? ` (${mailer.Postcard_Size})` : '';
+      return `<option value="${esc(date)}">${esc(displayDate)}${sizeLabel}</option>`;
+    }).join('');
+
+  // If there's only one month for this town, auto-select it
+  if (monthDates.length === 1) {
+    monthSelect.value = monthDates[0];
+    updatePostcardFromSelectors();
+  } else {
+    // Town changed but no month auto-selected - refresh prospect pool to show prospects for this town
+    renderProspectPool();
+  }
+}
+
+// Update selected postcard when town or month selector changes
+function updatePostcardFromSelectors() {
+  // Prevent circular updates when syncing dropdowns programmatically
+  if (state.updatingSelectors) return;
+
+  const townSelect = document.getElementById("headerTownSelect");
+  const monthSelect = document.getElementById("headerMonthSelect");
+
+  if (!townSelect || !monthSelect) return;
+
+  const selectedTown = townSelect.value;
+  const selectedMonth = monthSelect.value;
+
+  // If either is not selected, don't do anything
+  if (!selectedTown || !selectedMonth) {
+    return;
+  }
+
+  // Find the postcard that matches both town and month
+  const matchingIndex = state.mailers.findIndex(m =>
+    m.Town === selectedTown && m.Mail_Date === selectedMonth
+  );
+
+  if (matchingIndex !== -1) {
+    // Update the manager selector if it exists
+    const selManager = document.getElementById("postcardSelect");
+    if (selManager) selManager.value = matchingIndex.toString();
+
+    // Select this postcard
+    pickCampaign({ target: { value: matchingIndex.toString() } });
+  } else {
+    toast('No postcard found for this town and month combination', false);
+  }
+}
+
+/* ========= LEGEND & SORT ========= */
+function renderLegend(){
+  const grid = document.getElementById("legendGrid");
+  if (!grid) return; // Legend moved to Edit Status modal
+  grid.innerHTML = "";
+  const visibleSorted = sortOrder.filter(st => visibleStatuses.includes(st));
+  visibleSorted.forEach(st => {
+    const item = document.createElement("div");
+    item.className = "legend-item";
+    const dot = document.createElement("span");
+    dot.className = `legend-dot`;
+    dot.style.backgroundColor = STATUS_HEX[st] || GRADIENT_HEX[0];
+    const txt = document.createElement("span");
+    txt.textContent = st;
+    item.appendChild(dot);
+    item.appendChild(txt);
+    grid.appendChild(item);
+  });
+  requestAnimationFrame(() => {
+    const children = Array.from(grid.children);
+    let totalW = 0;
+    children.forEach((c) => {
+      const r = c.getBoundingClientRect();
+      totalW += Math.ceil(r.width);
+    });
+    const gap = 8 * (children.length - 1);
+    const needed = totalW + gap;
+    const available = grid.clientWidth;
+    if (needed <= available) {
+      grid.style.flexWrap = 'nowrap';
+    } else {
+      grid.style.flexWrap = 'wrap';
+    }
+  });
+}
+
+/* ========= PICK CAMPAIGN ========= */
+function pickCampaign(e){
+  const i = e.target.value;
+  if (!state.mailers[i]) {
+    state.current = null;
+    state.availability = {};
+    state.initial = {};
+    state.merged.clear();
+    state.selected.clear();
+    state.dirty = false;
+    renderAll();
+    updateFinancialDashboard();
+    // Clear localStorage selection
+    safeRemoveItem('mailslot-selectedMailerId');
+    return;
+  }
+  const m = state.mailers[i];
+  state.current = m;
+
+  // Save selected campaign to localStorage for page refresh persistence
+  if (m.Mailer_ID) {
+    safeSetItem('mailslot-selectedMailerId', m.Mailer_ID);
+  }
+  state.availability = {};
+  state.initial = {};
+  state.merged.clear();
+  state.selected.clear();
+  state.dirty = false;
+  updateToolbar();
+
+  console.log('📋 LOADING POSTCARD:', {
+    Mailer_ID: m.Mailer_ID,
+    Town: m.Town,
+    Mail_Date: m.Mail_Date,
+    spots_sample: {
+      Spot_1: m.Spot_1,
+      Spot_2: m.Spot_2,
+      Spot_3: m.Spot_3
+    }
+  });
+
+  for (let s=1; s<=18; s++){
+    // Get spot data directly from mailer object (comes from sheet columns Spot_1, Spot_2, etc.)
+    const raw = m[`Spot_${s}`] || "Available";
+    if (/^available$/i.test(raw)) {
+      state.availability[`Spot_${s}`] = { name:"", status:"Available" };
+      state.initial[`Spot_${s}`] = "";
+    } else {
+      const m2 = String(raw).match(/^(.+?)\s*:\s*(.*)$/);
+      let long = "Proof In Progress", name = "";
+      if (m2) { long = m2[1].trim(); name = (m2[2]||"").trim(); }
+      state.availability[`Spot_${s}`] = { name, status:long };
+      state.initial[`Spot_${s}`] = `${long}:${name}`;
+    }
+  }
+
+  // Load ad images from cloud storage
+  loadAdImagesFromCloud(m.Mailer_ID).then(() => {
+    // Re-render after images are loaded
+    renderAll();
+  });
+
+  // Load colors: use postcard data if available, otherwise fall back to localStorage
+  if (m.Postcard_BG) {
+    stagedColors.Postcard_BG = m.Postcard_BG;
+    savePostcardBg(m.Postcard_BG);
+  } else {
+    // Fall back to localStorage
+    stagedColors.Postcard_BG = loadPostcardBg();
+    m.Postcard_BG = stagedColors.Postcard_BG; // Update postcard data with loaded color
+  }
+  document.getElementById('pickerPostcard').value = stagedColors.Postcard_BG;
+
+  if (m.Banner_BG) {
+    stagedColors.Banner_BG = m.Banner_BG;
+    saveBannerBg(m.Banner_BG);
+  } else {
+    // Fall back to localStorage
+    stagedColors.Banner_BG = loadBannerBg();
+    m.Banner_BG = stagedColors.Banner_BG; // Update postcard data with loaded color
+  }
+  document.getElementById('pickerBanner').value = stagedColors.Banner_BG;
+
+  applyStagedColors();
+  
+  PAIRS.forEach(([a,b])=>{
+    const A = (state.availability[`Spot_${a}`].name||"").toLowerCase().trim().replace(/\s+/g,' ');
+    const B = (state.availability[`Spot_${b}`].name||"").toLowerCase().trim().replace(/\s+/g,' ');
+    if (A && A===B) state.merged.add(keyPair(a,b));
+    else state.merged.delete(keyPair(a,b));
+  });
+  
+  show(document.getElementById("legendArea"), true);
+  renderAll();
+  updateFinancialDashboard();
+  checkRenewals();
+
+  // Sync all dropdowns
+  const selManager = document.getElementById("postcardSelect");
+  const townSelect = document.getElementById("headerTownSelect");
+  const monthSelect = document.getElementById("headerMonthSelect");
+
+  if (selManager) selManager.value = i;
+
+  // Update town and month selectors to match current postcard
+  // Set flag to prevent circular updates/infinite recursion
+  state.updatingSelectors = true;
+  try {
+    if (townSelect && m.Town) {
+      townSelect.value = m.Town;
+      // Manually populate month dropdown without triggering events
+      populateMonthsForTown(m.Town);
+      if (monthSelect && m.Mail_Date) monthSelect.value = m.Mail_Date;
+    }
+  } finally {
+    // Always clear the flag, even if there's an error
+    state.updatingSelectors = false;
+  }
+}
+
+// Helper function to populate months without triggering onchange events
+function populateMonthsForTown(town) {
+  const monthSelect = document.getElementById("headerMonthSelect");
+  if (!monthSelect) return;
+
+  const townMailers = state.mailers.filter(m => m.Town === town);
+
+  if (townMailers.length === 0) {
+    monthSelect.innerHTML = '<option value="">— No cards for this town —</option>';
+    monthSelect.disabled = true;
+    return;
+  }
+
+  // Get months for this town (sorted by date descending - newest first)
+  const monthDates = townMailers.map(m => m.Mail_Date).sort((a, b) => b.localeCompare(a));
+
+  // Enable and populate month dropdown
+  monthSelect.disabled = false;
+  monthSelect.innerHTML = '<option value="">— Select Month —</option>' +
+    monthDates.map(date => {
+      // Find the mailer for this date to get its size
+      const mailer = townMailers.find(m => m.Mail_Date === date);
+      let displayDate = date;
+      if (/^\d{4}-\d{2}-\d{2}/.test(date)) {
+        const [year, month] = date.split('-');
+        const monthNames = ["", "January", "February", "March", "April", "May", "June",
+                            "July", "August", "September", "October", "November", "December"];
+        displayDate = `${monthNames[parseInt(month)]} ${year}`;
+      }
+      // Add size indicator to label
+      const sizeLabel = mailer?.Postcard_Size ? ` (${mailer.Postcard_Size})` : '';
+      return `<option value="${esc(date)}">${esc(displayDate)}${sizeLabel}</option>`;
+    }).join('');
+}
+
+/* ========= RENDERING ========= */
+function renderAll(){
+  renderFront();
+  renderBack();
+  updateToolbar();
+
+  // Apply size-specific CSS class to postcard containers
+  const frontPostcard = document.getElementById("frontPostcard");
+  const backPostcard = document.getElementById("backPostcard");
+
+  if (frontPostcard && backPostcard) {
+    // Remove existing size classes
+    frontPostcard.classList.remove('size-9x12', 'size-6x12');
+    backPostcard.classList.remove('size-9x12', 'size-6x12');
+
+    // Apply appropriate size class based on Postcard_Size
+    const size = state.current?.Postcard_Size || '9x12';
+    const sizeClass = size === '6.5x12' ? 'size-6x12' : 'size-9x12';
+
+    frontPostcard.classList.add(sizeClass);
+    backPostcard.classList.add(sizeClass);
+  }
+}
+
+// ========== GETTING STARTED CHECKLIST ==========
+function renderGettingStartedChecklist() {
+  // Check if user has dismissed it
+  if (localStorage.getItem('gettingStartedDismissed') === 'true') {
+    const widget = document.getElementById('gettingStartedWidget');
+    if (widget) widget.style.display = 'none';
+    return;
+  }
+
+  const checklist = [
+    {
+      id: 'create_campaign',
+      label: 'Create your first campaign',
+      check: () => state.all && state.all.length > 0,
+      action: () => switchTab('manager')
+    },
+    {
+      id: 'generate_prospects',
+      label: 'Generate prospects with Prospect Generator',
+      check: () => {
+        // Check if any prospects exist in cache
+        return placesCache.searches && Object.keys(placesCache.searches).length > 0;
+      },
+      action: () => switchTab('lead-generation')
+    },
+    {
+      id: 'review_prospects',
+      label: 'Review & select prospects from Prospect Pool',
+      check: () => prospectPoolState.selectedProspects && prospectPoolState.selectedProspects.length > 0,
+      action: () => switchTab('prospects')
+    },
+    {
+      id: 'add_to_pipeline',
+      label: 'Add prospects to your sales pipeline',
+      check: () => kanbanState.columns && Object.values(kanbanState.columns).some(col => col.length > 0),
+      action: () => switchTab('pipeline')
+    },
+    {
+      id: 'mark_reserved',
+      label: 'Mark your first spot as "Reserved" or "Paid"',
+      check: () => {
+        if (!state.current || !state.current.spots) return false;
+        return state.current.spots.some(spot => spot.status === 'RESERVED' || spot.status === 'PAID');
+      },
+      action: () => switchTab('manager')
+    }
+  ];
+
+  let completed = 0;
+  const html = checklist.map(item => {
+    const isComplete = item.check();
+    if (isComplete) completed++;
+
+    return `
+      <div class="flex items-center gap-3 p-3 bg-white rounded-lg border ${isComplete ? 'border-green-300' : 'border-gray-200'} transition-all">
+        <div class="flex-shrink-0">
+          ${isComplete
+            ? '<svg class="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>'
+            : '<svg class="w-6 h-6 text-gray-300" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 011-1h4a1 1 0 110 2H8a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg>'
+          }
+        </div>
+        <span class="flex-1 text-sm font-medium ${isComplete ? 'text-green-800 line-through' : 'text-gray-700'}">${item.label}</span>
+        ${!isComplete ? `<button onclick="event.stopPropagation(); (${item.action.toString()})()" class="px-3 py-1 text-xs font-bold text-indigo-600 hover:bg-indigo-50 rounded transition">Go →</button>` : ''}
+      </div>
+    `;
+  }).join('');
+
+  const container = document.getElementById('checklistItems');
+  if (container) {
+    container.innerHTML = html;
+  }
+
+  const progress = document.getElementById('checklistProgress');
+  if (progress) {
+    progress.textContent = `${completed} of ${checklist.length} complete`;
+  }
+
+  // Hide widget if all complete
+  if (completed === checklist.length) {
+    setTimeout(() => {
+      const widget = document.getElementById('gettingStartedWidget');
+      if (widget) {
+        widget.style.transition = 'opacity 0.5s';
+        widget.style.opacity = '0';
+        setTimeout(() => {
+          widget.style.display = 'none';
+        }, 500);
+      }
+    }, 2000);
+  }
+}
+
+function dismissGettingStarted() {
+  localStorage.setItem('gettingStartedDismissed', 'true');
+  const widget = document.getElementById('gettingStartedWidget');
+  if (widget) {
+    widget.style.transition = 'opacity 0.3s';
+    widget.style.opacity = '0';
+    setTimeout(() => {
+      widget.style.display = 'none';
+    }, 300);
+  }
+}
+
+// ========== CONTRACTS EXPIRING WIDGET ==========
+function renderContractsExpiring() {
+  const container = document.getElementById('contractsExpiringList');
+  if (!container) return;
+
+  // Check if crmState exists and has clients
+  if (!crmState || !crmState.clients) {
+    container.innerHTML = `
+      <div class="text-center py-6 text-gray-500">
+        <p class="text-sm">Loading clients...</p>
+      </div>
+    `;
+    return;
+  }
+
+  // Get all clients with active contracts
+  const allClients = Object.values(crmState.clients);
+  const clientsWithContracts = allClients.filter(client => {
+    return client.contractEnabled && client.contractStartDate && client.contractLength;
+  });
+
+  // Calculate expiration dates and filter for next 90 days
+  const now = new Date();
+  const ninetyDaysFromNow = new Date(now.getTime() + (90 * 24 * 60 * 60 * 1000));
+
+  const expiringContracts = clientsWithContracts
+    .map(client => {
+      const startDate = new Date(client.contractStartDate);
+      const endDate = new Date(startDate);
+      endDate.setMonth(endDate.getMonth() + parseInt(client.contractLength));
+
+      const daysUntilExpiry = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+
+      return {
+        client,
+        endDate,
+        daysUntilExpiry
+      };
+    })
+    .filter(item => item.daysUntilExpiry >= 0 && item.daysUntilExpiry <= 90)
+    .sort((a, b) => a.daysUntilExpiry - b.daysUntilExpiry);
+
+  if (expiringContracts.length === 0) {
+    container.innerHTML = `
+      <div class="text-center py-6 text-gray-500">
+        <svg class="w-12 h-12 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        <p class="text-sm font-medium">No contracts expiring soon</p>
+        <p class="text-xs text-gray-400 mt-1">You're all set for the next 90 days!</p>
+      </div>
+    `;
+    return;
+  }
+
+  const html = expiringContracts.slice(0, 5).map(item => {
+    const urgency = item.daysUntilExpiry <= 7 ? 'urgent' : item.daysUntilExpiry <= 30 ? 'warning' : 'normal';
+    const colorClass = urgency === 'urgent' ? 'border-red-300 bg-red-50' : urgency === 'warning' ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-white';
+    const textColor = urgency === 'urgent' ? 'text-red-700' : urgency === 'warning' ? 'text-amber-700' : 'text-gray-700';
+
+    return `
+      <div class="flex items-center justify-between p-3 border rounded-lg ${colorClass} transition-all hover:shadow-md">
+        <div class="flex-1">
+          <p class="font-bold text-sm ${textColor}">${item.client.name}</p>
+          <p class="text-xs text-gray-600">Expires ${item.endDate.toLocaleDateString()}</p>
+        </div>
+        <div class="text-right">
+          <p class="text-lg font-black ${textColor}">${item.daysUntilExpiry}</p>
+          <p class="text-xs text-gray-500">${item.daysUntilExpiry === 1 ? 'day' : 'days'}</p>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  container.innerHTML = html;
+
+  if (expiringContracts.length > 5) {
+    container.innerHTML += `
+      <div class="text-center pt-2">
+        <button onclick="switchTab('clients')" class="text-sm text-indigo-600 hover:text-indigo-800 font-semibold">
+          View all ${expiringContracts.length} contracts →
+        </button>
+      </div>
+    `;
+  }
+}
+
+function renderCardsInProgress() {
+  const container = document.getElementById('cardsInProgressSection');
+  if (!container) {
+    console.warn('cardsInProgressSection container not found');
+    return;
+  }
+
+  console.log('Rendering cards in progress. Total mailers:', state.mailers.length);
+
+
+  // Filter postcards that are "in progress" (not fully sold - includes 0 spots sold)
+  const inProgressCards = state.mailers.filter(campaign => {
+    const financials = calculateFinancials(campaign.Mailer_ID, campaign);
+    if (!financials) {
+      console.log('No financials for', campaign.Town, campaign.Mail_Date);
+      return false;
+    }
+    const spotsSold = financials.metrics.spotsSold;
+    const totalSpots = financials.metrics.effectiveTotalSpots;
+    console.log(`${campaign.Town}: ${spotsSold}/${totalSpots} spots`);
+    return spotsSold >= 0 && spotsSold < totalSpots;
+  });
+
+  console.log('Cards in progress:', inProgressCards.length);
+
+  if (inProgressCards.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  // Sort by date (soonest/earliest date first)
+  inProgressCards.sort((a, b) => {
+    const dateA = a.Mail_Date || '';
+    const dateB = b.Mail_Date || '';
+    return dateA.localeCompare(dateB); // Ascending order (earliest first)
+  });
+
+  // Build HTML
+  let html = `
+    <div class="mb-4">
+      <h4 class="text-lg font-bold text-gray-800">You have ${inProgressCards.length} Card${inProgressCards.length !== 1 ? 's' : ''} in Progress</h4>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+  `;
+
+  inProgressCards.forEach(campaign => {
+    const financials = calculateFinancials(campaign.Mailer_ID, campaign);
+    if (!financials) return;
+
+    const spotsSold = financials.metrics.spotsSold;
+    const totalSpots = financials.metrics.effectiveTotalSpots;
+    const percent = Math.round(financials.metrics.progressPercent);
+
+    // Extract month name from Mail_Date
+    let monthName = campaign.Mail_Date;
+    try {
+      if (/^\d{4}-\d{2}-\d{2}/.test(campaign.Mail_Date)) {
+        const month = parseInt(campaign.Mail_Date.split('-')[1]);
+        const monthNames = ["", "January", "February", "March", "April", "May", "June",
+                            "July", "August", "September", "October", "November", "December"];
+        monthName = monthNames[month] || campaign.Mail_Date;
+      }
+    } catch (e) {
+      // Keep original if parsing fails
+    }
+
+    html += `
+      <div class="dashboard-widget cursor-pointer hover:shadow-xl hover:scale-105 transition-all duration-200 border-2 border-indigo-200"
+           onclick="openPostcardCard('${campaign.Town.replace(/'/g, "\\'")}', '${campaign.Mail_Date}')">
+        <div class="metric-label text-indigo-800 font-bold">${campaign.Town.toUpperCase()}</div>
+        <div class="text-sm text-gray-600 mb-2">${monthName}</div>
+        <div class="metric-value text-indigo-600 text-lg">${spotsSold}/${totalSpots}</div>
+        <div class="text-sm text-gray-500">${percent}% complete</div>
+        <div class="w-full h-2 bg-gray-200 rounded-full mt-2">
+          <div class="h-2 bg-indigo-500 rounded-full transition-all duration-300" style="width: ${percent}%;"></div>
+        </div>
+      </div>
+    `;
+  });
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function openPostcardCard(town, mailDate) {
+  // Set the selectors to the correct town and month
+  const townSelect = document.getElementById("headerTownSelect");
+  const monthSelect = document.getElementById("headerMonthSelect");
+
+  if (townSelect && monthSelect) {
+    townSelect.value = town;
+    monthSelect.value = mailDate;
+  }
+
+  // Switch to the manager (Postcards & Activation) tab
+  switchTab('manager');
+
+  // Update the postcard view
+  updatePostcardFromSelectors();
+}
+
+function renderFront(){
+  const grid = document.getElementById("frontGrid");
+  grid.innerHTML = "";
+  if (!state.current) {
+    renderPlaceholderFront(grid);
+    return;
+  }
+  renderRow(grid,1,4);
+  const banner = document.createElement("div");
+  banner.className = "card col-span-4 banner";
+  const town = state.current?.Town || "";
+  const md = state.current?.Mail_Date || "";
+
+  // Extract month name from mail date (e.g., "2025-12-01" -> "December")
+  // Parse ISO format without timezone issues
+  let monthName = "";
+  if (md) {
+    try {
+      if (/^\d{4}-\d{2}-\d{2}/.test(md)) {
+        // ISO format: extract month directly from string to avoid timezone issues
+        const month = parseInt(md.split('-')[1]);
+        const monthNames = ["", "January", "February", "March", "April", "May", "June",
+                            "July", "August", "September", "October", "November", "December"];
+        monthName = monthNames[month] || "";
+      } else {
+        const date = new Date(md);
+        monthName = date.toLocaleString('en-US', { month: 'long' });
+      }
+    } catch (e) {
+      monthName = "";
+    }
+  }
+
+  // Show just town and month (e.g., "KENMORE — December")
+  const fullText = monthName ? `${town.toUpperCase()} — ${monthName.toUpperCase()}` : town.toUpperCase();
+  const span = document.createElement('span');
+  span.className = 'banner-text';
+  span.textContent = fullText;
+  span.setAttribute('aria-label', fullText);
+  span.setAttribute('title', fullText); // Tooltip for overflow text
+
+  // Apply banner colors directly
+  banner.style.backgroundColor = stagedColors.Banner_BG || '#000000';
+  banner.style.color = useLightTextOn(stagedColors.Banner_BG || '#000000') ? '#ffffff' : '#0f172a';
+  const border = shadeBlend(stagedColors.Banner_BG || '#000000', -0.12) || '#e5e7eb';
+  banner.style.borderColor = border;
+
+  banner.appendChild(span);
+  grid.appendChild(banner);
+  renderRow(grid,5,8);
+}
+
+function renderBack(){
+  const grid = document.getElementById("backGrid");
+  grid.innerHTML = "";
+  if (!state.current) {
+    renderPlaceholderBack(grid);
+    return;
+  }
+  renderRow(grid,9,12);
+  // Check if spots 13-14 are merged OR both selected
+  const bothSelected = state.selected.has(13) && state.selected.has(14);
+  if (state.merged.has(keyPair(13,14)) || bothSelected) {
+    const A = state.availability["Spot_13"], B = state.availability["Spot_14"];
+    const name = A.name || B.name || "Merged Banner";
+    const st = A.name ? A.status : (B.name ? B.status : "Available");
+    const mergedEl = cardButtonSafe({label:"Spots 13–14", name, status:st, span4:true, selected:isSel([13,14]), spots:[13,14]});
+    mergedEl.addEventListener("click", ()=>toggle([13,14],"back"));
+    grid.appendChild(mergedEl);
+  } else {
+    const sp13 = cardButtonSafe({label:"Spot 13", name:(state.availability["Spot_13"]?.name || "Available"), status: (state.availability["Spot_13"]?.status || "Available"), span2:true, selected: state.selected.has(13), spots:[13]});
+    sp13.addEventListener("click", ()=>toggle([13],"back"));
+    grid.appendChild(sp13);
+    const sp14 = cardButtonSafe({label:"Spot 14", name:(state.availability["Spot_14"]?.name || "Available"), status: (state.availability["Spot_14"]?.status || "Available"), span2:true, selected: state.selected.has(14), spots:[14]});
+    sp14.addEventListener("click", ()=>toggle([14],"back"));
+    grid.appendChild(sp14);
+  }
+  renderRow(grid,15,18,"back");
+}
+
+function renderRow(grid, a, b, side="front"){
+  for (let i=a; i<=b; i+=2){
+    // Check if spots are merged OR both selected
+    const bothSelected = state.selected.has(i) && state.selected.has(i+1);
+    if (state.merged.has(keyPair(i,i+1)) || bothSelected){
+      const A = state.availability[`Spot_${i}`], B = state.availability[`Spot_${i+1}`];
+      const name = A.name || B.name || "Merged Ad";
+      const st = A.name ? A.status : (B.name ? B.status : "Available");
+      const btn = cardButtonSafe({label:`Spots ${i}-${i+1}`, name, status:st, span2:true, selected:isSel([i,i+1]), spots:[i,i+1]});
+      btn.addEventListener("click", ()=>toggle([i,i+1], side));
+      grid.appendChild(btn);
+    } else {
+      grid.appendChild(single(i,false,side));
+      grid.appendChild(single(i+1,false,side));
+    }
+  }
+}
+
+function single(i, span2=false, side="front"){
+  const s = state.availability[`Spot_${i}`] || { name:"", status:"Available" };
+  const btn = cardButtonSafe({label:`Spot ${i}`, name:(s.name || "Available"), status:s.status, span2, selected:state.selected.has(i), spots:[i]});
+  btn.addEventListener("click", ()=>toggle([i], side));
+  return btn;
+}
+
+function createTextNodeTag(tagName, text, className) {
+  const el = document.createElement(tagName);
+  if (className) el.className = className;
+  el.textContent = text;
+  return el;
+}
+
+function cardButtonSafe({label,name,status,selected=false,span2=false,span4=false,spots=[]}){
+  const el = document.createElement("button");
+  el.type = "button";
+  const span = span4 ? "col-span-4" : (span2 ? "col-span-2" : "");
+  const longStatus = normalizeStatusLong(status);
+  el.className = `card ${span} ${selected ? "selected" : ""}`;
+  el.style.backgroundColor = STATUS_HEX[longStatus] || GRADIENT_HEX[0];
+  el.style.borderColor = shadeBlend(STATUS_HEX[longStatus] || GRADIENT_HEX[0], -0.2) || '#f59e0b';
+  el.style.color = useLightTextOn(STATUS_HEX[longStatus] || GRADIENT_HEX[0]) ? 'white' : '#0f172a';
+  el.setAttribute("aria-pressed", selected ? "true" : "false");
+  el.tabIndex = 0;
+  const match = label.match(/\d+/);
+  if (match) el.dataset.spot = match[0];
+  
+  const labelEl = createTextNodeTag('div', label, 'spot-label');
+  const nameEl = createTextNodeTag('div', name);
+  const badge = createTextNodeTag('div', longStatus, 'status-badge');
+  badge.style.backgroundColor = shadeBlend(STATUS_HEX[longStatus] || GRADIENT_HEX[0], 0.1) || 'rgba(255,255,255,.96)';
+  
+  el.appendChild(labelEl);
+  el.appendChild(nameEl);
+  el.appendChild(badge);
+  
+  // Add price badge if spot is sold and has a price
+  if (state.current && spots.length > 0 && longStatus !== "Available") {
+    const spotNum = spots[0];
+    const priceKey = normalizePriceKey(state.current.Mailer_ID, spotNum);
+    const customSpotPrice = productionState.spotPricing[priceKey];
+    const pricing = productionState.pricing[state.current.Mailer_ID];
+
+    // Use same 3-step pricing logic as calculateFinancials
+    let price;
+    if (customSpotPrice !== undefined && customSpotPrice !== null && customSpotPrice > 0) {
+      // 1. Custom spot price (manually set)
+      price = parseFloat(customSpotPrice);
+    } else if (pricing) {
+      // 2. Set Pricing (singleAd/doubleAd/bannerAd)
+      const isMerged = spots.length > 1;
+      if (isMerged) {
+        price = parseFloat(pricing.doubleAd) || DEFAULT_SPOT_PRICE;
+      } else {
+        price = parseFloat(pricing.singleAd) || DEFAULT_SPOT_PRICE;
+      }
+    } else {
+      // 3. Fallback default
+      price = DEFAULT_SPOT_PRICE;
+    }
+
+    const priceBadge = createTextNodeTag('div', formatCurrency(price), 'price-badge');
+    el.appendChild(priceBadge);
+
+    // Add camera icon badge if this spot has an ad image
+    const spotKey = `Spot_${spotNum}`;
+    if (state.availability[spotKey]?.adImage) {
+      const cameraBadge = createTextNodeTag('div', '📷', 'camera-badge');
+      cameraBadge.style.cssText = 'position: absolute; top: 6px; right: 8px; font-size: 0.9rem; background: rgba(59, 130, 246, 0.9); color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold;';
+      cameraBadge.title = 'Has ad image';
+      el.appendChild(cameraBadge);
+    }
+  }
+  
+  // Add ad image if it exists (for non-Available spots)
+  if (longStatus !== "Available" && spots.length > 0) {
+    const spotNum = spots[0];
+    const spotKey = `Spot_${spotNum}`;
+    const adImage = state.availability[spotKey]?.adImage;
+
+    if (adImage) {
+      const imgContainer = document.createElement('div');
+      imgContainer.className = 'ad-image-preview';
+      imgContainer.style.cssText = 'position: absolute; top: 35px; left: 8px; right: 8px; bottom: 35px; background-size: cover; background-position: center; background-repeat: no-repeat; border-radius: 6px; opacity: 0.9;';
+      imgContainer.style.backgroundImage = `url(${adImage})`;
+      imgContainer.title = 'Click to view full size';
+      imgContainer.onclick = (e) => {
+        e.stopPropagation();
+        viewAdImage(adImage, name);
+      };
+      el.appendChild(imgContainer);
+    }
+  }
+
+  // Add overlay edit button if selected
+  // When multiple spots are selected, only show button on the first (lowest numbered) spot
+  if (selected) {
+    const showButton = state.selected.size === 1 ||
+                      (spots.length > 0 && spots[0] === Math.min(...Array.from(state.selected)));
+
+    if (showButton) {
+      const overlay = document.createElement('div');
+      overlay.className = 'card-edit-overlay';
+      const editBtn = document.createElement('button');
+      // Show "EDIT SPOT" (singular) when multiple spots selected, "Edit Spot" otherwise
+      editBtn.textContent = state.selected.size > 1 ? '✎ EDIT SPOT' : '✎ Edit Spot';
+      editBtn.onclick = (e) => {
+        e.stopPropagation();
+        openEditModal();
+      };
+      overlay.appendChild(editBtn);
+      el.appendChild(overlay);
+    }
+  }
+  
+  el.addEventListener('keydown', (e) => {
+    if (e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault();
+      el.click();
+    }
+  });
+  return el;
+}
+
+function normalizeStatusLong(s) {
+  if (!s) return "Available";
+  const up = String(s).trim();
+  const map = {
+    "RESERVED": "Reserved",
+    "INVOICE": "Invoice Sent",
+    "DEPOSIT": "Deposit Paid",
+    "PROOF": "Proof In Progress",
+    "APPROVED": "Ad Approved",
+    "PAID": "Paid in Full",
+    "AVAIL": "Available"
+  };
+  if (map[up.toUpperCase()]) return map[up.toUpperCase()];
+  for (const k of CANONICAL_STATUSES) {
+    if (k.toLowerCase() === up.toLowerCase()) return k;
+  }
+  return up;
+}
+
+function renderPlaceholderFront(grid){
+  for (let i=1;i<=4;i++){
+    const el = createPlaceholderCard(`Spot ${i}`);
+    grid.appendChild(el);
+  }
+  const banner = document.createElement("div");
+  banner.className = "card col-span-4 banner placeholder";
+  banner.innerHTML = '<div class="banner-text" aria-label="TOWN — MONTH" title="TOWN — MONTH">TOWN — MONTH</div>';
+  banner.style.backgroundColor = '#000000';
+  banner.style.color = '#ffffff';
+  banner.style.borderColor = '#000000';
+  grid.appendChild(banner);
+  for (let i=5;i<=8;i++){
+    const el = createPlaceholderCard(`Spot ${i}`);
+    grid.appendChild(el);
+  }
+}
+
+function renderPlaceholderBack(grid){
+  for (let i=9;i<=12;i++){
+    const el = createPlaceholderCard(`Spot ${i}`);
+    grid.appendChild(el);
+  }
+  const p13 = createPlaceholderCard('Spot 13');
+  p13.classList.add('col-span-2');
+  grid.appendChild(p13);
+  const p14 = createPlaceholderCard('Spot 14');
+  p14.classList.add('col-span-2');
+  grid.appendChild(p14);
+  for (let i=15;i<=18;i++){
+    const el = createPlaceholderCard(`Spot ${i}`);
+    grid.appendChild(el);
+  }
+}
+
+function createPlaceholderCard(label, hidden=false, isSpan2=false){
+  const el = document.createElement("div");
+  el.className = "card placeholder";
+  if (isSpan2) el.classList.add('col-span-2');
+  el.style.justifyContent = "center";
+  if (hidden){
+    el.style.visibility = 'hidden';
+  } else {
+    const lbl = document.createElement("div");
+    lbl.textContent = label;
+    el.appendChild(lbl);
+  }
+  return el;
+}
+
+/* ========= SELECTION / TOOLBAR ========= */
+function toggle(spots, sideHint="front"){
+  spots.forEach(n => { state.selected.has(n) ? state.selected.delete(n) : state.selected.add(n); });
+  if (state.selected.size > 2){
+    const last = spots[spots.length-1];
+    const others = [...state.selected].filter(x => x !== last);
+    const mate = others.find(o => isValidPair(o,last));
+    state.selected.clear();
+    if (mate){ state.selected.add(mate); state.selected.add(last); }
+    else { state.selected.add(last); toast("Pick a valid pair", false); }
+  }
+  if (state.selected.size === 2){
+    const [a,b] = [...state.selected].sort((x,y)=>x-y);
+    if (!isValidPair(a,b)){
+      const last = spots[spots.length-1];
+      state.selected.clear();
+      state.selected.add(last);
+      toast("Pick a valid pair", false);
+    }
+  }
+  renderAll();
+}
+
+function isSel(arr){ return arr.every(n => state.selected.has(n)); }
+
+function updateToolbar(){
+  const saveBtn = document.getElementById("btnSaveCommit");
+  if (saveBtn) {
+    if (state.dirty){
+      saveBtn.disabled = false;
+      saveBtn.classList.remove("opacity-50","cursor-not-allowed");
+    } else {
+      saveBtn.disabled = true;
+      saveBtn.classList.add("opacity-50","cursor-not-allowed");
+    }
+  }
+}
+
+/* ========= MODAL & APPLY ========= */
+function openEditModal(){
+  if (!state.selected.size) return;
+
+  lastFocusedElementBeforeModal = document.activeElement;
+  const sel = [...state.selected].sort((a,b)=>a-b);
+
+  // Populate client dropdown
+  populateClientDropdown();
+
+  // Get pricing for this postcard (new system)
+  const mailerId = state.current.Mailer_ID;
+  const pricing = productionState.pricing[mailerId] || null;
+
+  if (sel.length === 1){
+    const s = state.availability[`Spot_${sel[0]}`] || {name:"", status:"Available"};
+    document.getElementById("editName").value = s.name || "";
+    document.getElementById("editStatus").value = toShortKey(s.status);
+
+    // Use new pricing system or fall back to old spot pricing
+    const priceKey = normalizePriceKey(mailerId, sel[0]);
+    const oldPrice = productionState.spotPricing[priceKey];
+    if (oldPrice) {
+      document.getElementById("editPrice").value = oldPrice;
+    } else if (pricing && pricing.singleAd) {
+      document.getElementById("editPrice").value = pricing.singleAd;
+    } else {
+      document.getElementById("editPrice").value = ""; // Empty instead of $500 default
+    }
+  } else {
+    const [a,b] = sel;
+    const A = state.availability[`Spot_${a}`] || {name:"", status:"Available"}, B = state.availability[`Spot_${b}`] || {name:"", status:"Available"};
+    const nm = (A.name && B.name && A.name.toLowerCase()===B.name.toLowerCase()) ? A.name : (A.name || B.name || "");
+    const st = nm ? (A.status!=="Available" ? A.status : (B.status!=="Available"?B.status:"Proof In Progress")) : "Available";
+    document.getElementById("editName").value = nm;
+    document.getElementById("editStatus").value = toShortKey(st);
+
+    // Use new pricing system for double ad or fall back to old spot pricing
+    const priceKey = normalizePriceKey(mailerId, a);
+    const oldPrice = productionState.spotPricing[priceKey];
+    if (oldPrice) {
+      document.getElementById("editPrice").value = oldPrice;
+    } else if (pricing && pricing.doubleAd) {
+      document.getElementById("editPrice").value = pricing.doubleAd;
+    } else {
+      document.getElementById("editPrice").value = ""; // Empty instead of $500 default
+    }
+  }
+
+  // Show/hide image preview based on whether spot has an ad image
+  const firstSpot = sel[0];
+  const spotKey = `Spot_${firstSpot}`;
+  const adImage = state.availability[spotKey]?.adImage;
+
+  const imagePreview = document.getElementById('editImagePreview');
+  const imageThumb = document.getElementById('editImageThumb');
+  const uploadBtn = document.getElementById('btnUploadAdImage');
+  const removeBtn = document.getElementById('btnRemoveAdImage');
+
+  if (adImage) {
+    // Show preview and remove button
+    imageThumb.src = adImage;
+    imagePreview.classList.remove('hidden');
+    uploadBtn.textContent = '📷 Change Ad Image';
+    removeBtn.classList.remove('hidden');
+  } else {
+    // Hide preview and remove button
+    imagePreview.classList.add('hidden');
+    uploadBtn.textContent = '📷 Upload Ad Image';
+    removeBtn.classList.add('hidden');
+  }
+
+  const modal = document.getElementById("editModal");
+  modal.style.display = "flex";
+  modal.setAttribute('aria-hidden', 'false');
+  trapModalFocus(modal);
+  document.getElementById("editName").focus();
+}
+
+// New function to handle save from BusinessModal
+async function applyEditModalWithData(data, selectedSpots) {
+  const name = String(data.name || "").replace(/\s+/g,' ').trim();
+  const short = data.status;
+  let long = toLongLabel(short);
+  const price = parseFloat(data.price) || DEFAULT_SPOT_PRICE;
+  const selectedClientId = data.linkedClientId;
+
+  // Auto-change status from Available to Reserved when name is entered
+  if (name && long === "Available") {
+    long = "Reserved";
+  }
+
+  const sel = selectedSpots.sort((a,b)=>a-b);
+
+  sel.forEach(spotNum => {
+    state.availability[`Spot_${spotNum}`] = { name, status: long };
+
+    // Store price in new pricing system
+    const mailerId = state.current.Mailer_ID;
+    const priceKey = normalizePriceKey(mailerId, spotNum);
+    productionState.spotPricing[priceKey] = price;
+
+    // Link to client if selected
+    if (selectedClientId) {
+      state.availability[`Spot_${spotNum}`].linkedClientId = selectedClientId;
+    }
+  });
+
+  await triggerSave();
+  renderGrid();
+}
+
+function trapModalFocus(modalEl) {
+  const dialog = modalEl.querySelector('.modal');
+  if (!dialog) return;
+  const focusable = dialog.querySelectorAll('a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])');
+  if (focusable.length === 0) return;
+  const first = focusable[0], last = focusable[focusable.length - 1];
+  function onKey(e) {
+    if (e.key === 'Escape') {
+      if (modalEl.id === 'editModal') closeEditModal();
+      else if (modalEl.id === 'postcardModal') closePostcardModal();
+      else if (modalEl.id === 'sortModal') closeSortModal();
+      else if (modalEl.id === 'expenseModal') closeExpenseModal();
+      else if (modalEl.id === 'clientModal') closeClientModal();
+      else if (modalEl.id === 'emailModal') closeEmailModal();
+      else if (modalEl.id === 'reportsModal') closeReportsModal();
+      return;
+    }
+    if (e.key === 'Tab') {
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault(); last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault(); first.focus();
+      }
+    }
+  }
+  modalEl.__trap = onKey;
+  modalEl.addEventListener('keydown', onKey);
+}
+
+function releaseModalFocus(modalEl) {
+  if (!modalEl) return;
+  if (modalEl.__trap) {
+    modalEl.removeEventListener('keydown', modalEl.__trap);
+    delete modalEl.__trap;
+  }
+}
+
+function closeEditModal(){
+  const modal = document.getElementById("editModal");
+  modal.style.display = "none";
+  modal.setAttribute('aria-hidden', 'true');
+  releaseModalFocus(modal);
+  if (lastFocusedElementBeforeModal && typeof lastFocusedElementBeforeModal.focus === 'function') {
+    lastFocusedElementBeforeModal.focus();
+  }
+}
+
+async function applyEditModal(){
+  const nameRaw = document.getElementById("editName").value;
+  const name = String(nameRaw || "").replace(/\s+/g,' ').trim();
+  const short = document.getElementById("editStatus").value;
+  let long = toLongLabel(short);
+  const price = parseFloat(document.getElementById("editPrice").value) || DEFAULT_SPOT_PRICE;
+  const selectedClientId = document.getElementById('editClient').value;
+
+  // Auto-change status from Available to Reserved when name is entered
+  if (name && long === "Available") {
+    long = "Reserved";
+  }
+
+  const sel = [...state.selected].sort((a,b)=>a-b);
+
+  sel.forEach(spotNum => {
+    const priceKey = normalizePriceKey(state.current.Mailer_ID, spotNum);
+    productionState.spotPricing[priceKey] = price;
+  });
+
+  // Save spot pricing to cloud (also saves to localStorage as backup)
+  await saveSpotPricing();
+  
+  if (sel.length === 2){
+    const [a,b] = sel;
+    if (name){
+      state.merged.add(keyPair(a,b));
+      state.availability[`Spot_${a}`] = { name, status: long };
+      state.availability[`Spot_${b}`] = { name, status: long };
+    } else {
+      state.merged.delete(keyPair(a,b));
+      state.availability[`Spot_${a}`] = { name:"", status:"Available" };
+      state.availability[`Spot_${b}`] = { name:"", status:"Available" };
+    }
+  } else if (sel.length === 1){
+    const a = sel[0];
+    const m = mateOf(a);
+    if (name){
+      state.availability[`Spot_${a}`] = { name, status: long };
+      if (m && state.merged.has(keyPair(a,m))){
+        state.merged.delete(keyPair(a,m));
+        state.availability[`Spot_${m}`] = { name:"", status:"Available" };
+      }
+    } else {
+      state.availability[`Spot_${a}`] = { name:"", status:"Available" };
+      if (m && state.merged.has(keyPair(a,m))){
+        state.merged.delete(keyPair(a,m));
+        state.availability[`Spot_${m}`] = { name:"", status:"Available" };
+      }
+    }
+  }
+  
+  // Link client if selected and status is Paid in Full
+  if (selectedClientId && state.current && name && long === "Paid in Full") {
+    const spotNum = sel[0];
+    linkClientToSpot(
+      selectedClientId,
+      spotNum,
+      `${state.current.Town} — ${state.current.Mail_Date}`,
+      price,
+      long
+    );
+    renderClientList();
+  }
+
+  state.dirty = true;
+
+  // Clear selection immediately after save
+  state.selected.clear();
+
+  closeEditModal();
+  renderAll();
+  updateFinancialDashboard();
+
+  // Save immediately to database (no delay)
+  saveToSheet();
+}
+
+// Upload Ad Image for a spot
+function uploadAdImage(spotNum) {
+  // Create file input
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.style.display = 'none';
+
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast('⚠️ Image too large. Please use an image under 5MB.', false);
+      return;
+    }
+
+    // Show loading toast
+    toast('📤 Uploading image...', true);
+
+    try {
+      // Convert to base64 for storage
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const base64Image = event.target.result;
+
+        // Store in state.availability
+        const spotKey = `Spot_${spotNum}`;
+        if (!state.availability[spotKey]) {
+          state.availability[spotKey] = { name: "", status: "Available" };
+        }
+        state.availability[spotKey].adImage = base64Image;
+
+        // Save ad images to cloud separately (they don't go in spot columns)
+        await saveAdImagesToCloud();
+
+        // Re-render to show image
+        renderAll();
+        toast('✅ Ad image uploaded successfully!', true);
+      };
+
+      reader.onerror = () => {
+        toast('❌ Failed to read image file', false);
+      };
+
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Error uploading ad image:', error);
+      toast('❌ Failed to upload image', false);
+    }
+  };
+
+  // Trigger file picker
+  document.body.appendChild(input);
+  input.click();
+  document.body.removeChild(input);
+}
+
+// Save ad images to cloud storage
+async function saveAdImagesToCloud() {
+  if (!state.current) return;
+
+  const adImages = {};
+  const mailerId = state.current.Mailer_ID;
+
+  // Collect all ad images for this campaign
+  for (let i = 1; i <= 18; i++) {
+    const spotKey = `Spot_${i}`;
+    const adImage = state.availability[spotKey]?.adImage;
+    if (adImage) {
+      adImages[spotKey] = adImage;
+    }
+  }
+
+  // Save to cloud with mailer-specific key
+  const storageKey = `adImages_${mailerId}`;
+  try {
+    await saveToCloud(storageKey, adImages);
+    console.log(`✅ Saved ${Object.keys(adImages).length} ad images for ${mailerId}`);
+  } catch (error) {
+    console.error('Failed to save ad images to cloud:', error);
+    toast('⚠️ Ad image saved locally but cloud sync failed', false);
+  }
+}
+
+// Load ad images from cloud storage
+async function loadAdImagesFromCloud(mailerId) {
+  if (!mailerId) return;
+
+  const storageKey = `adImages_${mailerId}`;
+  try {
+    const adImages = await loadFromCloud(storageKey);
+    if (adImages && typeof adImages === 'object') {
+      // Restore ad images to state.availability
+      Object.keys(adImages).forEach(spotKey => {
+        if (!state.availability[spotKey]) {
+          state.availability[spotKey] = { name: "", status: "Available" };
+        }
+        state.availability[spotKey].adImage = adImages[spotKey];
+      });
+      console.log(`✅ Loaded ${Object.keys(adImages).length} ad images for ${mailerId}`);
+    }
+  } catch (error) {
+    console.log(`ℹ️ No ad images found for ${mailerId} (this is normal for campaigns without ads)`);
+  }
+}
+
+// Remove ad image from a spot
+async function removeAdImage(spotNum) {
+  const spotKey = `Spot_${spotNum}`;
+  const businessName = state.availability[spotKey]?.name || `Spot ${spotNum}`;
+
+  if (!confirm(`Remove ad image for "${businessName}"?`)) {
+    return;
+  }
+
+  // Remove from state
+  if (state.availability[spotKey]) {
+    delete state.availability[spotKey].adImage;
+  }
+
+  // Save to cloud
+  toast('🗑️ Removing ad image...', true);
+  await saveAdImagesToCloud();
+
+  // Re-render to show change
+  renderAll();
+  toast('✅ Ad image removed', true);
+}
+
+// Upload ad image from the Edit Modal
+function uploadAdImageFromModal() {
+  const sel = [...state.selected].sort((a,b)=>a-b);
+  if (!sel.length) return;
+
+  const spotNum = sel[0];
+
+  // Create file input
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.style.display = 'none';
+
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast('⚠️ Image too large. Please use an image under 5MB.', false);
+      return;
+    }
+
+    // Show loading toast
+    toast('📤 Uploading image...', true);
+
+    try {
+      // Convert to base64 for storage
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const base64Image = event.target.result;
+
+        // Store in state.availability
+        const spotKey = `Spot_${spotNum}`;
+        if (!state.availability[spotKey]) {
+          state.availability[spotKey] = { name: "", status: "Available" };
+        }
+        state.availability[spotKey].adImage = base64Image;
+
+        // Update modal preview
+        const imagePreview = document.getElementById('editImagePreview');
+        const imageThumb = document.getElementById('editImageThumb');
+        const uploadBtn = document.getElementById('btnUploadAdImage');
+        const removeBtn = document.getElementById('btnRemoveAdImage');
+
+        imageThumb.src = base64Image;
+        imagePreview.classList.remove('hidden');
+        uploadBtn.textContent = '📷 Change Ad Image';
+        removeBtn.classList.remove('hidden');
+
+        // Save ad images to cloud separately (they don't go in spot columns)
+        await saveAdImagesToCloud();
+
+        // Re-render cards to show image
+        renderAll();
+        toast('✅ Ad image uploaded successfully!', true);
+      };
+
+      reader.onerror = () => {
+        toast('❌ Failed to read image file', false);
+      };
+
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Error uploading ad image:', error);
+      toast('❌ Failed to upload image', false);
+    }
+  };
+
+  // Trigger file picker
+  document.body.appendChild(input);
+  input.click();
+  document.body.removeChild(input);
+}
+
+// Remove ad image from the Edit Modal
+async function removeAdImageFromModal() {
+  const sel = [...state.selected].sort((a,b)=>a-b);
+  if (!sel.length) return;
+
+  const spotNum = sel[0];
+  const spotKey = `Spot_${spotNum}`;
+  const businessName = state.availability[spotKey]?.name || `Spot ${spotNum}`;
+
+  if (!confirm(`Remove ad image for "${businessName}"?`)) {
+    return;
+  }
+
+  // Remove from state
+  if (state.availability[spotKey]) {
+    delete state.availability[spotKey].adImage;
+  }
+
+  // Update modal UI
+  const imagePreview = document.getElementById('editImagePreview');
+  const uploadBtn = document.getElementById('btnUploadAdImage');
+  const removeBtn = document.getElementById('btnRemoveAdImage');
+
+  imagePreview.classList.add('hidden');
+  uploadBtn.textContent = '📷 Upload Ad Image';
+  removeBtn.classList.add('hidden');
+
+  // Save to cloud
+  toast('🗑️ Removing ad image...', true);
+  await saveAdImagesToCloud();
+
+  // Re-render to show change
+  renderAll();
+  toast('✅ Ad image removed', true);
+}
+
+// View full-size ad image
+function viewAdImage(imageUrl, businessName = '') {
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 10000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;';
+
+  const header = document.createElement('div');
+  header.style.cssText = 'color: white; font-size: 18px; font-weight: bold; margin-bottom: 15px; text-align: center;';
+  header.textContent = businessName ? `${businessName} - Ad Preview` : 'Ad Preview';
+
+  const img = document.createElement('img');
+  img.src = imageUrl;
+  img.style.cssText = 'max-width: 90%; max-height: 80vh; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕ Close';
+  closeBtn.style.cssText = 'margin-top: 15px; padding: 10px 24px; background: white; color: black; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px;';
+  closeBtn.onclick = () => document.body.removeChild(modal);
+
+  modal.appendChild(header);
+  modal.appendChild(img);
+  modal.appendChild(closeBtn);
+
+  modal.onclick = (e) => {
+    if (e.target === modal) {
+      document.body.removeChild(modal);
+    }
+  };
+
+  document.body.appendChild(modal);
+
+  // Close on Escape key
+  const escHandler = (e) => {
+    if (e.key === 'Escape') {
+      if (document.body.contains(modal)) {
+        document.body.removeChild(modal);
+      }
+      document.removeEventListener('keydown', escHandler);
+    }
+  };
+  document.addEventListener('keydown', escHandler);
+}
+
+function toShortKey(longLabel){
+  switch(longLabel){
+    case "Reserved": return "RESERVED";
+    case "Invoice Sent": return "INVOICE";
+    case "Deposit Paid": return "DEPOSIT";
+    case "Proof In Progress": return "PROOF";
+    case "Ad Approved": return "APPROVED";
+    case "Paid in Full": return "PAID";
+    case "Available": return "AVAIL";
+  }
+  return String(longLabel || "").toUpperCase();
+}
+
+function toLongLabel(shortKey){
+  switch(shortKey){
+    case "RESERVED": return "Reserved";
+    case "INVOICE": return "Invoice Sent";
+    case "DEPOSIT": return "Deposit Paid";
+    case "PROOF": return "Proof In Progress";
+    case "APPROVED": return "Ad Approved";
+    case "PAID": return "Paid in Full";
+    default: return "Available";
+  }
+}
+
+/* ========= POSTCARD MODAL ========= */
+function openPostcardModal(){ 
+  const modal = document.getElementById("postcardModal");
+  modal.style.display='flex'; 
+  modal.setAttribute('aria-hidden','false'); 
+  trapModalFocus(modal); 
+  previewPostcardModal(); 
+}
+
+function closePostcardModal(){ 
+  const modal = document.getElementById("postcardModal");
+  modal.style.display = 'none'; 
+  modal.setAttribute('aria-hidden','true'); 
+  releaseModalFocus(modal); 
+}
+
+function previewPostcardModal(){
+  const previewPostcard = document.getElementById('previewPostcard');
+  const previewBanner = document.getElementById('previewBanner');
+  previewPostcard.style.backgroundColor = stagedColors.Postcard_BG || '#000';
+  previewBanner.style.backgroundColor = stagedColors.Banner_BG || '#000000';
+  previewBanner.style.color = useLightTextOn(stagedColors.Banner_BG || '#000000')? '#fff' : '#0f172a';
+}
+
+function applyPostcardModal(){
+  stagedColors.Postcard_BG = document.getElementById('pickerPostcard').value;
+  stagedColors.Banner_BG = document.getElementById('pickerBanner').value;
+  savePostcardBg(stagedColors.Postcard_BG);
+  saveBannerBg(stagedColors.Banner_BG);
+
+  // Also save to current postcard data so colors persist when switching postcards
+  if (state.current) {
+    // Find the index of current postcard in mailers array
+    const currentIndex = state.mailers.findIndex(m => m === state.current || m?.Mailer_ID === state.current?.Mailer_ID);
+    if (currentIndex !== -1) {
+      state.mailers[currentIndex].Postcard_BG = stagedColors.Postcard_BG;
+      state.mailers[currentIndex].Banner_BG = stagedColors.Banner_BG;
+    }
+    // Also update the current object directly
+    state.current.Postcard_BG = stagedColors.Postcard_BG;
+    state.current.Banner_BG = stagedColors.Banner_BG;
+  }
+
+  applyStagedColors();
+  closePostcardModal();
+  state.dirty = true;
+  updateToolbar();
+  // Save immediately to database
+  saveToSheet();
+}
+
+/* ========= SORT MODAL ========= */
+function openEditStatusModal() {
+  const modal = document.getElementById("editStatusModal");
+  modal.style.display = 'flex';
+  modal.setAttribute('aria-hidden', 'false');
+  trapModalFocus(modal);
+
+  // Populate legend in modal
+  const legendGrid = document.getElementById("editStatusLegendGrid");
+  legendGrid.innerHTML = "";
+  const visibleSorted = sortOrder.filter(st => visibleStatuses.includes(st));
+  visibleSorted.forEach(st => {
+    const item = document.createElement("div");
+    item.className = "flex items-center gap-2";
+    const dot = document.createElement("span");
+    dot.className = "w-3 h-3 rounded-full";
+    dot.style.backgroundColor = STATUS_HEX[st] || GRADIENT_HEX[0];
+    const txt = document.createElement("span");
+    txt.textContent = st;
+    item.appendChild(dot);
+    item.appendChild(txt);
+    legendGrid.appendChild(item);
+  });
+
+  // Build sort list
+  buildSortList();
+  updateSortPreview();
+}
+
+function closeEditStatusModal() {
+  const modal = document.getElementById("editStatusModal");
+  modal.style.display = 'none';
+  modal.setAttribute('aria-hidden', 'true');
+  releaseModalFocus(modal);
+}
+
+function saveEditStatusModal() {
+  saveSortOrderFromModal();
+  closeEditStatusModal();
+}
+
+function openSortModal(){
+  const modal = document.getElementById("sortModal");
+  modal.style.display='flex';
+  modal.setAttribute('aria-hidden','false');
+  trapModalFocus(modal);
+  buildSortList();
+  updateSortPreview();
+}
+
+function closeSortModal(){
+  const modal = document.getElementById("sortModal");
+  modal.style.display = 'none';
+  modal.setAttribute('aria-hidden','true');
+  releaseModalFocus(modal);
+  renderLegend();
+}
+
+function buildSortList(){
+  const container = document.getElementById("sortListContainer"); 
+  container.innerHTML = ''; 
+  sortOrder.forEach((s, idx)=>{
+    const row = document.createElement('div'); 
+    row.className='sort-row'; 
+    row.dataset.idx = idx;
+    const left = document.createElement('div'); 
+    left.style.display='flex'; 
+    left.style.alignItems='center'; 
+    left.style.gap='8px';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = visibleStatuses.includes(s);
+    checkbox.dataset.status = s;
+    checkbox.style.marginRight = '8px';
+    const dot = document.createElement('span'); 
+    dot.style.width='14px'; 
+    dot.style.height='14px'; 
+    dot.style.borderRadius='9999px'; 
+    dot.style.background = STATUS_HEX[s] || '#ddd';
+    const label = document.createElement('div'); 
+    label.textContent = s; 
+    label.style.fontWeight='700';
+    left.appendChild(checkbox);
+    left.appendChild(dot); 
+    left.appendChild(label);
+    const right = document.createElement('div'); 
+    right.style.display='flex'; 
+    right.style.gap='6px';
+    const up = document.createElement('button'); 
+    up.className='sort-up'; 
+    up.textContent='▲'; 
+    up.dataset.idx = idx; 
+    up.title='Move up';
+    const down = document.createElement('button'); 
+    down.className='sort-down'; 
+    down.textContent='▼'; 
+    down.dataset.idx = idx; 
+    down.title='Move down';
+    right.appendChild(up); 
+    right.appendChild(down);
+    row.appendChild(left); 
+    row.appendChild(right);
+    row.draggable = true;
+    row.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', idx); row.style.opacity='0.6'; });
+    row.addEventListener('dragend', e => { row.style.opacity=''; });
+    row.addEventListener('dragover', e => { e.preventDefault(); row.style.background = '#f3f4f6'; });
+    row.addEventListener('dragleave', e => { row.style.background = '#fff'; });
+    row.addEventListener('drop', e => {
+      e.preventDefault(); 
+      row.style.background = '#fff';
+      const from = Number(e.dataTransfer.getData('text/plain')); 
+      const to = Number(row.dataset.idx);
+      if (from === to) return;
+      const copy = sortOrder.slice(); 
+      const [item] = copy.splice(from,1); 
+      copy.splice(to,0,item); 
+      sortOrder = copy; 
+      buildSortList(); 
+      updateSortPreview();
+    });
+    container.appendChild(row);
+  });
+}
+
+function handleSortUpDown(e){
+  const el = e.target; 
+  const idx = Number(el.dataset.idx);
+  if (isNaN(idx)) return;
+  if (el.classList.contains('sort-up')){ 
+    if (idx>0){ 
+      [sortOrder[idx-1], sortOrder[idx]] = [sortOrder[idx], sortOrder[idx-1]]; 
+      buildSortList(); 
+      updateSortPreview(); 
+    } 
+  }
+  else if (el.classList.contains('sort-down')){ 
+    if (idx < sortOrder.length-1){ 
+      [sortOrder[idx+1], sortOrder[idx]] = [sortOrder[idx], sortOrder[idx+1]]; 
+      buildSortList(); 
+      updateSortPreview(); 
+    } 
+  }
+}
+
+function updateSortPreview(){
+  const colors = GRADIENT_HEX;
+  const grad = colors.map((c,i)=> `${c} ${i/(colors.length-1)*100}%`).join(',');
+  document.getElementById('sortPreview').style.background = `linear-gradient(90deg, ${grad})`;
+}
+
+function saveSortOrderFromModal(){
+  const checkboxes = document.querySelectorAll('#sortListContainer input[type="checkbox"]');
+  visibleStatuses = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.dataset.status);
+  safeSetItem('mailslot-sort', JSON.stringify({order: sortOrder, visible: visibleStatuses}));
+  updateColorMappings();
+  toast('Legend order and visibility saved');
+  closeSortModal();
+  renderAll();
+}
+
+/* ========= SAVE ========= */
+function computeUpdates(){
+  let n=0;
+  for (let i=1;i<=18;i++){
+    const key=`Spot_${i}`;
+    const cur = state.availability[key] || {name:"", status:"Available"};
+    const human = cur.name ? `${cur.status}: ${cur.name}` : ""; // FIX: Added space after colon to match save format
+    if ((state.initial[key]||"") !== human) n++;
+  }
+  return n;
+}
+
+function buildAvailabilityPayload(){
+  const out = {};
+  for (let i=1;i<=18;i++){
+    const key=`Spot_${i}`;
+    const cur=state.availability[key] || {name:"", status:"Available"};
+    const human = cur.name ? `${cur.status}: ${cur.name}` : "Available";
+    const initial = state.initial[key] || "";
+    const humanCompare = cur.name ? `${cur.status}: ${cur.name}` : ""; // FIX: Added space after colon to match output format
+    if (initial !== humanCompare) {
+      out[key] = cur.name ? `${cur.status}: ${cur.name}` : "Available";
+    }
+  }
+  state.merged.forEach(pair => {
+    const parts = pair.split("-").map(n => Number(n));
+    if (parts.length !== 2) return;
+    const a = parts[0], b = parts[1];
+    const A = state.availability[`Spot_${a}`] || {name:"", status:"Available"};
+    const B = state.availability[`Spot_${b}`] || {name:"", status:"Available"};
+    const preferredName = (A.name || B.name || "").replace(/\s+/g,' ').trim();
+    const preferredStatus = (A.name ? A.status : (B.name ? B.status : "Available"));
+    const human = preferredName ? `${preferredStatus}: ${preferredName}` : "Available";
+    out[`Spot_${a}`] = human;
+    out[`Spot_${b}`] = human;
+  });
+  return out;
+}
+
+/* ========= AUTO-SAVE SYSTEM ========= */
+
+function updateAutoSaveStatus() {
+  try {
+    const statusDiv = document.getElementById('autoSaveStatus');
+    const iconSpan = document.getElementById('autoSaveIcon');
+    const textSpan = document.getElementById('autoSaveText');
+    const saveBtn = document.getElementById('btnManualSave');
+
+    if (!statusDiv) return;
+
+  // Clear any hide timeout and show the status
+  if (window.autoSaveHideTimeout) {
+    clearTimeout(window.autoSaveHideTimeout);
+  }
+  statusDiv.style.display = 'flex';
+  statusDiv.style.opacity = '1';
+
+  // Determine status
+  if (autoSaveState.saving) {
+    // Currently saving
+    statusDiv.className = 'flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-blue-50 border border-blue-300 text-blue-700';
+    iconSpan.textContent = '☁️';
+    textSpan.textContent = 'Saving...';
+    saveBtn.classList.add('hidden');
+  } else if (state.dirty) {
+    // Has unsaved changes - hide status, show manual save button
+    statusDiv.style.display = 'none';
+    saveBtn.classList.remove('hidden');
+  } else {
+    // All saved
+    statusDiv.className = 'flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-green-50 border border-green-300 text-green-700';
+    iconSpan.textContent = '✓';
+
+    if (autoSaveState.lastSaveTime) {
+      const relativeTime = getRelativeTime(autoSaveState.lastSaveTime);
+      textSpan.textContent = relativeTime;
+    } else {
+      textSpan.textContent = 'Saved';
+    }
+
+    saveBtn.classList.add('hidden');
+
+    // Auto-hide after 10 seconds (increased from 4s for better visibility)
+    if (window.autoSaveHideTimeout) {
+      clearTimeout(window.autoSaveHideTimeout);
+    }
+    statusDiv.style.opacity = '1';
+    statusDiv.style.transition = 'opacity 0.3s';
+
+    window.autoSaveHideTimeout = setTimeout(() => {
+      statusDiv.style.opacity = '0';
+      setTimeout(() => {
+        statusDiv.style.display = 'none';
+      }, 300);
+    }, 10000);
+  }
+  } catch(e) {
+    console.error('Error in updateAutoSaveStatus:', e);
+  }
+}
+
+function getRelativeTime(timestamp) {
+  const now = Date.now();
+  const diff = now - timestamp;
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (seconds < 10) return 'just now';
+  if (seconds < 60) return `${seconds} sec ago`;
+  if (minutes === 1) return '1 min ago';
+  if (minutes < 60) return `${minutes} min ago`;
+  if (hours === 1) return '1 hour ago';
+  if (hours < 24) return `${hours} hours ago`;
+  if (days === 1) return '1 day ago';
+  return `${days} days ago`;
+}
+
+function scheduleAutoSave() {
+  try {
+    // Clear existing timer
+    if (autoSaveState.timer) {
+      clearTimeout(autoSaveState.timer);
+    }
+
+    // Don't schedule if no changes
+    if (!state.dirty) {
+      updateAutoSaveStatus();
+      return;
+    }
+
+    // Schedule auto-save for 15 seconds from now
+    autoSaveState.timer = setTimeout(() => {
+      performAutoSave();
+    }, 15000); // 15 seconds
+
+    updateAutoSaveStatus();
+  } catch(e) {
+    console.error('Error in scheduleAutoSave:', e);
+  }
+}
+
+function performAutoSave() {
+  try {
+    console.log('🔄 performAutoSave triggered');
+    if (!state.dirty) {
+      console.log('🔄 performAutoSave: nothing to save');
+      return;
+    }
+
+    // Call saveToSheet to save to Supabase
+    console.log('🔄 performAutoSave: calling saveToSheet');
+    saveToSheet();
+
+  } catch(e) {
+    console.error('Error in performAutoSave:', e);
+  }
+}
+
+  /* OLD CODE BELOW - DISABLED
+  if (autoSaveState.saving) {
+    // Already saving - reschedule for after current save completes
+    return;
+  }
+  if (!state.current) return;
+
+  const availabilityDiffs = buildAvailabilityPayload();
+  if (Object.keys(availabilityDiffs).length === 0) {
+    state.dirty = false;
+    updateAutoSaveStatus();
+    return;
+  }
+
+  autoSaveState.saving = true;
+  updateAutoSaveStatus();
+
+  const payload = {
+    user: ACTIVE_USER,
+    Mailer_ID: state.current.Mailer_ID,
+    availability: availabilityDiffs,
+    Postcard_BG: stagedColors.Postcard_BG || null,
+    Banner_BG: stagedColors.Banner_BG || null
+  };
+
+  // Use GET request instead of POST to avoid 403 errors
+  const payloadJson = encodeURIComponent(JSON.stringify(payload));
+  const url = `${GAS_URL}?action=saveSpots&data=${payloadJson}`;
+
+  fetch(url)
+    .then(response => response.json())
+    .then(result => {
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      autoSaveState.saving = false;
+      autoSaveState.lastSaveTime = Date.now();
+      state.dirty = false;
+      updateToolbar();
+      updateAutoSaveStatus();
+
+      // Clear spot selection after successful save
+      state.selected.clear();
+      renderAll();
+
+      // Start interval to update "saved X min ago" text
+      if (!autoSaveState.updateInterval) {
+        autoSaveState.updateInterval = setInterval(() => {
+          if (!state.dirty && autoSaveState.lastSaveTime) {
+            updateAutoSaveStatus();
+          }
+        }, 30000); // Update every 30 seconds
+      }
+
+      toast('✓ Auto-saved to cloud', true);
+    })
+    .catch(err => {
+      console.error('Auto-save failed:', err);
+      autoSaveState.saving = false;
+      toast('Auto-save failed - saved locally only', false);
+    });
+  } catch(e) {
+    console.error('Error in performAutoSave:', e);
+    autoSaveState.saving = false;
+    toast('Auto-save failed', false);
+  }
+}
+*/
+
+function manualSaveNow() {
+  if (!state.dirty) {
+    toast('No changes to save', false);
+    return;
+  }
+
+  // Cancel any pending auto-save
+  if (autoSaveState.timer) {
+    clearTimeout(autoSaveState.timer);
+    autoSaveState.timer = null;
+  }
+
+  performAutoSave();
+}
+
+async function saveToSheet(){
+  console.log('🚀 saveToSheet() CALLED!', {
+    hasCurrent: !!state.current,
+    isDirty: state.dirty,
+    currentMailerId: state.current?.Mailer_ID
+  });
+
+  if (!state.current) {
+    console.log('❌ Exiting: No current postcard');
+    return;
+  }
+
+  if (!state.dirty) {
+    console.log('❌ Exiting: Not dirty');
+    toast("No changes to save");
+    return;
+  }
+
+  const availabilityDiffs = buildAvailabilityPayload();
+  console.log('📝 Availability diffs:', availabilityDiffs, 'Count:', Object.keys(availabilityDiffs).length);
+
+  if (Object.keys(availabilityDiffs).length === 0) {
+    console.log('❌ Exiting: No availability diffs');
+    toast("No changes to save");
+    state.dirty = false;
+    updateToolbar();
+    return;
+  }
+
+  const updates = computeUpdates();
+  console.log('📊 Computed updates count:', updates);
+
+  // If no actual changes (updates = 0), don't save
+  if (updates === 0) {
+    console.log('❌ Exiting: No changes to save (spots haven\'t changed from initial values)');
+    toast("No changes to save");
+    state.dirty = false;
+    updateToolbar();
+    return;
+  }
+
+  const payload = {
+    User: ACTIVE_USER,  // Use uppercase User to match backend
+    Mailer_ID: state.current.Mailer_ID,
+    Town: state.current.Town,
+    Mail_Date: state.current.Mail_Date,
+    In_Homes_Date: state.current.In_Homes_Date,
+    availability: availabilityDiffs,
+    Postcard_BG: stagedColors.Postcard_BG || state.current.Postcard_BG || '#000000',
+    Banner_BG: stagedColors.Banner_BG || state.current.Banner_BG || '#000000'
+  };
+
+  try {
+    toast(`☁️ Saving ${updates} change${updates===1?"":"s"}...`, false);
+
+    // Build Supabase update object with snake_case column names
+    const updateData = {
+      postcard_bg: stagedColors.Postcard_BG || state.current.Postcard_BG || '#000000',
+      banner_bg: stagedColors.Banner_BG || state.current.Banner_BG || '#000000'
+    };
+
+    // Add spot updates
+    Object.keys(availabilityDiffs).forEach(spotKey => {
+      const spotNumber = spotKey.replace('Spot_', '');
+      updateData[`spot_${spotNumber}`] = availabilityDiffs[spotKey];
+    });
+
+    const { error, data: resultData } = await supabaseClient
+      .from('postcards')
+      .update(updateData)
+      .eq('mailer_id', state.current.Mailer_ID)
+      .eq('user_email', ACTIVE_USER)
+      .select();
+
+    if (error) throw error;
+
+    toast(`✅ Saved ${updates} change${updates===1?"":"s"} to cloud!`, true);
+    state.dirty = false;
+    autoSaveState.lastSaveTime = Date.now();
+    updateToolbar();
+    updateAutoSaveStatus();
+
+    // Reload campaigns to get fresh data, preserving current selection
+    const currentMailerId = state.current?.Mailer_ID;
+    console.log('💾 Saving complete. Will restore mailer_id:', currentMailerId, 'type:', typeof currentMailerId);
+    setTimeout(() => loadCampaigns(currentMailerId), 500);
+
+  } catch (err) {
+    console.error("Failed to save to cloud:", err);
+    toast("⚠️ Failed to save to cloud. Please try again.", false);
+  }
+}
+
+// ===================================================================
+// FINANCIALS SYSTEM
+// ===================================================================
+
+// Financial data state
+const financialState = {
+  transactions: [], // Array of transaction objects
+  loaded: false
+};
+
+// Category definitions for auto-categorization and reporting
+const FINANCIAL_CATEGORIES = {
+  // Revenue
+  'Card Payment': { type: 'revenue', category: 'Sales Revenue', subcategory: 'Card Payments' },
+  'Sales': { type: 'revenue', category: 'Sales Revenue', subcategory: 'General Sales' },
+
+  // Cost of Goods Sold (COGS)
+  'USPS': { type: 'cogs', category: 'COGS', subcategory: 'Postage & Shipping' },
+  'Postage': { type: 'cogs', category: 'COGS', subcategory: 'Postage & Shipping' },
+  'Printing': { type: 'cogs', category: 'COGS', subcategory: 'Printing' },
+
+  // Operating Expenses
+  'Square': { type: 'operating', category: 'Operating Expenses', subcategory: 'Software & Services' },
+  'Software': { type: 'operating', category: 'Operating Expenses', subcategory: 'Software & Services' },
+  'Bank Fee': { type: 'operating', category: 'Operating Expenses', subcategory: 'Bank Fees' },
+  'Fee': { type: 'operating', category: 'Operating Expenses', subcategory: 'Bank Fees' },
+
+  // Owner Draw
+  'Transfer': { type: 'owner_draw', category: 'Owner Draw', subcategory: 'Withdrawals' },
+  'Withdrawal': { type: 'owner_draw', category: 'Owner Draw', subcategory: 'Withdrawals' }
+};
+
+// Auto-categorize a transaction based on description
+function autoCategorizeTransaction(description, activityType, amount) {
+  const desc = description.toUpperCase();
+  const isPositive = amount > 0;
+
+  // Revenue - Sales activity
+  if (activityType === 'Sales' && isPositive) {
+    return { type: 'revenue', category: 'Sales Revenue', subcategory: 'Card Payments' };
+  }
+
+  // COGS - Postage & Shipping
+  if (desc.includes('USPS') || desc.includes('POSTAGE') || desc.includes('EVERY DOOR')) {
+    return { type: 'cogs', category: 'COGS', subcategory: 'Postage & Shipping' };
+  }
+
+  // COGS - Printing
+  if (desc.includes('4 OVER') || desc.includes('PRINTING')) {
+    return { type: 'cogs', category: 'COGS', subcategory: 'Printing' };
+  }
+
+  // Operating Expenses - Software & Services
+  if (desc.includes('SQUARE') || desc.includes('HOSTINGER') || desc.includes('XERO') ||
+      desc.includes('SITEGROUND') || desc.includes('OPENAI') || desc.includes('CHATGPT') ||
+      desc.includes('XAI') || desc.includes('HEYGEN') || desc.includes('ZEROBOUNCE')) {
+    return { type: 'operating', category: 'Operating Expenses', subcategory: 'Software & Services' };
+  }
+
+  // Operating Expenses - Marketing/Advertising
+  if (desc.includes('STRUC MARKE') || desc.includes('MARKETING') || desc.includes('ADVERTISING')) {
+    return { type: 'operating', category: 'Operating Expenses', subcategory: 'Marketing' };
+  }
+
+  // Operating Expenses - General
+  if (desc.includes('AMAZON') || activityType === 'Card spend') {
+    return { type: 'operating', category: 'Operating Expenses', subcategory: 'General Expenses' };
+  }
+
+  // Owner equity - Transfers in
+  if (activityType === 'Transfer in') {
+    return { type: 'revenue', category: 'Owner Contribution', subcategory: 'Capital Injection' };
+  }
+
+  // Default uncategorized
+  return { type: 'uncategorized', category: 'Uncategorized', subcategory: '' };
+}
+
+// Load financial data from Supabase
+async function loadFinancialData() {
+  try {
+    const { data, error } = await supabaseClient
+      .from('app_data')
+      .select('data')
+      .eq('user_email', ACTIVE_USER)
+      .eq('data_type', 'financialTransactions')
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // No data yet - this is fine
+        financialState.transactions = [];
+        financialState.loaded = true;
+        return;
+      }
+      throw error;
+    }
+
+    financialState.transactions = data.data || [];
+    financialState.loaded = true;
+
+    // Render the register
+    renderFinancialRegister();
+
+  } catch (err) {
+    console.error('Error loading financial data:', err);
+    toast('⚠️ Failed to load financial data', false);
+    financialState.transactions = [];
+    financialState.loaded = true;
+  }
+}
+
+// Save financial data to Supabase
+async function saveFinancialData() {
+  try {
+    // Upsert to app_data table
+    const { error } = await supabaseClient
+      .from('app_data')
+      .upsert({
+        user_email: ACTIVE_USER,
+        data_type: 'financialTransactions',
+        data: financialState.transactions
+      }, {
+        onConflict: 'user_email,data_type'
+      });
+
+    if (error) throw error;
+
+  } catch (err) {
+    console.error('Error saving financial data:', err);
+    toast('⚠️ Failed to save financial data', false);
+    throw err;
+  }
+}
+
+// Calculate financial summaries
+function calculateFinancialSummaries(transactions) {
+  let totalRevenue = 0;
+  let totalExpenses = 0;
+  let currentBalance = 0;
+
+  let revenueCount = 0;
+  let expenseCount = 0;
+
+  transactions.forEach(trans => {
+    const amount = parseFloat(trans.amount) || 0;
+
+    if (trans.type === 'revenue') {
+      totalRevenue += amount;
+      revenueCount++;
+    } else if (trans.type === 'cogs' || trans.type === 'operating' || trans.type === 'owner_draw') {
+      totalExpenses += Math.abs(amount);
+      expenseCount++;
+    }
+
+    // Track balance - we'll use the latest (most recent) transaction's balance
+    const transBalance = parseFloat(trans.balance) || 0;
+    if (!currentBalance || transBalance > 0) {
+      currentBalance = transBalance;
+    }
+  });
+
+  // Since transactions are sorted newest first, get the balance from the first transaction (most recent)
+  if (transactions.length > 0) {
+    currentBalance = parseFloat(transactions[0].balance) || 0;
+  }
+
+  const netIncome = totalRevenue - totalExpenses;
+
+  return { totalRevenue, totalExpenses, netIncome, currentBalance };
+}
+
+// Filter transactions based on period and category
+function filterTransactions(transactions, periodFilter, categoryFilter) {
+  let filtered = [...transactions];
+
+  // Period filter
+  if (periodFilter !== 'all') {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    filtered = filtered.filter(trans => {
+      const transDate = new Date(trans.date);
+      const transYear = transDate.getFullYear();
+      const transMonth = transDate.getMonth();
+
+      if (periodFilter === 'current-year') {
+        return transYear === currentYear;
+      } else if (periodFilter === 'current-month') {
+        return transYear === currentYear && transMonth === currentMonth;
+      } else if (periodFilter === 'last-month') {
+        const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+        const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+        return transYear === lastMonthYear && transMonth === lastMonth;
+      } else if (periodFilter === 'q1') {
+        return transYear === currentYear && transMonth >= 0 && transMonth <= 2;
+      } else if (periodFilter === 'q2') {
+        return transYear === currentYear && transMonth >= 3 && transMonth <= 5;
+      } else if (periodFilter === 'q3') {
+        return transYear === currentYear && transMonth >= 6 && transMonth <= 8;
+      } else if (periodFilter === 'q4') {
+        return transYear === currentYear && transMonth >= 9 && transMonth <= 11;
+      }
+
+      return true;
+    });
+  }
+
+  // Category filter
+  if (categoryFilter !== 'all') {
+    filtered = filtered.filter(trans => trans.type === categoryFilter);
+  }
+
+  return filtered;
+}
+
+// Render the financial register
+function renderFinancialRegister() {
+  const tbody = document.getElementById('financialRegisterBody');
+  if (!tbody) return;
+
+  if (!financialState.loaded) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Loading transactions...</td></tr>';
+    return;
+  }
+
+  // Get filter values
+  const periodFilterEl = document.getElementById('financialPeriodFilter');
+  const periodFilter = periodFilterEl?.value || 'current-year';
+  const categoryFilter = document.getElementById('financialCategoryFilter')?.value || 'all';
+
+  // Filter transactions
+  const filteredTransactions = filterTransactions(financialState.transactions, periodFilter, categoryFilter);
+
+  // Sort by date descending (newest first)
+  const sortedTransactions = [...filteredTransactions].sort((a, b) => {
+    return new Date(b.date) - new Date(a.date);
+  });
+
+  // Calculate summaries
+  const summaries = calculateFinancialSummaries(sortedTransactions);
+
+  // Update summary cards
+  document.getElementById('totalRevenue').textContent = `$${summaries.totalRevenue.toFixed(2)}`;
+  document.getElementById('totalExpenses').textContent = `$${summaries.totalExpenses.toFixed(2)}`;
+  document.getElementById('netIncome').textContent = `$${summaries.netIncome.toFixed(2)}`;
+  document.getElementById('currentBalance').textContent = `$${summaries.currentBalance.toFixed(2)}`;
+
+  // Render transactions
+  if (sortedTransactions.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">No transactions found</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = sortedTransactions.map(trans => {
+    const amount = parseFloat(trans.amount) || 0;
+    const amountClass = amount >= 0 ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold';
+    const amountDisplay = amount >= 0 ? `+$${amount.toFixed(2)}` : `-$${Math.abs(amount).toFixed(2)}`;
+
+    return `
+      <tr class="border-b hover:bg-gray-50">
+        <td class="py-2 px-3 text-sm">${trans.date}</td>
+        <td class="py-2 px-3 text-sm">${trans.description}</td>
+        <td class="py-2 px-3 text-sm">
+          <span class="px-2 py-1 rounded text-xs font-medium ${getCategoryBadgeClass(trans.type)}">
+            ${trans.category}
+          </span>
+        </td>
+        <td class="py-2 px-3 text-sm ${amountClass}">${amountDisplay}</td>
+        <td class="py-2 px-3 text-sm font-medium">$${(parseFloat(trans.balance) || 0).toFixed(2)}</td>
+        <td class="py-2 px-3 text-sm text-gray-600">${trans.notes || ''}</td>
+        <td class="py-2 px-3 text-sm">
+          <button onclick="editTransaction('${trans.id}')" class="text-blue-600 hover:underline text-xs mr-2">Edit</button>
+          <button onclick="deleteTransaction('${trans.id}')" class="text-red-600 hover:underline text-xs">Delete</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// Get badge class for category type
+function getCategoryBadgeClass(type) {
+  switch (type) {
+    case 'revenue':
+      return 'bg-green-100 text-green-800';
+    case 'cogs':
+      return 'bg-blue-100 text-blue-800';
+    case 'operating':
+      return 'bg-orange-100 text-orange-800';
+    case 'owner_draw':
+      return 'bg-purple-100 text-purple-800';
+    default:
+      return 'bg-gray-100 text-gray-800';
+  }
+}
+
+// Show add transaction modal
+function showAddTransactionModal() {
+  // Reset form
+  document.getElementById('txnDate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('txnType').value = '';
+  document.getElementById('txnDescription').value = '';
+  document.getElementById('txnAmount').value = '';
+  document.getElementById('txnCategory').value = '';
+  document.getElementById('txnNotes').value = '';
+
+  // Show modal
+  const modal = document.getElementById('addTransactionModal');
+  modal.style.display = 'flex';
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+// Close add transaction modal
+function closeAddTransactionModal() {
+  const modal = document.getElementById('addTransactionModal');
+  modal.style.display = 'none';
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+// Save add transaction
+async function saveAddTransaction() {
+  try {
+    const date = document.getElementById('txnDate').value;
+    const type = document.getElementById('txnType').value;
+    const description = document.getElementById('txnDescription').value;
+    const amount = parseFloat(document.getElementById('txnAmount').value);
+    const notes = document.getElementById('txnNotes').value;
+
+    // Validate
+    if (!date || !type || !description || isNaN(amount)) {
+      toast('⚠️ Please fill in all required fields', false);
+      return;
+    }
+
+    // Adjust amount for expenses (make negative)
+    const adjustedAmount = (type === 'revenue') ? Math.abs(amount) : -Math.abs(amount);
+
+    // Convert type to activityType for categorization
+    let activityType = 'Manual Entry';
+    if (type === 'revenue') activityType = 'Sales';
+    else if (type === 'cogs') activityType = 'Card spend';
+    else if (type === 'operating') activityType = 'Card spend';
+    else if (type === 'owner_draw') activityType = 'Transfer out';
+
+    // Auto-categorize based on description, activityType, and amount
+    const categorization = autoCategorizeTransaction(description, activityType, adjustedAmount);
+
+    // Calculate new balance (last transaction balance + this amount)
+    const lastBalance = financialState.transactions.length > 0
+      ? parseFloat(financialState.transactions[0].balance) || 0
+      : 0;
+    const newBalance = lastBalance + adjustedAmount;
+
+    // Create transaction
+    const transaction = {
+      id: `manual-${Date.now()}`,
+      date: date,
+      description: description,
+      activityType: activityType,
+      amount: adjustedAmount,
+      balance: newBalance,
+      type: categorization.type,
+      category: categorization.category,
+      subcategory: categorization.subcategory,
+      notes: notes
+    };
+
+    // Add to array (at beginning since it's new)
+    financialState.transactions.unshift(transaction);
+
+    // Recalculate balances for all transactions
+    recalculateBalances();
+
+    // Save to cloud
+    await saveFinancialData();
+
+    // Re-render
+    renderFinancialRegister();
+
+    // Close modal
+    closeAddTransactionModal();
+
+    toast('✅ Transaction added', true);
+  } catch (err) {
+    console.error('Error adding transaction:', err);
+    toast('⚠️ Failed to add transaction', false);
+  }
+}
+
+// Recalculate balances for all transactions
+function recalculateBalances() {
+  // Sort transactions by date (oldest first)
+  const sorted = [...financialState.transactions].sort((a, b) => {
+    return new Date(a.date) - new Date(b.date);
+  });
+
+  // Calculate running balance
+  let runningBalance = 0;
+  sorted.forEach(trans => {
+    runningBalance += parseFloat(trans.amount) || 0;
+    trans.balance = runningBalance;
+  });
+
+  // Update financialState with sorted and balanced transactions
+  financialState.transactions = sorted;
+}
+
+// Edit transaction
+function editTransaction(id) {
+  const transaction = financialState.transactions.find(t => t.id === id);
+  if (!transaction) {
+    toast('⚠️ Transaction not found', false);
+    return;
+  }
+
+  // Fill form with transaction data
+  document.getElementById('editTxnDate').value = transaction.date;
+  document.getElementById('editTxnType').value = transaction.type;
+  document.getElementById('editTxnDescription').value = transaction.description;
+  document.getElementById('editTxnAmount').value = Math.abs(parseFloat(transaction.amount));
+  document.getElementById('editTxnCategory').value = transaction.category;
+  document.getElementById('editTxnNotes').value = transaction.notes || '';
+  document.getElementById('editTxnId').value = id;
+
+  // Show modal
+  const modal = document.getElementById('editTransactionModal');
+  modal.style.display = 'flex';
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+// Close edit transaction modal
+function closeEditTransactionModal() {
+  const modal = document.getElementById('editTransactionModal');
+  modal.style.display = 'none';
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+// Save edit transaction
+async function saveEditTransaction() {
+  try {
+    const id = document.getElementById('editTxnId').value;
+    const date = document.getElementById('editTxnDate').value;
+    const type = document.getElementById('editTxnType').value;
+    const description = document.getElementById('editTxnDescription').value;
+    const amount = parseFloat(document.getElementById('editTxnAmount').value);
+    const notes = document.getElementById('editTxnNotes').value;
+
+    // Validate
+    if (!date || !type || !description || isNaN(amount)) {
+      toast('⚠️ Please fill in all required fields', false);
+      return;
+    }
+
+    // Find and update transaction
+    const transaction = financialState.transactions.find(t => t.id === id);
+    if (!transaction) {
+      toast('⚠️ Transaction not found', false);
+      return;
+    }
+
+    // Adjust amount for expenses (make negative)
+    const adjustedAmount = (type === 'revenue') ? Math.abs(amount) : -Math.abs(amount);
+
+    // Convert type to activityType for categorization
+    let activityType = 'Manual Entry';
+    if (type === 'revenue') activityType = 'Sales';
+    else if (type === 'cogs') activityType = 'Card spend';
+    else if (type === 'operating') activityType = 'Card spend';
+    else if (type === 'owner_draw') activityType = 'Transfer out';
+
+    // Auto-categorize based on description, activityType, and amount
+    const categorization = autoCategorizeTransaction(description, activityType, adjustedAmount);
+
+    // Update transaction
+    transaction.date = date;
+    transaction.description = description;
+    transaction.activityType = activityType;
+    transaction.type = categorization.type;
+    transaction.amount = adjustedAmount;
+    transaction.category = categorization.category;
+    transaction.subcategory = categorization.subcategory;
+    transaction.notes = notes;
+
+    // Recalculate all balances
+    recalculateBalances();
+
+    // Save to cloud
+    await saveFinancialData();
+
+    // Re-render
+    renderFinancialRegister();
+
+    // Close modal
+    closeEditTransactionModal();
+
+    toast('✅ Transaction updated', true);
+  } catch (err) {
+    console.error('Error updating transaction:', err);
+    toast('⚠️ Failed to update transaction', false);
+  }
+}
+
+// Delete transaction
+async function deleteTransaction(id) {
+  if (!confirm('Are you sure you want to delete this transaction?')) {
+    return;
+  }
+
+  try {
+    // Remove from array
+    financialState.transactions = financialState.transactions.filter(t => t.id !== id);
+
+    // Save to cloud
+    await saveFinancialData();
+
+    // Re-render
+    renderFinancialRegister();
+
+    toast('✅ Transaction deleted', true);
+  } catch (err) {
+    console.error('Error deleting transaction:', err);
+    toast('⚠️ Failed to delete transaction', false);
+  }
+}
+
+// Export financial data to CSV
+function exportFinancialCSV() {
+  const periodFilter = document.getElementById('financialPeriodFilter')?.value || 'all';
+  const categoryFilter = document.getElementById('financialCategoryFilter')?.value || 'all';
+
+  const filteredTransactions = filterTransactions(financialState.transactions, periodFilter, categoryFilter);
+
+  if (filteredTransactions.length === 0) {
+    toast('⚠️ No transactions to export', false);
+    return;
+  }
+
+  // Build CSV
+  const headers = ['Date', 'Description', 'Category', 'Subcategory', 'Amount', 'Balance', 'Notes'];
+  const rows = filteredTransactions.map(trans => [
+    trans.date,
+    trans.description,
+    trans.category,
+    trans.subcategory || '',
+    trans.amount,
+    trans.balance,
+    trans.notes || ''
+  ]);
+
+  const csv = [headers, ...rows].map(row =>
+    row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+  ).join('\n');
+
+  // Download
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `9x12Pro_Financials_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  toast('✅ Exported to CSV', true);
+}
+
+// Show Profit & Loss report
+function showProfitLossReport() {
+  // Set default period
+  document.getElementById('plReportPeriod').value = 'current-year';
+
+  // Generate report
+  generatePLReport();
+
+  // Show modal
+  const modal = document.getElementById('plReportModal');
+  modal.style.display = 'flex';
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+// Close P&L Report modal
+function closePLReportModal() {
+  const modal = document.getElementById('plReportModal');
+  modal.style.display = 'none';
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+// Generate P&L Report
+function generatePLReport() {
+  const periodFilter = document.getElementById('plReportPeriod')?.value || 'current-year';
+  const filteredTransactions = filterTransactions(financialState.transactions, periodFilter, 'all');
+
+  // Calculate totals by category
+  let totalRevenue = 0;
+  let totalCOGS = 0;
+  let totalOperating = 0;
+  let totalOwnerDraw = 0;
+
+  const revenueItems = [];
+  const cogsItems = [];
+  const operatingItems = [];
+  const ownerDrawItems = [];
+
+  filteredTransactions.forEach(trans => {
+    const amount = Math.abs(parseFloat(trans.amount) || 0);
+    const item = {
+      date: trans.date,
+      description: trans.description,
+      amount: amount
+    };
+
+    if (trans.type === 'revenue') {
+      totalRevenue += amount;
+      revenueItems.push(item);
+    } else if (trans.type === 'cogs') {
+      totalCOGS += amount;
+      cogsItems.push(item);
+    } else if (trans.type === 'operating') {
+      totalOperating += amount;
+      operatingItems.push(item);
+    } else if (trans.type === 'owner_draw') {
+      totalOwnerDraw += amount;
+      ownerDrawItems.push(item);
+    }
+  });
+
+  const grossProfit = totalRevenue - totalCOGS;
+  const operatingIncome = grossProfit - totalOperating;
+  const netIncome = operatingIncome - totalOwnerDraw;
+
+  // Get period label
+  const periodLabel = getPeriodLabel(periodFilter);
+
+  // Build report HTML
+  const reportHTML = `
+    <div class="p-6">
+      <div class="text-center mb-6">
+        <h2 class="text-2xl font-bold">9x12 PRO</h2>
+        <h3 class="text-lg font-semibold mt-2">Profit & Loss Statement</h3>
+        <p class="text-sm text-gray-600 mt-1">${periodLabel}</p>
+      </div>
+
+      <!-- Revenue Section -->
+      <div class="mb-6">
+        <div class="bg-green-50 px-4 py-2 font-semibold text-green-900 border-b-2 border-green-600">
+          REVENUE
+        </div>
+        <div class="pl-6 py-2">
+          <div class="flex justify-between items-center">
+            <span>Sales Revenue</span>
+            <span class="font-mono">$${totalRevenue.toFixed(2)}</span>
+          </div>
+        </div>
+        <div class="bg-green-100 px-4 py-2 flex justify-between font-semibold text-green-900">
+          <span>Total Revenue</span>
+          <span class="font-mono">$${totalRevenue.toFixed(2)}</span>
+        </div>
+      </div>
+
+      <!-- Cost of Goods Sold Section -->
+      <div class="mb-6">
+        <div class="bg-blue-50 px-4 py-2 font-semibold text-blue-900 border-b-2 border-blue-600">
+          COST OF GOODS SOLD
+        </div>
+        <div class="pl-6 py-2">
+          <div class="flex justify-between items-center">
+            <span>Direct Costs</span>
+            <span class="font-mono">$${totalCOGS.toFixed(2)}</span>
+          </div>
+        </div>
+        <div class="bg-blue-100 px-4 py-2 flex justify-between font-semibold text-blue-900">
+          <span>Total COGS</span>
+          <span class="font-mono">$${totalCOGS.toFixed(2)}</span>
+        </div>
+      </div>
+
+      <!-- Gross Profit -->
+      <div class="mb-6 bg-gray-100 px-4 py-3 flex justify-between font-bold text-lg">
+        <span>GROSS PROFIT</span>
+        <span class="font-mono ${grossProfit >= 0 ? 'text-green-600' : 'text-red-600'}">$${grossProfit.toFixed(2)}</span>
+      </div>
+
+      <!-- Operating Expenses Section -->
+      <div class="mb-6">
+        <div class="bg-orange-50 px-4 py-2 font-semibold text-orange-900 border-b-2 border-orange-600">
+          OPERATING EXPENSES
+        </div>
+        <div class="pl-6 py-2">
+          <div class="flex justify-between items-center">
+            <span>General & Administrative</span>
+            <span class="font-mono">$${totalOperating.toFixed(2)}</span>
+          </div>
+        </div>
+        <div class="bg-orange-100 px-4 py-2 flex justify-between font-semibold text-orange-900">
+          <span>Total Operating Expenses</span>
+          <span class="font-mono">$${totalOperating.toFixed(2)}</span>
+        </div>
+      </div>
+
+      <!-- Operating Income -->
+      <div class="mb-6 bg-gray-100 px-4 py-3 flex justify-between font-bold text-lg">
+        <span>OPERATING INCOME</span>
+        <span class="font-mono ${operatingIncome >= 0 ? 'text-green-600' : 'text-red-600'}">$${operatingIncome.toFixed(2)}</span>
+      </div>
+
+      <!-- Owner Draws -->
+      ${totalOwnerDraw > 0 ? `
+      <div class="mb-6">
+        <div class="bg-purple-50 px-4 py-2 font-semibold text-purple-900 border-b-2 border-purple-600">
+          OWNER DISTRIBUTIONS
+        </div>
+        <div class="pl-6 py-2">
+          <div class="flex justify-between items-center">
+            <span>Owner Draws</span>
+            <span class="font-mono">$${totalOwnerDraw.toFixed(2)}</span>
+          </div>
+        </div>
+      </div>
+      ` : ''}
+
+      <!-- Net Income -->
+      <div class="bg-gradient-to-r from-gray-700 to-gray-800 text-white px-4 py-4 flex justify-between font-bold text-xl rounded-lg">
+        <span>NET INCOME</span>
+        <span class="font-mono ${netIncome >= 0 ? 'text-green-300' : 'text-red-300'}">$${netIncome.toFixed(2)}</span>
+      </div>
+
+      <!-- Summary Stats -->
+      <div class="mt-6 grid grid-cols-3 gap-4 text-center">
+        <div class="bg-green-50 p-3 rounded-lg">
+          <div class="text-xs text-gray-600">Gross Margin</div>
+          <div class="text-lg font-bold text-green-600">${totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100).toFixed(1) : '0.0'}%</div>
+        </div>
+        <div class="bg-blue-50 p-3 rounded-lg">
+          <div class="text-xs text-gray-600">Operating Margin</div>
+          <div class="text-lg font-bold text-blue-600">${totalRevenue > 0 ? ((operatingIncome / totalRevenue) * 100).toFixed(1) : '0.0'}%</div>
+        </div>
+        <div class="bg-purple-50 p-3 rounded-lg">
+          <div class="text-xs text-gray-600">Net Margin</div>
+          <div class="text-lg font-bold text-purple-600">${totalRevenue > 0 ? ((netIncome / totalRevenue) * 100).toFixed(1) : '0.0'}%</div>
+        </div>
+      </div>
+
+      <div class="mt-6 text-xs text-gray-500 text-center">
+        Generated on ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at ${new Date().toLocaleTimeString('en-US')}
+      </div>
+    </div>
+  `;
+
+  document.getElementById('plReportContent').innerHTML = reportHTML;
+}
+
+// Get period label for P&L report
+function getPeriodLabel(periodFilter) {
+  const now = new Date();
+  const year = now.getFullYear();
+
+  switch (periodFilter) {
+    case 'current-year':
+      return `For the Year Ending December 31, ${year}`;
+    case 'q1':
+      return `Q1 ${year} (January - March)`;
+    case 'q2':
+      return `Q2 ${year} (April - June)`;
+    case 'q3':
+      return `Q3 ${year} (July - September)`;
+    case 'q4':
+      return `Q4 ${year} (October - December)`;
+    case 'current-month':
+      return `For ${now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`;
+    case 'last-month':
+      const lastMonth = new Date(year, now.getMonth() - 1, 1);
+      return `For ${lastMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`;
+    case 'all':
+      return 'All Time (Inception to Date)';
+    default:
+      return periodFilter;
+  }
+}
+
+// Export P&L Report as PDF (placeholder - would need library)
+function exportPLReportPDF() {
+  toast('💡 PDF export coming soon! For now, use Print (Ctrl+P) to save as PDF', false);
+}
+
+// Import Square statement data
+async function importSquareStatements() {
+  // Confirm with user - this will replace ALL existing transactions
+  if (!confirm('⚠️ This will REPLACE all existing financial data with 96 transactions from Square statements (April-October 2025).\n\nThis action cannot be undone.\n\nContinue?')) {
+    return;
+  }
+
+  try {
+    console.log('📥 Importing Square statement data...');
+    toast('📥 Importing Square data...', true);
+
+    // All transactions from April-October 2025
+    const rawTransactions = [
+      // April 2025
+      { date: '2025-04-03', description: 'Card payment', activityType: 'Sales', amount: 242.45, balance: 242.45 },
+      { date: '2025-04-04', description: '2 Activities', activityType: 'Sales', amount: 1358.80, balance: 1601.25 },
+      { date: '2025-04-05', description: 'Hostinger Hostinger.c', activityType: 'Card spend', amount: -22.34, balance: 1578.91 },
+      { date: '2025-04-08', description: 'Hostinger Hostinger.c', activityType: 'Card spend', amount: -52.07, balance: 1526.84 },
+      { date: '2025-04-08', description: '2 Activities', activityType: 'Sales', amount: 727.65, balance: 2254.49 },
+      { date: '2025-04-13', description: 'Amazon', activityType: 'Card spend', amount: -40.30, balance: 2214.19 },
+      { date: '2025-04-17', description: 'Card payment', activityType: 'Sales', amount: 242.45, balance: 2456.64 },
+      { date: '2025-04-21', description: 'Amazon', activityType: 'Card spend', amount: -68.04, balance: 2388.60 },
+      { date: '2025-04-21', description: 'Card payment', activityType: 'Sales', amount: 242.45, balance: 2631.05 },
+      { date: '2025-04-22', description: 'Xero Us Inv', activityType: 'Card spend', amount: -2.00, balance: 2629.05 },
+      { date: '2025-04-22', description: 'Card payment', activityType: 'Sales', amount: 485.20, balance: 3114.25 },
+      { date: '2025-04-22', description: 'Struc Marke', activityType: 'Card spend', amount: -2030.68, balance: 1083.57 },
+      { date: '2025-04-23', description: 'Card payment', activityType: 'Sales', amount: 442.72, balance: 1526.29 },
+      { date: '2025-04-24', description: 'Card payment', activityType: 'Sales', amount: 291.00, balance: 1817.29 },
+      { date: '2025-04-28', description: 'Card payment', activityType: 'Sales', amount: 970.70, balance: 2787.99 },
+      { date: '2025-04-29', description: 'USPS', activityType: 'Card spend', amount: -3.43, balance: 2784.56 },
+
+      // May 2025
+      { date: '2025-05-01', description: 'Openai Chatgpt Subscr', activityType: 'Card spend', amount: -21.75, balance: 2762.81 },
+      { date: '2025-05-03', description: 'Usps.com Every Door Dt', activityType: 'Card spend', amount: -1023.35, balance: 1739.46 },
+      { date: '2025-05-04', description: 'USPS', activityType: 'Card spend', amount: -1098.50, balance: 640.96 },
+      { date: '2025-05-05', description: 'Amazon', activityType: 'Card spend', amount: -74.98, balance: 565.98 },
+      { date: '2025-05-07', description: 'Xai Llc', activityType: 'Card spend', amount: -30.00, balance: 535.98 },
+      { date: '2025-05-14', description: 'Card payment', activityType: 'Sales', amount: 483.20, balance: 1019.18 },
+      { date: '2025-05-15', description: '3 Activities', activityType: 'Sales', amount: 1237.12, balance: 2256.30 },
+      { date: '2025-05-16', description: 'Square Paid Services', activityType: 'Card spend', amount: -11.93, balance: 2244.37 },
+      { date: '2025-05-19', description: 'Xero Us Inv', activityType: 'Card spend', amount: -2.00, balance: 2242.37 },
+      { date: '2025-05-20', description: '2 Activities', activityType: 'Sales', amount: 970.40, balance: 3212.77 },
+      { date: '2025-05-22', description: 'Card payment', activityType: 'Sales', amount: 485.20, balance: 3697.97 },
+      { date: '2025-05-26', description: 'Card payment', activityType: 'Sales', amount: 679.40, balance: 4377.37 },
+      { date: '2025-05-29', description: '4 Over International', activityType: 'Card spend', amount: -1363.63, balance: 3013.74 },
+
+      // June 2025
+      { date: '2025-06-02', description: 'Square Paid Services', activityType: 'Card spend', amount: -21.75, balance: 2991.99 },
+      { date: '2025-06-04', description: 'Siteground Hosting', activityType: 'Card spend', amount: -35.88, balance: 2956.11 },
+      { date: '2025-06-06', description: 'Usps.com Every Door Dt', activityType: 'Card spend', amount: -1098.50, balance: 1857.61 },
+      { date: '2025-06-07', description: 'Xai Llc', activityType: 'Card spend', amount: -30.00, balance: 1827.61 },
+      { date: '2025-06-07', description: 'USPS', activityType: 'Card spend', amount: -1023.35, balance: 804.26 },
+      { date: '2025-06-11', description: 'Card payment', activityType: 'Sales', amount: 485.20, balance: 1289.46 },
+      { date: '2025-06-16', description: 'Card payment', activityType: 'Sales', amount: 388.10, balance: 1677.56 },
+      { date: '2025-06-19', description: 'Xero Us Inv', activityType: 'Card spend', amount: -2.00, balance: 1675.56 },
+      { date: '2025-06-20', description: 'Heygen Technology Inc.', activityType: 'Card spend', amount: -20.30, balance: 1655.26 },
+      { date: '2025-06-25', description: 'Card payment', activityType: 'Sales', amount: 291.00, balance: 1946.26 },
+      { date: '2025-06-26', description: '4 Over International', activityType: 'Card spend', amount: -1322.50, balance: 623.76 },
+      { date: '2025-06-29', description: 'Card payment', activityType: 'Sales', amount: 485.20, balance: 1108.96 },
+
+      // July 2025
+      { date: '2025-07-01', description: 'Usps.com Every Door Dt', activityType: 'Card spend', amount: -992.13, balance: 116.83 },
+      { date: '2025-07-01', description: '2 Activities', activityType: 'Sales', amount: 1164.60, balance: 1281.43 },
+      { date: '2025-07-02', description: 'Square Paid Services', activityType: 'Card spend', amount: -21.75, balance: 1259.68 },
+      { date: '2025-07-02', description: 'USPS', activityType: 'Card spend', amount: -983.43, balance: 276.25 },
+      { date: '2025-07-07', description: 'Xai Llc', activityType: 'Card spend', amount: -30.00, balance: 246.25 },
+      { date: '2025-07-09', description: 'Zerobounce.com', activityType: 'Card spend', amount: -16.20, balance: 230.05 },
+      { date: '2025-07-14', description: 'Card payment', activityType: 'Sales', amount: 266.72, balance: 496.77 },
+      { date: '2025-07-15', description: 'Card payment', activityType: 'Sales', amount: 192.93, balance: 689.70 },
+      { date: '2025-07-16', description: 'Card payment', activityType: 'Sales', amount: 485.20, balance: 1174.90 },
+      { date: '2025-07-17', description: 'Card payment', activityType: 'Sales', amount: 679.40, balance: 1854.30 },
+      { date: '2025-07-18', description: 'USPS', activityType: 'Card spend', amount: -279.60, balance: 1574.70 },
+      { date: '2025-07-18', description: 'Card payment', activityType: 'Sales', amount: 315.27, balance: 1889.97 },
+      { date: '2025-07-19', description: 'Xero Us Inv', activityType: 'Card spend', amount: -15.48, balance: 1874.49 },
+      { date: '2025-07-19', description: 'USPS', activityType: 'Card spend', amount: -297.39, balance: 1577.10 },
+      { date: '2025-07-20', description: 'Heygen Technology Inc.', activityType: 'Card spend', amount: -29.00, balance: 1548.10 },
+      { date: '2025-07-22', description: 'Card payment', activityType: 'Sales', amount: 436.65, balance: 1984.75 },
+      { date: '2025-07-29', description: '4 Over International', activityType: 'Card spend', amount: -1378.66, balance: 606.09 },
+
+      // August 2025
+      { date: '2025-08-01', description: 'Card payment', activityType: 'Sales', amount: 485.20, balance: 1091.29 },
+      { date: '2025-08-02', description: 'Square Paid Services', activityType: 'Card spend', amount: -21.75, balance: 1069.54 },
+      { date: '2025-08-02', description: 'Card payment', activityType: 'Sales', amount: 339.55, balance: 1409.09 },
+      { date: '2025-08-05', description: 'Transfer in', activityType: 'Transfer in', amount: 1000.00, balance: 2409.09 },
+      { date: '2025-08-05', description: 'USPS', activityType: 'Card spend', amount: -1205.36, balance: 1203.73 },
+      { date: '2025-08-06', description: 'USPS', activityType: 'Card spend', amount: -1125.09, balance: 78.64 },
+      { date: '2025-08-07', description: 'Xai Llc', activityType: 'Card spend', amount: -30.00, balance: 48.64 },
+      { date: '2025-08-07', description: 'Card payment', activityType: 'Sales', amount: 679.40, balance: 728.04 },
+      { date: '2025-08-09', description: 'Zerobounce.net Saas', activityType: 'Card spend', amount: -18.00, balance: 710.04 },
+      { date: '2025-08-20', description: 'Heygen Technology Inc.', activityType: 'Card spend', amount: -29.00, balance: 681.04 },
+      { date: '2025-08-21', description: 'Card payment', activityType: 'Sales', amount: 266.72, balance: 947.76 },
+      { date: '2025-08-22', description: 'Card payment', activityType: 'Sales', amount: 873.60, balance: 1821.36 },
+      { date: '2025-08-25', description: 'Card payment', activityType: 'Sales', amount: 436.65, balance: 2258.01 },
+      { date: '2025-08-27', description: 'Card payment', activityType: 'Sales', amount: 436.65, balance: 2694.66 },
+      { date: '2025-08-29', description: '4 Over International', activityType: 'Card spend', amount: -1378.01, balance: 1316.65 },
+
+      // September 2025
+      { date: '2025-09-02', description: 'Square Paid Services', activityType: 'Card spend', amount: -21.75, balance: 1294.90 },
+      { date: '2025-09-03', description: 'Card payment', activityType: 'Sales', amount: 1026.04, balance: 2320.94 },
+      { date: '2025-09-08', description: 'Transfer in', activityType: 'Transfer in', amount: 200.00, balance: 2520.94 },
+      { date: '2025-09-08', description: 'USPS', activityType: 'Card spend', amount: -1116.93, balance: 1404.01 },
+      { date: '2025-09-09', description: 'Card payment', activityType: 'Sales', amount: 164.77, balance: 1568.78 },
+      { date: '2025-09-09', description: 'USPS', activityType: 'Card spend', amount: -1233.02, balance: 335.76 },
+      { date: '2025-09-13', description: 'Card payment', activityType: 'Sales', amount: 679.40, balance: 1015.16 },
+      { date: '2025-09-15', description: 'Card payment', activityType: 'Sales', amount: 659.98, balance: 1675.14 },
+      { date: '2025-09-17', description: 'Card payment', activityType: 'Sales', amount: 450.00, balance: 2125.14 },
+      { date: '2025-09-19', description: 'Card payment', activityType: 'Sales', amount: 315.27, balance: 2440.41 },
+      { date: '2025-09-22', description: 'Card payment', activityType: 'Sales', amount: 339.55, balance: 2779.96 },
+      { date: '2025-09-26', description: 'Card payment', activityType: 'Sales', amount: 873.60, balance: 3653.56 },
+      { date: '2025-09-30', description: '4 Over International', activityType: 'Card spend', amount: -1378.66, balance: 2274.90 },
+      { date: '2025-09-30', description: 'Card payment', activityType: 'Sales', amount: 436.65, balance: 2711.55 },
+
+      // October 2025
+      { date: '2025-10-02', description: 'Square Paid Services', activityType: 'Card spend', amount: -21.75, balance: 2689.80 },
+      { date: '2025-10-02', description: 'Card payment', activityType: 'Sales', amount: 242.45, balance: 2932.25 },
+      { date: '2025-10-06', description: 'USPS', activityType: 'Card spend', amount: -1116.44, balance: 1815.81 },
+      { date: '2025-10-07', description: 'USPS', activityType: 'Card spend', amount: -1233.77, balance: 582.04 },
+      { date: '2025-10-21', description: 'Card payment', activityType: 'Sales', amount: 436.65, balance: 1018.69 },
+      { date: '2025-10-22', description: 'Card payment', activityType: 'Sales', amount: 786.21, balance: 1804.90 },
+      { date: '2025-10-24', description: 'Card payment', activityType: 'Sales', amount: 388.10, balance: 2193.00 },
+      { date: '2025-10-27', description: 'Card payment', activityType: 'Sales', amount: 315.27, balance: 2508.27 },
+      { date: '2025-10-30', description: 'Card payment', activityType: 'Sales', amount: 679.40, balance: 3187.67 }
+    ];
+
+    // Process and categorize each transaction
+    const transactions = rawTransactions.map((trans, index) => {
+      const cat = autoCategorizeTransaction(trans.description, trans.activityType, trans.amount);
+
+      return {
+        id: `sq-${Date.now()}-${index}`,
+        date: trans.date,
+        description: trans.description,
+        amount: trans.amount,
+        balance: trans.balance,
+        type: cat.type,
+        category: cat.category,
+        subcategory: cat.subcategory,
+        notes: `Imported from Square statement - ${trans.activityType}`,
+        source: 'square_import'
+      };
+    });
+
+    // Add to financial state
+    financialState.transactions = transactions;
+    financialState.loaded = true;
+
+    // Save to Supabase
+    await saveFinancialData();
+
+    // Render
+    renderFinancialRegister();
+
+    console.log(`✅ Imported ${transactions.length} transactions from Square statements`);
+    toast(`✅ Imported ${transactions.length} transactions!`, true);
+
+  } catch (err) {
+    console.error('Error importing Square statements:', err);
+    toast('⚠️ Failed to import statements', false);
+  }
+}
+
+function updateBreadcrumbHighlight(tabName) {
+  const breadcrumbContainer = document.getElementById('workflowBreadcrumb');
+  if (!breadcrumbContainer) return;
+
+  // Map tab names to breadcrumb IDs
+  const tabToBreadcrumb = {
+    'lead-generation': 'breadcrumb-generator',
+    'prospects': 'breadcrumb-pool',
+    'pipeline': 'breadcrumb-pipeline',
+    'clients': 'breadcrumb-clients'
+  };
+
+  // Hide breadcrumb on non-workflow tabs
+  const workflowTabs = ['lead-generation', 'prospects', 'pipeline', 'clients'];
+  if (!workflowTabs.includes(tabName)) {
+    breadcrumbContainer.parentElement.style.display = 'none';
+    return;
+  }
+
+  // Show breadcrumb on workflow tabs
+  breadcrumbContainer.parentElement.style.display = 'block';
+
+  // Remove active state from all breadcrumb buttons
+  document.querySelectorAll('[id^="breadcrumb-"]').forEach(btn => {
+    btn.classList.remove('bg-white', 'shadow-lg', 'ring-2', 'ring-indigo-500');
+    btn.classList.add('hover:bg-white', 'hover:shadow-md');
+  });
+
+  // Add active state to current step
+  const breadcrumbId = tabToBreadcrumb[tabName];
+  if (breadcrumbId) {
+    const activeBreadcrumb = document.getElementById(breadcrumbId);
+    if (activeBreadcrumb) {
+      activeBreadcrumb.classList.remove('hover:bg-white', 'hover:shadow-md');
+      activeBreadcrumb.classList.add('bg-white', 'shadow-lg', 'ring-2', 'ring-indigo-500');
+    }
+  }
+}
+
+function showProspectSuccessModal(categorizedResults, totalCount) {
+  // Create modal if it doesn't exist
+  let modal = document.getElementById('prospectSuccessModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'prospectSuccessModal';
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4';
+    modal.style.display = 'none';
+    document.body.appendChild(modal);
+  }
+
+  // Build category breakdown HTML
+  const categoryHTML = Object.entries(categorizedResults)
+    .map(([category, count]) => `
+      <div class="flex items-center justify-between py-2 border-b border-green-100">
+        <span class="text-gray-700 font-medium capitalize">${category}</span>
+        <span class="text-2xl font-black text-green-600">${count}</span>
+      </div>
+    `).join('');
+
+  modal.innerHTML = `
+    <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-8 relative animate-bounce-in">
+      <button onclick="closeProspectSuccessModal()" class="sticky top-0 right-0 float-right text-gray-400 hover:text-gray-600 transition z-10 bg-white rounded-full p-1 -mt-2 -mr-2">
+        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+        </svg>
+      </button>
+
+      <div class="text-center mb-6">
+        <div class="text-6xl mb-4">🎉</div>
+        <h3 class="text-3xl font-black text-gray-900 mb-2">Success!</h3>
+        <p class="text-lg text-gray-600">Found <span class="text-green-600 font-black">${totalCount}</span> businesses!</p>
+      </div>
+
+      <div class="bg-green-50 rounded-2xl p-4 mb-6 max-h-60 overflow-y-auto">
+        <h4 class="text-base font-bold text-gray-900 mb-3 sticky top-0 bg-green-50">Category Breakdown:</h4>
+        ${categoryHTML}
+      </div>
+
+      <div class="flex gap-3 sticky bottom-0 bg-white pt-4">
+        <button onclick="closeProspectSuccessModal(); switchTab('prospects'); setTimeout(() => renderProspectPool(), 100);" class="flex-1 px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 font-black text-base shadow-xl transform hover:scale-105 transition">
+          Review Prospects →
+        </button>
+        <button onclick="closeProspectSuccessModal();" class="px-4 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-bold transition">
+          Generate More
+        </button>
+      </div>
+    </div>
+  `;
+
+  // Add bounce-in animation
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes bounce-in {
+      0% { transform: scale(0.3); opacity: 0; }
+      50% { transform: scale(1.05); }
+      70% { transform: scale(0.9); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .animate-bounce-in {
+      animation: bounce-in 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    }
+  `;
+  if (!document.getElementById('successModalStyle')) {
+    style.id = 'successModalStyle';
+    document.head.appendChild(style);
+  }
+
+  modal.style.display = 'flex';
+
+  // Close on backdrop click
+  modal.onclick = (e) => {
+    if (e.target === modal) {
+      closeProspectSuccessModal();
+    }
+  };
+
+  // Close on ESC key
+  const escHandler = (e) => {
+    if (e.key === 'Escape') {
+      closeProspectSuccessModal();
+      document.removeEventListener('keydown', escHandler);
+    }
+  };
+  document.addEventListener('keydown', escHandler);
+}
+
+function closeProspectSuccessModal() {
+  const modal = document.getElementById('prospectSuccessModal');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+}
