@@ -5675,7 +5675,7 @@ async function runBulkAutoPopulate() {
           const currentSearch = successfulSearches + failedSearches + 1;
           btn.innerHTML = `⏳ Searching ${category} in ${zipCode}... (${currentSearch}/${totalSearches})`;
 
-          const businesses = await searchGooglePlaces(zipCode, category, radius, {
+          const businesses = await searchGooglePlaces(zipCode, category, null, {
             currentSearch: currentSearch,
             totalSearches: totalSearches,
             totalCategories: selectedCategories.length,
