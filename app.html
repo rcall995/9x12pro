@@ -7241,6 +7241,37 @@ Thanks!
     }
 
     /**
+     * Search Google for business website using Custom Search API
+     * This finds the actual business website (not Yelp URL)
+     */
+    async function searchBusinessWebsite(searchQuery, businessName) {
+      try {
+        // Use Google Custom Search via our serverless function
+        const response = await fetch('/api/google-search', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            query: searchQuery,
+            businessName: businessName
+          })
+        });
+
+        if (!response.ok) {
+          return '';
+        }
+
+        const data = await response.json();
+        return data.website || '';
+
+      } catch (error) {
+        console.warn('Website search failed:', error);
+        return '';
+      }
+    }
+
+    /**
      * Search for businesses using Yelp Fusion API
      * FREE: 2,500 calls per day - NO COST!
      */
@@ -7255,7 +7286,7 @@ Thanks!
 
           if (new Date() < cacheDate) {
             showSuccess('✅ Using cached results (FREE!)');
-            return cached.businesses;
+            return cached.cachedData || cached.businesses || [];
           }
         }
 
@@ -7281,17 +7312,59 @@ Thanks!
         }
 
         const data = await response.json();
-        const businesses = data.businesses || [];
+        const yelpBusinesses = data.businesses || [];
 
-        console.log(`✅ Yelp returned ${businesses.length} businesses`);
+        console.log(`✅ Yelp returned ${yelpBusinesses.length} businesses`);
+
+        // Transform Yelp data to our expected format
+        const businesses = await Promise.all(yelpBusinesses.map(async (biz) => {
+          // Use yelp_id as placeId
+          const placeId = `yelp_${biz.yelp_id}`;
+
+          // Search Google for business website using name + address
+          let actualWebsite = '';
+          try {
+            const searchQuery = `${biz.name} ${biz.address} ${biz.city} ${biz.state}`;
+            actualWebsite = await searchBusinessWebsite(searchQuery, biz.name);
+          } catch (err) {
+            console.warn(`Could not find website for ${biz.name}:`, err.message);
+          }
+
+          return {
+            placeId: placeId,
+            name: biz.name,
+            address: biz.address,
+            city: biz.city,
+            state: biz.state,
+            zip: biz.zip,
+            phone: biz.phone,
+            website: actualWebsite, // Actual business website from Google search
+            yelpUrl: biz.website, // Keep Yelp URL for reference
+            rating: biz.rating,
+            reviewCount: biz.review_count,
+            categories: biz.categories,
+            lat: biz.lat,
+            lng: biz.lng,
+            imageUrl: biz.image_url,
+            isClosed: biz.is_closed,
+            price: biz.price,
+            source: 'yelp',
+            searchedZipCode: zipCode,
+            category: category,
+            enriched: false
+          };
+        }));
+
+        console.log(`✅ Found websites for ${businesses.filter(b => b.website).length}/${businesses.length} businesses`);
 
         // Cache results for 30 days
         const cachedUntil = new Date();
         cachedUntil.setDate(cachedUntil.getDate() + 30);
 
         placesCache.searches[cacheKey] = {
-          businesses: businesses,
-          cachedUntil: cachedUntil.toISOString()
+          cachedData: businesses,
+          cachedUntil: cachedUntil.toISOString(),
+          lastFetched: new Date().toISOString()
         };
 
         // Save cache to cloud
@@ -9241,7 +9314,7 @@ Thanks!
     // Run bulk auto-populate with multiple categories - shows results in modal
     async function runBulkAutoPopulate() {
       const zipCodeInput = document.getElementById('bulkPopZipCode').value.trim();
-      const radius = 5000; // Default ~3 miles (search radius removed from UI)
+      const radius = 8047; // 5 miles in meters
 
       // Parse multiple ZIP codes (comma-separated)
       const zipCodes = zipCodeInput.split(',').map(z => z.trim()).filter(z => z);
@@ -9392,7 +9465,7 @@ Thanks!
               const enrichedData = await fetchSmartEnrichment(business.website, business.name);
 
               // Update business in cache
-              const cacheKey = `${zipCode}-${business.category}`;
+              const cacheKey = `${business.searchedZipCode}-${business.category}`;
               const cached = placesCache.searches[cacheKey];
               if (cached && cached.cachedData) {
                 const businessIndex = cached.cachedData.findIndex(b => b.placeId === business.placeId);
@@ -11036,8 +11109,12 @@ Thanks!
                   leadScore: p.leadScore || calculateProspectScore(p),
                   contactScore: p.contactScore || (p.enriched ? calculateContactScore(p) : 0)
                 }))
-                // Sort by contact score (most reachable first)
-                .sort((a, b) => (b.contactScore || 0) - (a.contactScore || 0))
+                // Sort by physical ZIP code (geographic organization)
+                .sort((a, b) => {
+                  const zipA = a.actualZip || a.zip || a.zipCode || '';
+                  const zipB = b.actualZip || b.zip || b.zipCode || '';
+                  return zipA.localeCompare(zipB);
+                })
                 .map(prospect => {
                 // For enriched prospects (from manual list) - show with green border and contact icons
                 if (prospect.isEnriched) {
