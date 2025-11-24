@@ -6837,7 +6837,8 @@ async function moveSelectedToPool() {
         movedToPoolDate: new Date().toISOString(),
         mailerId: state.current?.Mailer_ID || null,
         // DON'T overwrite town - keep the original town from the lead
-        isEnriched: false // Keep standard search result styling
+        isEnriched: false, // Keep standard search result styling
+        enriched: false // Reset so it can be re-enriched when added to kanban again
       };
     } else {
       // Add new prospect to pool
@@ -6846,7 +6847,8 @@ async function moveSelectedToPool() {
         movedToPoolDate: new Date().toISOString(),
         mailerId: state.current?.Mailer_ID || null, // Tag with current postcard
         // DON'T set town to campaign name - keep the original town from the lead
-        isEnriched: false // Keep standard search result styling
+        isEnriched: false, // Keep standard search result styling
+        enriched: false // Reset so it can be re-enriched when added to kanban again
       });
     }
 
@@ -12873,10 +12875,25 @@ async function moveProspectBackToPool(leadId, event) {
   if (!alreadyInPool) {
     prospectPoolState.manualProspects.push({
       ...prospect,
-      isEnriched: true // Mark as enriched since it came from the kanban
+      isEnriched: false, // Reset styling
+      enriched: false // Reset so it can be re-enriched when added to kanban again
     });
   } else {
-    console.log(`⏭️ Prospect "${prospectName}" already exists in pool, skipping duplicate`);
+    // Update existing entry to reset enriched flag
+    const existingIndex = prospectPoolState.manualProspects.findIndex(p => {
+      if (prospect.placeId && p.placeId) return p.placeId === prospect.placeId;
+      if (prospect.businessName && p.businessName) return p.businessName.toLowerCase() === prospect.businessName.toLowerCase();
+      return false;
+    });
+    if (existingIndex !== -1) {
+      prospectPoolState.manualProspects[existingIndex] = {
+        ...prospectPoolState.manualProspects[existingIndex],
+        ...prospect,
+        isEnriched: false,
+        enriched: false // Reset so it can be re-enriched
+      };
+    }
+    console.log(`🔄 Prospect "${prospectName}" already in pool - reset for re-enrichment`);
   }
 
   // Clear from selection if it was selected
