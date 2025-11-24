@@ -31,7 +31,7 @@
   <meta name="format-detection" content="telephone=no" />
   <script>
     // Cache busting version - update this to force reload on all devices
-    window.APP_VERSION = '2025-01-24-v84';
+    window.APP_VERSION = '2025-01-24-v85';
     window.CACHE_BUST = '?v=' + window.APP_VERSION;
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -897,7 +897,7 @@
                             <span class="text-4xl">🔍</span> Start Your Search
                         </h3>
                         <p class="text-xl text-purple-100">
-                            Search Google Places to automatically discover businesses in your area
+                            Search Yelp to automatically discover businesses in your area
                         </p>
                     </div>
                     <div class="flex flex-col gap-4">
@@ -919,12 +919,6 @@
                                     </button>
                                 </div>
                                 <p class="text-xs text-purple-200 mt-1">Enter a 5-digit ZIP to find neighbors</p>
-                            </div>
-                            <!-- API Usage -->
-                            <div class="bg-white/20 backdrop-blur-md rounded-xl px-6 py-4 border-2 border-white/30 shadow-lg">
-                                <div class="text-sm text-purple-100 mb-1 font-semibold">📊 API Usage This Month</div>
-                                <div class="font-black text-3xl" id="quickApiUsage">0 / 28,000</div>
-                                <div class="text-sm text-purple-200 mt-1" id="quickApiReset">Resets Dec 1</div>
                             </div>
                         </div>
                         <!-- Neighboring ZIP Codes Selection -->

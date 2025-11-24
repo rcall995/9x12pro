@@ -36,50 +36,90 @@ export default async function handler(req, res) {
     const city = place['place name'];
     const state = place['state abbreviation'];
 
-    // Generate potential nearby ZIP codes by trying adjacent numbers
-    // This is a simple heuristic - ZIPs near each other often have similar numbers
+    // Generate potential nearby ZIP codes using multiple strategies
     const baseZip = parseInt(zipCode);
+    const prefix3 = zipCode.substring(0, 3); // First 3 digits (SCF - Sectional Center Facility)
     const potentialZips = new Set();
 
-    // Add ZIPs within +/- 20 of the base ZIP
-    for (let offset = -20; offset <= 20; offset++) {
+    // Strategy 1: All ZIPs with the same 3-digit prefix (00-99 suffix)
+    for (let suffix = 0; suffix <= 99; suffix++) {
+      const nearbyZip = prefix3 + suffix.toString().padStart(2, '0');
+      if (nearbyZip !== zipCode) {
+        potentialZips.add(nearbyZip);
+      }
+    }
+
+    // Strategy 2: Adjacent 3-digit prefixes (e.g., if 140xx, also check 139xx and 141xx)
+    const prefix3Num = parseInt(prefix3);
+    for (const prefixOffset of [-1, 1]) {
+      const adjacentPrefix = (prefix3Num + prefixOffset).toString().padStart(3, '0');
+      if (adjacentPrefix.length === 3 && parseInt(adjacentPrefix) >= 0) {
+        for (let suffix = 0; suffix <= 99; suffix++) {
+          const nearbyZip = adjacentPrefix + suffix.toString().padStart(2, '0');
+          potentialZips.add(nearbyZip);
+        }
+      }
+    }
+
+    // Strategy 3: ZIPs very close numerically (±50)
+    for (let offset = -50; offset <= 50; offset++) {
       const nearbyZip = (baseZip + offset).toString().padStart(5, '0');
       if (nearbyZip !== zipCode && nearbyZip.length === 5 && parseInt(nearbyZip) > 0) {
         potentialZips.add(nearbyZip);
       }
     }
 
-    // Check each potential ZIP and calculate distance
+    // Check ZIPs in parallel (batch of concurrent requests)
+    const allPotentialZips = Array.from(potentialZips);
     const neighbors = [];
-    const checkedZips = Array.from(potentialZips).slice(0, 30); // Limit API calls
 
-    for (const testZip of checkedZips) {
-      try {
-        const testResponse = await fetch(`https://api.zippopotam.us/us/${testZip}`);
-        if (testResponse.ok) {
-          const testData = await testResponse.json();
-          const testPlace = testData.places?.[0];
+    // Process in batches to avoid overwhelming the API
+    const batchSize = 20;
+    const maxBatches = 8; // Check up to 160 ZIPs
 
-          if (testPlace) {
-            const testLat = parseFloat(testPlace.latitude);
-            const testLng = parseFloat(testPlace.longitude);
+    for (let batchIndex = 0; batchIndex < maxBatches && neighbors.length < 10; batchIndex++) {
+      const batchStart = batchIndex * batchSize;
+      const batch = allPotentialZips.slice(batchStart, batchStart + batchSize);
 
-            // Calculate distance in miles using Haversine formula
-            const distance = calculateDistance(centerLat, centerLng, testLat, testLng);
+      if (batch.length === 0) break;
 
-            // Only include ZIPs within 15 miles
-            if (distance <= 15) {
-              neighbors.push({
-                zipCode: testZip,
-                city: testPlace['place name'],
-                state: testPlace['state abbreviation'],
-                distance: Math.round(distance * 10) / 10
-              });
+      // Fetch all ZIPs in this batch concurrently
+      const batchPromises = batch.map(async (testZip) => {
+        try {
+          const testResponse = await fetch(`https://api.zippopotam.us/us/${testZip}`);
+          if (testResponse.ok) {
+            const testData = await testResponse.json();
+            const testPlace = testData.places?.[0];
+
+            if (testPlace) {
+              const testLat = parseFloat(testPlace.latitude);
+              const testLng = parseFloat(testPlace.longitude);
+              const distance = calculateDistance(centerLat, centerLng, testLat, testLng);
+
+              // Only include ZIPs within 20 miles
+              if (distance <= 20) {
+                return {
+                  zipCode: testZip,
+                  city: testPlace['place name'],
+                  state: testPlace['state abbreviation'],
+                  distance: Math.round(distance * 10) / 10
+                };
+              }
             }
           }
+        } catch (e) {
+          // Skip invalid ZIPs
         }
-      } catch (e) {
-        // Skip invalid ZIPs
+        return null;
+      });
+
+      const batchResults = await Promise.all(batchPromises);
+
+      // Add valid results to neighbors
+      for (const result of batchResults) {
+        if (result && !neighbors.some(n => n.zipCode === result.zipCode)) {
+          neighbors.push(result);
+        }
       }
     }
 
