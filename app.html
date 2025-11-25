@@ -31,7 +31,7 @@
   <meta name="format-detection" content="telephone=no" />
   <script>
     // Cache busting version - update this to force reload on all devices
-    window.APP_VERSION = '2025-01-24-v102';
+    window.APP_VERSION = '2025-01-24-v103';
     window.CACHE_BUST = '?v=' + window.APP_VERSION;
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -1049,32 +1049,27 @@
             <!-- YOUR INFO SETTINGS -->
             <div class="bg-white rounded-2xl shadow-xl border-2 border-orange-200 p-6 mb-6">
                 <h3 class="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
-                    <span class="text-2xl">⚙️</span> Your Info <span class="text-sm font-normal text-gray-500">(used in all templates)</span>
+                    <span class="text-2xl">⚙️</span> Your Info <span class="text-sm font-normal text-gray-500">(auto-fills into templates)</span>
                 </h3>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div>
                         <label class="text-xs font-bold text-gray-600 block mb-1">Your Name</label>
-                        <input type="text" id="salesToolkitName" placeholder="John Smith" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-orange-400 focus:outline-none" onchange="saveSalesToolkitSettings()">
+                        <input type="text" id="salesToolkitName" placeholder="Rich" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-orange-400 focus:outline-none" onchange="saveSalesToolkitSettings()">
                     </div>
                     <div>
-                        <label class="text-xs font-bold text-gray-600 block mb-1">Company/Mailer Name</label>
-                        <input type="text" id="salesToolkitCompany" placeholder="Local Business Mailers" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-orange-400 focus:outline-none" onchange="saveSalesToolkitSettings()">
+                        <label class="text-xs font-bold text-gray-600 block mb-1">Company Name</label>
+                        <input type="text" id="salesToolkitCompany" placeholder="Community Card Mailers" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-orange-400 focus:outline-none" onchange="saveSalesToolkitSettings()">
                     </div>
                     <div>
                         <label class="text-xs font-bold text-gray-600 block mb-1">Your Phone</label>
                         <input type="text" id="salesToolkitPhone" placeholder="(555) 123-4567" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-orange-400 focus:outline-none" onchange="saveSalesToolkitSettings()">
                     </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                     <div>
                         <label class="text-xs font-bold text-gray-600 block mb-1">Spot Price</label>
-                        <input type="text" id="salesToolkitSpotPrice" placeholder="$400" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-orange-400 focus:outline-none" onchange="saveSalesToolkitSettings()">
-                    </div>
-                    <div>
-                        <label class="text-xs font-bold text-gray-600 block mb-1">Homes Reached</label>
-                        <input type="text" id="salesToolkitHomes" placeholder="5,000" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-orange-400 focus:outline-none" onchange="saveSalesToolkitSettings()">
+                        <input type="text" id="salesToolkitSpotPrice" placeholder="$399" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-orange-400 focus:outline-none" onchange="saveSalesToolkitSettings()">
                     </div>
                 </div>
+                <p class="text-xs text-gray-500 mt-3">💡 Tip: Templates use [YOUR_NAME], [YOUR_COMPANY], [YOUR_PHONE], and [SPOT_PRICE] placeholders</p>
             </div>
 
             <!-- TWO COLUMN LAYOUT FOR TEMPLATES -->
@@ -1085,33 +1080,33 @@
                     <h3 class="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
                         <span class="text-2xl">💬</span> Text Message Templates
                     </h3>
-                    <p class="text-sm text-gray-500 mb-4">Short, direct messages that get responses. Tap to copy.</p>
+                    <p class="text-sm text-gray-500 mb-4">Keep it short. Get a response. Close on the phone.</p>
 
                     <!-- First Text -->
                     <div class="mb-4 p-4 bg-teal-50 border border-teal-200 rounded-lg">
                         <div class="flex items-center justify-between mb-2">
-                            <span class="font-bold text-teal-900">First Text - Short & Direct</span>
+                            <span class="font-bold text-teal-900">Cold Open - Curiosity Hook</span>
                             <button onclick="copySmsTemplate('firstText')" class="px-3 py-1 bg-teal-600 text-white text-xs rounded hover:bg-teal-700 font-bold">📋 Copy</button>
                         </div>
-                        <div id="firstTextTemplate" class="text-sm text-gray-700 bg-white p-3 rounded border font-mono whitespace-pre-wrap">Hi! This is [YOUR_NAME]. I'm putting together a postcard going to every home in [ZIP]. Got a spot for a [BUSINESS_TYPE] - thought of you. Interested?</div>
+                        <div id="firstTextTemplate" class="text-sm text-gray-700 bg-white p-3 rounded border font-mono whitespace-pre-wrap">Hey! Quick question - do you guys do any direct mail advertising? I'm putting a community postcard together for [ZIP] and have one [BUSINESS_TYPE] spot left.</div>
                     </div>
 
                     <!-- Follow-up Text -->
                     <div class="mb-4 p-4 bg-cyan-50 border border-cyan-200 rounded-lg">
                         <div class="flex items-center justify-between mb-2">
-                            <span class="font-bold text-cyan-900">Follow-up Text - Urgency</span>
+                            <span class="font-bold text-cyan-900">Follow-up - Value Drop</span>
                             <button onclick="copySmsTemplate('followUpText')" class="px-3 py-1 bg-cyan-600 text-white text-xs rounded hover:bg-cyan-700 font-bold">📋 Copy</button>
                         </div>
-                        <div id="followUpTextTemplate" class="text-sm text-gray-700 bg-white p-3 rounded border font-mono whitespace-pre-wrap">Hey, following up on the postcard spot for [ZIP]. Goes to print soon - still have one [BUSINESS_TYPE] spot at [SPOT_PRICE]. Want it?</div>
+                        <div id="followUpTextTemplate" class="text-sm text-gray-700 bg-white p-3 rounded border font-mono whitespace-pre-wrap">Hey - following up on the postcard. It goes to EVERY home in [ZIP], not a mailing list. You'd be the only [BUSINESS_TYPE] on it. Still have your spot if you want it.</div>
                     </div>
 
                     <!-- Last Chance Text -->
                     <div class="p-4 bg-rose-50 border border-rose-200 rounded-lg">
                         <div class="flex items-center justify-between mb-2">
-                            <span class="font-bold text-rose-900">Last Chance Text</span>
+                            <span class="font-bold text-rose-900">Final - Takeaway Close</span>
                             <button onclick="copySmsTemplate('lastText')" class="px-3 py-1 bg-rose-600 text-white text-xs rounded hover:bg-rose-700 font-bold">📋 Copy</button>
                         </div>
-                        <div id="lastTextTemplate" class="text-sm text-gray-700 bg-white p-3 rounded border font-mono whitespace-pre-wrap">Last call - about to give the [ZIP] postcard spot to another [BUSINESS_TYPE]. You in or out?</div>
+                        <div id="lastTextTemplate" class="text-sm text-gray-700 bg-white p-3 rounded border font-mono whitespace-pre-wrap">Last one - card goes to print Friday. Got another [BUSINESS_TYPE] interested in the spot. Yours if you want it, just let me know either way.</div>
                     </div>
                 </div>
 
@@ -1120,22 +1115,24 @@
                     <h3 class="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
                         <span class="text-2xl">📧</span> Email Templates
                     </h3>
-                    <p class="text-sm text-gray-500 mb-4">Professional emails for when you need more detail.</p>
+                    <p class="text-sm text-gray-500 mb-4">More detail for cold outreach. Keep subject lines short.</p>
 
                     <!-- First Touch Email -->
                     <div class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                         <div class="flex items-center justify-between mb-2">
-                            <span class="font-bold text-blue-900">First Touch - Introduction</span>
+                            <span class="font-bold text-blue-900">Cold Intro - One Spot Left</span>
                             <button onclick="copyEmailTemplate('firstTouch')" class="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 font-bold">📋 Copy</button>
                         </div>
-                        <div class="text-xs text-blue-800 mb-2">Subject: Quick question about [ZIP]</div>
-                        <div id="firstTouchTemplate" class="text-sm text-gray-700 bg-white p-3 rounded border font-mono whitespace-pre-wrap">Hi [CONTACT_NAME],
+                        <div class="text-xs text-blue-800 mb-2">Subject: [BUSINESS_TYPE] spot in [ZIP]?</div>
+                        <div id="firstTouchTemplate" class="text-sm text-gray-700 bg-white p-3 rounded border font-mono whitespace-pre-wrap">Hi,
 
-I'm sending a postcard to every home in [ZIP] next month - about [HOMES] households.
+I'm [YOUR_NAME] with [YOUR_COMPANY]. I'm putting together a community postcard that goes to every single home in [ZIP] - delivered by USPS, not stuck in a mailbox.
 
-I have a spot reserved for a [BUSINESS_TYPE] and thought of [BUSINESS_NAME].
+I have one spot reserved for a [BUSINESS_TYPE] and thought of [BUSINESS_NAME].
 
-Worth a quick chat? I can hold the spot until Friday.
+It's [SPOT_PRICE] for the ad. You'd be the only [BUSINESS_TYPE] on the card - no competition.
+
+Worth a quick call? I can hold the spot until Friday.
 
 [YOUR_NAME]
 [YOUR_PHONE]</div>
@@ -1144,17 +1141,19 @@ Worth a quick chat? I can hold the spot until Friday.
                     <!-- Follow-up Email -->
                     <div class="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
                         <div class="flex items-center justify-between mb-2">
-                            <span class="font-bold text-purple-900">Follow-up - Urgency</span>
+                            <span class="font-bold text-purple-900">Follow-up - Social Proof</span>
                             <button onclick="copyEmailTemplate('followUp')" class="px-3 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 font-bold">📋 Copy</button>
                         </div>
-                        <div class="text-xs text-purple-800 mb-2">Subject: Re: Quick question about [ZIP]</div>
-                        <div id="followUpTemplate" class="text-sm text-gray-700 bg-white p-3 rounded border font-mono whitespace-pre-wrap">Hi [CONTACT_NAME],
+                        <div class="text-xs text-purple-800 mb-2">Subject: Re: [BUSINESS_TYPE] spot in [ZIP]?</div>
+                        <div id="followUpTemplate" class="text-sm text-gray-700 bg-white p-3 rounded border font-mono whitespace-pre-wrap">Hi,
 
-Quick follow-up - the postcard for [ZIP] goes to print next week.
+Quick follow-up on the [ZIP] postcard - we've got 14 of 18 spots filled already.
 
-I still have one [BUSINESS_TYPE] spot open at [SPOT_PRICE]. That gets you in front of [HOMES] homeowners.
+The [BUSINESS_TYPE] spot is still open at [SPOT_PRICE]. Card goes to print next week and hits every mailbox in the ZIP code.
 
-Want me to save it for [BUSINESS_NAME]? Just need to know by [DEADLINE].
+Most businesses do this because if even ONE customer calls from the card, they've made their money back. A plumber on last month's card told me he got 6 calls.
+
+Want me to save your spot?
 
 [YOUR_NAME]
 [YOUR_PHONE]</div>
@@ -1163,17 +1162,17 @@ Want me to save it for [BUSINESS_NAME]? Just need to know by [DEADLINE].
                     <!-- Last Chance Email -->
                     <div class="p-4 bg-red-50 border border-red-200 rounded-lg">
                         <div class="flex items-center justify-between mb-2">
-                            <span class="font-bold text-red-900">Last Chance - Final Push</span>
+                            <span class="font-bold text-red-900">Final Push - Competitor Mention</span>
                             <button onclick="copyEmailTemplate('lastChance')" class="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 font-bold">📋 Copy</button>
                         </div>
-                        <div class="text-xs text-red-800 mb-2">Subject: Last spot for [ZIP] postcard</div>
-                        <div id="lastChanceTemplate" class="text-sm text-gray-700 bg-white p-3 rounded border font-mono whitespace-pre-wrap">Hey [CONTACT_NAME],
+                        <div class="text-xs text-red-800 mb-2">Subject: giving the spot to [COMPETITOR]?</div>
+                        <div id="lastChanceTemplate" class="text-sm text-gray-700 bg-white p-3 rounded border font-mono whitespace-pre-wrap">Hey,
 
-Last call - I have ONE spot left on the [ZIP] postcard and I'm about to offer it to [COMPETITOR_NAME].
+Card goes to print Friday. I've got one [BUSINESS_TYPE] spot left and [COMPETITOR_NAME] is interested.
 
-Wanted to give [BUSINESS_NAME] first shot since you'd be the only [BUSINESS_TYPE] on the card.
+Wanted to give [BUSINESS_NAME] first shot since I reached out to you first.
 
-Yes or no - just let me know either way.
+Yes or no - just let me know.
 
 [YOUR_NAME]</div>
                     </div>
@@ -1183,22 +1182,25 @@ Yes or no - just let me know either way.
             <!-- CALL SCRIPT - FULL WIDTH -->
             <div class="bg-white rounded-2xl shadow-xl border-2 border-green-200 p-6 mb-6">
                 <h3 class="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
-                    <span class="text-2xl">📞</span> Call Script
+                    <span class="text-2xl">📞</span> Phone Script
                 </h3>
                 <div class="p-4 bg-green-50 border border-green-200 rounded-lg">
                     <div class="flex items-center justify-between mb-3">
-                        <span class="font-bold text-green-900 text-lg">30-Second Cold Call Script</span>
+                        <span class="font-bold text-green-900 text-lg">Cold Call Framework - Keep It Under 60 Seconds</span>
                         <button onclick="copyCallScript()" class="px-4 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 font-bold">📋 Copy Script</button>
                     </div>
                     <div id="callScriptTemplate" class="text-sm text-gray-700 bg-white p-4 rounded border">
-                        <p class="mb-3"><strong class="text-green-700">Opening:</strong></p>
-                        <p class="italic mb-4 text-gray-800">"Hey [CONTACT_NAME], this is [YOUR_NAME] with [YOUR_COMPANY]. I'm putting together a postcard that's going to every home in [ZIP] - about [HOMES] mailboxes. I've got one spot left for a [BUSINESS_TYPE] business. Wanted to see if you'd want it before I offer it to [COMPETITOR]. Got 2 minutes?"</p>
+                        <p class="mb-3"><strong class="text-green-700">1. Pattern Interrupt (get their attention):</strong></p>
+                        <p class="italic mb-4 text-gray-800">"Hey, is this [CONTACT_NAME]? Great - this is [YOUR_NAME], I do local advertising in [ZIP]. Got a quick question - do you guys do any direct mail marketing right now?"</p>
 
-                        <p class="mb-3"><strong class="text-green-700">If they say yes/interested:</strong></p>
-                        <p class="italic mb-4 text-gray-800">"Great! So it's [SPOT_PRICE] for the spot. Your ad goes on a 9x12 postcard - it's big, full color, and hits every single home in the ZIP code. You'd be the ONLY [BUSINESS_TYPE] on the card. If even ONE person calls you from it, what's that worth?"</p>
+                        <p class="mb-3"><strong class="text-green-700">2. If they say No / Not really:</strong></p>
+                        <p class="italic mb-4 text-gray-800">"Perfect. So I put together a community postcard that goes to every home in the ZIP - USPS delivers it, it's big, full color. I've got one [BUSINESS_TYPE] spot left on it. You'd be the ONLY [BUSINESS_TYPE] on the card. Wanted to see if you'd want it before I give it to one of your competitors."</p>
 
-                        <p class="mb-3"><strong class="text-green-700">Close:</strong></p>
-                        <p class="italic text-gray-800">"Want me to save you the spot? I just need a quick yes and we can sort out the details."</p>
+                        <p class="mb-3"><strong class="text-green-700">3. If they ask "How much?":</strong></p>
+                        <p class="italic mb-4 text-gray-800">"It's [SPOT_PRICE] for the spot. Think about it like this - if even ONE person calls you from this card, you've probably already made that back. How much is a new customer worth to you?"</p>
+
+                        <p class="mb-3"><strong class="text-green-700">4. Close (assumptive):</strong></p>
+                        <p class="italic text-gray-800">"Want me to save your spot? I just need a quick yes and I can send over the details. Card goes to print [DATE]."</p>
                     </div>
                 </div>
             </div>
@@ -1208,23 +1210,31 @@ Yes or no - just let me know either way.
                 <h3 class="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
                     <span class="text-2xl">🛡️</span> Objection Handling
                 </h3>
-                <p class="text-sm text-gray-500 mb-4">Common pushbacks and how to overcome them.</p>
+                <p class="text-sm text-gray-500 mb-4">The sale starts when they say no. Here's how to handle the common ones.</p>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                         <p class="font-bold text-yellow-900 mb-2">"How much is it?"</p>
-                        <p class="text-sm text-gray-700">"It's [SPOT_PRICE] for the spot. That gets you in front of [HOMES] homeowners. If you get just ONE customer from it, what's that worth to you?"</p>
+                        <p class="text-sm text-gray-700">"It's [SPOT_PRICE]. But here's the thing - you're going to be in front of every single home in [ZIP]. If you get ONE customer from it, you've probably made that back. What's a new customer worth to you?"</p>
                     </div>
                     <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                         <p class="font-bold text-yellow-900 mb-2">"I need to think about it"</p>
-                        <p class="text-sm text-gray-700">"Totally get it. The card goes to print on [DATE], so I can hold your spot until [DEADLINE]. Want me to pencil you in?"</p>
+                        <p class="text-sm text-gray-700">"Totally fair. Just so you know, I only have one [BUSINESS_TYPE] spot and I've got another guy interested. Card goes to print [DATE]. Can I pencil you in and follow up tomorrow?"</p>
                     </div>
                     <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                         <p class="font-bold text-yellow-900 mb-2">"I've tried mailers before, they don't work"</p>
-                        <p class="text-sm text-gray-700">"What'd you try? ...Yeah, those are different. This goes to EVERY home in the ZIP - not a purchased list. And you're the only [BUSINESS_TYPE] on the card. No competition."</p>
+                        <p class="text-sm text-gray-700">"What did you try? ... Yeah, that's different. Those go to a purchased list. This goes to EVERY home in the ZIP code - USPS delivers it. And you're the only [BUSINESS_TYPE] on the card, so there's no competition. It's a completely different animal."</p>
                     </div>
                     <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                         <p class="font-bold text-yellow-900 mb-2">"I don't have the budget right now"</p>
-                        <p class="text-sm text-gray-700">"I hear you. What if we split it - half now, half when the card drops? That way you're not out the full amount upfront."</p>
+                        <p class="text-sm text-gray-700">"I hear you. What if we did half now and half when the card drops? That way you're not out the full amount upfront. Would that work better?"</p>
+                    </div>
+                    <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <p class="font-bold text-yellow-900 mb-2">"Send me some information"</p>
+                        <p class="text-sm text-gray-700">"Sure, what's your email? ... Actually, everything I'd send you I can tell you in 30 seconds. It's a 9x12 postcard, goes to every home in [ZIP], you'd be the only [BUSINESS_TYPE], and it's [SPOT_PRICE]. That's pretty much it. You in?"</p>
+                    </div>
+                    <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <p class="font-bold text-yellow-900 mb-2">"I'm not interested"</p>
+                        <p class="text-sm text-gray-700">"No problem at all. Mind if I ask - is it the timing, the price, or you just don't do this type of advertising? ... [Listen] ... Got it. Well if anything changes, I do these every month. Good luck!"</p>
                     </div>
                 </div>
             </div>

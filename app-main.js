@@ -4807,22 +4807,25 @@ function loadSalesToolkitSettings() {
     salesToolkitSettings = JSON.parse(saved);
   }
 
-  // Populate form fields
-  document.getElementById('salesToolkitName').value = salesToolkitSettings.yourName || '';
-  document.getElementById('salesToolkitCompany').value = salesToolkitSettings.yourCompany || '';
-  document.getElementById('salesToolkitPhone').value = salesToolkitSettings.yourPhone || '';
-  document.getElementById('salesToolkitSpotPrice').value = salesToolkitSettings.spotPrice || '$400';
-  document.getElementById('salesToolkitHomes').value = salesToolkitSettings.homesReached || '5,000';
+  // Populate form fields (check if elements exist first)
+  const nameEl = document.getElementById('salesToolkitName');
+  const companyEl = document.getElementById('salesToolkitCompany');
+  const phoneEl = document.getElementById('salesToolkitPhone');
+  const priceEl = document.getElementById('salesToolkitSpotPrice');
+
+  if (nameEl) nameEl.value = salesToolkitSettings.yourName || '';
+  if (companyEl) companyEl.value = salesToolkitSettings.yourCompany || '';
+  if (phoneEl) phoneEl.value = salesToolkitSettings.yourPhone || '';
+  if (priceEl) priceEl.value = salesToolkitSettings.spotPrice || '$399';
 }
 
 // Save Sales Toolkit settings
 function saveSalesToolkitSettings() {
   salesToolkitSettings = {
-    yourName: document.getElementById('salesToolkitName').value,
-    yourCompany: document.getElementById('salesToolkitCompany').value,
-    yourPhone: document.getElementById('salesToolkitPhone').value,
-    spotPrice: document.getElementById('salesToolkitSpotPrice').value,
-    homesReached: document.getElementById('salesToolkitHomes').value
+    yourName: document.getElementById('salesToolkitName')?.value || '',
+    yourCompany: document.getElementById('salesToolkitCompany')?.value || '',
+    yourPhone: document.getElementById('salesToolkitPhone')?.value || '',
+    spotPrice: document.getElementById('salesToolkitSpotPrice')?.value || '$399'
   };
 
   localStorage.setItem('salesToolkitSettings', JSON.stringify(salesToolkitSettings));
@@ -4844,7 +4847,6 @@ function copyEmailTemplate(templateType) {
   template = template.replace(/\[YOUR_PHONE\]/g, salesToolkitSettings.yourPhone || '[YOUR_PHONE]');
   template = template.replace(/\[YOUR_COMPANY\]/g, salesToolkitSettings.yourCompany || '[YOUR_COMPANY]');
   template = template.replace(/\[SPOT_PRICE\]/g, salesToolkitSettings.spotPrice || '[SPOT_PRICE]');
-  template = template.replace(/\[HOMES\]/g, salesToolkitSettings.homesReached || '[HOMES]');
 
   navigator.clipboard.writeText(template).then(() => {
     toast('📋 Template copied! Paste into your email.', true);
@@ -4863,7 +4865,6 @@ function copyCallScript() {
   script = script.replace(/\[YOUR_PHONE\]/g, salesToolkitSettings.yourPhone || '[YOUR_PHONE]');
   script = script.replace(/\[YOUR_COMPANY\]/g, salesToolkitSettings.yourCompany || '[YOUR_COMPANY]');
   script = script.replace(/\[SPOT_PRICE\]/g, salesToolkitSettings.spotPrice || '[SPOT_PRICE]');
-  script = script.replace(/\[HOMES\]/g, salesToolkitSettings.homesReached || '[HOMES]');
 
   navigator.clipboard.writeText(script).then(() => {
     toast('📋 Call script copied!', true);
@@ -4885,15 +4886,17 @@ function sendPitchEmail(prospect) {
   }
 
   // Build email with merge fields filled in
-  const subject = encodeURIComponent(`Quick question about ${zip}`);
+  const subject = encodeURIComponent(`${businessType} spot in ${zip}?`);
 
-  let body = `Hi ${businessName.split(' ')[0] || 'there'},
+  let body = `Hi,
 
-I'm sending a postcard to every home in ${zip} next month - about ${salesToolkitSettings.homesReached || '5,000'} households.
+I'm ${salesToolkitSettings.yourName || '[Your Name]'} with ${salesToolkitSettings.yourCompany || '[Your Company]'}. I'm putting together a community postcard that goes to every single home in ${zip} - delivered by USPS, not stuck in a mailbox.
 
-I have a spot reserved for a ${businessType} and thought of ${businessName}.
+I have one spot reserved for a ${businessType} and thought of ${businessName}.
 
-Worth a quick chat? I can hold the spot until Friday.
+It's ${salesToolkitSettings.spotPrice || '$399'} for the ad. You'd be the only ${businessType} on the card - no competition.
+
+Worth a quick call? I can hold the spot until Friday.
 
 ${salesToolkitSettings.yourName || '[Your Name]'}
 ${salesToolkitSettings.yourPhone || '[Your Phone]'}`;
@@ -4926,7 +4929,6 @@ function copySmsTemplate(templateType) {
   template = template.replace(/\[YOUR_PHONE\]/g, salesToolkitSettings.yourPhone || '[YOUR_PHONE]');
   template = template.replace(/\[YOUR_COMPANY\]/g, salesToolkitSettings.yourCompany || '[YOUR_COMPANY]');
   template = template.replace(/\[SPOT_PRICE\]/g, salesToolkitSettings.spotPrice || '[SPOT_PRICE]');
-  template = template.replace(/\[HOMES\]/g, salesToolkitSettings.homesReached || '[HOMES]');
 
   navigator.clipboard.writeText(template).then(() => {
     toast('💬 Text template copied!', true);
@@ -4950,8 +4952,8 @@ function sendTextMessage(prospect) {
   // Clean phone number (remove non-digits except leading +)
   let cleanPhone = phone.replace(/[^\d+]/g, '');
 
-  // Build short SMS message
-  const message = `Hi! This is ${salesToolkitSettings.yourName || '[Your Name]'}. I'm putting together a postcard going to every home in ${zip}. Got a spot for a ${businessType} - thought of ${businessName.split(' ')[0] || 'you'}. Interested?`;
+  // Build short SMS message (curiosity hook style)
+  const message = `Hey! Quick question - do you guys do any direct mail advertising? I'm putting a community postcard together for ${zip} and have one ${businessType} spot left.`;
 
   // Use sms: protocol (works on mobile and some desktop)
   const smsLink = `sms:${cleanPhone}?body=${encodeURIComponent(message)}`;
