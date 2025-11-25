@@ -6066,42 +6066,67 @@ let enrichmentQuota = {
   lastResetDate: null
 };
 
-// Load enrichment quota from localStorage
-function loadEnrichmentQuota() {
-  const saved = localStorage.getItem('9x12_enrichment_quota');
-  if (saved) {
-    const data = JSON.parse(saved);
+// Load enrichment quota from Supabase (persists across refreshes/updates)
+async function loadEnrichmentQuota() {
+  try {
+    const cloudData = await loadFromCloud('apiUsage');
     const today = new Date().toDateString();
 
-    // Reset if it's a new day
-    if (data.lastResetDate !== today) {
-      enrichmentQuota.queriesUsed = 0;
-      enrichmentQuota.lastResetDate = today;
-      saveEnrichmentQuota();
+    if (cloudData) {
+      // Reset if it's a new day
+      if (cloudData.lastResetDate !== today) {
+        console.log('📊 API Usage: New day detected, resetting counter');
+        enrichmentQuota.queriesUsed = 0;
+        enrichmentQuota.lastResetDate = today;
+        await saveEnrichmentQuota();
+      } else {
+        enrichmentQuota.queriesUsed = cloudData.queriesUsed || 0;
+        enrichmentQuota.lastResetDate = cloudData.lastResetDate;
+        console.log(`📊 API Usage: Loaded ${enrichmentQuota.queriesUsed} queries used today`);
+      }
     } else {
+      // First time - initialize
+      enrichmentQuota.lastResetDate = today;
+      await saveEnrichmentQuota();
+      console.log('📊 API Usage: Initialized new tracking');
+    }
+  } catch (e) {
+    console.warn('Failed to load API usage from cloud, using localStorage fallback:', e);
+    // Fallback to localStorage
+    const saved = localStorage.getItem('9x12_enrichment_quota');
+    if (saved) {
+      const data = JSON.parse(saved);
       enrichmentQuota.queriesUsed = data.queriesUsed || 0;
       enrichmentQuota.lastResetDate = data.lastResetDate;
     }
-  } else {
-    enrichmentQuota.lastResetDate = new Date().toDateString();
-    saveEnrichmentQuota();
   }
   updateEnrichmentCounter();
 }
 
-// Save enrichment quota to localStorage
-function saveEnrichmentQuota() {
-  localStorage.setItem('9x12_enrichment_quota', JSON.stringify({
+// Save enrichment quota to Supabase
+async function saveEnrichmentQuota() {
+  const data = {
     queriesUsed: enrichmentQuota.queriesUsed,
-    lastResetDate: enrichmentQuota.lastResetDate
-  }));
+    lastResetDate: enrichmentQuota.lastResetDate,
+    lastUpdated: new Date().toISOString()
+  };
+
+  // Save to cloud (primary)
+  try {
+    await saveToCloud('apiUsage', data);
+  } catch (e) {
+    console.warn('Failed to save API usage to cloud:', e);
+  }
+
+  // Also save to localStorage as backup
+  localStorage.setItem('9x12_enrichment_quota', JSON.stringify(data));
   updateEnrichmentCounter();
 }
 
 // Increment the query counter
-function trackEnrichmentQuery(count = 1) {
+async function trackEnrichmentQuery(count = 1) {
   enrichmentQuota.queriesUsed += count;
-  saveEnrichmentQuota();
+  await saveEnrichmentQuota();
 }
 
 // Update the UI counter
@@ -11325,15 +11350,15 @@ function renderKanban() {
                 c.businessName.toLowerCase() === item.businessName.toLowerCase()
               ));
 
-            // Build compact icon display
+            // Build compact icon display with actual contact info in tooltips
             const contactIcons = [];
-            if (item.phone) contactIcons.push(`<a href="tel:${esc(item.phone)}" class="text-lg hover:text-blue-600" title="📞 ${esc(item.phone)}">📞</a>`);
-            if (item.website) contactIcons.push(`<a href="${esc(ensureHttps(item.website))}" target="_blank" class="text-lg hover:text-blue-600" title="🌐 ${esc(item.website)}">🌐</a>`);
-            if (item.email) contactIcons.push(`<a href="mailto:${esc(item.email)}" class="text-lg hover:text-blue-600" title="✉️ ${esc(item.email)}">✉️</a>`);
-            if (item.facebook) contactIcons.push(`<a href="${esc(ensureHttps(item.facebook))}" target="_blank" class="text-lg hover:text-blue-600" title="Facebook">📘</a>`);
-            if (item.instagram) contactIcons.push(`<a href="${esc(ensureHttps(item.instagram))}" target="_blank" class="text-lg hover:text-blue-600" title="Instagram">📷</a>`);
-            if (item.linkedin) contactIcons.push(`<a href="${esc(ensureHttps(item.linkedin))}" target="_blank" class="text-lg hover:text-blue-600" title="LinkedIn">💼</a>`);
-            if (item.twitter) contactIcons.push(`<a href="${esc(ensureHttps(item.twitter))}" target="_blank" class="text-lg hover:text-blue-600" title="Twitter">🐦</a>`);
+            if (item.phone) contactIcons.push(`<a href="tel:${esc(item.phone)}" onclick="event.stopPropagation()" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="📞 ${esc(item.phone)}">📞</a>`);
+            if (item.website) contactIcons.push(`<a href="${esc(ensureHttps(item.website))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="🌐 ${esc(item.website)}">🌐</a>`);
+            if (item.email) contactIcons.push(`<a href="mailto:${esc(item.email)}" onclick="event.stopPropagation()" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="✉️ ${esc(item.email)}">✉️</a>`);
+            if (item.facebook) contactIcons.push(`<a href="${esc(ensureHttps(item.facebook))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="📘 ${esc(item.facebook)}">📘</a>`);
+            if (item.instagram) contactIcons.push(`<a href="${esc(ensureHttps(item.instagram))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="📷 ${esc(item.instagram)}">📷</a>`);
+            if (item.linkedin) contactIcons.push(`<a href="${esc(ensureHttps(item.linkedin))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="💼 ${esc(item.linkedin)}">💼</a>`);
+            if (item.twitter) contactIcons.push(`<a href="${esc(ensureHttps(item.twitter))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="🐦 ${esc(item.twitter)}">🐦</a>`);
 
             return `
               <div class="kanban-item text-xs p-2 bg-white border rounded ${hasContact ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'}" data-item-id="${leadId}" data-column="${col.key}" ondblclick="openClientModalForProspect('${leadId}')">
@@ -11429,15 +11454,15 @@ function renderKanban() {
                 </div>
               </div>
               ${col.key === 'to-contact' && typeof item === 'object' ? (() => {
-                // Build contact icons for to-contact column
+                // Build contact icons for to-contact column with actual contact info in tooltips
                 const contactIcons = [];
-                if (item.phone) contactIcons.push(`<a href="tel:${esc(item.phone)}" class="text-lg hover:text-blue-600" title="📞 ${esc(item.phone)}">📞</a>`);
-                if (item.website) contactIcons.push(`<a href="${esc(ensureHttps(item.website))}" target="_blank" class="text-lg hover:text-blue-600" title="🌐 ${esc(item.website)}">🌐</a>`);
-                if (item.email) contactIcons.push(`<a href="mailto:${esc(item.email)}" class="text-lg hover:text-blue-600" title="✉️ ${esc(item.email)}">✉️</a>`);
-                if (item.facebook) contactIcons.push(`<a href="${esc(ensureHttps(item.facebook))}" target="_blank" class="text-lg hover:text-blue-600" title="Facebook">📘</a>`);
-                if (item.instagram) contactIcons.push(`<a href="${esc(ensureHttps(item.instagram))}" target="_blank" class="text-lg hover:text-blue-600" title="Instagram">📷</a>`);
-                if (item.linkedin) contactIcons.push(`<a href="${esc(ensureHttps(item.linkedin))}" target="_blank" class="text-lg hover:text-blue-600" title="LinkedIn">💼</a>`);
-                if (item.twitter) contactIcons.push(`<a href="${esc(ensureHttps(item.twitter))}" target="_blank" class="text-lg hover:text-blue-600" title="Twitter">🐦</a>`);
+                if (item.phone) contactIcons.push(`<a href="tel:${esc(item.phone)}" onclick="event.stopPropagation()" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="📞 ${esc(item.phone)}">📞</a>`);
+                if (item.website) contactIcons.push(`<a href="${esc(ensureHttps(item.website))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="🌐 ${esc(item.website)}">🌐</a>`);
+                if (item.email) contactIcons.push(`<a href="mailto:${esc(item.email)}" onclick="event.stopPropagation()" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="✉️ ${esc(item.email)}">✉️</a>`);
+                if (item.facebook) contactIcons.push(`<a href="${esc(ensureHttps(item.facebook))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="📘 ${esc(item.facebook)}">📘</a>`);
+                if (item.instagram) contactIcons.push(`<a href="${esc(ensureHttps(item.instagram))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="📷 ${esc(item.instagram)}">📷</a>`);
+                if (item.linkedin) contactIcons.push(`<a href="${esc(ensureHttps(item.linkedin))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="💼 ${esc(item.linkedin)}">💼</a>`);
+                if (item.twitter) contactIcons.push(`<a href="${esc(ensureHttps(item.twitter))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="🐦 ${esc(item.twitter)}">🐦</a>`);
 
                 return contactIcons.length > 0 ? `
                   <div class="flex gap-2 items-center justify-center py-2 mt-2 border-t border-gray-200">
