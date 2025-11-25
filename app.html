@@ -31,7 +31,7 @@
   <meta name="format-detection" content="telephone=no" />
   <script>
     // Cache busting version - update this to force reload on all devices
-    window.APP_VERSION = '2025-01-24-v100';
+    window.APP_VERSION = '2025-01-24-v101';
     window.CACHE_BUST = '?v=' + window.APP_VERSION;
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -1147,6 +1147,40 @@ Yes or no - just let me know either way.
                                     <p class="mb-3"><strong>Close:</strong></p>
                                     <p class="italic">"Want me to save you the spot? I just need a quick yes and we can sort out the details."</p>
                                 </div>
+                            </div>
+                        </div>
+
+                        <!-- SMS Templates -->
+                        <div class="mb-6">
+                            <h4 class="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                                <span>💬</span> Text Message Templates
+                            </h4>
+
+                            <!-- First Text -->
+                            <div class="mb-4 p-4 bg-teal-50 border border-teal-200 rounded-lg">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="font-semibold text-teal-900">First Text - Short & Direct</span>
+                                    <button onclick="copySmsTemplate('firstText')" class="px-3 py-1 bg-teal-600 text-white text-xs rounded hover:bg-teal-700">📋 Copy</button>
+                                </div>
+                                <div id="firstTextTemplate" class="text-sm text-gray-700 bg-white p-3 rounded border font-mono whitespace-pre-wrap">Hi! This is [YOUR_NAME]. I'm putting together a postcard going to every home in [ZIP]. Got a spot for a [BUSINESS_TYPE] - thought of you. Interested?</div>
+                            </div>
+
+                            <!-- Follow-up Text -->
+                            <div class="mb-4 p-4 bg-cyan-50 border border-cyan-200 rounded-lg">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="font-semibold text-cyan-900">Follow-up Text - Urgency</span>
+                                    <button onclick="copySmsTemplate('followUpText')" class="px-3 py-1 bg-cyan-600 text-white text-xs rounded hover:bg-cyan-700">📋 Copy</button>
+                                </div>
+                                <div id="followUpTextTemplate" class="text-sm text-gray-700 bg-white p-3 rounded border font-mono whitespace-pre-wrap">Hey, following up on the postcard spot for [ZIP]. Goes to print soon - still have one [BUSINESS_TYPE] spot at [SPOT_PRICE]. Want it?</div>
+                            </div>
+
+                            <!-- Last Chance Text -->
+                            <div class="p-4 bg-rose-50 border border-rose-200 rounded-lg">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="font-semibold text-rose-900">Last Chance Text</span>
+                                    <button onclick="copySmsTemplate('lastText')" class="px-3 py-1 bg-rose-600 text-white text-xs rounded hover:bg-rose-700">📋 Copy</button>
+                                </div>
+                                <div id="lastTextTemplate" class="text-sm text-gray-700 bg-white p-3 rounded border font-mono whitespace-pre-wrap">Last call - about to give the [ZIP] postcard spot to another [BUSINESS_TYPE]. You in or out?</div>
                             </div>
                         </div>
 

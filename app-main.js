@@ -4911,14 +4911,65 @@ function sendPitchFromPool(prospectData) {
   sendPitchEmail(prospect);
 }
 
+// Copy SMS template with placeholders
+function copySmsTemplate(templateType) {
+  const templates = {
+    firstText: document.getElementById('firstTextTemplate')?.innerText || '',
+    followUpText: document.getElementById('followUpTextTemplate')?.innerText || '',
+    lastText: document.getElementById('lastTextTemplate')?.innerText || ''
+  };
+
+  let template = templates[templateType] || '';
+
+  // Replace user settings placeholders
+  template = template.replace(/\[YOUR_NAME\]/g, salesToolkitSettings.yourName || '[YOUR_NAME]');
+  template = template.replace(/\[YOUR_PHONE\]/g, salesToolkitSettings.yourPhone || '[YOUR_PHONE]');
+  template = template.replace(/\[YOUR_COMPANY\]/g, salesToolkitSettings.yourCompany || '[YOUR_COMPANY]');
+  template = template.replace(/\[SPOT_PRICE\]/g, salesToolkitSettings.spotPrice || '[SPOT_PRICE]');
+  template = template.replace(/\[HOMES\]/g, salesToolkitSettings.homesReached || '[HOMES]');
+
+  navigator.clipboard.writeText(template).then(() => {
+    toast('💬 Text template copied!', true);
+  }).catch(() => {
+    toast('❌ Failed to copy. Try selecting and copying manually.', false);
+  });
+}
+
+// Send text message to a prospect (opens SMS app with pre-filled message)
+function sendTextMessage(prospect) {
+  const businessName = prospect.businessName || prospect.name || 'there';
+  const businessType = prospect.category || 'local business';
+  const zip = prospect.actualZip || prospect.zipCode || prospect.zip || '';
+  const phone = prospect.phone || '';
+
+  if (!phone) {
+    toast('❌ No phone number found for this prospect.', false);
+    return;
+  }
+
+  // Clean phone number (remove non-digits except leading +)
+  let cleanPhone = phone.replace(/[^\d+]/g, '');
+
+  // Build short SMS message
+  const message = `Hi! This is ${salesToolkitSettings.yourName || '[Your Name]'}. I'm putting together a postcard going to every home in ${zip}. Got a spot for a ${businessType} - thought of ${businessName.split(' ')[0] || 'you'}. Interested?`;
+
+  // Use sms: protocol (works on mobile and some desktop)
+  const smsLink = `sms:${cleanPhone}?body=${encodeURIComponent(message)}`;
+
+  window.open(smsLink, '_blank');
+  toast(`💬 Opening text to ${businessName}...`, true);
+}
+
 // Expose functions globally
 window.toggleSalesToolkit = toggleSalesToolkit;
 window.loadSalesToolkitSettings = loadSalesToolkitSettings;
 window.saveSalesToolkitSettings = saveSalesToolkitSettings;
 window.copyEmailTemplate = copyEmailTemplate;
 window.copyCallScript = copyCallScript;
+window.copySmsTemplate = copySmsTemplate;
 window.sendPitchEmail = sendPitchEmail;
 window.sendPitchFromPool = sendPitchFromPool;
+window.sendTextMessage = sendTextMessage;
 
 // Clear all search caches (localStorage + cloud)
 async function clearAllSearchCaches() {
@@ -6960,13 +7011,18 @@ function renderProspectPool() {
                     </div>
                   ` : '<div class="text-gray-400 italic text-center py-2 mb-2 text-xs border-t border-gray-200">No contact info</div>'}
                   <div class="flex gap-2 flex-wrap">
+                    ${prospect.phone ? `
+                      <button onclick="event.stopPropagation(); sendTextMessage(${JSON.stringify(prospect).replace(/"/g, '&quot;')})" class="flex-1 px-3 py-1.5 bg-teal-500 text-white rounded-md hover:bg-teal-600 font-semibold text-xs" title="Send text message">
+                        💬 Text
+                      </button>
+                    ` : ''}
                     ${prospect.email ? `
                       <button onclick="event.stopPropagation(); sendPitchEmail(${JSON.stringify(prospect).replace(/"/g, '&quot;')})" class="flex-1 px-3 py-1.5 bg-orange-500 text-white rounded-md hover:bg-orange-600 font-semibold text-xs" title="Send pitch email">
-                        📧 Send Pitch
+                        📧 Email
                       </button>
                     ` : ''}
                     <button onclick="event.stopPropagation(); moveProspectFromPool(${prospect.id})" class="flex-1 px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-semibold text-xs">
-                      Add to Pipeline →
+                      Pipeline →
                     </button>
                     <button onclick="event.stopPropagation(); markProspectNotInterested('${prospect.placeId || prospect.id}', '${esc(prospect.businessName).replace(/'/g, "\\'")}')" class="px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 font-semibold text-xs" title="Not Interested">
                       🚫
@@ -7085,9 +7141,14 @@ function renderProspectPool() {
                     <!-- Action Buttons -->
                     ${!isDisabled ? `
                     <div class="flex gap-2 mt-2 pt-2 border-t border-gray-200">
+                      ${rawPhone ? `
+                        <button onclick="event.stopPropagation(); sendTextMessage({name: '${esc(displayName).replace(/'/g, "\\'")}', phone: '${esc(rawPhone)}', category: '${esc(prospect.category || '')}', zipCode: '${esc(prospect.actualZip || prospect.zipCode || '')}'})" class="flex-1 px-2 py-1 bg-teal-500 text-white rounded hover:bg-teal-600 text-xs font-semibold" title="Send text">
+                          💬 Text
+                        </button>
+                      ` : ''}
                       ${rawEmail ? `
-                        <button onclick="event.stopPropagation(); sendPitchEmail({name: '${esc(displayName).replace(/'/g, "\\'")}', email: '${esc(rawEmail)}', category: '${esc(prospect.category || '')}', zipCode: '${esc(prospect.actualZip || prospect.zipCode || '')}'})" class="flex-1 px-2 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 text-xs font-semibold" title="Send pitch email">
-                          📧 Pitch
+                        <button onclick="event.stopPropagation(); sendPitchEmail({name: '${esc(displayName).replace(/'/g, "\\'")}', email: '${esc(rawEmail)}', category: '${esc(prospect.category || '')}', zipCode: '${esc(prospect.actualZip || prospect.zipCode || '')}'})" class="flex-1 px-2 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 text-xs font-semibold" title="Send email">
+                          📧 Email
                         </button>
                       ` : ''}
                       <button onclick="event.stopPropagation(); markProspectNotInterested('${prospectId}', '${esc(displayName).replace(/'/g, "\\'")}')" class="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs font-semibold" title="Not Interested">
