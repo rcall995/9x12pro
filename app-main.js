@@ -4971,6 +4971,12 @@ window.sendPitchEmail = sendPitchEmail;
 window.sendPitchFromPool = sendPitchFromPool;
 window.sendTextMessage = sendTextMessage;
 
+// Load Sales Toolkit settings on page load (for the Close Deals tab)
+document.addEventListener('DOMContentLoaded', function() {
+  // Delay slightly to ensure DOM is ready
+  setTimeout(loadSalesToolkitSettings, 100);
+});
+
 // Clear all search caches (localStorage + cloud)
 async function clearAllSearchCaches() {
   if (!confirm('⚠️ This will clear ALL cached searches and prospect data. Your clients will NOT be affected. Continue?')) {

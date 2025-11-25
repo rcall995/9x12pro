@@ -1,7 +1,26 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:adamscoatings.com)"
+      "WebFetch(domain:adamscoatings.com)",
+      "Bash(find:*)",
+      "Bash(vercel --version:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(vercel --prod:*)",
+      "Bash(vercel inspect:*)",
+      "Bash(vercel ls:*)",
+      "Bash(powershell -Command \"(Get-Content ''C:\\Users\\rich\\9x12Pro\\app.html'' | Measure-Object -Line).Lines\")",
+      "Bash(powershell -Command:*)",
+      "Bash(dir:*)",
+      "Bash(nul)",
+      "Bash(findstr:*)",
+      "Bash(\"C:\\Users\\rich\\9x12Pro\\styles.css\")",
+      "Bash(\"C:\\Users\\rich\\9x12Pro\\app-main.js\")",
+      "Bash(\"C:\\Users\\rich\\9x12Pro\\app-new.html\")",
+      "Bash(test:*)",
+      "Bash(curl:*)",
+      "Bash(node:*)",
+      "Bash(app-main-fixed.js)"
     ],
     "deny": [],
     "ask": []

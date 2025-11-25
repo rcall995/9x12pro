@@ -31,7 +31,7 @@
   <meta name="format-detection" content="telephone=no" />
   <script>
     // Cache busting version - update this to force reload on all devices
-    window.APP_VERSION = '2025-01-24-v102';
+    window.APP_VERSION = '2025-01-23-v72';
     window.CACHE_BUST = '?v=' + window.APP_VERSION;
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -92,7 +92,7 @@
   </script>
 
   <!-- External Stylesheet -->
-  <link rel="stylesheet" href="styles.css?v=2025-01-23-v76">
+  <link rel="stylesheet" href="styles.css?v=2025-01-23-v72">
 </head>
 <body class="bg-gray-100 min-h-screen font-sans">
   <!-- Inline script to set initial tab state before page renders -->
@@ -190,13 +190,6 @@
         <button onclick="switchTab('pipeline')" data-tab="pipeline" class="tab-btn flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:bg-white hover:shadow-md group" id="nav-pipeline">
           <span class="text-2xl">📊</span>
           <span class="font-bold text-gray-700 group-hover:text-indigo-600">Pipeline</span>
-        </button>
-        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-        </svg>
-        <button onclick="switchTab('outreach')" data-tab="outreach" class="tab-btn flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:bg-white hover:shadow-md group" id="nav-outreach">
-          <span class="text-2xl">💰</span>
-          <span class="font-bold text-gray-700 group-hover:text-orange-600">Close Deals</span>
         </button>
         <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
@@ -814,22 +807,6 @@
               </div>
             </div>
 
-            <!-- Enrichment Quota Counter -->
-            <div class="mb-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <span class="text-lg">🔍</span>
-                <span class="text-sm font-medium text-gray-700">Google Search Enrichment:</span>
-                <span id="enrichmentQuotaCounter" class="text-sm">
-                  <span class="text-green-600 font-bold">0</span>
-                  <span class="text-gray-500">/ 100</span>
-                  <span class="text-gray-400 text-xs ml-1">searches today</span>
-                </span>
-              </div>
-              <div class="text-xs text-gray-500">
-                3 searches per business (website + Facebook + Instagram)
-              </div>
-            </div>
-
             <div id="prospectPoolStats" class="grid grid-cols-4 gap-4 mb-6">
                 <!-- Stats populated by JavaScript -->
             </div>
@@ -879,18 +856,18 @@
                     <div class="grid md:grid-cols-3 gap-6 mt-8">
                         <div class="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
                             <div class="text-4xl mb-3">⚡</div>
-                            <div class="text-3xl font-bold mb-2">ZIP-to-Leads</div>
-                            <p class="text-purple-100">Enter a ZIP code, get qualified prospects with contact info instantly</p>
+                            <div class="text-3xl font-bold mb-2">Instant Results</div>
+                            <p class="text-purple-100">Search thousands of businesses by ZIP code in one click</p>
                         </div>
                         <div class="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
-                            <div class="text-4xl mb-3">📧</div>
-                            <div class="text-3xl font-bold mb-2">Auto-Enriched</div>
-                            <p class="text-purple-100">Emails, phone numbers & social media found automatically</p>
+                            <div class="text-4xl mb-3">💰</div>
+                            <div class="text-3xl font-bold mb-2">50 Free Searches</div>
+                            <p class="text-purple-100">Per month on FREE plan. Results cached 30 days</p>
                         </div>
                         <div class="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
                             <div class="text-4xl mb-3">🎯</div>
-                            <div class="text-3xl font-bold mb-2">Campaign Ready</div>
-                            <p class="text-purple-100">Prospects flow directly into your postcard pipeline</p>
+                            <div class="text-3xl font-bold mb-2">Laser Targeted</div>
+                            <p class="text-purple-100">Filter by category, radius, and custom searches</p>
                         </div>
                     </div>
                 </div>
@@ -901,40 +878,30 @@
                 <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
                     <div>
                         <h3 class="text-3xl font-black mb-3 flex items-center gap-3">
-                            <span class="text-4xl">🔍</span> ProspectRadar™
+                            <span class="text-4xl">🔍</span> Start Your Search
                         </h3>
                         <p class="text-xl text-purple-100">
-                            Discover local businesses and build your prospect list in seconds
+                            Search Google Places to automatically discover businesses in your area
                         </p>
                     </div>
-                    <div class="flex flex-col gap-4">
-                        <!-- ZIP Code Input - Up to 3 ZIPs -->
+                    <div class="flex gap-4">
+                        <!-- ZIP Code Input -->
                         <div class="bg-white/20 backdrop-blur-md rounded-xl px-6 py-4 border-2 border-white/30 shadow-lg">
-                            <div class="text-sm text-purple-100 mb-2 font-semibold">📍 Enter ZIP Codes (max 3)</div>
-                            <div class="flex gap-3 items-center flex-wrap">
-                                <input
-                                    id="bulkPopZip1"
-                                    type="text"
-                                    placeholder="ZIP 1"
-                                    maxlength="5"
-                                    class="w-24 px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white text-center font-bold text-lg placeholder-purple-200 focus:outline-none focus:ring-2 focus:ring-white/50"
-                                />
-                                <input
-                                    id="bulkPopZip2"
-                                    type="text"
-                                    placeholder="ZIP 2"
-                                    maxlength="5"
-                                    class="w-24 px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white text-center font-bold text-lg placeholder-purple-200 focus:outline-none focus:ring-2 focus:ring-white/50"
-                                />
-                                <input
-                                    id="bulkPopZip3"
-                                    type="text"
-                                    placeholder="ZIP 3"
-                                    maxlength="5"
-                                    class="w-24 px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white text-center font-bold text-lg placeholder-purple-200 focus:outline-none focus:ring-2 focus:ring-white/50"
-                                />
-                            </div>
-                            <p class="text-xs text-purple-200 mt-2">Enter 1-3 ZIP codes to search (exact ZIP match only)</p>
+                            <div class="text-sm text-purple-100 mb-1 font-semibold">📍 Location</div>
+                            <label class="text-xs text-purple-200 block mb-1">ZIP Codes (comma separated) *</label>
+                            <input
+                                id="bulkPopZipCode"
+                                type="text"
+                                placeholder="14072, 14221, 14225"
+                                class="w-64 px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white text-center font-bold text-lg placeholder-purple-200 focus:outline-none focus:ring-2 focus:ring-white/50"
+                            />
+                            <p class="text-xs text-purple-200 mt-1">Enter multiple ZIPs to search (saves API calls!)</p>
+                        </div>
+                        <!-- API Usage -->
+                        <div class="bg-white/20 backdrop-blur-md rounded-xl px-6 py-4 border-2 border-white/30 shadow-lg">
+                            <div class="text-sm text-purple-100 mb-1 font-semibold">📊 API Usage This Month</div>
+                            <div class="font-black text-3xl" id="quickApiUsage">0 / 28,000</div>
+                            <div class="text-sm text-purple-200 mt-1" id="quickApiReset">Resets Dec 1</div>
                         </div>
                     </div>
                 </div>
@@ -1020,212 +987,6 @@
                         <li>• Results are linked to your current postcard automatically</li>
                         <li>• Check Prospect Pool tab to review and select businesses</li>
                     </ul>
-                </div>
-            </div>
-
-        </div>
-
-        <!-- CLOSE DEALS TAB - Sales Toolkit -->
-        <div data-content="outreach" class="tab-pane hidden">
-            <!-- HERO SECTION -->
-            <div class="bg-gradient-to-br from-amber-500 via-orange-500 to-red-500 rounded-2xl shadow-2xl p-8 md:p-12 mb-8 text-white relative overflow-hidden">
-                <div class="absolute inset-0 opacity-10">
-                    <div class="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
-                    <div class="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
-                </div>
-
-                <div class="relative z-10">
-                    <div class="flex items-center gap-3 mb-4">
-                        <span class="text-6xl">💰</span>
-                        <div>
-                            <h2 class="text-5xl font-black tracking-tight">Close Deals</h2>
-                            <p class="text-2xl text-orange-100 mt-2">Your Sales Command Center</p>
-                        </div>
-                    </div>
-                    <p class="text-lg text-orange-50 max-w-2xl">Templates, scripts, and objection handlers to help you close more advertisers. Customize with your info, then use these to reach out via text, email, or phone.</p>
-                </div>
-            </div>
-
-            <!-- YOUR INFO SETTINGS -->
-            <div class="bg-white rounded-2xl shadow-xl border-2 border-orange-200 p-6 mb-6">
-                <h3 class="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
-                    <span class="text-2xl">⚙️</span> Your Info <span class="text-sm font-normal text-gray-500">(used in all templates)</span>
-                </h3>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label class="text-xs font-bold text-gray-600 block mb-1">Your Name</label>
-                        <input type="text" id="salesToolkitName" placeholder="John Smith" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-orange-400 focus:outline-none" onchange="saveSalesToolkitSettings()">
-                    </div>
-                    <div>
-                        <label class="text-xs font-bold text-gray-600 block mb-1">Company/Mailer Name</label>
-                        <input type="text" id="salesToolkitCompany" placeholder="Local Business Mailers" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-orange-400 focus:outline-none" onchange="saveSalesToolkitSettings()">
-                    </div>
-                    <div>
-                        <label class="text-xs font-bold text-gray-600 block mb-1">Your Phone</label>
-                        <input type="text" id="salesToolkitPhone" placeholder="(555) 123-4567" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-orange-400 focus:outline-none" onchange="saveSalesToolkitSettings()">
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                    <div>
-                        <label class="text-xs font-bold text-gray-600 block mb-1">Spot Price</label>
-                        <input type="text" id="salesToolkitSpotPrice" placeholder="$400" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-orange-400 focus:outline-none" onchange="saveSalesToolkitSettings()">
-                    </div>
-                    <div>
-                        <label class="text-xs font-bold text-gray-600 block mb-1">Homes Reached</label>
-                        <input type="text" id="salesToolkitHomes" placeholder="5,000" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-orange-400 focus:outline-none" onchange="saveSalesToolkitSettings()">
-                    </div>
-                </div>
-            </div>
-
-            <!-- TWO COLUMN LAYOUT FOR TEMPLATES -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-
-                <!-- TEXT MESSAGE TEMPLATES -->
-                <div class="bg-white rounded-2xl shadow-xl border-2 border-teal-200 p-6">
-                    <h3 class="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
-                        <span class="text-2xl">💬</span> Text Message Templates
-                    </h3>
-                    <p class="text-sm text-gray-500 mb-4">Short, direct messages that get responses. Tap to copy.</p>
-
-                    <!-- First Text -->
-                    <div class="mb-4 p-4 bg-teal-50 border border-teal-200 rounded-lg">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="font-bold text-teal-900">First Text - Short & Direct</span>
-                            <button onclick="copySmsTemplate('firstText')" class="px-3 py-1 bg-teal-600 text-white text-xs rounded hover:bg-teal-700 font-bold">📋 Copy</button>
-                        </div>
-                        <div id="firstTextTemplate" class="text-sm text-gray-700 bg-white p-3 rounded border font-mono whitespace-pre-wrap">Hi! This is [YOUR_NAME]. I'm putting together a postcard going to every home in [ZIP]. Got a spot for a [BUSINESS_TYPE] - thought of you. Interested?</div>
-                    </div>
-
-                    <!-- Follow-up Text -->
-                    <div class="mb-4 p-4 bg-cyan-50 border border-cyan-200 rounded-lg">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="font-bold text-cyan-900">Follow-up Text - Urgency</span>
-                            <button onclick="copySmsTemplate('followUpText')" class="px-3 py-1 bg-cyan-600 text-white text-xs rounded hover:bg-cyan-700 font-bold">📋 Copy</button>
-                        </div>
-                        <div id="followUpTextTemplate" class="text-sm text-gray-700 bg-white p-3 rounded border font-mono whitespace-pre-wrap">Hey, following up on the postcard spot for [ZIP]. Goes to print soon - still have one [BUSINESS_TYPE] spot at [SPOT_PRICE]. Want it?</div>
-                    </div>
-
-                    <!-- Last Chance Text -->
-                    <div class="p-4 bg-rose-50 border border-rose-200 rounded-lg">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="font-bold text-rose-900">Last Chance Text</span>
-                            <button onclick="copySmsTemplate('lastText')" class="px-3 py-1 bg-rose-600 text-white text-xs rounded hover:bg-rose-700 font-bold">📋 Copy</button>
-                        </div>
-                        <div id="lastTextTemplate" class="text-sm text-gray-700 bg-white p-3 rounded border font-mono whitespace-pre-wrap">Last call - about to give the [ZIP] postcard spot to another [BUSINESS_TYPE]. You in or out?</div>
-                    </div>
-                </div>
-
-                <!-- EMAIL TEMPLATES -->
-                <div class="bg-white rounded-2xl shadow-xl border-2 border-blue-200 p-6">
-                    <h3 class="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
-                        <span class="text-2xl">📧</span> Email Templates
-                    </h3>
-                    <p class="text-sm text-gray-500 mb-4">Professional emails for when you need more detail.</p>
-
-                    <!-- First Touch Email -->
-                    <div class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="font-bold text-blue-900">First Touch - Introduction</span>
-                            <button onclick="copyEmailTemplate('firstTouch')" class="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 font-bold">📋 Copy</button>
-                        </div>
-                        <div class="text-xs text-blue-800 mb-2">Subject: Quick question about [ZIP]</div>
-                        <div id="firstTouchTemplate" class="text-sm text-gray-700 bg-white p-3 rounded border font-mono whitespace-pre-wrap">Hi [CONTACT_NAME],
-
-I'm sending a postcard to every home in [ZIP] next month - about [HOMES] households.
-
-I have a spot reserved for a [BUSINESS_TYPE] and thought of [BUSINESS_NAME].
-
-Worth a quick chat? I can hold the spot until Friday.
-
-[YOUR_NAME]
-[YOUR_PHONE]</div>
-                    </div>
-
-                    <!-- Follow-up Email -->
-                    <div class="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="font-bold text-purple-900">Follow-up - Urgency</span>
-                            <button onclick="copyEmailTemplate('followUp')" class="px-3 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 font-bold">📋 Copy</button>
-                        </div>
-                        <div class="text-xs text-purple-800 mb-2">Subject: Re: Quick question about [ZIP]</div>
-                        <div id="followUpTemplate" class="text-sm text-gray-700 bg-white p-3 rounded border font-mono whitespace-pre-wrap">Hi [CONTACT_NAME],
-
-Quick follow-up - the postcard for [ZIP] goes to print next week.
-
-I still have one [BUSINESS_TYPE] spot open at [SPOT_PRICE]. That gets you in front of [HOMES] homeowners.
-
-Want me to save it for [BUSINESS_NAME]? Just need to know by [DEADLINE].
-
-[YOUR_NAME]
-[YOUR_PHONE]</div>
-                    </div>
-
-                    <!-- Last Chance Email -->
-                    <div class="p-4 bg-red-50 border border-red-200 rounded-lg">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="font-bold text-red-900">Last Chance - Final Push</span>
-                            <button onclick="copyEmailTemplate('lastChance')" class="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 font-bold">📋 Copy</button>
-                        </div>
-                        <div class="text-xs text-red-800 mb-2">Subject: Last spot for [ZIP] postcard</div>
-                        <div id="lastChanceTemplate" class="text-sm text-gray-700 bg-white p-3 rounded border font-mono whitespace-pre-wrap">Hey [CONTACT_NAME],
-
-Last call - I have ONE spot left on the [ZIP] postcard and I'm about to offer it to [COMPETITOR_NAME].
-
-Wanted to give [BUSINESS_NAME] first shot since you'd be the only [BUSINESS_TYPE] on the card.
-
-Yes or no - just let me know either way.
-
-[YOUR_NAME]</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- CALL SCRIPT - FULL WIDTH -->
-            <div class="bg-white rounded-2xl shadow-xl border-2 border-green-200 p-6 mb-6">
-                <h3 class="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
-                    <span class="text-2xl">📞</span> Call Script
-                </h3>
-                <div class="p-4 bg-green-50 border border-green-200 rounded-lg">
-                    <div class="flex items-center justify-between mb-3">
-                        <span class="font-bold text-green-900 text-lg">30-Second Cold Call Script</span>
-                        <button onclick="copyCallScript()" class="px-4 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 font-bold">📋 Copy Script</button>
-                    </div>
-                    <div id="callScriptTemplate" class="text-sm text-gray-700 bg-white p-4 rounded border">
-                        <p class="mb-3"><strong class="text-green-700">Opening:</strong></p>
-                        <p class="italic mb-4 text-gray-800">"Hey [CONTACT_NAME], this is [YOUR_NAME] with [YOUR_COMPANY]. I'm putting together a postcard that's going to every home in [ZIP] - about [HOMES] mailboxes. I've got one spot left for a [BUSINESS_TYPE] business. Wanted to see if you'd want it before I offer it to [COMPETITOR]. Got 2 minutes?"</p>
-
-                        <p class="mb-3"><strong class="text-green-700">If they say yes/interested:</strong></p>
-                        <p class="italic mb-4 text-gray-800">"Great! So it's [SPOT_PRICE] for the spot. Your ad goes on a 9x12 postcard - it's big, full color, and hits every single home in the ZIP code. You'd be the ONLY [BUSINESS_TYPE] on the card. If even ONE person calls you from it, what's that worth?"</p>
-
-                        <p class="mb-3"><strong class="text-green-700">Close:</strong></p>
-                        <p class="italic text-gray-800">"Want me to save you the spot? I just need a quick yes and we can sort out the details."</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- OBJECTION HANDLING -->
-            <div class="bg-white rounded-2xl shadow-xl border-2 border-yellow-200 p-6">
-                <h3 class="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
-                    <span class="text-2xl">🛡️</span> Objection Handling
-                </h3>
-                <p class="text-sm text-gray-500 mb-4">Common pushbacks and how to overcome them.</p>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                        <p class="font-bold text-yellow-900 mb-2">"How much is it?"</p>
-                        <p class="text-sm text-gray-700">"It's [SPOT_PRICE] for the spot. That gets you in front of [HOMES] homeowners. If you get just ONE customer from it, what's that worth to you?"</p>
-                    </div>
-                    <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                        <p class="font-bold text-yellow-900 mb-2">"I need to think about it"</p>
-                        <p class="text-sm text-gray-700">"Totally get it. The card goes to print on [DATE], so I can hold your spot until [DEADLINE]. Want me to pencil you in?"</p>
-                    </div>
-                    <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                        <p class="font-bold text-yellow-900 mb-2">"I've tried mailers before, they don't work"</p>
-                        <p class="text-sm text-gray-700">"What'd you try? ...Yeah, those are different. This goes to EVERY home in the ZIP - not a purchased list. And you're the only [BUSINESS_TYPE] on the card. No competition."</p>
-                    </div>
-                    <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                        <p class="font-bold text-yellow-900 mb-2">"I don't have the budget right now"</p>
-                        <p class="text-sm text-gray-700">"I hear you. What if we split it - half now, half when the card drops? That way you're not out the full amount upfront."</p>
-                    </div>
                 </div>
             </div>
         </div>
@@ -2657,10 +2418,10 @@ Yes or no - just let me know either way.
     <div class="modal" style="max-width: 600px;">
       <h3 class="text-lg font-bold mb-4">➕ Add Business Manually</h3>
 
-      <!-- Quick Lookup -->
+      <!-- Yelp Lookup - FREE! -->
       <div class="bg-green-50 border-2 border-green-200 rounded-lg p-4 mb-4">
-        <label class="text-sm font-semibold text-green-900 block mb-2">✅ Quick Lookup (FREE)</label>
-        <p class="text-xs text-green-700 mb-2">Auto-fill business details with one click - completely free!</p>
+        <label class="text-sm font-semibold text-green-900 block mb-2">✅ Quick Lookup (FREE via Yelp)</label>
+        <p class="text-xs text-green-700 mb-2">Search Yelp to auto-fill business details - completely free!</p>
         <p class="text-xs text-gray-600">Or enter business details manually below.</p>
       </div>
 
@@ -2975,12 +2736,12 @@ Yes or no - just let me know either way.
       <h3 class="text-lg font-bold mb-4">🔍 Auto-Populate Prospects</h3>
 
       <div class="bg-green-50 border-2 border-green-200 rounded-lg p-4 mb-4">
-        <p class="text-sm font-bold text-green-900 mb-2">✅ ProspectRadar™ - Unlimited Searches!</p>
+        <p class="text-sm font-bold text-green-900 mb-2">✅ Now Using Yelp Fusion API (FREE!)</p>
         <p class="text-sm text-green-800 mb-2">
-          Find local businesses automatically with contact info, ratings, and reviews - all at no extra cost!
+          Search for businesses automatically using Yelp's free API - 2,500 searches per day at no cost!
         </p>
         <p class="text-sm text-gray-700">
-          <strong>Includes:</strong> Phone numbers, addresses, ratings, reviews, and auto-enriched emails & social media.
+          <strong>Benefits:</strong> Phone numbers, addresses, ratings, reviews, and more - all included for free.
         </p>
       </div>
 
@@ -3462,13 +3223,13 @@ Yes or no - just let me know either way.
 
 
   <!-- Performance Loader (Shows loading screen to prevent perceived freezing) -->
-  <script>document.write('<script src="performance-loader.js' + window.CACHE_BUST + '" defer><\/script>');</script>
+  <script src="performance-loader.js?v=2025-01-23-v72" defer></script>
 
   <!-- Main Application JavaScript (Refactored) -->
-  <script>document.write('<script src="app-main.js' + window.CACHE_BUST + '" defer><\/script>');</script>
+  <script src="app-main.js?v=2025-01-23-v72" defer></script>
 
   <!-- Authentication -->
-  <script>document.write('<script src="auth-root.js' + window.CACHE_BUST + '"><\/script>');</script>
+  <script src="auth-root.js?v=2025-01-23-v72"></script>
 
   <!-- PWA Service Worker Registration -->
   <script>
@@ -3508,6 +3269,9 @@ Yes or no - just let me know either way.
       });
     }
   </script>
+
+  <!-- Performance Loader (if exists) -->
+  <script src="performance-loader.js" defer></script>
 
 </body>
 </html>

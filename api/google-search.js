@@ -24,10 +24,11 @@ export default async function handler(req, res) {
     const CSE_ID = process.env.GOOGLE_CSE_ID;
 
     if (!API_KEY || !CSE_ID) {
-      console.error('Missing Google Custom Search credentials');
-      return res.status(500).json({
-        error: 'Google Custom Search not configured',
-        website: ''
+      console.error('Missing Google Custom Search credentials - GOOGLE_CUSTOM_SEARCH_API_KEY and GOOGLE_CSE_ID must be set in Vercel');
+      // Return 200 with empty website so client doesn't show errors
+      return res.status(200).json({
+        website: '',
+        error: 'not_configured'
       });
     }
 
