@@ -3530,10 +3530,18 @@ async function enrichBusinessWebsite(business) {
       const fbQuery = `${businessName} ${location} site:facebook.com`;
       const fbResult = await searchBusinessWebsite(fbQuery, businessName);
       trackEnrichmentQuery(1);
-      if (fbResult && fbResult.includes('facebook.com')) {
+      // Validate: must be facebook.com, NOT instagram, and not a post URL
+      if (fbResult &&
+          fbResult.includes('facebook.com') &&
+          !fbResult.includes('instagram.com') &&
+          !fbResult.includes('/p/') &&
+          !fbResult.includes('/posts/') &&
+          !fbResult.includes('/photos/')) {
         business.facebook = fbResult;
         foundItems.push('Facebook');
         console.log(`✅ Found Facebook: ${fbResult}`);
+      } else if (fbResult) {
+        console.log(`⚠️ Skipped invalid Facebook URL: ${fbResult}`);
       }
     }
 
@@ -3542,10 +3550,25 @@ async function enrichBusinessWebsite(business) {
       const igQuery = `${businessName} ${location} site:instagram.com`;
       const igResult = await searchBusinessWebsite(igQuery, businessName);
       trackEnrichmentQuery(1);
-      if (igResult && igResult.includes('instagram.com')) {
-        business.instagram = igResult;
+      // Validate: must be instagram.com, NOT facebook, prefer profile URLs not posts
+      if (igResult &&
+          igResult.includes('instagram.com') &&
+          !igResult.includes('facebook.com')) {
+        // Try to extract profile URL if it's a post URL
+        let cleanedUrl = igResult;
+        if (igResult.includes('/p/') || igResult.includes('/reel/')) {
+          // Extract username from post URL: instagram.com/username/p/xxx -> instagram.com/username
+          const match = igResult.match(/instagram\.com\/([^\/\?]+)/);
+          if (match && match[1] && !['p', 'reel', 'stories'].includes(match[1])) {
+            cleanedUrl = `https://instagram.com/${match[1]}`;
+            console.log(`🔄 Converted Instagram post to profile: ${cleanedUrl}`);
+          }
+        }
+        business.instagram = cleanedUrl;
         foundItems.push('Instagram');
-        console.log(`✅ Found Instagram: ${igResult}`);
+        console.log(`✅ Found Instagram: ${cleanedUrl}`);
+      } else if (igResult) {
+        console.log(`⚠️ Skipped invalid Instagram URL: ${igResult}`);
       }
     }
 
