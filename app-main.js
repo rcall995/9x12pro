@@ -3620,7 +3620,7 @@ async function searchYelpBusinesses(zipCode, category, progressInfo = null) {
       }
     }
 
-    showInfo(`🔍 Searching Yelp for "${category}" in ${zipCode}...`);
+    showInfo(`🔍 ProspectRadar™ searching "${category}" in ${zipCode}...`);
 
     // Call Yelp API via our serverless function (no radius - we filter by exact ZIP)
     const response = await fetch('/api/yelp', {
@@ -3700,13 +3700,13 @@ async function searchYelpBusinesses(zipCode, category, progressInfo = null) {
     // Save cache to cloud (must save .searches, not the whole object)
     await savePlacesCache();
 
-    showSuccess(`✅ Found ${businesses.length} businesses on Yelp (FREE!)`);
+    showSuccess(`✅ Found ${businesses.length} businesses in ${zipCode}!`);
 
     return businesses;
 
   } catch (error) {
-    console.error('Yelp search error:', error);
-    showError(`❌ Yelp search failed: ${error.message}`);
+    console.error('ProspectRadar search error:', error);
+    showError(`❌ Search failed: ${error.message}`);
     return [];
   }
 }
