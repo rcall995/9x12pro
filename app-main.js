@@ -3712,871 +3712,20 @@ async function searchYelpBusinesses(zipCode, category, progressInfo = null) {
 }
 
 /**
- * LEGACY: Google Places API (DISABLED - Costs $32 per 1,000 requests)
+ * Search for businesses - redirects to Yelp API
+ * Legacy name kept for compatibility with existing code
  */
-async function searchGooglePlaces(zipCode, category, radiusMeters, progressInfo = null) {
-  // ⛔ PLACES API DISABLED - Costs $32 per 1,000 requests
-  // Replaced with searchYelpBusinesses (FREE - 5,000/day)
-  // Silently redirect to Yelp - searches exact ZIP codes only (no radius)
+async function searchPlaces(zipCode, category, progressInfo = null) {
   return await searchYelpBusinesses(zipCode, category, progressInfo);
-
-  // progressInfo: { currentSearch: 1, totalSearches: 5 } for multi-category searches
-  // Check quota first
-  const quotaCheck = canUserSearch();
-  if (!quotaCheck.allowed) {
-    toast(quotaCheck.reason, false);
-    return [];
-  }
-
-  const cacheKey = `${zipCode}-${category}`;
-
-  // Check cache first
-  if (placesCache.searches[cacheKey]) {
-    const cached = placesCache.searches[cacheKey];
-    const cacheDate = new Date(cached.cachedUntil);
-
-    if (new Date() < cacheDate) {
-      toast('✅ Using cached results (FREE!)', true);
-
-      // Update progress bar for cached results in multi-search
-      if (progressInfo) {
-        const progressBarFill = document.getElementById('enrichment-progress-fill');
-        const progressText = document.getElementById('enrichment-progress-text');
-        const progressSubtitle = document.getElementById('progress-subtitle');
-
-        if (progressBarFill && progressText && progressSubtitle) {
-          // Calculate progress for this cached search (mark as 100% complete for this search)
-          const searchPortionSize = 100 / progressInfo.totalSearches;
-          const completedProgress = progressInfo.currentSearch * searchPortionSize;
-          progressBarFill.style.width = `${Math.round(completedProgress)}%`;
-
-          // Update percentage display
-          const progressPercentage = document.getElementById('enrichment-progress-percentage');
-          if (progressPercentage) {
-            progressPercentage.textContent = `${Math.round(completedProgress)}%`;
-          }
-
-          progressText.textContent = `Using cached results for ${category}`;
-
-          // Show business count in subtitle
-          const totalBusinessesFound = progressInfo.totalBusinessesFound || 0;
-          const businessText = `${totalBusinessesFound} ${totalBusinessesFound === 1 ? 'business' : 'businesses'} found`;
-          if (progressInfo.totalCategories > 1) {
-            progressSubtitle.textContent = `Category ${progressInfo.currentSearch} of ${progressInfo.totalCategories} (${businessText})`;
-          } else {
-            progressSubtitle.textContent = `Search ${progressInfo.currentSearch} of ${progressInfo.totalSearches} (${businessText})`;
-          }
-        }
-      }
-
-      // Recalculate enriched flag for cached data (in case logic changed)
-      const cachedData = (cached.cachedData || []).map((b, index) => {
-        const hasEnrichedData = !!(b.email || b.facebook || b.instagram || b.linkedin || b.twitter || b.googleMapsUrl);
-
-        // Debug log first 3 businesses
-        if (index < 3) {
-          console.log(`🔍 CACHE - Enrichment check for "${b.name}":`, {
-            email: b.email,
-            facebook: b.facebook,
-            instagram: b.instagram,
-            linkedin: b.linkedin,
-            twitter: b.twitter,
-            googleMapsUrl: b.googleMapsUrl,
-            hasEnrichedData
-          });
-        }
-
-        return {
-          ...b,
-          enriched: hasEnrichedData
-        };
-      });
-
-      const enrichedCount = cachedData.filter(b => b.enriched).length;
-      console.log(`✅ CACHE: ${enrichedCount}/${cachedData.length} businesses are enriched`);
-
-      return cachedData;
-    }
-  }
-
-  try {
-    // Get or create progress bar overlay
-    let progressBarFill = document.getElementById('enrichment-progress-fill');
-    let progressText = document.getElementById('enrichment-progress-text');
-    let progressSubtitle = document.getElementById('progress-subtitle');
-
-    // Only create progress bar if it doesn't exist
-    if (!progressBarFill) {
-      const progressOverlay = document.createElement('div');
-      progressOverlay.id = 'enrichment-progress-overlay';
-      progressOverlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.7);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 9999;
-        backdrop-filter: blur(4px);
-      `;
-
-      const progressContainer = document.createElement('div');
-      progressContainer.style.cssText = `
-        background: white;
-        padding: 2rem;
-        border-radius: 1rem;
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        min-width: 400px;
-        max-width: 500px;
-      `;
-
-      const progressTitle = document.createElement('div');
-      progressTitle.style.cssText = `
-        font-size: 1.25rem;
-        font-weight: bold;
-        color: #1f2937;
-        margin-bottom: 0.5rem;
-        text-align: center;
-      `;
-      progressTitle.textContent = '🔍 Searching for Prospects';
-
-      progressSubtitle = document.createElement('div');
-      progressSubtitle.id = 'progress-subtitle';
-      progressSubtitle.style.cssText = `
-        font-size: 0.875rem;
-        color: #6b7280;
-        margin-bottom: 1.5rem;
-        text-align: center;
-      `;
-      // Set initial subtitle text
-      if (progressInfo) {
-        if (progressInfo.totalZipCodes > 1 && progressInfo.totalCategories > 1) {
-          progressSubtitle.textContent = `Searching ${progressInfo.totalCategories} categories across ${progressInfo.totalZipCodes} ZIP codes`;
-        } else if (progressInfo.totalCategories > 1) {
-          progressSubtitle.textContent = `Searching ${progressInfo.totalCategories} categories`;
-        } else if (progressInfo.totalZipCodes > 1) {
-          progressSubtitle.textContent = `Searching ${progressInfo.totalZipCodes} ZIP codes`;
-        } else {
-          progressSubtitle.textContent = `Search ${progressInfo.currentSearch} of ${progressInfo.totalSearches}`;
-        }
-      } else {
-        progressSubtitle.textContent = 'Initializing search...';
-      }
-
-      // Progress bar wrapper (for relative positioning)
-      const progressBarWrapper = document.createElement('div');
-      progressBarWrapper.style.cssText = `
-        position: relative;
-        margin-bottom: 1rem;
-      `;
-
-      const progressBarBg = document.createElement('div');
-      progressBarBg.style.cssText = `
-        background: #e5e7eb;
-        height: 24px;
-        border-radius: 12px;
-        overflow: hidden;
-      `;
-
-      progressBarFill = document.createElement('div');
-      progressBarFill.id = 'enrichment-progress-fill';
-      progressBarFill.style.cssText = `
-        background: linear-gradient(90deg, #3b82f6, #2563eb);
-        height: 100%;
-        width: 0%;
-        transition: width 0.3s ease;
-      `;
-
-      // Percentage text overlaid on top of progress bar
-      const progressPercentage = document.createElement('div');
-      progressPercentage.id = 'enrichment-progress-percentage';
-      progressPercentage.style.cssText = `
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        color: #1f2937;
-        font-size: 0.75rem;
-        font-weight: bold;
-        pointer-events: none;
-      `;
-      progressPercentage.textContent = '0%';
-
-      progressText = document.createElement('div');
-      progressText.id = 'enrichment-progress-text';
-      progressText.style.cssText = `
-        font-size: 0.875rem;
-        color: #4b5563;
-        text-align: center;
-      `;
-      progressText.textContent = 'Starting search...';
-
-      progressBarBg.appendChild(progressBarFill);
-      progressBarWrapper.appendChild(progressBarBg);
-      progressBarWrapper.appendChild(progressPercentage);
-      progressContainer.appendChild(progressTitle);
-      progressContainer.appendChild(progressSubtitle);
-      progressContainer.appendChild(progressBarWrapper);
-      progressContainer.appendChild(progressText);
-      progressOverlay.appendChild(progressContainer);
-      document.body.appendChild(progressOverlay);
-    } else {
-      // Update subtitle for multi-search when progress bar already exists
-      if (progressInfo) {
-        if (progressInfo.totalZipCodes > 1 && progressInfo.totalCategories > 1) {
-          progressSubtitle.textContent = `Search ${progressInfo.currentSearch} of ${progressInfo.totalSearches} (${progressInfo.totalCategories} categories × ${progressInfo.totalZipCodes} ZIPs)`;
-        } else if (progressInfo.totalCategories > 1) {
-          progressSubtitle.textContent = `Category ${progressInfo.currentSearch} of ${progressInfo.totalCategories}`;
-        } else if (progressInfo.totalZipCodes > 1) {
-          progressSubtitle.textContent = `ZIP ${progressInfo.currentSearch} of ${progressInfo.totalZipCodes}`;
-        } else {
-          progressSubtitle.textContent = `Search ${progressInfo.currentSearch} of ${progressInfo.totalSearches}`;
-        }
-      }
-    }
-
-    // Ensure Google Maps API is loaded
-    await loadGoogleMapsAPI();
-
-    // Helper function to calculate overall progress when doing multiple searches
-    const calculateOverallProgress = (searchPhasePercent) => {
-      if (!progressInfo) {
-        // Single search - use phase percent directly
-        return searchPhasePercent;
-      }
-      // Multi-search: each search gets an equal portion of 100%
-      const searchPortionSize = 100 / progressInfo.totalSearches;
-      const previousSearchesProgress = (progressInfo.currentSearch - 1) * searchPortionSize;
-      const currentSearchProgress = (searchPhasePercent / 100) * searchPortionSize;
-      return Math.round(previousSearchesProgress + currentSearchProgress);
-    };
-
-    // Helper function to update both progress bar and percentage display
-    const updateProgressBar = (percent) => {
-      progressBarFill.style.width = `${percent}%`;
-      const progressPercentage = document.getElementById('enrichment-progress-percentage');
-      if (progressPercentage) {
-        progressPercentage.textContent = `${percent}%`;
-      }
-    };
-
-    // Step 1: Convert zip code to lat/lng (5% of this search)
-    const geocodingProgress = calculateOverallProgress(5);
-    updateProgressBar(geocodingProgress);
-    progressText.textContent = `Finding location for ${zipCode}...`;
-    const location = await convertZipToLatLng(zipCode);
-
-    if (!location) {
-      // Remove progress overlay on error
-      const existingProgressOverlay = document.getElementById('enrichment-progress-overlay');
-      if (existingProgressOverlay && existingProgressOverlay.parentNode) {
-        existingProgressOverlay.remove();
-      }
-      toast('Invalid zip code or geocoding failed', false);
-      return [];
-    }
-
-    // Track API call for geocoding
-    trackApiCall(1);
-    recordUserSearch();
-
-    // Search nearby places using Places Service (client-side, no CORS issues)
-    toast('🔍 Searching for businesses...', true);
-
-    // Create a temporary div for PlacesService (required by Google Maps API)
-    const mapDiv = document.createElement('div');
-    const map = new google.maps.Map(mapDiv);
-    const service = new google.maps.places.PlacesService(map);
-
-    // List of Google's predefined place types
-    const predefinedTypes = [
-      'accounting', 'airport', 'amusement_park', 'aquarium', 'art_gallery', 'atm', 'bakery', 'bank', 'bar',
-      'beauty_salon', 'bicycle_store', 'book_store', 'bowling_alley', 'bus_station', 'cafe', 'campground',
-      'car_dealer', 'car_rental', 'car_repair', 'car_wash', 'casino', 'cemetery', 'church', 'city_hall',
-      'clothing_store', 'convenience_store', 'courthouse', 'dentist', 'department_store', 'doctor', 'drugstore',
-      'electrician', 'electronics_store', 'embassy', 'fire_station', 'florist', 'funeral_home', 'furniture_store',
-      'gas_station', 'gym', 'hair_care', 'hardware_store', 'hindu_temple', 'home_goods_store', 'hospital',
-      'insurance_agency', 'jewelry_store', 'laundry', 'lawyer', 'library', 'light_rail_station', 'liquor_store',
-      'local_government_office', 'locksmith', 'lodging', 'meal_delivery', 'meal_takeaway', 'mosque', 'movie_rental',
-      'movie_theater', 'moving_company', 'museum', 'night_club', 'painter', 'park', 'parking', 'pet_store',
-      'pharmacy', 'physiotherapist', 'plumber', 'police', 'post_office', 'primary_school', 'real_estate_agency',
-      'restaurant', 'roofing_contractor', 'rv_park', 'school', 'secondary_school', 'shoe_store', 'shopping_mall',
-      'spa', 'stadium', 'storage', 'store', 'subway_station', 'supermarket', 'synagogue', 'taxi_stand',
-      'tourist_attraction', 'train_station', 'transit_station', 'travel_agency', 'university', 'veterinary_care',
-      'zoo', 'administrative_area_level_1', 'administrative_area_level_2', 'administrative_area_level_3',
-      'administrative_area_level_4', 'administrative_area_level_5', 'archipelago', 'colloquial_area', 'continent',
-      'country', 'establishment', 'finance', 'floor', 'food', 'general_contractor', 'geocode', 'health',
-      'intersection', 'locality', 'natural_feature', 'neighborhood', 'place_of_worship', 'plus_code', 'point_of_interest',
-      'political', 'post_box', 'postal_code', 'postal_code_prefix', 'postal_code_suffix', 'postal_town', 'premise',
-      'room', 'route', 'street_address', 'street_number', 'sublocality', 'sublocality_level_1', 'sublocality_level_2',
-      'sublocality_level_3', 'sublocality_level_4', 'sublocality_level_5', 'subpremise', 'town_square', 'grocery_or_supermarket'
-    ];
-
-    const isCustomCategory = !predefinedTypes.includes(category.toLowerCase());
-
-    return new Promise((resolve, reject) => {
-      let request;
-
-      if (isCustomCategory) {
-        // Use textSearch for custom categories (more accurate for niche industries)
-        request = {
-          query: `${category} in ${zipCode}`,
-          location: new google.maps.LatLng(location.lat, location.lng),
-          radius: radiusMeters
-        };
-
-        service.textSearch(request, async (results, status) => {
-          // Track API call for places search
-          trackApiCall(1);
-
-          if (status === google.maps.places.PlacesServiceStatus.OK ||
-              status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
-
-            // First, map all operational businesses
-            const allBusinesses = (results || [])
-              .filter(place => place.business_status === 'OPERATIONAL') // Only active businesses
-              .map(place => {
-                // Prefer formatted_address (has ZIP) over vicinity (often missing ZIP)
-                const address = place.formatted_address || place.vicinity || '';
-
-                // Extract ZIP and City from address_components
-                let actualZip = null;
-                let actualCity = null;
-                if (place.address_components) {
-                  const zipComponent = place.address_components.find(comp =>
-                    comp.types.includes('postal_code')
-                  );
-                  actualZip = zipComponent ? zipComponent.short_name : null;
-
-                  // Extract city (locality)
-                  const cityComponent = place.address_components.find(comp =>
-                    comp.types.includes('locality')
-                  );
-                  actualCity = cityComponent ? cityComponent.long_name : null;
-                }
-
-                // Fallback to extracting from address string if address_components not available
-                if (!actualZip) {
-                  actualZip = extractZipFromAddress(address);
-                }
-                if (!actualCity && address) {
-                  // Try to extract city from address
-                  // Format can be: "123 Main St, Buffalo, NY 14072" OR "123 Main St, Grand Island"
-                  let cityMatch = address.match(/,\s*([^,]+),\s*NY/i);
-                  if (!cityMatch) {
-                    // Try simpler pattern: last comma-separated part (for "123 Street, Grand Island")
-                    const parts = address.split(',').map(p => p.trim());
-                    if (parts.length >= 2) {
-                      actualCity = parts[parts.length - 1]; // Get last part
-                    }
-                  } else {
-                    actualCity = cityMatch[1].trim();
-                  }
-                }
-
-                return {
-                  placeId: place.place_id,
-                  name: place.name,
-                  address: address,
-                  phone: place.formatted_phone_number || place.international_phone_number || '',
-                  website: place.website || '',
-                  rating: place.rating || 0,
-                  userRatingsTotal: place.user_ratings_total || 0,
-                  types: place.types || [],
-                  category: category, // Track which category this came from
-                  zipCode: zipCode, // Track which ZIP code was used for the search
-                  actualZip: actualZip, // Extract actual ZIP from address_components or address string
-                  actualCity: actualCity // Extract actual city
-                };
-              });
-
-            // SMART ZIP/CITY FILTERING
-            const businesses = allBusinesses.filter(b => {
-              // Priority 1: If we have actualZip, it must match
-              if (b.actualZip) {
-                if (b.actualZip === zipCode) {
-                  console.log(`✅ Keeping "${b.name}" - ZIP ${b.actualZip} matches`);
-                  return true;
-                } else {
-                  console.log(`❌ Filtering "${b.name}" - ZIP ${b.actualZip} doesn't match ${zipCode}`);
-                  return false;
-                }
-              }
-
-              // Priority 2: No ZIP but have city - validate city matches expected cities for this ZIP
-              if (b.actualCity && zipToCityMap[zipCode]) {
-                const expectedCities = zipToCityMap[zipCode];
-                const cityMatches = expectedCities.some(city =>
-                  city.toLowerCase() === b.actualCity.toLowerCase()
-                );
-                if (cityMatches) {
-                  console.log(`✅ Keeping "${b.name}" - City "${b.actualCity}" matches ZIP ${zipCode} expected cities`);
-                  return true;
-                } else {
-                  console.log(`❌ Filtering "${b.name}" - City "${b.actualCity}" doesn't match ZIP ${zipCode} expected cities`);
-                  return false;
-                }
-              }
-
-              // Priority 3: No ZIP and no city - filter out (can't validate)
-              console.log(`❌ Filtering "${b.name}" - no ZIP or city detected (actualZip: ${b.actualZip}, actualCity: ${b.actualCity}, address: "${b.address}")`);
-              return false;
-            });
-
-            const filteredOutCount = allBusinesses.length - businesses.length;
-            console.log(`✅ Found ${businesses.length} matching businesses for ${category} in ZIP ${zipCode} (filtered out ${filteredOutCount} from other ZIPs)`);
-
-            // Step 2: Places search complete (10% of this search)
-            const placesProgress = calculateOverallProgress(10);
-            updateProgressBar(placesProgress);
-            progressText.textContent = `Found ${allBusinesses.length} businesses in ${category}...`;
-
-            // Step 3: Filtering complete (15% of this search)
-            const filteringProgress = calculateOverallProgress(15);
-            updateProgressBar(filteringProgress);
-            progressText.textContent = `Filtered to ${businesses.length} matching businesses...`;
-
-            // Calculate estimated time for enrichment
-            const avgTimePerBusiness = 20; // Average 20 seconds per business for scraping
-            const estimatedSeconds = businesses.length * avgTimePerBusiness;
-            const estimatedMinutes = Math.ceil(estimatedSeconds / 60);
-
-            // Update subtitle based on single vs multi-search
-            if (progressInfo) {
-              // Multi-search: show progress across all searches
-              const totalSearches = progressInfo.totalSearches;
-              const currentSearch = progressInfo.currentSearch;
-              const remainingSearches = totalSearches - currentSearch + 1;
-
-              // Build helpful subtitle message showing businesses found
-              const totalBusinessesFound = progressInfo.totalBusinessesFound || 0;
-              const businessText = `${totalBusinessesFound} ${totalBusinessesFound === 1 ? 'business' : 'businesses'} found`;
-
-              if (progressInfo.totalZipCodes > 1 && progressInfo.totalCategories > 1) {
-                // Multiple ZIPs and categories
-                progressSubtitle.textContent = `Category ${currentSearch} of ${totalSearches} (${businessText}, est. ${estimatedMinutes} min for this one)`;
-              } else if (progressInfo.totalCategories > 1) {
-                // Multiple categories, one ZIP
-                progressSubtitle.textContent = `Category ${currentSearch} of ${progressInfo.totalCategories} (${businessText}, ${remainingSearches} remaining)`;
-              } else {
-                // Multiple ZIPs, one category
-                progressSubtitle.textContent = `ZIP ${currentSearch} of ${progressInfo.totalZipCodes} (${businessText}, ${remainingSearches} remaining)`;
-              }
-            } else {
-              // Single search: show simple estimate
-              progressSubtitle.textContent = `Now enriching with contact data (est. ${estimatedMinutes} min)`;
-            }
-
-            // Fetch phone and website details for each business (required for enrichment)
-            console.log(`📞 Fetching contact details for ${businesses.length} businesses...`);
-            console.log(`⏱️ Estimated time: ${estimatedMinutes} minute${estimatedMinutes !== 1 ? 's' : ''} (${businesses.length} businesses × ~${avgTimePerBusiness}s each)`);
-
-            // Progress bar already created at start of search - no need to create duplicate
-            // Helper function to update progress (scales from 15% to 100% of this search)
-            const updateProgress = (current, total, businessName) => {
-              // Scale from 15% (after filtering) to 100% (complete enrichment) for this individual search
-              const searchEnrichmentPercent = 15 + ((current / total) * 85); // 15% to 100% for this search
-              const percentage = calculateOverallProgress(searchEnrichmentPercent);
-              updateProgressBar(percentage);
-              progressText.textContent = `Enriching ${category}: ${current}/${total} - ${businessName}`;
-            };
-
-            // Process businesses sequentially with small delays to avoid overwhelming CORS proxy
-            const businessesWithDetails = [];
-            for (let i = 0; i < businesses.length; i++) {
-              const b = businesses[i];
-              try {
-                // Update progress bar
-                updateProgress(i + 1, businesses.length, b.name);
-
-                console.log(`📇 Processing ${i + 1}/${businesses.length}: ${b.name}`);
-                const details = await fetchPlaceDetails(b.placeId);
-
-                // Extract email and social media from website (scrapes actual HTML links!)
-                const extractedEmail = await extractEmailFromWebsite(details.website);
-                const socialMedia = await extractSocialMediaFromWebsite(details.website);
-
-                businessesWithDetails.push({
-                  ...b,
-                  phone: details.phone || b.phone || '',
-                  website: details.website || b.website || '',
-                  email: extractedEmail || details.email || '',
-                  priceLevel: details.priceLevel || 0,
-                  reviewCount: details.reviewCount || b.userRatingsTotal || 0,
-                  description: details.description || '',
-                  ownerName: details.ownerName || '',
-                  googleMapsUrl: details.googleMapsUrl || '',
-                  // Extract REAL social media links from website HTML (no guessing!)
-                  instagram: socialMedia.instagram || '',
-                  facebook: socialMedia.facebook || '',
-                  linkedin: socialMedia.linkedin || '',
-                  twitter: socialMedia.twitter || ''
-                });
-
-                // Small delay between requests to avoid overwhelming proxy
-                if (i < businesses.length - 1) {
-                  await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
-                }
-              } catch (err) {
-                console.warn(`Failed to fetch details for ${b.name}:`, err);
-                businessesWithDetails.push(b); // Return original if details fetch fails
-              }
-            }
-
-            // Remove progress overlay only if this is a single search
-            // For multi-search, the bulk handler will remove it after all searches complete
-            if (!progressInfo) {
-              const existingProgressOverlay = document.getElementById('enrichment-progress-overlay');
-              if (existingProgressOverlay && existingProgressOverlay.parentNode) {
-                existingProgressOverlay.remove();
-              }
-            }
-
-            console.log(`✅ Fetched details for ${businessesWithDetails.length} businesses`);
-
-            // Calculate lead scores for all businesses
-            const businessesWithScores = businessesWithDetails.map(b => {
-              const leadScore = calculateProspectScore(b);
-              const scoreCategory = getScoreCategory(leadScore);
-
-              // Mark as enriched if we have email, social media, or other enriched data
-              const hasEnrichedData = !!(b.email || b.facebook || b.instagram || b.linkedin || b.twitter || b.googleMapsUrl);
-
-              // Debug logging for first business
-              if (businessesWithDetails.indexOf(b) === 0) {
-                console.log(`🔍 Enrichment check for "${b.name}":`, {
-                  email: b.email,
-                  facebook: b.facebook,
-                  instagram: b.instagram,
-                  linkedin: b.linkedin,
-                  twitter: b.twitter,
-                  googleMapsUrl: b.googleMapsUrl,
-                  hasEnrichedData
-                });
-              }
-
-              return {
-                ...b,
-                leadScore,
-                scoreCategory,
-                contactScore: calculateContactScore(b),
-                enriched: hasEnrichedData
-              };
-            });
-
-            // Sort by lead score (highest first)
-            businessesWithScores.sort((a, b) => b.leadScore - a.leadScore);
-
-            const enrichedCount = businessesWithScores.filter(b => b.enriched).length;
-            console.log(`🎯 Scored ${businessesWithScores.length} businesses (avg score: ${Math.round(businessesWithScores.reduce((sum, b) => sum + b.leadScore, 0) / businessesWithScores.length)})`);
-            console.log(`✅ Enriched: ${enrichedCount}/${businessesWithScores.length} businesses have email/social/maps data`);
-
-            // Cache results for 30 days
-            const cacheExpiry = new Date();
-            cacheExpiry.setDate(cacheExpiry.getDate() + 30);
-
-            placesCache.searches[cacheKey] = {
-              placeIds: businessesWithScores.map(b => b.placeId),
-              cachedData: businessesWithScores,
-              cachedUntil: cacheExpiry.toISOString(),
-              lastFetched: new Date().toISOString()
-            };
-
-            savePlacesCache();
-
-            resolve(businessesWithScores);
-          } else {
-            reject(new Error(`Places API error: ${status}`));
-          }
-        });
-      } else {
-        // Use nearbySearch for predefined types (faster and more accurate)
-        request = {
-          location: new google.maps.LatLng(location.lat, location.lng),
-          radius: radiusMeters,
-          type: category
-        };
-
-        service.nearbySearch(request, async (results, status) => {
-          // Track API call for places search
-          trackApiCall(1);
-
-          if (status === google.maps.places.PlacesServiceStatus.OK ||
-              status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
-
-            // First, map all operational businesses
-            const allBusinesses = (results || [])
-              .filter(place => place.business_status === 'OPERATIONAL') // Only active businesses
-              .map(place => {
-                // Prefer formatted_address (has ZIP) over vicinity (often missing ZIP)
-                const address = place.formatted_address || place.vicinity || '';
-
-                // Extract ZIP and City from address_components
-                let actualZip = null;
-                let actualCity = null;
-                if (place.address_components) {
-                  const zipComponent = place.address_components.find(comp =>
-                    comp.types.includes('postal_code')
-                  );
-                  actualZip = zipComponent ? zipComponent.short_name : null;
-
-                  // Extract city (locality)
-                  const cityComponent = place.address_components.find(comp =>
-                    comp.types.includes('locality')
-                  );
-                  actualCity = cityComponent ? cityComponent.long_name : null;
-                }
-
-                // Fallback to extracting from address string if address_components not available
-                if (!actualZip) {
-                  actualZip = extractZipFromAddress(address);
-                }
-                if (!actualCity && address) {
-                  // Try to extract city from address
-                  // Format can be: "123 Main St, Buffalo, NY 14072" OR "123 Main St, Grand Island"
-                  let cityMatch = address.match(/,\s*([^,]+),\s*NY/i);
-                  if (!cityMatch) {
-                    // Try simpler pattern: last comma-separated part (for "123 Street, Grand Island")
-                    const parts = address.split(',').map(p => p.trim());
-                    if (parts.length >= 2) {
-                      actualCity = parts[parts.length - 1]; // Get last part
-                    }
-                  } else {
-                    actualCity = cityMatch[1].trim();
-                  }
-                }
-
-                return {
-                  placeId: place.place_id,
-                  name: place.name,
-                  address: address,
-                  phone: place.formatted_phone_number || place.international_phone_number || '',
-                  website: place.website || '',
-                  rating: place.rating || 0,
-                  userRatingsTotal: place.user_ratings_total || 0,
-                  types: place.types || [],
-                  category: category, // Track which category this came from
-                  zipCode: zipCode, // Track which ZIP code was used for the search
-                  actualZip: actualZip, // Extract actual ZIP from address_components or address string
-                  actualCity: actualCity // Extract actual city
-                };
-              });
-
-            // SMART ZIP/CITY FILTERING
-            const businesses = allBusinesses.filter(b => {
-              // Priority 1: If we have actualZip, it must match
-              if (b.actualZip) {
-                if (b.actualZip === zipCode) {
-                  console.log(`✅ Keeping "${b.name}" - ZIP ${b.actualZip} matches`);
-                  return true;
-                } else {
-                  console.log(`❌ Filtering "${b.name}" - ZIP ${b.actualZip} doesn't match ${zipCode}`);
-                  return false;
-                }
-              }
-
-              // Priority 2: No ZIP but have city - validate city matches expected cities for this ZIP
-              if (b.actualCity && zipToCityMap[zipCode]) {
-                const expectedCities = zipToCityMap[zipCode];
-                const cityMatches = expectedCities.some(city =>
-                  city.toLowerCase() === b.actualCity.toLowerCase()
-                );
-                if (cityMatches) {
-                  console.log(`✅ Keeping "${b.name}" - City "${b.actualCity}" matches ZIP ${zipCode} expected cities`);
-                  return true;
-                } else {
-                  console.log(`❌ Filtering "${b.name}" - City "${b.actualCity}" doesn't match ZIP ${zipCode} expected cities`);
-                  return false;
-                }
-              }
-
-              // Priority 3: No ZIP and no city - filter out (can't validate)
-              console.log(`❌ Filtering "${b.name}" - no ZIP or city detected (actualZip: ${b.actualZip}, actualCity: ${b.actualCity}, address: "${b.address}")`);
-              return false;
-            });
-
-            const filteredOutCount = allBusinesses.length - businesses.length;
-            console.log(`✅ Found ${businesses.length} matching businesses for ${category} in ZIP ${zipCode} (filtered out ${filteredOutCount} from other ZIPs)`);
-
-            // Step 2: Places search complete (10% of this search)
-            const placesProgress = calculateOverallProgress(10);
-            updateProgressBar(placesProgress);
-            progressText.textContent = `Found ${allBusinesses.length} businesses in ${category}...`;
-
-            // Step 3: Filtering complete (15% of this search)
-            const filteringProgress = calculateOverallProgress(15);
-            updateProgressBar(filteringProgress);
-            progressText.textContent = `Filtered to ${businesses.length} matching businesses...`;
-
-            // Calculate estimated time for enrichment
-            const avgTimePerBusiness = 20; // Average 20 seconds per business for scraping
-            const estimatedSeconds = businesses.length * avgTimePerBusiness;
-            const estimatedMinutes = Math.ceil(estimatedSeconds / 60);
-
-            // Update subtitle based on single vs multi-search
-            if (progressInfo) {
-              // Multi-search: show progress across all searches
-              const totalSearches = progressInfo.totalSearches;
-              const currentSearch = progressInfo.currentSearch;
-              const remainingSearches = totalSearches - currentSearch + 1;
-
-              // Build helpful subtitle message showing businesses found
-              const totalBusinessesFound = progressInfo.totalBusinessesFound || 0;
-              const businessText = `${totalBusinessesFound} ${totalBusinessesFound === 1 ? 'business' : 'businesses'} found`;
-
-              if (progressInfo.totalZipCodes > 1 && progressInfo.totalCategories > 1) {
-                // Multiple ZIPs and categories
-                progressSubtitle.textContent = `Category ${currentSearch} of ${totalSearches} (${businessText}, est. ${estimatedMinutes} min for this one)`;
-              } else if (progressInfo.totalCategories > 1) {
-                // Multiple categories, one ZIP
-                progressSubtitle.textContent = `Category ${currentSearch} of ${progressInfo.totalCategories} (${businessText}, ${remainingSearches} remaining)`;
-              } else {
-                // Multiple ZIPs, one category
-                progressSubtitle.textContent = `ZIP ${currentSearch} of ${progressInfo.totalZipCodes} (${businessText}, ${remainingSearches} remaining)`;
-              }
-            } else {
-              // Single search: show simple estimate
-              progressSubtitle.textContent = `Now enriching with contact data (est. ${estimatedMinutes} min)`;
-            }
-
-            // Fetch phone and website details for each business (required for enrichment)
-            console.log(`📞 Fetching contact details for ${businesses.length} businesses...`);
-            console.log(`⏱️ Estimated time: ${estimatedMinutes} minute${estimatedMinutes !== 1 ? 's' : ''} (${businesses.length} businesses × ~${avgTimePerBusiness}s each)`);
-
-            // Progress bar already created at start of search - no need to create duplicate
-            // Helper function to update progress (scales from 15% to 100% of this search)
-            const updateProgress = (current, total, businessName) => {
-              // Scale from 15% (after filtering) to 100% (complete enrichment) for this individual search
-              const searchEnrichmentPercent = 15 + ((current / total) * 85); // 15% to 100% for this search
-              const percentage = calculateOverallProgress(searchEnrichmentPercent);
-              updateProgressBar(percentage);
-              progressText.textContent = `Enriching ${category}: ${current}/${total} - ${businessName}`;
-            };
-
-            // Process businesses sequentially with small delays to avoid overwhelming CORS proxy
-            const businessesWithDetails = [];
-            for (let i = 0; i < businesses.length; i++) {
-              const b = businesses[i];
-              try {
-                // Update progress bar
-                updateProgress(i + 1, businesses.length, b.name);
-
-                console.log(`📇 Processing ${i + 1}/${businesses.length}: ${b.name}`);
-                const details = await fetchPlaceDetails(b.placeId);
-
-                // Extract email and social media from website (scrapes actual HTML links!)
-                const extractedEmail = await extractEmailFromWebsite(details.website);
-                const socialMedia = await extractSocialMediaFromWebsite(details.website);
-
-                businessesWithDetails.push({
-                  ...b,
-                  phone: details.phone || b.phone || '',
-                  website: details.website || b.website || '',
-                  email: extractedEmail || details.email || '',
-                  priceLevel: details.priceLevel || 0,
-                  reviewCount: details.reviewCount || b.userRatingsTotal || 0,
-                  description: details.description || '',
-                  ownerName: details.ownerName || '',
-                  googleMapsUrl: details.googleMapsUrl || '',
-                  // Extract REAL social media links from website HTML (no guessing!)
-                  instagram: socialMedia.instagram || '',
-                  facebook: socialMedia.facebook || '',
-                  linkedin: socialMedia.linkedin || '',
-                  twitter: socialMedia.twitter || ''
-                });
-
-                // Small delay between requests to avoid overwhelming proxy
-                if (i < businesses.length - 1) {
-                  await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
-                }
-              } catch (err) {
-                console.warn(`Failed to fetch details for ${b.name}:`, err);
-                businessesWithDetails.push(b); // Return original if details fetch fails
-              }
-            }
-
-            // Remove progress overlay only if this is a single search
-            // For multi-search, the bulk handler will remove it after all searches complete
-            if (!progressInfo) {
-              const existingProgressOverlay = document.getElementById('enrichment-progress-overlay');
-              if (existingProgressOverlay && existingProgressOverlay.parentNode) {
-                existingProgressOverlay.remove();
-              }
-            }
-
-            console.log(`✅ Fetched details for ${businessesWithDetails.length} businesses`);
-
-            // Calculate lead scores for all businesses
-            const businessesWithScores = businessesWithDetails.map(b => {
-              const leadScore = calculateProspectScore(b);
-              const scoreCategory = getScoreCategory(leadScore);
-
-              // Mark as enriched if we have email, social media, or other enriched data
-              const hasEnrichedData = !!(b.email || b.facebook || b.instagram || b.linkedin || b.twitter || b.googleMapsUrl);
-
-              // Debug logging for first business
-              if (businessesWithDetails.indexOf(b) === 0) {
-                console.log(`🔍 Enrichment check for "${b.name}":`, {
-                  email: b.email,
-                  facebook: b.facebook,
-                  instagram: b.instagram,
-                  linkedin: b.linkedin,
-                  twitter: b.twitter,
-                  googleMapsUrl: b.googleMapsUrl,
-                  hasEnrichedData
-                });
-              }
-
-              return {
-                ...b,
-                leadScore,
-                scoreCategory,
-                contactScore: calculateContactScore(b),
-                enriched: hasEnrichedData
-              };
-            });
-
-            // Sort by lead score (highest first)
-            businessesWithScores.sort((a, b) => b.leadScore - a.leadScore);
-
-            const enrichedCount = businessesWithScores.filter(b => b.enriched).length;
-            console.log(`🎯 Scored ${businessesWithScores.length} businesses (avg score: ${Math.round(businessesWithScores.reduce((sum, b) => sum + b.leadScore, 0) / businessesWithScores.length)})`);
-            console.log(`✅ Enriched: ${enrichedCount}/${businessesWithScores.length} businesses have email/social/maps data`);
-
-            // Cache results for 30 days
-            const cacheExpiry = new Date();
-            cacheExpiry.setDate(cacheExpiry.getDate() + 30);
-
-            placesCache.searches[cacheKey] = {
-              placeIds: businessesWithScores.map(b => b.placeId),
-              cachedData: businessesWithScores,
-              cachedUntil: cacheExpiry.toISOString(),
-              lastFetched: new Date().toISOString()
-            };
-
-            savePlacesCache();
-
-            resolve(businessesWithScores);
-          } else {
-            reject(new Error(`Places API error: ${status}`));
-          }
-        });
-      }
-    });
-  } catch(err) {
-    console.error('Google Places search error:', err);
-    // Remove progress overlay on error
-    const existingProgressOverlay = document.getElementById('enrichment-progress-overlay');
-    if (existingProgressOverlay && existingProgressOverlay.parentNode) {
-      existingProgressOverlay.remove();
-    }
-    toast(`Search failed: ${err.message}`, false);
-    return [];
-  }
 }
+
+// Alias for backward compatibility
+const searchGooglePlaces = searchPlaces;
+
+// Dead code removed - was ~860 lines of unused Google Places API code
+// See git history if needed
+
+
 
 // Fetch additional details for a place (phone, website, etc.)
 async function fetchPlaceDetails(placeId) {
@@ -5480,62 +4629,69 @@ async function runAutoPopulate() {
     console.log(`🎯 Enriching ${businessesWithWebsites.length} businesses...`);
 
     if (businessesWithWebsites.length > 0) {
-      // Enrich ALL businesses with websites
-      for (let i = 0; i < businessesWithWebsites.length; i++) {
-        const business = businessesWithWebsites[i];
-        btn.innerHTML = `🎯 Enriching ${business.name}... (${i + 1}/${businessesWithWebsites.length})`;
+      // Enrich ALL businesses with websites - PARALLEL processing (4 at a time)
+      const BATCH_SIZE = 4;
+      let enrichedCount = 0;
 
-        try {
-          const enrichedData = await fetchSmartEnrichment(business.website, business.name);
+      for (let batchStart = 0; batchStart < businessesWithWebsites.length; batchStart += BATCH_SIZE) {
+        const batch = businessesWithWebsites.slice(batchStart, batchStart + BATCH_SIZE);
+        btn.innerHTML = `🎯 Enriching batch ${Math.floor(batchStart / BATCH_SIZE) + 1}... (${Math.min(batchStart + BATCH_SIZE, businessesWithWebsites.length)}/${businessesWithWebsites.length})`;
 
-          // Update business in cache
-          const cacheKey = `${zipCode}-${category}`;
-          const cached = placesCache.searches[cacheKey];
-          if (cached && cached.cachedData) {
-            const businessIndex = cached.cachedData.findIndex(b => b.placeId === business.placeId);
-            if (businessIndex !== -1) {
-              cached.cachedData[businessIndex] = {
-                ...cached.cachedData[businessIndex],
-                email: enrichedData.email || '',
-                // ALWAYS keep Google's phone number - more reliable than scraped data
-                phone: cached.cachedData[businessIndex].phone || enrichedData.phone || '',
-                facebook: enrichedData.facebook || '',
-                instagram: enrichedData.instagram || '',
-                linkedin: enrichedData.linkedin || '',
-                twitter: enrichedData.twitter || '',
-                contactNames: enrichedData.contactNames || [],
-                enriched: true,
-                enrichmentSource: '9x12pro-scraper',
-                pagesScraped: enrichedData.pagesScraped || 0,
-                contactScore: calculateContactScore({
-                  phone: cached.cachedData[businessIndex].phone, // Use Google's phone for scoring
-                  email: enrichedData.email,
-                  website: cached.cachedData[businessIndex].website,
-                  facebook: enrichedData.facebook,
-                  instagram: enrichedData.instagram,
-                  linkedin: enrichedData.linkedin,
-                  twitter: enrichedData.twitter
-                })
-              };
+        const batchPromises = batch.map(async (business) => {
+          try {
+            const enrichedData = await fetchSmartEnrichment(business.website, business.name);
 
-              // Recalculate lead score with enriched data
-              cached.cachedData[businessIndex].leadScore = calculateProspectScore(cached.cachedData[businessIndex]);
-              cached.cachedData[businessIndex].scoreCategory = getScoreCategory(cached.cachedData[businessIndex].leadScore);
+            // Update business in cache
+            const cacheKey = `${zipCode}-${category}`;
+            const cached = placesCache.searches[cacheKey];
+            if (cached && cached.cachedData) {
+              const businessIndex = cached.cachedData.findIndex(b => b.placeId === business.placeId);
+              if (businessIndex !== -1) {
+                cached.cachedData[businessIndex] = {
+                  ...cached.cachedData[businessIndex],
+                  email: enrichedData.email || '',
+                  phone: cached.cachedData[businessIndex].phone || enrichedData.phone || '',
+                  facebook: enrichedData.facebook || '',
+                  instagram: enrichedData.instagram || '',
+                  linkedin: enrichedData.linkedin || '',
+                  twitter: enrichedData.twitter || '',
+                  contactNames: enrichedData.contactNames || [],
+                  enriched: true,
+                  enrichmentSource: '9x12pro-scraper',
+                  pagesScraped: enrichedData.pagesScraped || 0,
+                  contactScore: calculateContactScore({
+                    phone: cached.cachedData[businessIndex].phone,
+                    email: enrichedData.email,
+                    website: cached.cachedData[businessIndex].website,
+                    facebook: enrichedData.facebook,
+                    instagram: enrichedData.instagram,
+                    linkedin: enrichedData.linkedin,
+                    twitter: enrichedData.twitter
+                  })
+                };
+
+                cached.cachedData[businessIndex].leadScore = calculateProspectScore(cached.cachedData[businessIndex]);
+                cached.cachedData[businessIndex].scoreCategory = getScoreCategory(cached.cachedData[businessIndex].leadScore);
+              }
             }
+            enrichedCount++;
+            return { success: true, business };
+          } catch (err) {
+            console.error(`❌ Failed to enrich ${business.name}:`, err);
+            return { success: false, business, error: err };
           }
+        });
 
-          // Log progress
-          if ((i + 1) % 5 === 0 || i === businessesWithWebsites.length - 1) {
-            console.log(`✅ Enriched ${i + 1}/${businessesWithWebsites.length} businesses`);
-          }
-        } catch (err) {
-          console.error(`❌ Failed to enrich ${business.name}:`, err);
-        }
+        const results = await Promise.all(batchPromises);
+        results.filter(r => !r.success).forEach(r => {
+          toast(`⚠️ Couldn't enrich ${r.business.name} - continuing...`, false);
+        });
+
+        console.log(`✅ Enriched ${Math.min(batchStart + BATCH_SIZE, businessesWithWebsites.length)}/${businessesWithWebsites.length} businesses`);
       }
 
-      // Save all enriched data to cache
       await savePlacesCache();
-      console.log(`✅ Enrichment complete! ${businessesWithWebsites.length} businesses enriched.`);
+      console.log(`✅ Enrichment complete! ${enrichedCount}/${businessesWithWebsites.length} businesses enriched.`);
     }
 
     // Just cache results - searchGooglePlaces already handled caching
@@ -5606,6 +4762,16 @@ function toggleAllCategories() {
   categoryCheckboxes.forEach(checkbox => {
     checkbox.checked = selectAllCheckbox.checked;
   });
+
+  // Also update custom category input state when Select All is toggled
+  const customCategoryCheckbox = document.getElementById('enableCustomCategory');
+  const customCategoryInput = document.getElementById('bulkCustomCategory');
+  if (customCategoryCheckbox && customCategoryInput) {
+    customCategoryInput.disabled = !customCategoryCheckbox.checked;
+    if (!customCategoryCheckbox.checked) {
+      customCategoryInput.value = '';
+    }
+  }
 }
 
 // Clear all search caches (localStorage + cloud)
@@ -5663,6 +4829,13 @@ async function runBulkAutoPopulate() {
     toast(`Invalid ZIP code(s): ${invalidZips.join(', ')}. Must be 5 digits.`, false);
     return;
   }
+
+  // Remove duplicate ZIP codes
+  const uniqueZips = [...new Set(zipCodes)];
+  if (uniqueZips.length < zipCodes.length) {
+    toast(`Duplicate ZIP codes removed. Searching ${uniqueZips.length} unique ZIP${uniqueZips.length > 1 ? 's' : ''}.`, true);
+  }
+  zipCodes = uniqueZips;
 
   // Get selected categories
   const categoryCheckboxes = document.querySelectorAll('.category-checkbox:checked');
@@ -5788,62 +4961,76 @@ async function runBulkAutoPopulate() {
     if (businessesWithWebsites.length > 0) {
       console.log(`🎯 Enriching ${businessesWithWebsites.length} businesses...`);
 
-      // Enrich ALL businesses with websites
-      for (let i = 0; i < businessesWithWebsites.length; i++) {
-        const business = businessesWithWebsites[i];
-        btn.innerHTML = `🎯 Enriching ${business.name}... (${i + 1}/${businessesWithWebsites.length})`;
+      // Enrich ALL businesses with websites - PARALLEL processing (4 at a time)
+      const BATCH_SIZE = 4;
+      let enrichedCount = 0;
 
-        try {
-          const enrichedData = await fetchSmartEnrichment(business.website, business.name);
+      // Process businesses in parallel batches
+      for (let batchStart = 0; batchStart < businessesWithWebsites.length; batchStart += BATCH_SIZE) {
+        const batch = businessesWithWebsites.slice(batchStart, batchStart + BATCH_SIZE);
+        btn.innerHTML = `🎯 Enriching batch ${Math.floor(batchStart / BATCH_SIZE) + 1}... (${Math.min(batchStart + BATCH_SIZE, businessesWithWebsites.length)}/${businessesWithWebsites.length})`;
 
-          // Update business in cache
-          const cacheKey = `${business.searchedZipCode}-${business.category}`;
-          const cached = placesCache.searches[cacheKey];
-          if (cached && cached.cachedData) {
-            const businessIndex = cached.cachedData.findIndex(b => b.placeId === business.placeId);
-            if (businessIndex !== -1) {
-              cached.cachedData[businessIndex] = {
-                ...cached.cachedData[businessIndex],
-                email: enrichedData.email || '',
-                // ALWAYS keep Google's phone number - more reliable than scraped data
-                phone: cached.cachedData[businessIndex].phone || enrichedData.phone || '',
-                facebook: enrichedData.facebook || '',
-                instagram: enrichedData.instagram || '',
-                linkedin: enrichedData.linkedin || '',
-                twitter: enrichedData.twitter || '',
-                contactNames: enrichedData.contactNames || [],
-                enriched: true,
-                enrichmentSource: '9x12pro-scraper',
-                pagesScraped: enrichedData.pagesScraped || 0,
-                contactScore: calculateContactScore({
-                  phone: cached.cachedData[businessIndex].phone, // Use Google's phone for scoring
-                  email: enrichedData.email,
-                  website: cached.cachedData[businessIndex].website,
-                  facebook: enrichedData.facebook,
-                  instagram: enrichedData.instagram,
-                  linkedin: enrichedData.linkedin,
-                  twitter: enrichedData.twitter
-                })
-              };
+        // Process batch in parallel
+        const batchPromises = batch.map(async (business) => {
+          try {
+            const enrichedData = await fetchSmartEnrichment(business.website, business.name);
 
-              // Recalculate lead score with enriched data
-              cached.cachedData[businessIndex].leadScore = calculateProspectScore(cached.cachedData[businessIndex]);
-              cached.cachedData[businessIndex].scoreCategory = getScoreCategory(cached.cachedData[businessIndex].leadScore);
+            // Update business in cache
+            const cacheKey = `${business.searchedZipCode}-${business.category}`;
+            const cached = placesCache.searches[cacheKey];
+            if (cached && cached.cachedData) {
+              const businessIndex = cached.cachedData.findIndex(b => b.placeId === business.placeId);
+              if (businessIndex !== -1) {
+                cached.cachedData[businessIndex] = {
+                  ...cached.cachedData[businessIndex],
+                  email: enrichedData.email || '',
+                  phone: cached.cachedData[businessIndex].phone || enrichedData.phone || '',
+                  facebook: enrichedData.facebook || '',
+                  instagram: enrichedData.instagram || '',
+                  linkedin: enrichedData.linkedin || '',
+                  twitter: enrichedData.twitter || '',
+                  contactNames: enrichedData.contactNames || [],
+                  enriched: true,
+                  enrichmentSource: '9x12pro-scraper',
+                  pagesScraped: enrichedData.pagesScraped || 0,
+                  contactScore: calculateContactScore({
+                    phone: cached.cachedData[businessIndex].phone,
+                    email: enrichedData.email,
+                    website: cached.cachedData[businessIndex].website,
+                    facebook: enrichedData.facebook,
+                    instagram: enrichedData.instagram,
+                    linkedin: enrichedData.linkedin,
+                    twitter: enrichedData.twitter
+                  })
+                };
+
+                cached.cachedData[businessIndex].leadScore = calculateProspectScore(cached.cachedData[businessIndex]);
+                cached.cachedData[businessIndex].scoreCategory = getScoreCategory(cached.cachedData[businessIndex].leadScore);
+              }
             }
+            enrichedCount++;
+            return { success: true, business };
+          } catch (err) {
+            console.error(`❌ Failed to enrich ${business.name}:`, err);
+            return { success: false, business, error: err };
           }
+        });
 
-          // Log progress
-          if ((i + 1) % 5 === 0 || i === businessesWithWebsites.length - 1) {
-            console.log(`✅ Enriched ${i + 1}/${businessesWithWebsites.length} businesses`);
-          }
-        } catch (err) {
-          console.error(`❌ Failed to enrich ${business.name}:`, err);
-        }
+        // Wait for batch to complete
+        const results = await Promise.all(batchPromises);
+
+        // Show errors for failed enrichments
+        results.filter(r => !r.success).forEach(r => {
+          toast(`⚠️ Couldn't enrich ${r.business.name} - continuing...`, false);
+        });
+
+        // Log progress after each batch
+        console.log(`✅ Enriched ${Math.min(batchStart + BATCH_SIZE, businessesWithWebsites.length)}/${businessesWithWebsites.length} businesses`);
       }
 
       // Save all enriched data to cache
       await savePlacesCache();
-      console.log(`✅ Enrichment complete! ${businessesWithWebsites.length} businesses enriched.`);
+      console.log(`✅ Enrichment complete! ${enrichedCount}/${businessesWithWebsites.length} businesses enriched.`);
     }
 
     // Just cache results - don't auto-add to prospecting
@@ -5852,6 +5039,9 @@ async function runBulkAutoPopulate() {
 
     // Show success modal with category breakdown (BEFORE enrichment toast)
     showProspectSuccessModal(categorizedResults, allBusinesses.length);
+
+    // Track that user generated prospects (for Getting Started checklist)
+    markGettingStartedComplete('generate_prospects');
 
     // Show enrichment status toast AFTER modal
     if (businessesWithWebsites.length > 0) {
@@ -5870,6 +5060,11 @@ async function runBulkAutoPopulate() {
     console.error('Bulk auto-populate error:', err);
     toast('Search failed. Please try again.', false);
   } finally {
+    // Always remove progress overlay
+    const progressOverlay = document.getElementById('enrichment-progress-overlay');
+    if (progressOverlay && progressOverlay.parentNode) {
+      progressOverlay.remove();
+    }
     btn.disabled = false;
     btn.innerHTML = originalText;
   }
@@ -8110,6 +7305,12 @@ async function addFromProspectPool() {
     }
     message += ` Use CSV export/import to add social media URLs.`;
     toast(message, true);
+
+    // Track Getting Started progress
+    if (addedCount > 0) {
+      markGettingStartedComplete('review_prospects');
+      markGettingStartedComplete('add_to_pipeline');
+    }
 
     // Switch to pipeline tab
     console.log('🔵 DEBUG: Before switchTab, prospect-list length:', kanbanState.columns['prospect-list']?.length);
@@ -14149,6 +13350,9 @@ async function createNewPostcard() {
         cloudSaveSuccess = true;
         toast("✅ Postcard created and saved to cloud!", true);
 
+        // Track Getting Started progress - campaign created
+        markGettingStartedComplete('create_campaign');
+
       } catch (cloudErr) {
         retryCount++;
         console.error(`Failed to save to cloud (attempt ${retryCount}/${maxRetries + 1}):`, cloudErr);
@@ -14418,6 +13622,9 @@ function loadAllData() {
     // Load campaigns AFTER expenses and pricing are loaded so financial dashboard shows correct data
     console.log('✅ Pricing data loaded. Loading campaigns...');
     loadCampaigns();
+
+    // Load Getting Started progress after all other data is loaded
+    loadGettingStartedProgress();
   });
 
   // Load API quota (local only)
@@ -14425,6 +13632,9 @@ function loadAllData() {
 
   // Load enrichment quota counter
   loadEnrichmentQuota();
+
+  // Load Getting Started checklist progress (loaded after campaigns)
+  // Will be called after data loads
 
   // Load prospect cache from cloud with merge
   loadPlacesCache().then(() => {
@@ -15663,6 +14873,52 @@ function renderAll(){
 }
 
 // ========== GETTING STARTED CHECKLIST ==========
+// Persistent tracking of completed getting started items
+const gettingStartedState = {
+  completed: {} // Will be loaded from cloud storage
+};
+
+// Load getting started progress from cloud
+async function loadGettingStartedProgress() {
+  try {
+    const cloudData = await loadFromCloud('gettingStartedProgress');
+    if (cloudData && cloudData.completed) {
+      gettingStartedState.completed = cloudData.completed;
+    }
+    // Also check localStorage as fallback
+    const localData = localStorage.getItem('gettingStartedProgress');
+    if (localData) {
+      const parsed = JSON.parse(localData);
+      // Merge with cloud data (prefer cloud but use local as backup)
+      if (parsed && parsed.completed) {
+        gettingStartedState.completed = { ...parsed.completed, ...gettingStartedState.completed };
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load getting started progress:', e);
+  }
+  // Don't render here - let the tab switch handle it after all data is loaded
+}
+
+// Mark a getting started item as complete
+async function markGettingStartedComplete(itemId) {
+  if (gettingStartedState.completed[itemId]) return; // Already completed
+
+  gettingStartedState.completed[itemId] = true;
+  console.log(`✅ Getting Started: Completed "${itemId}"`);
+
+  // Save to localStorage immediately
+  localStorage.setItem('gettingStartedProgress', JSON.stringify({ completed: gettingStartedState.completed }));
+
+  // Save to cloud (non-blocking)
+  saveToCloud('gettingStartedProgress', { completed: gettingStartedState.completed }).catch(e => {
+    console.warn('Failed to save getting started progress to cloud:', e);
+  });
+
+  // Update the checklist UI
+  renderGettingStartedChecklist();
+}
+
 function renderGettingStartedChecklist() {
   // Check if user has dismissed it
   if (localStorage.getItem('gettingStartedDismissed') === 'true') {
@@ -15675,36 +14931,51 @@ function renderGettingStartedChecklist() {
     {
       id: 'create_campaign',
       label: 'Create your first campaign',
-      check: () => state.all && state.all.length > 0,
+      check: () => gettingStartedState.completed['create_campaign'] || (state.mailers && state.mailers.length > 0),
       action: () => switchTab('manager')
     },
     {
       id: 'generate_prospects',
       label: 'Generate prospects with Prospect Generator',
-      check: () => {
-        // Check if any prospects exist in cache
-        return placesCache.searches && Object.keys(placesCache.searches).length > 0;
-      },
+      check: () => gettingStartedState.completed['generate_prospects'] || (placesCache.searches && Object.keys(placesCache.searches).length > 0),
       action: () => switchTab('lead-generation')
     },
     {
       id: 'review_prospects',
       label: 'Review & select prospects from Prospect Pool',
-      check: () => prospectPoolState.selectedProspects && prospectPoolState.selectedProspects.length > 0,
+      check: () => gettingStartedState.completed['review_prospects'] ||
+        (kanbanState.columns && kanbanState.columns['prospect-list'] && kanbanState.columns['prospect-list'].length > 0),
       action: () => switchTab('prospects')
     },
     {
       id: 'add_to_pipeline',
       label: 'Add prospects to your sales pipeline',
-      check: () => kanbanState.columns && Object.values(kanbanState.columns).some(col => col.length > 0),
+      check: () => gettingStartedState.completed['add_to_pipeline'] ||
+        (kanbanState.columns && (
+          (kanbanState.columns['to-contact'] || []).length > 0 ||
+          (kanbanState.columns['in-progress'] || []).length > 0 ||
+          (kanbanState.columns['committed'] || []).length > 0
+        )),
       action: () => switchTab('pipeline')
     },
     {
       id: 'mark_reserved',
       label: 'Mark your first spot as "Reserved" or "Paid"',
       check: () => {
-        if (!state.current || !state.current.spots) return false;
-        return state.current.spots.some(spot => spot.status === 'RESERVED' || spot.status === 'PAID');
+        if (gettingStartedState.completed['mark_reserved']) return true;
+        if (!state.current) return false;
+        // Check availability object or direct Spot_N properties
+        const availability = state.current.availability || {};
+        for (let i = 1; i <= 18; i++) {
+          const spotStatus = availability[`Spot_${i}`] || state.current[`Spot_${i}`] || "Available";
+          if (typeof spotStatus === 'string') {
+            const statusLower = spotStatus.toLowerCase();
+            if (statusLower !== "available" && !statusLower.startsWith("available")) {
+              return true;
+            }
+          }
+        }
+        return false;
       },
       action: () => switchTab('manager')
     }
@@ -15764,6 +15035,56 @@ function dismissGettingStarted() {
       widget.style.display = 'none';
     }, 300);
   }
+}
+
+// ========== DASHBOARD STATS ==========
+function renderDashboardStats() {
+  // Count prospects in Pipeline (prospect-list column)
+  const prospectsCount = (kanbanState.columns && kanbanState.columns['prospect-list']) ? kanbanState.columns['prospect-list'].length : 0;
+  const statsProspects = document.getElementById('statsProspects');
+  if (statsProspects) statsProspects.textContent = prospectsCount;
+
+  // Count active leads in pipeline (to-contact, in-progress, committed)
+  const leadsCount = (kanbanState.columns['to-contact'] || []).length +
+                    (kanbanState.columns['in-progress'] || []).length +
+                    (kanbanState.columns['committed'] || []).length;
+  const statsLeads = document.getElementById('statsLeads');
+  if (statsLeads) statsLeads.textContent = leadsCount;
+
+  // Count active campaigns (postcards with at least 1 reserved/filled spot)
+  let campaignsCount = 0;
+  if (state && state.mailers && Array.isArray(state.mailers)) {
+    campaignsCount = state.mailers.filter(postcard => {
+      // Check both availability object and direct Spot_N properties
+      const availability = postcard.availability || {};
+      for (let i = 1; i <= 18; i++) {
+        // Try availability object first, then direct property
+        const spotStatus = availability[`Spot_${i}`] || postcard[`Spot_${i}`] || "Available";
+        if (typeof spotStatus === 'string') {
+          const statusLower = spotStatus.toLowerCase();
+          // Check if not available (could be "Reserved: Name" or just "Reserved")
+          if (statusLower !== "available" && !statusLower.startsWith("available")) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }).length;
+  }
+  const statsCampaigns = document.getElementById('statsCampaigns');
+  if (statsCampaigns) statsCampaigns.textContent = campaignsCount;
+
+  // Count clients
+  const clientsCount = crmState.clients ? Object.keys(crmState.clients).length : 0;
+  const statsClients = document.getElementById('statsClients');
+  if (statsClients) statsClients.textContent = clientsCount;
+}
+
+// Refresh all dashboard widgets
+function refreshDashboard() {
+  renderDashboardStats();
+  renderGettingStartedChecklist();
+  renderContractsExpiring();
 }
 
 // ========== CONTRACTS EXPIRING WIDGET ==========
@@ -17367,6 +16688,19 @@ async function saveToSheet(){
     autoSaveState.lastSaveTime = Date.now();
     updateToolbar();
     updateAutoSaveStatus();
+
+    // Check if any spot was marked as Reserved or Paid (for Getting Started checklist)
+    const hasReservedOrPaid = Object.values(availabilityDiffs).some(status => {
+      const statusLower = status.toLowerCase();
+      return statusLower.includes('reserved') ||
+             statusLower.includes('deposit paid') ||
+             statusLower.includes('paid in full') ||
+             statusLower.includes('invoice sent') ||
+             statusLower.includes('ad approved');
+    });
+    if (hasReservedOrPaid) {
+      markGettingStartedComplete('mark_reserved');
+    }
 
     // Reload campaigns to get fresh data, preserving current selection
     const currentMailerId = state.current?.Mailer_ID;
