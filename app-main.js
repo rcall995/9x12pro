@@ -3530,18 +3530,27 @@ async function enrichBusinessWebsite(business) {
       const fbQuery = `${businessName} ${location} site:facebook.com`;
       const fbResult = await searchBusinessWebsite(fbQuery, businessName);
       trackEnrichmentQuery(1);
-      // Validate: must be facebook.com, NOT instagram, and not a post URL
-      if (fbResult &&
-          fbResult.includes('facebook.com') &&
-          !fbResult.includes('instagram.com') &&
-          !fbResult.includes('/p/') &&
-          !fbResult.includes('/posts/') &&
-          !fbResult.includes('/photos/')) {
-        business.facebook = fbResult;
+      console.log(`🔍 Facebook search result: ${fbResult || 'none'}`);
+      // Validate: must be facebook.com and NOT instagram (Instagram uses /p/ for posts)
+      if (fbResult && fbResult.includes('facebook.com') && !fbResult.includes('instagram.com')) {
+        // Clean up the URL - try to get the page URL, not a post
+        let cleanFbUrl = fbResult;
+        // If it's a post URL, try to extract the page
+        if (fbResult.includes('/posts/') || fbResult.includes('/photos/') || fbResult.includes('/videos/')) {
+          const pageMatch = fbResult.match(/(https?:\/\/[^\/]*facebook\.com\/[^\/\?]+)/);
+          if (pageMatch) {
+            cleanFbUrl = pageMatch[1];
+            console.log(`🔄 Cleaned Facebook URL: ${cleanFbUrl}`);
+          }
+        }
+        business.facebook = cleanFbUrl;
         foundItems.push('Facebook');
-        console.log(`✅ Found Facebook: ${fbResult}`);
+        console.log(`✅ Found Facebook: ${cleanFbUrl}`);
+      } else if (fbResult && fbResult.includes('/p/')) {
+        // This is actually an Instagram URL, skip it
+        console.log(`⚠️ Skipped Instagram URL in Facebook search: ${fbResult}`);
       } else if (fbResult) {
-        console.log(`⚠️ Skipped invalid Facebook URL: ${fbResult}`);
+        console.log(`⚠️ Skipped non-Facebook URL: ${fbResult}`);
       }
     }
 
