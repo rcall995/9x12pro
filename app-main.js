@@ -4774,6 +4774,152 @@ function toggleAllCategories() {
   }
 }
 
+/* ========= SALES TOOLKIT FUNCTIONS ========= */
+
+// Sales Toolkit state
+let salesToolkitSettings = {
+  yourName: '',
+  yourCompany: '',
+  yourPhone: '',
+  spotPrice: '$400',
+  homesReached: '5,000'
+};
+
+// Toggle Sales Toolkit visibility
+function toggleSalesToolkit() {
+  const content = document.getElementById('salesToolkitContent');
+  const chevron = document.getElementById('salesToolkitChevron');
+
+  if (content.classList.contains('hidden')) {
+    content.classList.remove('hidden');
+    chevron.classList.add('rotate-180');
+    loadSalesToolkitSettings();
+  } else {
+    content.classList.add('hidden');
+    chevron.classList.remove('rotate-180');
+  }
+}
+
+// Load Sales Toolkit settings from localStorage
+function loadSalesToolkitSettings() {
+  const saved = localStorage.getItem('salesToolkitSettings');
+  if (saved) {
+    salesToolkitSettings = JSON.parse(saved);
+  }
+
+  // Populate form fields
+  document.getElementById('salesToolkitName').value = salesToolkitSettings.yourName || '';
+  document.getElementById('salesToolkitCompany').value = salesToolkitSettings.yourCompany || '';
+  document.getElementById('salesToolkitPhone').value = salesToolkitSettings.yourPhone || '';
+  document.getElementById('salesToolkitSpotPrice').value = salesToolkitSettings.spotPrice || '$400';
+  document.getElementById('salesToolkitHomes').value = salesToolkitSettings.homesReached || '5,000';
+}
+
+// Save Sales Toolkit settings
+function saveSalesToolkitSettings() {
+  salesToolkitSettings = {
+    yourName: document.getElementById('salesToolkitName').value,
+    yourCompany: document.getElementById('salesToolkitCompany').value,
+    yourPhone: document.getElementById('salesToolkitPhone').value,
+    spotPrice: document.getElementById('salesToolkitSpotPrice').value,
+    homesReached: document.getElementById('salesToolkitHomes').value
+  };
+
+  localStorage.setItem('salesToolkitSettings', JSON.stringify(salesToolkitSettings));
+  toast('✅ Settings saved!', true);
+}
+
+// Copy email template with placeholders (user fills in business-specific info)
+function copyEmailTemplate(templateType) {
+  const templates = {
+    firstTouch: document.getElementById('firstTouchTemplate').innerText,
+    followUp: document.getElementById('followUpTemplate').innerText,
+    lastChance: document.getElementById('lastChanceTemplate').innerText
+  };
+
+  let template = templates[templateType] || '';
+
+  // Replace user settings placeholders
+  template = template.replace(/\[YOUR_NAME\]/g, salesToolkitSettings.yourName || '[YOUR_NAME]');
+  template = template.replace(/\[YOUR_PHONE\]/g, salesToolkitSettings.yourPhone || '[YOUR_PHONE]');
+  template = template.replace(/\[YOUR_COMPANY\]/g, salesToolkitSettings.yourCompany || '[YOUR_COMPANY]');
+  template = template.replace(/\[SPOT_PRICE\]/g, salesToolkitSettings.spotPrice || '[SPOT_PRICE]');
+  template = template.replace(/\[HOMES\]/g, salesToolkitSettings.homesReached || '[HOMES]');
+
+  navigator.clipboard.writeText(template).then(() => {
+    toast('📋 Template copied! Paste into your email.', true);
+  }).catch(() => {
+    toast('❌ Failed to copy. Try selecting and copying manually.', false);
+  });
+}
+
+// Copy call script
+function copyCallScript() {
+  const scriptEl = document.getElementById('callScriptTemplate');
+  let script = scriptEl.innerText;
+
+  // Replace user settings placeholders
+  script = script.replace(/\[YOUR_NAME\]/g, salesToolkitSettings.yourName || '[YOUR_NAME]');
+  script = script.replace(/\[YOUR_PHONE\]/g, salesToolkitSettings.yourPhone || '[YOUR_PHONE]');
+  script = script.replace(/\[YOUR_COMPANY\]/g, salesToolkitSettings.yourCompany || '[YOUR_COMPANY]');
+  script = script.replace(/\[SPOT_PRICE\]/g, salesToolkitSettings.spotPrice || '[SPOT_PRICE]');
+  script = script.replace(/\[HOMES\]/g, salesToolkitSettings.homesReached || '[HOMES]');
+
+  navigator.clipboard.writeText(script).then(() => {
+    toast('📋 Call script copied!', true);
+  }).catch(() => {
+    toast('❌ Failed to copy. Try selecting and copying manually.', false);
+  });
+}
+
+// Send pitch email to a prospect (opens email client with pre-filled template)
+function sendPitchEmail(prospect) {
+  const businessName = prospect.businessName || prospect.name || 'Business Owner';
+  const businessType = prospect.category || 'local business';
+  const zip = prospect.actualZip || prospect.zipCode || prospect.zip || '';
+  const email = prospect.email || '';
+
+  if (!email) {
+    toast('❌ No email address found for this prospect. Try enriching first.', false);
+    return;
+  }
+
+  // Build email with merge fields filled in
+  const subject = encodeURIComponent(`Quick question about ${zip}`);
+
+  let body = `Hi ${businessName.split(' ')[0] || 'there'},
+
+I'm sending a postcard to every home in ${zip} next month - about ${salesToolkitSettings.homesReached || '5,000'} households.
+
+I have a spot reserved for a ${businessType} and thought of ${businessName}.
+
+Worth a quick chat? I can hold the spot until Friday.
+
+${salesToolkitSettings.yourName || '[Your Name]'}
+${salesToolkitSettings.yourPhone || '[Your Phone]'}`;
+
+  const mailtoLink = `mailto:${email}?subject=${subject}&body=${encodeURIComponent(body)}`;
+
+  window.open(mailtoLink, '_blank');
+  toast(`📧 Opening email to ${businessName}...`, true);
+}
+
+// Send pitch email from prospect pool card
+function sendPitchFromPool(prospectData) {
+  // Parse the prospect data if it's a string
+  const prospect = typeof prospectData === 'string' ? JSON.parse(prospectData) : prospectData;
+  sendPitchEmail(prospect);
+}
+
+// Expose functions globally
+window.toggleSalesToolkit = toggleSalesToolkit;
+window.loadSalesToolkitSettings = loadSalesToolkitSettings;
+window.saveSalesToolkitSettings = saveSalesToolkitSettings;
+window.copyEmailTemplate = copyEmailTemplate;
+window.copyCallScript = copyCallScript;
+window.sendPitchEmail = sendPitchEmail;
+window.sendPitchFromPool = sendPitchFromPool;
+
 // Clear all search caches (localStorage + cloud)
 async function clearAllSearchCaches() {
   if (!confirm('⚠️ This will clear ALL cached searches and prospect data. Your clients will NOT be affected. Continue?')) {
@@ -6813,9 +6959,14 @@ function renderProspectPool() {
                       ${contactIcons.join('')}
                     </div>
                   ` : '<div class="text-gray-400 italic text-center py-2 mb-2 text-xs border-t border-gray-200">No contact info</div>'}
-                  <div class="flex gap-2">
+                  <div class="flex gap-2 flex-wrap">
+                    ${prospect.email ? `
+                      <button onclick="event.stopPropagation(); sendPitchEmail(${JSON.stringify(prospect).replace(/"/g, '&quot;')})" class="flex-1 px-3 py-1.5 bg-orange-500 text-white rounded-md hover:bg-orange-600 font-semibold text-xs" title="Send pitch email">
+                        📧 Send Pitch
+                      </button>
+                    ` : ''}
                     <button onclick="event.stopPropagation(); moveProspectFromPool(${prospect.id})" class="flex-1 px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-semibold text-xs">
-                      Add to Prospecting →
+                      Add to Pipeline →
                     </button>
                     <button onclick="event.stopPropagation(); markProspectNotInterested('${prospect.placeId || prospect.id}', '${esc(prospect.businessName).replace(/'/g, "\\'")}')" class="px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 font-semibold text-xs" title="Not Interested">
                       🚫
@@ -6930,12 +7081,21 @@ function renderProspectPool() {
                         ${rawContactIcons.join('')}
                       </div>
                     ` : ''}
+
+                    <!-- Action Buttons -->
+                    ${!isDisabled ? `
+                    <div class="flex gap-2 mt-2 pt-2 border-t border-gray-200">
+                      ${rawEmail ? `
+                        <button onclick="event.stopPropagation(); sendPitchEmail({name: '${esc(displayName).replace(/'/g, "\\'")}', email: '${esc(rawEmail)}', category: '${esc(prospect.category || '')}', zipCode: '${esc(prospect.actualZip || prospect.zipCode || '')}'})" class="flex-1 px-2 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 text-xs font-semibold" title="Send pitch email">
+                          📧 Pitch
+                        </button>
+                      ` : ''}
+                      <button onclick="event.stopPropagation(); markProspectNotInterested('${prospectId}', '${esc(displayName).replace(/'/g, "\\'")}')" class="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs font-semibold" title="Not Interested">
+                        🚫
+                      </button>
+                    </div>
+                    ` : ''}
                   </div>
-                  ${!isDisabled ? `
-                  <button onclick="event.stopPropagation(); markProspectNotInterested('${prospectId}', '${esc(displayName).replace(/'/g, "\\'")}')" class="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs font-semibold flex-shrink-0" title="Not Interested">
-                    🚫
-                  </button>
-                  ` : ''}
                 </div>
               </div>
             `;
