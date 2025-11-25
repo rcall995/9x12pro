@@ -325,10 +325,13 @@
         background-color: #f3f4f6;
     }
     .tab-btn.active {
-        border-bottom: 2px solid #4f46e5;
-        color: #1f2937;
-        background-color: white;
-        box-shadow: 0 -2px 5px rgba(0,0,0,0.05);
+        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+        color: white !important;
+        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+        border-radius: 0.5rem;
+    }
+    .tab-btn.active span {
+        color: white !important;
     }
     @media (max-width: 768px) {
       .tab-btn {
@@ -336,11 +339,9 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 20px !important; /* Larger emoji icons on mobile */
       }
       .tab-btn.active {
-        border-bottom: 3px solid #4f46e5 !important;
-        transform: translateY(-2px);
+        box-shadow: 0 2px 8px rgba(79, 70, 229, 0.3);
       }
     }
     .dashboard-widget {
