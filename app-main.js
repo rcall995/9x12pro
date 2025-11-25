@@ -4962,6 +4962,31 @@ function sendTextMessage(prospect) {
   toast(`💬 Opening text to ${businessName}...`, true);
 }
 
+// Switch between outreach sub-tabs (text, email, phone, objections)
+function switchOutreachTab(tabName) {
+  // Hide all outreach panes
+  document.querySelectorAll('.outreach-pane').forEach(pane => {
+    pane.classList.add('hidden');
+  });
+
+  // Deactivate all outreach tab buttons
+  document.querySelectorAll('.outreach-tab-btn').forEach(btn => {
+    btn.classList.remove('active', 'bg-white', 'shadow-md', 'text-orange-600');
+  });
+
+  // Show selected pane
+  const selectedPane = document.querySelector(`[data-outreach-content="${tabName}"]`);
+  if (selectedPane) {
+    selectedPane.classList.remove('hidden');
+  }
+
+  // Activate selected button
+  const selectedBtn = document.querySelector(`[data-outreach-tab="${tabName}"]`);
+  if (selectedBtn) {
+    selectedBtn.classList.add('active', 'bg-white', 'shadow-md', 'text-orange-600');
+  }
+}
+
 // Expose functions globally
 window.toggleSalesToolkit = toggleSalesToolkit;
 window.loadSalesToolkitSettings = loadSalesToolkitSettings;
@@ -4972,6 +4997,7 @@ window.copySmsTemplate = copySmsTemplate;
 window.sendPitchEmail = sendPitchEmail;
 window.sendPitchFromPool = sendPitchFromPool;
 window.sendTextMessage = sendTextMessage;
+window.switchOutreachTab = switchOutreachTab;
 
 // Load Sales Toolkit settings on page load (for the Close Deals tab)
 document.addEventListener('DOMContentLoaded', function() {
