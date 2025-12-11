@@ -3463,8 +3463,9 @@ async function convertZipToLatLng(zipCode) {
  */
 async function searchBusinessWebsite(searchQuery, businessName) {
   try {
-    // Use Google Custom Search via our serverless function
-    const response = await fetch('/api/google-search', {
+    // Use Serper.dev - 2,500 FREE searches/month!
+    // Falls back to Google Custom Search (100/day) if Serper unavailable
+    const response = await fetch('/api/serper-search', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -3480,7 +3481,7 @@ async function searchBusinessWebsite(searchQuery, businessName) {
     }
 
     const data = await response.json();
-    return data.website || '';
+    return data.topUrl || '';
 
   } catch (error) {
     console.warn('Website search failed:', error);
@@ -4890,7 +4891,7 @@ function sendPitchEmail(prospect) {
 
   let body = `Hi,
 
-I'm ${salesToolkitSettings.yourName || '[Your Name]'} with ${salesToolkitSettings.yourCompany || '[Your Company]'}. I'm putting together a community postcard that goes to every single home in ${zip} - delivered by USPS, not stuck in a mailbox.
+I'm ${salesToolkitSettings.yourName || '[Your Name]'} with ${salesToolkitSettings.yourCompany || '[Your Company]'}. I'm putting together a community postcard that goes to every single home in ${zip} - delivered by USPS to every mailbox.
 
 I have one spot reserved for a ${businessType} and thought of ${businessName}.
 
@@ -4937,6 +4938,31 @@ function copySmsTemplate(templateType) {
   });
 }
 
+// Copy Social DM template (Facebook Messenger / Instagram)
+function copySocialTemplate(templateType) {
+  const templates = {
+    fbOpener: document.getElementById('fbOpenerTemplate')?.innerText || '',
+    fbFollowUp: document.getElementById('fbFollowUpTemplate')?.innerText || '',
+    igOpener: document.getElementById('igOpenerTemplate')?.innerText || '',
+    igFollowUp: document.getElementById('igFollowUpTemplate')?.innerText || ''
+  };
+
+  let template = templates[templateType] || '';
+
+  // Replace user settings placeholders
+  template = template.replace(/\[YOUR_NAME\]/g, salesToolkitSettings.yourName || '[YOUR_NAME]');
+  template = template.replace(/\[YOUR_PHONE\]/g, salesToolkitSettings.yourPhone || '[YOUR_PHONE]');
+  template = template.replace(/\[YOUR_COMPANY\]/g, salesToolkitSettings.yourCompany || '[YOUR_COMPANY]');
+  template = template.replace(/\[SPOT_PRICE\]/g, salesToolkitSettings.spotPrice || '[SPOT_PRICE]');
+
+  const platform = templateType.startsWith('fb') ? 'Facebook' : 'Instagram';
+  navigator.clipboard.writeText(template).then(() => {
+    toast(`📱 ${platform} message copied!`, true);
+  }).catch(() => {
+    toast('❌ Failed to copy. Try selecting and copying manually.', false);
+  });
+}
+
 // Send text message to a prospect (opens SMS app with pre-filled message)
 function sendTextMessage(prospect) {
   const businessName = prospect.businessName || prospect.name || 'there';
@@ -4961,6 +4987,904 @@ function sendTextMessage(prospect) {
   window.open(smsLink, '_blank');
   toast(`💬 Opening text to ${businessName}...`, true);
 }
+
+// ========== AI PITCH GENERATOR (INLINE) ==========
+
+// Store generated results per platform
+let aiInlineResults = {
+  text: { message: '', subject: '' },
+  email: { message: '', subject: '' },
+  social: { message: '', subject: '' }
+};
+
+// Campaign settings (postcard details)
+let campaignSettings = {
+  totalSpots: 18,
+  homeCount: 5000,
+  spotPrice: '$500',
+  zipCode: ''
+};
+
+// Update campaign settings from inputs and calculate cost per home
+function updateCampaignSettings() {
+  const spots = parseInt(document.getElementById('campaignTotalSpots')?.value) || 18;
+  const homes = parseInt(document.getElementById('campaignHomeCount')?.value) || 5000;
+  const priceStr = document.getElementById('salesToolkitSpotPrice')?.value || '$500';
+  const zipCode = document.getElementById('campaignZipCode')?.value || '';
+
+  campaignSettings.totalSpots = spots;
+  campaignSettings.homeCount = homes;
+  campaignSettings.spotPrice = priceStr;
+  campaignSettings.zipCode = zipCode;
+
+  // Parse price (remove $ and parse)
+  const priceNum = parseFloat(priceStr.replace(/[$,]/g, '')) || 500;
+
+  // Calculate cost per home
+  const costPerHome = homes > 0 ? (priceNum / homes).toFixed(2) : '0.00';
+
+  // Update display
+  const costDisplay = document.getElementById('costPerHome');
+  if (costDisplay) {
+    costDisplay.textContent = `$${costPerHome}`;
+  }
+
+  // Save to localStorage
+  saveSalesToolkitSettings();
+}
+
+// Generate inline pitch for a specific platform
+async function generateInlinePitch(platform) {
+  const prospect = closeDealsState?.selectedProspect;
+  if (!prospect) {
+    toast('❌ Select a prospect first', false);
+    return;
+  }
+
+  // Determine actual platform for social
+  let actualPlatform = platform;
+  if (platform === 'social') {
+    actualPlatform = document.getElementById('aiSocialPlatform')?.value || 'instagram_dm';
+  }
+
+  // Get button and result elements
+  const genBtn = document.getElementById(`aiGen${platform.charAt(0).toUpperCase() + platform.slice(1)}Btn`);
+  const copyBtn = document.getElementById(`aiCopy${platform.charAt(0).toUpperCase() + platform.slice(1)}Btn`);
+  const resultEl = document.getElementById(`ai${platform.charAt(0).toUpperCase() + platform.slice(1)}Result`);
+  const subjectEl = document.getElementById(`ai${platform.charAt(0).toUpperCase() + platform.slice(1)}Subject`);
+
+  // Show loading state
+  if (genBtn) genBtn.textContent = '⏳ Generating...';
+  if (genBtn) genBtn.disabled = true;
+
+  try {
+    // Get campaign settings from inputs
+    const homeCount = parseInt(document.getElementById('campaignHomeCount')?.value) || 5000;
+    const totalSpots = parseInt(document.getElementById('campaignTotalSpots')?.value) || 18;
+    const spotPrice = document.getElementById('salesToolkitSpotPrice')?.value || '$500';
+    const campaignZip = document.getElementById('campaignZipCode')?.value || '';
+
+    const response = await fetch('/api/ai/generate-pitch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        business: {
+          name: prospect.businessName || prospect.name,
+          category: prospect.category,
+          rating: prospect.rating,
+          review_count: prospect.review_count,
+          price: prospect.price,
+          city: prospect.city,
+          zip: prospect.zipCode || prospect.actualZip,
+          website: prospect.website,
+          facebook: prospect.facebook,
+          instagram: prospect.instagram,
+          contactName: prospect.contactNames?.[0] || prospect.ownerName
+        },
+        platform: actualPlatform,
+        urgency: 'medium',
+        userContext: '',
+        sender: {
+          name: salesToolkitSettings.yourName || 'Your Name',
+          company: salesToolkitSettings.yourCompany || '',
+          phone: salesToolkitSettings.yourPhone || '',
+          spotPrice: spotPrice,
+          totalSpots: totalSpots
+        },
+        homeCount: homeCount,
+        deliveryZip: campaignZip  // ZIP where postcard is being delivered
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to generate');
+    }
+
+    const data = await response.json();
+
+    // Store result
+    aiInlineResults[platform] = {
+      message: data.message,
+      subject: data.subject || ''
+    };
+
+    // Display result
+    if (resultEl) resultEl.textContent = data.message;
+
+    // Show subject for email
+    if (subjectEl && data.subject && platform === 'email') {
+      subjectEl.textContent = `Subject: ${data.subject}`;
+      subjectEl.classList.remove('hidden');
+    }
+
+    // Show copy button
+    if (copyBtn) copyBtn.classList.remove('hidden');
+
+    toast('✨ Generated!', true);
+
+  } catch (error) {
+    console.error('AI pitch error:', error);
+    toast(`❌ ${error.message}`, false);
+    if (resultEl) resultEl.textContent = `Error: ${error.message}. Click Generate to try again.`;
+  } finally {
+    if (genBtn) {
+      genBtn.textContent = '✨ Generate';
+      genBtn.disabled = false;
+    }
+  }
+}
+
+// Copy AI result for a platform
+function copyAIResult(platform) {
+  const result = aiInlineResults[platform];
+  if (!result?.message) {
+    toast('❌ Nothing to copy', false);
+    return;
+  }
+
+  let textToCopy = result.message;
+  if (platform === 'email' && result.subject) {
+    textToCopy = `Subject: ${result.subject}\n\n${result.message}`;
+  }
+
+  navigator.clipboard.writeText(textToCopy).then(() => {
+    toast('📋 Copied!', true);
+  }).catch(() => {
+    toast('❌ Failed to copy', false);
+  });
+}
+
+// Refine AI pitch with user feedback
+async function refineAIPitch(platform) {
+  const prospect = closeDealsState?.selectedProspect;
+  if (!prospect) {
+    toast('❌ Select a prospect first', false);
+    return;
+  }
+
+  const previousResult = aiInlineResults[platform];
+  if (!previousResult?.message) {
+    toast('❌ Generate a message first, then refine', false);
+    return;
+  }
+
+  // Get the refinement input
+  const refineInput = document.getElementById(`ai${platform.charAt(0).toUpperCase() + platform.slice(1)}Refine`);
+  const refinement = refineInput?.value?.trim();
+
+  if (!refinement) {
+    toast('❌ Enter what you want to change', false);
+    return;
+  }
+
+  // Determine actual platform for social
+  let actualPlatform = platform;
+  if (platform === 'social') {
+    actualPlatform = document.getElementById('aiSocialPlatform')?.value || 'instagram_dm';
+  }
+
+  // Get UI elements
+  const genBtn = document.getElementById(`aiGen${platform.charAt(0).toUpperCase() + platform.slice(1)}Btn`);
+  const resultEl = document.getElementById(`ai${platform.charAt(0).toUpperCase() + platform.slice(1)}Result`);
+  const subjectEl = document.getElementById(`ai${platform.charAt(0).toUpperCase() + platform.slice(1)}Subject`);
+
+  // Show loading state
+  if (genBtn) genBtn.textContent = '🔄 Refining...';
+  if (genBtn) genBtn.disabled = true;
+
+  try {
+    // Get campaign settings
+    const homeCount = parseInt(document.getElementById('campaignHomeCount')?.value) || 5000;
+    const totalSpots = parseInt(document.getElementById('campaignTotalSpots')?.value) || 18;
+    const spotPrice = document.getElementById('salesToolkitSpotPrice')?.value || '$500';
+    const campaignZip = document.getElementById('campaignZipCode')?.value || '';
+
+    const response = await fetch('/api/ai/generate-pitch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        business: {
+          name: prospect.businessName || prospect.name,
+          category: prospect.category,
+          rating: prospect.rating,
+          review_count: prospect.review_count,
+          price: prospect.price,
+          city: prospect.city,
+          zip: prospect.zipCode || prospect.actualZip,
+          website: prospect.website,
+          facebook: prospect.facebook,
+          instagram: prospect.instagram,
+          contactName: prospect.contactNames?.[0] || prospect.ownerName
+        },
+        platform: actualPlatform,
+        urgency: 'medium',
+        userContext: `REFINEMENT REQUEST: The previous message was: "${previousResult.message}". The user wants these changes: ${refinement}`,
+        sender: {
+          name: salesToolkitSettings.yourName || 'Your Name',
+          company: salesToolkitSettings.yourCompany || '',
+          phone: salesToolkitSettings.yourPhone || '',
+          spotPrice: spotPrice,
+          totalSpots: totalSpots
+        },
+        homeCount: homeCount,
+        deliveryZip: campaignZip
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to refine');
+    }
+
+    const data = await response.json();
+
+    // Store result
+    aiInlineResults[platform] = {
+      message: data.message,
+      subject: data.subject || previousResult.subject
+    };
+
+    // Display result
+    if (resultEl) resultEl.textContent = data.message;
+
+    // Show subject for email
+    if (subjectEl && data.subject && platform === 'email') {
+      subjectEl.textContent = `Subject: ${data.subject}`;
+      subjectEl.classList.remove('hidden');
+    }
+
+    // Clear refinement input
+    if (refineInput) refineInput.value = '';
+
+    toast('🔄 Refined!', true);
+
+  } catch (error) {
+    console.error('AI refine error:', error);
+    toast(`❌ ${error.message}`, false);
+  } finally {
+    if (genBtn) {
+      genBtn.textContent = '✨ Generate';
+      genBtn.disabled = false;
+    }
+  }
+}
+
+// Expose inline AI functions globally
+window.generateInlinePitch = generateInlinePitch;
+window.copyAIResult = copyAIResult;
+window.updateCampaignSettings = updateCampaignSettings;
+window.refineAIPitch = refineAIPitch;
+
+// ========== 🔥 SPARK - Comment Engagement System ==========
+
+// Spark state and settings
+let sparkState = {
+  settings: {
+    groupName: '',
+    hourlyLimit: 5,
+    dailyLimit: 30
+  },
+  usageLog: [], // Array of timestamps when comments were made
+  conversations: [], // Array of { id, businessName, platform, postContent, comment, timestamp, responses: [] }
+  currentComment: '',
+  currentBusiness: '',
+  cooldownInterval: null
+};
+
+// Load Spark settings and data from localStorage
+function loadSparkData() {
+  try {
+    const saved = localStorage.getItem('spark-data');
+    if (saved) {
+      const data = JSON.parse(saved);
+      sparkState.settings = data.settings || sparkState.settings;
+      sparkState.usageLog = data.usageLog || [];
+      sparkState.conversations = data.conversations || [];
+    }
+
+    // Clean old usage entries (older than 24 hours)
+    const now = Date.now();
+    sparkState.usageLog = sparkState.usageLog.filter(ts => now - ts < 24 * 60 * 60 * 1000);
+
+    // Update UI
+    updateSparkUI();
+  } catch (e) {
+    console.error('Error loading Spark data:', e);
+  }
+}
+
+// Save Spark data to localStorage
+function saveSparkData() {
+  try {
+    localStorage.setItem('spark-data', JSON.stringify({
+      settings: sparkState.settings,
+      usageLog: sparkState.usageLog,
+      conversations: sparkState.conversations
+    }));
+  } catch (e) {
+    console.error('Error saving Spark data:', e);
+  }
+}
+
+// Save settings from UI inputs
+function saveSparkSettings() {
+  const groupName = document.getElementById('sparkGroupName')?.value || '';
+  const hourlyLimit = parseInt(document.getElementById('sparkHourlyLimit')?.value) || 5;
+  const dailyLimit = parseInt(document.getElementById('sparkDailyLimit')?.value) || 30;
+
+  sparkState.settings = { groupName, hourlyLimit, dailyLimit };
+  saveSparkData();
+  updateSparkRateLimits();
+}
+
+// Update the entire Spark UI
+function updateSparkUI() {
+  // Populate settings inputs
+  const groupNameEl = document.getElementById('sparkGroupName');
+  const hourlyLimitEl = document.getElementById('sparkHourlyLimit');
+  const dailyLimitEl = document.getElementById('sparkDailyLimit');
+
+  if (groupNameEl) groupNameEl.value = sparkState.settings.groupName || '';
+  if (hourlyLimitEl) hourlyLimitEl.value = sparkState.settings.hourlyLimit || 5;
+  if (dailyLimitEl) dailyLimitEl.value = sparkState.settings.dailyLimit || 30;
+
+  updateSparkRateLimits();
+  renderSparkConversations();
+}
+
+// Calculate and display rate limits
+function updateSparkRateLimits() {
+  const now = Date.now();
+  const hourAgo = now - 60 * 60 * 1000;
+  const dayAgo = now - 24 * 60 * 60 * 1000;
+
+  // Count usage
+  const hourlyUsed = sparkState.usageLog.filter(ts => ts > hourAgo).length;
+  const dailyUsed = sparkState.usageLog.filter(ts => ts > dayAgo).length;
+
+  const { hourlyLimit, dailyLimit } = sparkState.settings;
+
+  // Update display
+  const hourlyEl = document.getElementById('sparkHourlyCount');
+  const dailyEl = document.getElementById('sparkDailyCount');
+
+  if (hourlyEl) {
+    hourlyEl.textContent = `${hourlyUsed}/${hourlyLimit} hr`;
+    hourlyEl.className = `text-xs font-bold ${hourlyUsed >= hourlyLimit ? 'text-red-600' : 'text-green-600'}`;
+  }
+
+  if (dailyEl) {
+    dailyEl.textContent = `${dailyUsed}/${dailyLimit} day`;
+    dailyEl.className = `text-xs font-bold ${dailyUsed >= dailyLimit ? 'text-red-600' : 'text-blue-600'}`;
+  }
+
+  // Check if rate limited
+  const isRateLimited = hourlyUsed >= hourlyLimit || dailyUsed >= dailyLimit;
+  const generateBtn = document.getElementById('sparkGenerateBtn');
+
+  if (generateBtn) {
+    generateBtn.disabled = isRateLimited;
+    if (isRateLimited) {
+      generateBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    } else {
+      generateBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+  }
+
+  // Show/hide cooldown timer
+  const cooldownEl = document.getElementById('sparkCooldown');
+  if (cooldownEl) {
+    if (isRateLimited) {
+      cooldownEl.classList.remove('hidden');
+      cooldownEl.classList.add('flex');
+      startCooldownTimer();
+    } else {
+      cooldownEl.classList.add('hidden');
+      cooldownEl.classList.remove('flex');
+      if (sparkState.cooldownInterval) {
+        clearInterval(sparkState.cooldownInterval);
+        sparkState.cooldownInterval = null;
+      }
+    }
+  }
+}
+
+// Start cooldown timer
+function startCooldownTimer() {
+  if (sparkState.cooldownInterval) return;
+
+  const updateTimer = () => {
+    const now = Date.now();
+    const hourAgo = now - 60 * 60 * 1000;
+    const { hourlyLimit } = sparkState.settings;
+
+    // Find oldest usage within the hour
+    const hourlyUsage = sparkState.usageLog.filter(ts => ts > hourAgo).sort((a, b) => a - b);
+
+    if (hourlyUsage.length >= hourlyLimit && hourlyUsage.length > 0) {
+      // Calculate when the oldest entry expires
+      const oldestInHour = hourlyUsage[0];
+      const expiresAt = oldestInHour + 60 * 60 * 1000;
+      const remaining = Math.max(0, expiresAt - now);
+
+      const minutes = Math.floor(remaining / 60000);
+      const seconds = Math.floor((remaining % 60000) / 1000);
+
+      const timerEl = document.getElementById('sparkCooldownTimer');
+      if (timerEl) {
+        timerEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+      }
+
+      if (remaining <= 0) {
+        updateSparkRateLimits();
+      }
+    } else {
+      updateSparkRateLimits();
+    }
+  };
+
+  updateTimer();
+  sparkState.cooldownInterval = setInterval(updateTimer, 1000);
+}
+
+// Generate a Spark comment
+async function generateSparkComment() {
+  const businessName = document.getElementById('sparkBusinessName')?.value?.trim();
+  const postContent = document.getElementById('sparkPostContent')?.value?.trim();
+  const platform = document.getElementById('sparkPlatform')?.value || 'facebook';
+  const sellLevel = parseInt(document.getElementById('sparkSellLevel')?.value || '3');
+  const groupName = sparkState.settings.groupName;
+
+  if (!businessName) {
+    toast('❌ Enter the business name', false);
+    return;
+  }
+
+  if (!postContent) {
+    toast('❌ Paste the business post content', false);
+    return;
+  }
+
+  if (!groupName) {
+    toast('❌ Set your group name in settings above', false);
+    return;
+  }
+
+  // Check rate limits
+  const now = Date.now();
+  const hourAgo = now - 60 * 60 * 1000;
+  const dayAgo = now - 24 * 60 * 60 * 1000;
+  const hourlyUsed = sparkState.usageLog.filter(ts => ts > hourAgo).length;
+  const dailyUsed = sparkState.usageLog.filter(ts => ts > dayAgo).length;
+
+  if (hourlyUsed >= sparkState.settings.hourlyLimit) {
+    toast('⏱️ Hourly limit reached. Wait for cooldown.', false);
+    return;
+  }
+
+  if (dailyUsed >= sparkState.settings.dailyLimit) {
+    toast('⏱️ Daily limit reached. Try again tomorrow.', false);
+    return;
+  }
+
+  const generateBtn = document.getElementById('sparkGenerateBtn');
+  const resultEl = document.getElementById('sparkResult');
+  const copyBtn = document.getElementById('sparkCopyBtn');
+  const refineRow = document.getElementById('sparkRefineRow');
+
+  // Show loading
+  if (generateBtn) {
+    generateBtn.innerHTML = '⏳ Generating...';
+    generateBtn.disabled = true;
+  }
+
+  try {
+    const response = await fetch('/api/ai/generate-comment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        businessName,
+        postContent,
+        platform,
+        groupName,
+        sellLevel,
+        refinement: ''
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to generate');
+    }
+
+    const data = await response.json();
+
+    // Store current comment
+    sparkState.currentComment = data.comment;
+    sparkState.currentBusiness = businessName;
+
+    // Display result
+    if (resultEl) {
+      resultEl.textContent = data.comment;
+      resultEl.classList.remove('hidden');
+    }
+
+    // Show copy button and refine row
+    if (copyBtn) copyBtn.classList.remove('hidden');
+    if (refineRow) refineRow.classList.remove('hidden');
+
+    toast('🔥 Comment generated!', true);
+
+  } catch (error) {
+    console.error('Spark generation error:', error);
+    toast(`❌ ${error.message}`, false);
+  } finally {
+    if (generateBtn) {
+      generateBtn.innerHTML = '🔥 Generate Comment';
+      generateBtn.disabled = false;
+    }
+  }
+}
+
+// Refine the Spark comment
+async function refineSparkComment() {
+  const refinement = document.getElementById('sparkRefine')?.value?.trim();
+
+  if (!refinement) {
+    toast('❌ Enter what you want to change', false);
+    return;
+  }
+
+  if (!sparkState.currentComment) {
+    toast('❌ Generate a comment first', false);
+    return;
+  }
+
+  const businessName = document.getElementById('sparkBusinessName')?.value?.trim();
+  const postContent = document.getElementById('sparkPostContent')?.value?.trim();
+  const platform = document.getElementById('sparkPlatform')?.value || 'facebook';
+  const groupName = sparkState.settings.groupName;
+
+  const generateBtn = document.getElementById('sparkGenerateBtn');
+  const resultEl = document.getElementById('sparkResult');
+
+  if (generateBtn) {
+    generateBtn.innerHTML = '🔄 Refining...';
+    generateBtn.disabled = true;
+  }
+
+  try {
+    const response = await fetch('/api/ai/generate-comment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        businessName,
+        postContent,
+        platform,
+        groupName,
+        refinement: `Previous comment was: "${sparkState.currentComment}". User wants: ${refinement}`
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to refine');
+    }
+
+    const data = await response.json();
+
+    sparkState.currentComment = data.comment;
+
+    if (resultEl) {
+      resultEl.textContent = data.comment;
+    }
+
+    // Clear refinement input
+    const refineInput = document.getElementById('sparkRefine');
+    if (refineInput) refineInput.value = '';
+
+    toast('🔄 Comment refined!', true);
+
+  } catch (error) {
+    console.error('Spark refine error:', error);
+    toast(`❌ ${error.message}`, false);
+  } finally {
+    if (generateBtn) {
+      generateBtn.innerHTML = '🔥 Generate Comment';
+      generateBtn.disabled = false;
+    }
+  }
+}
+
+// Copy the comment and log the conversation
+function copySparkComment() {
+  if (!sparkState.currentComment) {
+    toast('❌ Nothing to copy', false);
+    return;
+  }
+
+  const businessName = document.getElementById('sparkBusinessName')?.value?.trim() || 'Unknown Business';
+  const postContent = document.getElementById('sparkPostContent')?.value?.trim() || '';
+  const platform = document.getElementById('sparkPlatform')?.value || 'facebook';
+
+  // Copy to clipboard
+  navigator.clipboard.writeText(sparkState.currentComment).then(() => {
+    // Log usage
+    sparkState.usageLog.push(Date.now());
+
+    // Check if this business already exists in conversations
+    const existingIndex = sparkState.conversations.findIndex(
+      c => c.businessName.toLowerCase() === businessName.toLowerCase()
+    );
+
+    if (existingIndex >= 0) {
+      // Update existing conversation
+      sparkState.conversations[existingIndex].comments.push({
+        comment: sparkState.currentComment,
+        postContent: postContent.substring(0, 200),
+        timestamp: Date.now()
+      });
+    } else {
+      // Create new conversation
+      sparkState.conversations.unshift({
+        id: Date.now().toString(),
+        businessName,
+        platform,
+        comments: [{
+          comment: sparkState.currentComment,
+          postContent: postContent.substring(0, 200),
+          timestamp: Date.now()
+        }],
+        responses: [],
+        createdAt: Date.now()
+      });
+    }
+
+    // Save and update UI
+    saveSparkData();
+    updateSparkRateLimits();
+    renderSparkConversations();
+
+    // Clear form
+    document.getElementById('sparkBusinessName').value = '';
+    document.getElementById('sparkPostContent').value = '';
+    document.getElementById('sparkResult').classList.add('hidden');
+    document.getElementById('sparkCopyBtn').classList.add('hidden');
+    document.getElementById('sparkRefineRow').classList.add('hidden');
+    sparkState.currentComment = '';
+    sparkState.currentBusiness = '';
+
+    toast('📋 Copied & logged!', true);
+
+  }).catch(() => {
+    toast('❌ Failed to copy', false);
+  });
+}
+
+// Render the conversation tracker list
+function renderSparkConversations() {
+  const container = document.getElementById('sparkConversationList');
+  const countEl = document.getElementById('sparkConversationCount');
+
+  if (!container) return;
+
+  if (countEl) {
+    countEl.textContent = `${sparkState.conversations.length} conversation${sparkState.conversations.length !== 1 ? 's' : ''}`;
+  }
+
+  if (sparkState.conversations.length === 0) {
+    container.innerHTML = `
+      <div class="text-center text-gray-400 text-sm py-4">
+        No conversations yet. Generate and copy a comment to start tracking.
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = sparkState.conversations.map(conv => {
+    const platformIcon = conv.platform === 'instagram' ? '📸' : '📘';
+    const timeAgo = getTimeAgo(conv.createdAt);
+    const lastComment = conv.comments[conv.comments.length - 1];
+    const hasResponses = conv.responses && conv.responses.length > 0;
+
+    return `
+      <div class="p-3 bg-white border rounded-lg hover:shadow-sm transition-shadow">
+        <div class="flex items-start justify-between gap-2 mb-2">
+          <div class="flex items-center gap-2">
+            <span>${platformIcon}</span>
+            <span class="font-bold text-gray-800 text-sm">${escapeHtml(conv.businessName)}</span>
+            <span class="text-xs text-gray-400">${timeAgo}</span>
+          </div>
+          <div class="flex gap-1">
+            <button onclick="openSparkResponseModal('${conv.id}')" class="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200" title="Log a response">
+              💬 Response
+            </button>
+            <button onclick="deleteSparkConversation('${conv.id}')" class="px-2 py-1 text-xs bg-red-100 text-red-600 rounded hover:bg-red-200" title="Delete">
+              🗑️
+            </button>
+          </div>
+        </div>
+        <div class="text-xs text-gray-600 mb-2 bg-gray-50 p-2 rounded">
+          <span class="font-medium">Your comment:</span> ${escapeHtml(lastComment.comment.substring(0, 150))}${lastComment.comment.length > 150 ? '...' : ''}
+        </div>
+        ${hasResponses ? `
+          <div class="text-xs border-t pt-2 mt-2">
+            <span class="font-medium text-green-700">📩 ${conv.responses.length} response(s)</span>
+            <div class="mt-1 text-gray-600">${escapeHtml(conv.responses[conv.responses.length - 1].content.substring(0, 100))}...</div>
+          </div>
+        ` : ''}
+        ${hasResponses ? `
+          <button onclick="generateSparkFollowUp('${conv.id}')" class="mt-2 px-3 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200">
+            🤖 AI Suggest Follow-up
+          </button>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+// Open modal to log a response from the business
+function openSparkResponseModal(conversationId) {
+  const conv = sparkState.conversations.find(c => c.id === conversationId);
+  if (!conv) return;
+
+  const response = prompt(`Log a response from ${conv.businessName}:\n\nPaste their reply (DM, comment, etc.):`);
+
+  if (response && response.trim()) {
+    conv.responses.push({
+      content: response.trim(),
+      timestamp: Date.now()
+    });
+
+    saveSparkData();
+    renderSparkConversations();
+    toast('📩 Response logged!', true);
+  }
+}
+
+// Generate AI follow-up suggestion based on their response
+async function generateSparkFollowUp(conversationId) {
+  const conv = sparkState.conversations.find(c => c.id === conversationId);
+  if (!conv || !conv.responses || conv.responses.length === 0) {
+    toast('❌ No responses to follow up on', false);
+    return;
+  }
+
+  const lastResponse = conv.responses[conv.responses.length - 1];
+  const lastComment = conv.comments[conv.comments.length - 1];
+
+  toast('🤖 Generating follow-up suggestion...', true);
+
+  try {
+    const response = await fetch('/api/ai/generate-comment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        businessName: conv.businessName,
+        postContent: `FOLLOW-UP CONTEXT:\nYour original comment: "${lastComment.comment}"\n\nTheir response: "${lastResponse.content}"`,
+        platform: conv.platform,
+        groupName: sparkState.settings.groupName,
+        refinement: 'Generate a friendly follow-up reply to their response. Keep building the relationship naturally.',
+        isFollowUp: true
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to generate');
+    }
+
+    const data = await response.json();
+
+    // Show the suggestion in an alert (could be a modal in future)
+    const copyIt = confirm(`🤖 Suggested follow-up:\n\n"${data.comment}"\n\nClick OK to copy this message.`);
+
+    if (copyIt) {
+      navigator.clipboard.writeText(data.comment).then(() => {
+        toast('📋 Follow-up copied!', true);
+      });
+    }
+
+  } catch (error) {
+    console.error('Follow-up generation error:', error);
+    toast(`❌ ${error.message}`, false);
+  }
+}
+
+// Delete a conversation
+function deleteSparkConversation(conversationId) {
+  if (!confirm('Delete this conversation from tracking?')) return;
+
+  sparkState.conversations = sparkState.conversations.filter(c => c.id !== conversationId);
+  saveSparkData();
+  renderSparkConversations();
+  toast('🗑️ Conversation deleted', true);
+}
+
+// Helper: Get time ago string
+function getTimeAgo(timestamp) {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+// Helper: Escape HTML
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// Initialize Spark on page load
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(loadSparkData, 200);
+});
+
+// Open selected prospect's Facebook page
+function openSparkFacebook() {
+  const prospect = closeDealsState?.selectedProspect;
+
+  if (!prospect) {
+    toast('Select a prospect first', false);
+    return;
+  }
+
+  // Check if prospect has a Facebook URL from enrichment
+  if (prospect.facebook) {
+    let fbUrl = prospect.facebook;
+    // Ensure it has protocol
+    if (!fbUrl.startsWith('http')) {
+      fbUrl = 'https://' + fbUrl;
+    }
+    window.open(fbUrl, '_blank');
+    return;
+  }
+
+  // No Facebook URL - search for them on Facebook
+  const businessName = prospect.businessName || document.getElementById('sparkBusinessName')?.value?.trim();
+  if (businessName) {
+    const searchUrl = `https://www.facebook.com/search/pages?q=${encodeURIComponent(businessName)}`;
+    window.open(searchUrl, '_blank');
+    toast('Searching Facebook for ' + businessName, true);
+  } else {
+    toast('No business name to search', false);
+  }
+}
+
+// Expose Spark functions globally
+window.openSparkFacebook = openSparkFacebook;
+window.generateSparkComment = generateSparkComment;
+window.refineSparkComment = refineSparkComment;
+window.copySparkComment = copySparkComment;
+window.saveSparkSettings = saveSparkSettings;
+window.openSparkResponseModal = openSparkResponseModal;
+window.generateSparkFollowUp = generateSparkFollowUp;
+window.deleteSparkConversation = deleteSparkConversation;
 
 // Switch between outreach sub-tabs (text, email, phone, objections)
 function switchOutreachTab(tabName) {
@@ -4994,10 +5918,480 @@ window.saveSalesToolkitSettings = saveSalesToolkitSettings;
 window.copyEmailTemplate = copyEmailTemplate;
 window.copyCallScript = copyCallScript;
 window.copySmsTemplate = copySmsTemplate;
+window.copySocialTemplate = copySocialTemplate;
 window.sendPitchEmail = sendPitchEmail;
 window.sendPitchFromPool = sendPitchFromPool;
 window.sendTextMessage = sendTextMessage;
 window.switchOutreachTab = switchOutreachTab;
+
+// ========== CLOSE DEALS PROSPECT LIST FUNCTIONS ==========
+
+// State for Close Deals tab
+let closeDealsState = {
+  selectedProspect: null,
+  currentFilter: 'all'
+};
+
+// Filter the Close Deals prospect list by status
+function filterCloseDealsStatus(status) {
+  closeDealsState.currentFilter = status;
+
+  // Update filter button styles
+  document.querySelectorAll('.close-filter-btn').forEach(btn => {
+    btn.classList.remove('active', 'bg-white', 'shadow', 'text-gray-900');
+    btn.classList.add('text-gray-600');
+  });
+
+  const activeBtn = document.querySelector(`[data-close-filter="${status}"]`);
+  if (activeBtn) {
+    activeBtn.classList.add('active', 'bg-white', 'shadow', 'text-gray-900');
+    activeBtn.classList.remove('text-gray-600');
+  }
+
+  renderCloseDealsProspects();
+}
+
+// Get all prospects from kanban and map to Close Deals statuses
+function getCloseDealsProspects() {
+  const prospects = [];
+
+  // Safety check - kanbanState might not be loaded yet
+  if (!kanbanState || !kanbanState.columns) {
+    return prospects;
+  }
+
+  // Map kanban columns to close deals statuses
+  // new = prospect-list (just added, never contacted)
+  // contacted = to-contact + in-progress (reached out but not committed)
+  // interested (Hot) = committed (ready to close)
+
+  const columnMapping = {
+    'prospect-list': 'new',
+    'to-contact': 'contacted',     // "to-contact" = has been contacted
+    'in-progress': 'contacted',    // actively working = has been contacted
+    'committed': 'interested'
+  };
+
+  Object.entries(columnMapping).forEach(([column, status]) => {
+    const items = kanbanState.columns[column] || [];
+    items.forEach(item => {
+      if (typeof item === 'object' && item) {
+        prospects.push({
+          ...item,
+          closeStatus: status,
+          kanbanColumn: column
+        });
+      }
+    });
+  });
+
+  return prospects;
+}
+
+// Render the Close Deals prospect list
+function renderCloseDealsProspects() {
+  const container = document.getElementById('closeDealsProspectList');
+  if (!container) return;
+
+  const allProspects = getCloseDealsProspects();
+  const filter = closeDealsState.currentFilter;
+
+  // Get contact filter states
+  const filterPhone = document.getElementById('closeDealsFilterPhone')?.checked || false;
+  const filterEmail = document.getElementById('closeDealsFilterEmail')?.checked || false;
+  const filterFacebook = document.getElementById('closeDealsFilterFacebook')?.checked || false;
+  const filterInstagram = document.getElementById('closeDealsFilterInstagram')?.checked || false;
+
+  // Apply status filter
+  let filteredProspects = filter === 'all'
+    ? allProspects
+    : allProspects.filter(p => p.closeStatus === filter);
+
+  // Apply contact filters (AND logic)
+  if (filterPhone) {
+    filteredProspects = filteredProspects.filter(p => p.phone && p.phone.trim() !== '');
+  }
+  if (filterEmail) {
+    filteredProspects = filteredProspects.filter(p => p.email && p.email.trim() !== '');
+  }
+  if (filterFacebook) {
+    filteredProspects = filteredProspects.filter(p => p.facebook && p.facebook.trim() !== '');
+  }
+  if (filterInstagram) {
+    filteredProspects = filteredProspects.filter(p => p.instagram && p.instagram.trim() !== '');
+  }
+
+  // Update counts on filter buttons
+  const counts = {
+    all: allProspects.length,
+    new: allProspects.filter(p => p.closeStatus === 'new').length,
+    contacted: allProspects.filter(p => p.closeStatus === 'contacted').length,
+    interested: allProspects.filter(p => p.closeStatus === 'interested').length
+  };
+
+  document.querySelectorAll('.close-filter-btn').forEach(btn => {
+    const filterType = btn.getAttribute('data-close-filter');
+    if (filterType && counts[filterType] !== undefined) {
+      const label = filterType === 'all' ? 'All' :
+                    filterType === 'new' ? 'New' :
+                    filterType === 'contacted' ? 'Contacted' : 'Hot';
+      btn.innerHTML = `${label} <span class="text-xs opacity-70">(${counts[filterType]})</span>`;
+    }
+  });
+
+  const hasContactFilter = filterPhone || filterEmail || filterFacebook || filterInstagram;
+  if (filteredProspects.length === 0) {
+    container.innerHTML = `
+      <div class="p-8 text-center text-gray-400">
+        <span class="text-4xl mb-2 block">🎯</span>
+        <p class="font-medium">${hasContactFilter ? 'No prospects match filters' : (filter === 'all' ? 'No prospects yet' : `No ${filter} prospects`)}</p>
+        <p class="text-sm">${hasContactFilter ? 'Try unchecking some contact filters above' : (filter === 'all' ? 'Find businesses in the Find tab and add them to your Pool' : 'Prospects will appear here as you work through your pipeline')}</p>
+      </div>
+    `;
+    return;
+  }
+
+  // Render prospect cards
+  const html = filteredProspects.map(prospect => {
+    const isSelected = closeDealsState.selectedProspect?.id === prospect.id;
+    const statusColors = {
+      'new': 'bg-blue-100 text-blue-700',
+      'contacted': 'bg-amber-100 text-amber-700',
+      'interested': 'bg-green-100 text-green-700'
+    };
+    const statusLabels = {
+      'new': 'New',
+      'contacted': 'Contacted',
+      'interested': 'Hot 🔥'
+    };
+
+    // Get category icon
+    const categoryIcons = {
+      'restaurant': '🍽️',
+      'plumber': '🔧',
+      'electrician': '⚡',
+      'hvac': '❄️',
+      'landscaping': '🌿',
+      'roofing': '🏠',
+      'auto repair': '🚗',
+      'dentist': '🦷',
+      'salon': '💇',
+      'gym': '💪'
+    };
+    const icon = categoryIcons[prospect.category?.toLowerCase()] || '🏢';
+
+    return `
+      <div onclick="selectCloseDealsProspect('${prospect.id}')"
+           class="p-3 cursor-pointer hover:bg-indigo-50 transition-all ${isSelected ? 'bg-indigo-100 border-l-4 border-indigo-500' : ''}">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-lg flex-shrink-0">
+            ${icon}
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="font-bold text-gray-900 text-sm truncate">${prospect.businessName || 'Unknown Business'}</p>
+            <p class="text-xs text-gray-500 truncate">${(prospect.category || 'Business').replace(/_/g, ' ')} • ${prospect.zipCode || 'N/A'}</p>
+          </div>
+          <span class="px-2 py-0.5 text-xs font-bold rounded-full ${statusColors[prospect.closeStatus]}">${statusLabels[prospect.closeStatus]}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  container.innerHTML = html;
+}
+
+// Update all templates with prospect data
+function updateTemplatesWithProspect(prospect) {
+  if (!prospect) return;
+
+  // Get sales toolkit settings from inputs OR localStorage
+  const savedSettings = JSON.parse(localStorage.getItem('salesToolkitSettings') || '{}');
+  const yourName = document.getElementById('salesToolkitName')?.value?.trim() || savedSettings.yourName || '[YOUR_NAME]';
+  const yourCompany = document.getElementById('salesToolkitCompany')?.value?.trim() || savedSettings.yourCompany || '[YOUR_COMPANY]';
+  const yourPhone = document.getElementById('salesToolkitPhone')?.value?.trim() || savedSettings.yourPhone || '[YOUR_PHONE]';
+  const spotPrice = document.getElementById('salesToolkitSpotPrice')?.value?.trim() || savedSettings.spotPrice || '$399';
+
+  // Prospect data
+  const zip = prospect.zipCode || prospect.actualZip || '[ZIP]';
+  const businessType = (prospect.category || 'business').replace(/_/g, ' ');
+  const businessName = prospect.businessName || '[BUSINESS_NAME]';
+  const contactName = prospect.contactName || 'there';
+
+  // Helper to replace all placeholders in text
+  function fillTemplate(text) {
+    return text
+      .replace(/\[ZIP\]/g, zip)
+      .replace(/\[BUSINESS_TYPE\]/g, businessType)
+      .replace(/\[BUSINESS_NAME\]/g, businessName)
+      .replace(/\[YOUR_NAME\]/g, yourName)
+      .replace(/\[YOUR_COMPANY\]/g, yourCompany)
+      .replace(/\[YOUR_PHONE\]/g, yourPhone)
+      .replace(/\[SPOT_PRICE\]/g, spotPrice)
+      .replace(/\[CONTACT_NAME\]/g, contactName)
+      .replace(/\[COMPETITOR_NAME\]/g, 'another ' + businessType);
+  }
+
+  // Text templates
+  const firstText = document.getElementById('firstTextTemplate');
+  const followUpText = document.getElementById('followUpTextTemplate');
+  const lastText = document.getElementById('lastTextTemplate');
+
+  if (firstText) firstText.textContent = fillTemplate(`Hey! Quick question - do you guys do any direct mail advertising? I'm putting a community postcard together for ${zip} and have one ${businessType} spot left.`);
+  if (followUpText) followUpText.textContent = fillTemplate(`Hey - following up on the postcard. It goes to approximately 5,000 homes in ${zip}, not a mailing list. You'd be the only ${businessType} on it. Still have your spot if you want it.`);
+  if (lastText) lastText.textContent = fillTemplate(`Last one - card goes to print Friday. Got another ${businessType} interested in the spot. Yours if you want it, just let me know either way.`);
+
+  // Email templates
+  const firstTouch = document.getElementById('firstTouchTemplate');
+  const followUp = document.getElementById('followUpTemplate');
+  const lastChance = document.getElementById('lastChanceTemplate');
+
+  if (firstTouch) firstTouch.textContent = `Hi,
+
+I'm ${yourName} with ${yourCompany}. I'm putting together a community postcard that goes to approximately 5,000 homes in ${zip} - delivered by USPS to every mailbox.
+
+I have one spot reserved for a ${businessType} and thought of ${businessName}.
+
+It's ${spotPrice} for the ad. You'd be the only ${businessType} on the card - no competition.
+
+Worth a quick call? I can hold the spot until Friday.
+
+${yourName}
+${yourPhone}`;
+
+  if (followUp) followUp.textContent = `Hi,
+
+Quick follow-up on the ${zip} postcard - we've got 14 of 18 spots filled already.
+
+The ${businessType} spot is still open at ${spotPrice}. Card goes to print next week and hits approximately 5,000 mailboxes in ${zip}.
+
+Most businesses do this because if even ONE customer calls from the card, they've made their money back. A plumber on last month's card told me he got 6 calls.
+
+Want me to save your spot?
+
+${yourName}
+${yourPhone}`;
+
+  if (lastChance) lastChance.textContent = `Hey,
+
+Card goes to print Friday. I've got one ${businessType} spot left and another ${businessType} is interested.
+
+Wanted to give ${businessName} first shot since I reached out to you first.
+
+Yes or no - just let me know.
+
+${yourName}`;
+}
+
+// Select a prospect in Close Deals
+function selectCloseDealsProspect(prospectId) {
+  const allProspects = getCloseDealsProspects();
+  const prospect = allProspects.find(p => String(p.id) === String(prospectId));
+
+  if (!prospect) {
+    console.warn('Prospect not found:', prospectId);
+    return;
+  }
+
+  closeDealsState.selectedProspect = prospect;
+
+  // Update templates with this prospect's data
+  updateTemplatesWithProspect(prospect);
+
+  // Show the selected prospect banner, hide placeholder
+  const banner = document.getElementById('selectedProspectBanner');
+  const placeholder = document.getElementById('noProspectSelected');
+
+  if (banner) {
+    banner.classList.remove('hidden');
+
+    // Update banner content
+    document.getElementById('selectedProspectName').textContent = prospect.businessName || 'Unknown';
+
+    const infoText = [
+      prospect.phone ? `📞 ${prospect.phone}` : null,
+      prospect.email ? `📧 ${prospect.email}` : null,
+      prospect.zipCode ? `📍 ${prospect.zipCode}` : null
+    ].filter(Boolean).join(' • ') || 'No contact info';
+
+    document.getElementById('selectedProspectInfo').textContent = infoText;
+
+    // Update icon based on category
+    const categoryIcons = {
+      'restaurant': '🍽️',
+      'plumber': '🔧',
+      'electrician': '⚡',
+      'hvac': '❄️',
+      'landscaping': '🌿',
+      'roofing': '🏠',
+      'auto repair': '🚗',
+      'dentist': '🦷',
+      'salon': '💇',
+      'gym': '💪'
+    };
+    const icon = categoryIcons[prospect.category?.toLowerCase()] || '🏢';
+    document.getElementById('selectedProspectIcon').textContent = icon;
+
+    // Update status dropdown
+    const statusDropdown = document.getElementById('selectedProspectStatus');
+    if (statusDropdown) {
+      statusDropdown.value = prospect.closeStatus;
+    }
+  }
+
+  if (placeholder) {
+    placeholder.classList.add('hidden');
+  }
+
+  // Auto-fill Spark business name
+  const sparkBusinessInput = document.getElementById('sparkBusinessName');
+  if (sparkBusinessInput) {
+    sparkBusinessInput.value = prospect.businessName || '';
+  }
+
+  // Re-render to highlight selected prospect
+  renderCloseDealsProspects();
+}
+
+// Send text to the selected prospect
+function sendTextToSelected() {
+  const prospect = closeDealsState.selectedProspect;
+  if (!prospect) {
+    toast('Please select a prospect first', false);
+    return;
+  }
+
+  if (!prospect.phone) {
+    toast('No phone number for this prospect', false);
+    return;
+  }
+
+  // Use the existing sendTextMessage function with prospect data
+  sendTextMessage(prospect.phone, prospect.businessName, prospect.zipCode || '', prospect.category || 'business');
+
+  // Auto-update status to contacted if currently new
+  if (prospect.closeStatus === 'new') {
+    moveProspectToColumn(prospect.id, prospect.kanbanColumn, 'to-contact');
+  }
+}
+
+// Send email to the selected prospect
+function sendEmailToSelected() {
+  const prospect = closeDealsState.selectedProspect;
+  if (!prospect) {
+    toast('Please select a prospect first', false);
+    return;
+  }
+
+  if (!prospect.email) {
+    toast('No email for this prospect - copy the template and find their email', false);
+    return;
+  }
+
+  // Use the existing sendPitchEmail function
+  sendPitchEmail(prospect.email, prospect.businessName, prospect.zipCode || '', prospect.category || 'business');
+
+  // Auto-update status to contacted if currently new
+  if (prospect.closeStatus === 'new') {
+    moveProspectToColumn(prospect.id, prospect.kanbanColumn, 'to-contact');
+  }
+}
+
+// Call the selected prospect
+function callSelected() {
+  const prospect = closeDealsState.selectedProspect;
+  if (!prospect) {
+    toast('Please select a prospect first', false);
+    return;
+  }
+
+  if (!prospect.phone) {
+    toast('No phone number for this prospect', false);
+    return;
+  }
+
+  // Open phone dialer
+  const cleanPhone = prospect.phone.replace(/[^\d+]/g, '');
+  window.open(`tel:${cleanPhone}`, '_blank');
+  toast(`📞 Calling ${prospect.businessName}...`, true);
+
+  // Auto-update status to contacted if currently new
+  if (prospect.closeStatus === 'new') {
+    moveProspectToColumn(prospect.id, prospect.kanbanColumn, 'to-contact');
+  }
+}
+
+// Helper function to move prospect between kanban columns
+function moveProspectToColumn(prospectId, fromColumn, toColumn) {
+  const fromItems = kanbanState.columns[fromColumn] || [];
+  const index = fromItems.findIndex(item => String(item.id) === String(prospectId));
+
+  if (index === -1) return;
+
+  const prospect = fromItems.splice(index, 1)[0];
+  kanbanState.columns[toColumn] = kanbanState.columns[toColumn] || [];
+  kanbanState.columns[toColumn].push(prospect);
+
+  saveKanban();
+  renderKanban();
+
+  // Update the selected prospect's column reference
+  if (closeDealsState.selectedProspect?.id === prospectId) {
+    closeDealsState.selectedProspect.kanbanColumn = toColumn;
+    closeDealsState.selectedProspect.closeStatus =
+      toColumn === 'prospect-list' ? 'new' :
+      toColumn === 'to-contact' || toColumn === 'in-progress' ? 'contacted' :
+      'interested';
+  }
+
+  renderCloseDealsProspects();
+}
+
+// Update prospect status from Close Deals (quick status change)
+function updateCloseDealsStatus(newStatus) {
+  const prospect = closeDealsState.selectedProspect;
+  if (!prospect) {
+    toast('Please select a prospect first', false);
+    return;
+  }
+
+  const statusToColumn = {
+    'new': 'prospect-list',
+    'contacted': 'to-contact',
+    'interested': 'committed'
+  };
+
+  const toColumn = statusToColumn[newStatus];
+
+  // Check if already in target status
+  if (!toColumn) {
+    console.error('Invalid status:', newStatus);
+    return;
+  }
+
+  if (toColumn === prospect.kanbanColumn) {
+    toast(`Already marked as ${newStatus}`, true);
+    return;
+  }
+
+  // Handle in-progress column (also counts as contacted)
+  const fromColumn = prospect.kanbanColumn;
+  if (newStatus === 'contacted' && fromColumn === 'in-progress') {
+    toast(`Already marked as ${newStatus}`, true);
+    return;
+  }
+
+  moveProspectToColumn(prospect.id, fromColumn, toColumn);
+  toast(`✅ Moved to ${newStatus}`, true);
+}
+
+// Expose Close Deals functions globally
+window.filterCloseDealsStatus = filterCloseDealsStatus;
+window.renderCloseDealsProspects = renderCloseDealsProspects;
+window.selectCloseDealsProspect = selectCloseDealsProspect;
+window.sendTextToSelected = sendTextToSelected;
+window.sendEmailToSelected = sendEmailToSelected;
+window.callSelected = callSelected;
+window.updateCloseDealsStatus = updateCloseDealsStatus;
 
 // Load Sales Toolkit settings on page load (for the Close Deals tab)
 document.addEventListener('DOMContentLoaded', function() {
@@ -5491,14 +6885,11 @@ async function addSelectedProspects() {
     closeProspectsResultsModal();
 
     // Show success message
-    toast(`✅ Added ${addedCount} new prospect${addedCount === 1 ? '' : 's'} to pipeline! Use CSV export/import to add social media URLs.`, true);
+    toast(`✅ Added ${addedCount} new prospect${addedCount === 1 ? '' : 's'}! Go to Close Deals to start reaching out.`, true);
 
-    // Scroll to kanban section
+    // Switch to Close Deals tab
     setTimeout(() => {
-      const kanbanSection = document.querySelector('[data-content="pipeline"]');
-      if (kanbanSection) {
-        kanbanSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
+      switchTab('outreach');
     }, 100);
   } catch(err) {
     console.error('Error adding prospects:', err);
@@ -6740,8 +8131,8 @@ function renderProspectPool() {
   // console.log(`🔍 DEBUG SUMMARY: Total cache keys: ${Object.keys(placesCache.searches).length}, Processed: ${processedCaches}, Skipped by ZIP: ${skippedByZip}, Skipped by Date: ${skippedByDate}`);
   // console.log(`🔍 DEBUG SUMMARY: Total prospects found: ${totalProspects}, Categories: ${Object.keys(categorizedProspects).length}`);
 
-  // Render stats
-  const categories = Object.keys(categorizedProspects).length;
+  // Render stats - only count categories with actual businesses (after filtering)
+  const categoriesWithBusinesses = Object.keys(categorizedProspects).filter(cat => categorizedProspects[cat].length > 0).length;
   const selectedCount = prospectPoolState.selectedIds.size;
   const available = totalProspects - alreadyInSystem;
 
@@ -6758,7 +8149,7 @@ function renderProspectPool() {
       <div class="text-xs text-gray-600 mt-1">My Prospect List</div>
     </div>
     <div class="bg-white border rounded-lg p-4 text-center">
-      <div class="text-3xl font-bold text-gray-900">${categories}</div>
+      <div class="text-3xl font-bold text-gray-900">${categoriesWithBusinesses}</div>
       <div class="text-xs text-gray-600 mt-1">Categories</div>
     </div>
     <div class="bg-white border rounded-lg p-4 text-center">
@@ -6942,6 +8333,9 @@ function renderProspectPool() {
     const enrichedCount = prospects.filter(p => p.isEnriched || p.enriched).length;
     const rawCount = prospects.filter(p => !p.isEnriched && !p.enriched).length;
 
+    // Count how many are NOT already in system (available to add)
+    const availableToAdd = prospects.filter(p => !p.inSystem).length;
+
     return `
       <div class="mb-8">
         <div class="flex items-center justify-between mb-4 pb-2 border-b-2 border-gray-200">
@@ -6949,6 +8343,11 @@ function renderProspectPool() {
             <h4 class="text-lg font-bold text-gray-900">${categoryName}</h4>
             <p class="text-sm text-gray-600">${prospects.length} total • <span class="text-green-600">${enrichedCount} enriched</span> • <span class="text-blue-600">${rawCount} raw</span></p>
           </div>
+          ${availableToAdd > 0 ? `
+          <button onclick="addAllCategoryToKanban('${category}')" class="px-3 py-1.5 bg-purple-600 text-white text-sm font-bold rounded-lg hover:bg-purple-700 transition-all flex items-center gap-2">
+            ➕ Add All ${availableToAdd}
+          </button>
+          ` : `<span class="text-xs text-gray-400 italic">All added</span>`}
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           ${prospects
@@ -7000,7 +8399,7 @@ function renderProspectPool() {
               const metadata = [];
               if (prospect.category) {
                 const categoryName = prospect.category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                metadata.push(categoryName);
+                metadata.push(`<span onclick="event.stopPropagation(); editProspectCategory('${prospect.placeId || prospect.id}', '${esc(prospect.category)}')" class="cursor-pointer hover:text-indigo-600" title="Click to edit category">${categoryName} ✏️</span>`);
               }
 
               // Calculate lead score for enriched prospects
@@ -7121,7 +8520,7 @@ function renderProspectPool() {
             const rawMetadata = [];
             if (prospect.category) {
               const categoryName = prospect.category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-              rawMetadata.push(categoryName);
+              rawMetadata.push(`<span onclick="event.stopPropagation(); editProspectCategory('${prospectId}', '${esc(prospect.category)}')" class="cursor-pointer hover:text-indigo-600" title="Click to edit category">${categoryName} ✏️</span>`);
             }
 
             // Get lead score and category
@@ -7554,11 +8953,10 @@ async function addFromProspectPool() {
     console.log('🔵 DEBUG: After renderProspectPool, prospect-list length:', kanbanState.columns['prospect-list']?.length);
 
     // Show success message
-    let message = `✅ Added ${addedCount} prospect${addedCount === 1 ? '' : 's'} to Pipeline!`;
+    let message = `✅ Added ${addedCount} prospect${addedCount === 1 ? '' : 's'}! Ready to start outreach.`;
     if (skippedCount > 0) {
       message += ` ${skippedCount} duplicate${skippedCount === 1 ? '' : 's'} skipped.`;
     }
-    message += ` Use CSV export/import to add social media URLs.`;
     toast(message, true);
 
     // Track Getting Started progress
@@ -7567,9 +8965,9 @@ async function addFromProspectPool() {
       markGettingStartedComplete('add_to_pipeline');
     }
 
-    // Switch to pipeline tab
+    // Switch to Close Deals tab
     console.log('🔵 DEBUG: Before switchTab, prospect-list length:', kanbanState.columns['prospect-list']?.length);
-    switchTab('pipeline');
+    switchTab('outreach');
     console.log('🔵 DEBUG: After switchTab, prospect-list length:', kanbanState.columns['prospect-list']?.length);
   } catch(err) {
     console.error('Error adding from pool:', err);
@@ -7591,6 +8989,419 @@ function clearProspectPool() {
   renderProspectPool();
   toast('Prospect pool cleared', true);
 }
+
+// Add all businesses from a category to the kanban pipeline
+async function addAllCategoryToKanban(category) {
+  // Read current ZIP filter state from checkboxes (same as renderProspectPool)
+  const zipCheckboxContainer = document.getElementById('prospectPoolZipCheckboxes');
+  const selectedZips = [];
+  let allSelected = false;
+
+  if (zipCheckboxContainer) {
+    const checkboxes = zipCheckboxContainer.querySelectorAll('input[type="checkbox"]:checked');
+    checkboxes.forEach(cb => {
+      if (cb.value === 'all') {
+        allSelected = true;
+      } else {
+        selectedZips.push(cb.value);
+      }
+    });
+  } else {
+    // No checkboxes = first load, default to all
+    allSelected = true;
+  }
+
+  const filterByZip = !allSelected; // Filter unless ALL is checked
+
+  // Read date filter (same as renderProspectPool)
+  const filterDays = document.getElementById('prospectPoolDateFilter')?.value || 'all';
+  const now = new Date();
+  const cutoffDate = filterDays === 'all' ? null : new Date(now.getTime() - (parseInt(filterDays) * 24 * 60 * 60 * 1000));
+
+  // Build the unified pool same as renderProspectPool does
+  const existingPlaceIds = new Set();
+  Object.values(kanbanState.columns).forEach(column => {
+    if (Array.isArray(column)) {
+      column.forEach(lead => {
+        if (lead && lead.placeId) existingPlaceIds.add(lead.placeId);
+      });
+    }
+  });
+  Object.values(crmState.clients).forEach(client => {
+    if (client.placeId) existingPlaceIds.add(client.placeId);
+  });
+
+  // Collect prospects from this category
+  const prospectsToAdd = [];
+  const seenPlaceIds = new Set();
+
+  // From manual prospects
+  prospectPoolState.manualProspects.forEach(prospect => {
+    const prospectCategory = prospect.category || 'other';
+    if (prospectCategory !== category) return;
+    if (prospect.placeId && existingPlaceIds.has(prospect.placeId)) return;
+    if (prospect.placeId && seenPlaceIds.has(prospect.placeId)) return;
+
+    // Apply ZIP filter to manual prospects
+    const prospectZip = prospect.zipCode || prospect.actualZip;
+    if (filterByZip && prospectZip && !selectedZips.includes(prospectZip)) return;
+
+    prospectsToAdd.push({ ...prospect, type: 'manual' });
+    if (prospect.placeId) seenPlaceIds.add(prospect.placeId);
+  });
+
+  // From search cache
+  Object.keys(placesCache.searches).forEach(cacheKey => {
+    const [searchedZipCode, cacheCategory] = cacheKey.split('-');
+    if (cacheCategory !== category) return;
+
+    const cached = placesCache.searches[cacheKey];
+    if (!cached.cachedData) return;
+
+    // Apply date filter to cache entry (same as renderProspectPool)
+    if (cutoffDate && cached.fetchedAt) {
+      const fetchedDate = new Date(cached.fetchedAt);
+      if (fetchedDate < cutoffDate) return; // Skip old cache entries
+    }
+
+    cached.cachedData.forEach(business => {
+      if (business.placeId && existingPlaceIds.has(business.placeId)) return;
+      if (business.placeId && seenPlaceIds.has(business.placeId)) return;
+      if (notInterestedState.placeIds.has(business.placeId)) return;
+
+      // Apply ZIP filter (use actualZip if available, fallback to searchedZipCode)
+      const businessZip = business.actualZip || searchedZipCode;
+      if (filterByZip && !selectedZips.includes(businessZip)) return;
+
+      prospectsToAdd.push({
+        ...business,
+        zipCode: searchedZipCode,
+        type: 'search'
+      });
+      if (business.placeId) seenPlaceIds.add(business.placeId);
+    });
+  });
+
+  if (prospectsToAdd.length === 0) {
+    toast('No new businesses to add from this category', false);
+    return;
+  }
+
+  const confirmed = confirm(`Add all ${prospectsToAdd.length} businesses from "${category.replace(/_/g, ' ')}" to your pipeline?\n\nThis will enrich each business with contact data (may take a moment).`);
+  if (!confirmed) return;
+
+  const prospectingColumn = 'prospect-list';
+  const currentMailerId = state.current?.Mailer_ID || null;
+  let addedCount = 0;
+
+  // Find the button to show progress
+  const btn = event?.target || document.querySelector(`button[onclick*="addAllCategoryToKanban('${category}')"]`);
+  const originalText = btn?.textContent || '';
+  if (btn) btn.disabled = true;
+
+  try {
+    for (let i = 0; i < prospectsToAdd.length; i++) {
+      const prospect = prospectsToAdd[i];
+      const businessName = prospect.businessName || prospect.name || 'Unknown';
+
+      // Update progress
+      if (btn) btn.textContent = `⏳ ${i + 1}/${prospectsToAdd.length}`;
+
+      // Start with existing data from prospect (may already be enriched from cache)
+      let details = {
+        phone: prospect.phone || '',
+        website: prospect.website || '',
+        email: prospect.email || '',
+        facebook: prospect.facebook || '',
+        instagram: prospect.instagram || '',
+        linkedin: prospect.linkedin || '',
+        twitter: prospect.twitter || '',
+        contactNames: prospect.contactNames || [],
+        source: prospect.source || 'prospect-pool',
+        enriched: prospect.enriched || false
+      };
+
+      // Enrichment Step 1: Use DuckDuckGo to find website/Facebook/Instagram (FREE - no quota!)
+      const needsSearch = !details.website || !details.facebook || !details.instagram;
+      if (needsSearch) {
+        if (btn) btn.textContent = `🦆 Searching ${i + 1}/${prospectsToAdd.length}`;
+
+        // Build search location from address
+        const location = prospect.address ? prospect.address.split(',').slice(-2).join(',').trim() : '';
+
+        try {
+          // Search for website if missing
+          if (!details.website) {
+            const websiteQuery = `${businessName} ${location} official website`;
+            const website = await searchBusinessWebsite(websiteQuery, businessName);
+            if (website && !website.includes('yelp.com') && !website.includes('facebook.com') && !website.includes('instagram.com')) {
+              details.website = website;
+              console.log(`✅ Found website: ${website}`);
+            }
+          }
+
+          // Search for Facebook if missing
+          if (!details.facebook) {
+            const fbQuery = `${businessName} ${location} site:facebook.com`;
+            const fbResult = await searchBusinessWebsite(fbQuery, businessName);
+            if (fbResult && fbResult.includes('facebook.com') && !fbResult.includes('instagram.com')) {
+              let cleanFbUrl = fbResult;
+              if (fbResult.includes('/posts/') || fbResult.includes('/photos/')) {
+                const pageMatch = fbResult.match(/(https?:\/\/[^\/]*facebook\.com\/[^\/\?]+)/);
+                if (pageMatch) cleanFbUrl = pageMatch[1];
+              }
+              details.facebook = cleanFbUrl;
+              console.log(`✅ Found Facebook: ${cleanFbUrl}`);
+            }
+          }
+
+          // Search for Instagram if missing
+          if (!details.instagram) {
+            const igQuery = `${businessName} ${location} site:instagram.com`;
+            const igResult = await searchBusinessWebsite(igQuery, businessName);
+            if (igResult && igResult.includes('instagram.com') && !igResult.includes('facebook.com')) {
+              let cleanedUrl = igResult;
+              if (igResult.includes('/p/') || igResult.includes('/reel/')) {
+                const match = igResult.match(/instagram\.com\/([^\/\?]+)/);
+                if (match && match[1] && !['p', 'reel', 'stories'].includes(match[1])) {
+                  cleanedUrl = `https://instagram.com/${match[1]}`;
+                }
+              }
+              details.instagram = cleanedUrl;
+              console.log(`✅ Found Instagram: ${cleanedUrl}`);
+            }
+          }
+        } catch (e) {
+          console.warn(`DuckDuckGo search failed for ${businessName}:`, e);
+        }
+      }
+
+      // Enrichment Step 2: Scrape website for email + any missing social links
+      if (details.website) {
+        if (btn) btn.textContent = `🎯 Scraping ${i + 1}/${prospectsToAdd.length}`;
+        try {
+          const enrichedData = await fetchSmartEnrichment(details.website, businessName);
+          // Get email
+          details.email = details.email || enrichedData.email || '';
+          // Get social links (website scraper may find these too)
+          details.facebook = details.facebook || enrichedData.facebook || '';
+          details.instagram = details.instagram || enrichedData.instagram || '';
+          details.linkedin = details.linkedin || enrichedData.linkedin || '';
+          details.twitter = details.twitter || enrichedData.twitter || '';
+          details.contactNames = enrichedData.contactNames || details.contactNames || [];
+          if (enrichedData.enriched) {
+            details.source = '9x12pro-scraper';
+            details.enriched = true;
+            details.pagesScraped = enrichedData.pagesScraped;
+          }
+        } catch (e) {
+          console.warn(`Website scrape failed for ${businessName}:`, e);
+        }
+      }
+
+      // Build notes
+      let notes = `Added via bulk category add\n`;
+      if (prospect.address) notes += `Address: ${prospect.address}\n`;
+      if (prospect.rating) notes += `Rating: ${prospect.rating} (${prospect.userRatingsTotal || prospect.review_count || 0} reviews)\n`;
+      if (details.phone) notes += `Phone: ${details.phone}\n`;
+      if (details.website) notes += `Website: ${details.website}\n`;
+      if (details.email) notes += `📧 Email: ${details.email}\n`;
+      if (details.facebook) notes += `📘 Facebook: ${details.facebook}\n`;
+      if (details.instagram) notes += `📷 Instagram: ${details.instagram}\n`;
+      if (details.linkedin) notes += `💼 LinkedIn: ${details.linkedin}\n`;
+      if (details.twitter) notes += `🐦 Twitter: ${details.twitter}\n`;
+      if (details.contactNames?.length > 0) notes += `👤 Contacts: ${details.contactNames.join(', ')}\n`;
+      if (details.enriched && details.pagesScraped) notes += `\n✅ Enriched (${details.pagesScraped} pages scraped)`;
+
+      const newLead = {
+        id: Date.now() + Math.random(),
+        businessName: businessName,
+        contactName: details.contactNames?.length > 0 ? details.contactNames[0] : '',
+        phone: details.phone,
+        email: details.email,
+        estimatedValue: 500,
+        notes: notes.trim(),
+        source: details.source,
+        placeId: prospect.placeId,
+        website: details.website,
+        facebook: details.facebook,
+        instagram: details.instagram,
+        linkedin: details.linkedin,
+        twitter: details.twitter,
+        category: category,
+        zipCode: prospect.zipCode || null,
+        actualZip: prospect.actualZip || null,
+        address: prospect.address || '',
+        rating: prospect.rating || 0,
+        userRatingsTotal: prospect.userRatingsTotal || prospect.review_count || 0,
+        mailerId: currentMailerId,
+        addedDate: new Date().toISOString(),
+        interactions: [],
+        enriched: details.enriched
+      };
+
+      kanbanState.columns[prospectingColumn].push(newLead);
+      addedCount++;
+
+      // Small delay between API calls to avoid rate limiting
+      if (i < prospectsToAdd.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    }
+
+    saveKanban();
+    renderKanban();
+    renderProspectPool();
+
+    toast(`✅ Added ${addedCount} ${category.replace(/_/g, ' ')} businesses to pipeline!`, true);
+
+    // Switch to Close Deals tab to show the added businesses
+    if (addedCount > 0 && typeof switchMainTab === 'function') {
+      switchMainTab('close-deals');
+    }
+
+    // Track Getting Started progress
+    if (addedCount > 0) {
+      markGettingStartedComplete('review_prospects');
+      markGettingStartedComplete('add_to_pipeline');
+    }
+  } catch (err) {
+    console.error('Error in bulk add:', err);
+    toast('Some businesses may not have been added. Please try again.', false);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  }
+}
+window.addAllCategoryToKanban = addAllCategoryToKanban;
+
+// Common business categories for dropdown
+const BUSINESS_CATEGORIES = [
+  'restaurant', 'bar', 'pizza', 'bakery', 'cafe', 'coffee_shop',
+  'plumber', 'electrician', 'hvac', 'roofing', 'landscaping', 'contractor',
+  'salon', 'barber', 'spa', 'nail_salon',
+  'dentist', 'chiropractor', 'doctor', 'veterinarian',
+  'auto_repair', 'car_wash', 'tire_shop',
+  'gym', 'yoga', 'martial_arts',
+  'real_estate', 'insurance', 'accountant', 'lawyer',
+  'pet_store', 'groomer',
+  'florist', 'gift_shop', 'jewelry',
+  'dry_cleaner', 'tailor',
+  'funeral_home',
+  'other'
+];
+
+// Edit a prospect's category with dropdown
+function editProspectCategory(placeId, currentCategory) {
+  // Create modal for category selection
+  const modal = document.createElement('div');
+  modal.id = 'categoryEditModal';
+  modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50';
+  modal.innerHTML = `
+    <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+      <h3 class="text-lg font-bold text-gray-900 mb-4">Edit Category</h3>
+      <p class="text-sm text-gray-600 mb-4">Current: <strong>${currentCategory.replace(/_/g, ' ')}</strong></p>
+      <select id="categorySelect" class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-sm focus:border-indigo-500 focus:outline-none mb-4">
+        ${BUSINESS_CATEGORIES.map(cat => `
+          <option value="${cat}" ${cat === currentCategory ? 'selected' : ''}>
+            ${cat.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+          </option>
+        `).join('')}
+      </select>
+      <div class="flex gap-3">
+        <button onclick="document.getElementById('categoryEditModal').remove()" class="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg font-semibold hover:bg-gray-50">
+          Cancel
+        </button>
+        <button onclick="applyProspectCategoryChange('${placeId}', '${currentCategory}')" class="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700">
+          Save
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  // Close on backdrop click
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.remove();
+  });
+}
+
+function applyProspectCategoryChange(placeId, oldCategory) {
+  const select = document.getElementById('categorySelect');
+  const newCategory = select.value;
+
+  // Close modal
+  document.getElementById('categoryEditModal')?.remove();
+
+  if (newCategory === oldCategory) {
+    return; // No change
+  }
+
+  let businessData = null;
+  let updated = false;
+
+  // Find and update in placesCache.searches - also move to correct category cache
+  Object.keys(placesCache.searches).forEach(cacheKey => {
+    const cached = placesCache.searches[cacheKey];
+    if (cached.cachedData) {
+      const index = cached.cachedData.findIndex(b => b.placeId === placeId);
+      if (index !== -1) {
+        // Get the business data
+        businessData = { ...cached.cachedData[index], category: newCategory };
+        // Remove from old cache
+        cached.cachedData.splice(index, 1);
+        updated = true;
+      }
+    }
+  });
+
+  // If found in cache, add to new category cache
+  if (businessData) {
+    const zip = businessData.actualZip || businessData.zipCode || '00000';
+    const newCacheKey = `${zip}-${newCategory}`;
+    if (!placesCache.searches[newCacheKey]) {
+      placesCache.searches[newCacheKey] = {
+        cachedData: [],
+        lastFetched: new Date().toISOString()
+      };
+    }
+    placesCache.searches[newCacheKey].cachedData.push(businessData);
+  }
+
+  // Update in manualProspects
+  prospectPoolState.manualProspects.forEach(prospect => {
+    if (prospect.placeId === placeId || prospect.id === placeId) {
+      prospect.category = newCategory;
+      updated = true;
+    }
+  });
+
+  // Update in kanban columns
+  Object.values(kanbanState.columns).forEach(column => {
+    if (Array.isArray(column)) {
+      column.forEach(item => {
+        if (item && (item.placeId === placeId || item.id === placeId)) {
+          item.category = newCategory;
+          updated = true;
+        }
+      });
+    }
+  });
+
+  if (updated) {
+    savePlacesCache();
+    saveManualProspects();
+    saveKanban();
+    renderProspectPool();
+    toast(`✅ Moved to "${newCategory.replace(/_/g, ' ')}"`, true);
+  } else {
+    toast('Could not find prospect to update', false);
+  }
+}
+window.editProspectCategory = editProspectCategory;
+window.applyProspectCategoryChange = applyProspectCategoryChange;
 
 // Clear prospects for CURRENT CARD only
 function clearAllProspects() {
@@ -12895,7 +14706,7 @@ async function createDuplicatePostcard() {
 
     // Select new postcard
     const newIndex = state.mailers.findIndex(m => m.Mailer_ID === mailerId);
-    selectPostcard(newIndex);
+    pickCampaign({ target: { value: newIndex.toString() } });
     switchTab('manager');
 
     // Save to Supabase
@@ -13880,6 +15691,12 @@ function loadAllData() {
 
     // Load Getting Started progress after all other data is loaded
     loadGettingStartedProgress();
+
+    // Re-render Close Deals if that tab is active (kanban data now loaded)
+    const activeTab = localStorage.getItem('9x12_active_tab');
+    if (activeTab === 'outreach') {
+      renderCloseDealsProspects();
+    }
   });
 
   // Load API quota (local only)
@@ -14117,7 +15934,7 @@ function bindUI(){
       return saveToSheet();
     };
   } else {
-    console.error('❌ btnSaveCommit not found!');
+    // btnSaveCommit is optional - only used in sheet mode
   }
  
   window.addEventListener('beforeunload', (e) => {
@@ -14135,12 +15952,16 @@ function bindUI(){
     if (e.target.matches('.sort-up') || e.target.matches('.sort-down')) handleSortUpDown(e);
   });
   
-  document.getElementById("navTabs").addEventListener('click', (e) => {
-      const target = e.target.closest('.tab-btn');
-      if (!target) return;
-      const tabName = target.dataset.tab;
-      switchTab(tabName);
-  });
+  // Tab navigation is handled by onclick handlers on individual buttons
+  const navTabs = document.getElementById("mainNavigation");
+  if (navTabs) {
+    navTabs.addEventListener('click', (e) => {
+        const target = e.target.closest('.tab-btn');
+        if (!target) return;
+        const tabName = target.dataset.tab;
+        switchTab(tabName);
+    });
+  }
 
   // Don't call switchTab here - it's already restored at line 6730
 }
@@ -14224,6 +16045,9 @@ function switchTab(tabName) {
         }
     } else if (tabName === 'prospects') {
         renderProspectPool();
+    } else if (tabName === 'outreach') {
+        // Render Close Deals prospect list when switching to that tab
+        renderCloseDealsProspects();
     }
 }
 
