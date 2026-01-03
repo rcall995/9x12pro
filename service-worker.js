@@ -1,11 +1,11 @@
 /**
  * Service Worker for 9x12 Pro PWA
  * Provides offline support and caching
- * Version: 2025-01-23-v71
+ * Version: 2025-12-11-v77
  */
 
 // Update this version when you want to force a cache refresh
-const CACHE_VERSION = 'v71';
+const CACHE_VERSION = 'v80';
 const CACHE_NAME = `9x12-pro-${CACHE_VERSION}`;
 
 // Core app files to cache on install

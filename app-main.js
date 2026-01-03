@@ -251,6 +251,77 @@ function safeRemoveItem(key) {
   }
 }
 
+/* ========= CACHE MANAGEMENT ========= */
+
+// Clear local cache (keeps cloud data intact)
+function clearLocalCache() {
+  if (!confirm('This will clear cached search results from this browser.\n\nYour data is safely stored in the cloud and will reload automatically.\n\nContinue?')) {
+    return;
+  }
+
+  try {
+    // Clear the places cache (largest item)
+    localStorage.removeItem('mailslot-places-cache');
+
+    // Clear other non-critical caches
+    localStorage.removeItem('mailslot-api-quota');
+
+    // Update UI
+    updateCacheStatus();
+
+    toast('✅ Local cache cleared! Reloading data from cloud...', true);
+
+    // Reload cache from cloud
+    setTimeout(() => {
+      loadPlacesCache().then(() => {
+        updateCacheStatus();
+        renderProspectPool();
+      });
+    }, 500);
+
+  } catch (err) {
+    console.error('Error clearing cache:', err);
+    toast('❌ Error clearing cache', false);
+  }
+}
+
+// Update the cache status display on dashboard
+function updateCacheStatus() {
+  const statusEl = document.getElementById('cacheStatusText');
+  if (!statusEl) return;
+
+  try {
+    // Calculate localStorage usage
+    let totalSize = 0;
+    let cacheSize = 0;
+
+    for (let key in localStorage) {
+      if (localStorage.hasOwnProperty(key)) {
+        const itemSize = (localStorage[key].length * 2) / 1024; // Size in KB (UTF-16)
+        totalSize += itemSize;
+        if (key === 'mailslot-places-cache') {
+          cacheSize = itemSize;
+        }
+      }
+    }
+
+    // Get search count from memory
+    const searchCount = Object.keys(placesCache?.searches || {}).length;
+
+    statusEl.innerHTML = `
+      <span class="font-semibold">${searchCount} searches</span> in memory •
+      <span class="font-semibold">${Math.round(cacheSize)} KB</span> cached locally •
+      <span class="font-semibold">${Math.round(totalSize)} KB</span> total storage
+    `;
+  } catch (err) {
+    statusEl.textContent = 'Unable to read cache status';
+  }
+}
+
+// Expose functions globally
+window.clearLocalCache = clearLocalCache;
+window.updateCacheStatus = updateCacheStatus;
+
 /* ========= CLOUD SYNC SYSTEM ========= */
 
 // Unified function to load data from Google Sheets
@@ -448,7 +519,7 @@ const isValidPair=(a,b)=>PAIRS.some(([x,y])=>x===Math.min(a,b)&&y===Math.max(a,b
 const mateOf = n => { for (const [a,b] of PAIRS) { if (a===n) return b; if (b===n) return a; } return null; };
 
 // VERSION CHECK - If you don't see this in console, you're viewing cached HTML
-console.log('🔥 APP VERSION: 2025-01-14-v21 - Fix date timezone issue (display correct date)');
+console.log('🔥 APP VERSION: 2026-01-03-v151 - Switch from Yelp to Outscraper for business search');
 
 const state = {
   mailers: [],
@@ -509,7 +580,8 @@ const kanbanState = {
     'to-contact': [],          // Renamed from 'to-contact'
     'in-progress': [],         // Renamed from 'in-progress'
     'committed': []            // Renamed from 'committed'
-  }
+  },
+  column1ZipFilter: ''  // ZIP filter for column 1 (empty = show all)
 };
 
 // DAILY OUTREACH GOAL STATE
@@ -545,6 +617,13 @@ const apiQuotaState = {
 // PLACES CACHE STATE (30-day cache + permanent Place IDs)
 const placesCache = {
   searches: {}  // Format: { "zipCode-category": { placeIds: [], cachedData: [], cachedUntil: "date" } }
+};
+
+// Cache size limits to prevent localStorage quota issues
+const CACHE_LIMITS = {
+  MAX_ENTRIES: 200,        // Maximum number of search cache entries
+  MAX_SIZE_KB: 1500,       // Maximum cache size in KB (leaves room for other localStorage data)
+  MIN_ENTRIES_TO_KEEP: 50  // Always keep at least this many recent entries
 };
 
 // NOT INTERESTED LIST STATE (permanent exclusion list)
@@ -821,7 +900,8 @@ function calculateFinancials(mailerId, campaign = null) {
   console.log(`  Total Expenses: $${totalExpenses.toFixed(2)}`);
   console.log(`  Current Profit: $${currentProfit.toFixed(2)}\n`);
 
-  const avgSpotPrice = spotsSold > 0 ? projectedRevenue / spotsSold : DEFAULT_SPOT_PRICE;
+  // Use actual pricing when no spots sold, not the hardcoded default
+  const avgSpotPrice = spotsSold > 0 ? projectedRevenue / spotsSold : (pricing?.singleAd || DEFAULT_SPOT_PRICE);
   const remainingToBreakeven = Math.max(0, totalExpenses - currentRevenue);
   const spotsNeeded = Math.ceil(remainingToBreakeven / avgSpotPrice);
 
@@ -3129,17 +3209,72 @@ function detectMissingVariables(text) {
   return missing;
 }
 
+/**
+ * Prune old cache entries to prevent localStorage quota issues
+ * Uses LRU (Least Recently Used) eviction based on lastFetched timestamp
+ * @param {Object} cacheData - The cache searches object to prune
+ * @returns {Object} - Pruned cache data
+ */
+function pruneOldCacheEntries(cacheData) {
+  if (!cacheData || typeof cacheData !== 'object') {
+    return {};
+  }
+
+  const entries = Object.entries(cacheData);
+  const currentSize = JSON.stringify(cacheData).length / 1024; // Size in KB
+
+  // If under limits, no pruning needed
+  if (entries.length <= CACHE_LIMITS.MAX_ENTRIES && currentSize <= CACHE_LIMITS.MAX_SIZE_KB) {
+    return cacheData;
+  }
+
+  console.log(`🧹 Cache pruning needed: ${entries.length} entries, ${Math.round(currentSize)} KB`);
+
+  // Sort entries by lastFetched (oldest first) - entries without lastFetched go first (oldest)
+  const sortedEntries = entries.sort((a, b) => {
+    const dateA = a[1].lastFetched ? new Date(a[1].lastFetched).getTime() : 0;
+    const dateB = b[1].lastFetched ? new Date(b[1].lastFetched).getTime() : 0;
+    return dateA - dateB; // Oldest first
+  });
+
+  // Keep removing oldest entries until we're under limits
+  let prunedEntries = [...sortedEntries];
+
+  // First pass: Remove entries until under MAX_ENTRIES
+  while (prunedEntries.length > CACHE_LIMITS.MAX_ENTRIES &&
+         prunedEntries.length > CACHE_LIMITS.MIN_ENTRIES_TO_KEEP) {
+    prunedEntries.shift(); // Remove oldest
+  }
+
+  // Second pass: Remove entries until under MAX_SIZE_KB
+  let prunedData = Object.fromEntries(prunedEntries);
+  let newSize = JSON.stringify(prunedData).length / 1024;
+
+  while (newSize > CACHE_LIMITS.MAX_SIZE_KB &&
+         prunedEntries.length > CACHE_LIMITS.MIN_ENTRIES_TO_KEEP) {
+    prunedEntries.shift(); // Remove oldest
+    prunedData = Object.fromEntries(prunedEntries);
+    newSize = JSON.stringify(prunedData).length / 1024;
+  }
+
+  const removed = entries.length - prunedEntries.length;
+  console.log(`🧹 Cache pruned: Removed ${removed} old entries. New size: ${prunedEntries.length} entries, ${Math.round(newSize)} KB`);
+
+  return prunedData;
+}
+
 async function loadPlacesCache() {
   try {
-    // Load from cloud first
-    const cloudData = await loadFromCloud('placesCache');
+    // Load from cloud first (contains full history)
+    const cloudData = await loadFromCloud('placesCache') || {};
 
-    // Load from localStorage
+    // Load from localStorage (may be pruned)
     const localSaved = safeGetItem('mailslot-places-cache');
     const localData = localSaved ? JSON.parse(localSaved) : {};
 
     // Merge cloud and local data (keep newer entries)
-    const merged = { ...cloudData };
+    // Cloud has full history, local may have newer entries not yet synced
+    let merged = { ...cloudData };
 
     Object.keys(localData).forEach(cacheKey => {
       const local = localData[cacheKey];
@@ -3158,6 +3293,7 @@ async function loadPlacesCache() {
       }
     });
 
+    // Keep FULL data in memory (for cloud sync and search results)
     placesCache.searches = merged;
 
     const totalProspects = Object.values(merged).reduce((sum, cache) =>
@@ -3166,44 +3302,51 @@ async function loadPlacesCache() {
 
     console.log(`📦 Loaded prospect cache: ${Object.keys(merged).length} searches, ${totalProspects} total prospects`);
 
-    // Save merged back to localStorage
-    safeSetItem('mailslot-places-cache', JSON.stringify(merged));
+    // Save PRUNED data to localStorage only (to avoid quota issues)
+    const prunedData = pruneOldCacheEntries(merged);
+    safeSetItem('mailslot-places-cache', JSON.stringify(prunedData));
+    console.log(`💾 localStorage: ${Object.keys(prunedData).length} searches (pruned for quota)`);
 
   } catch(e) {
     console.error('Error loading places cache:', e);
     // Fall back to localStorage only
     const saved = safeGetItem('mailslot-places-cache');
     if (saved) {
-      placesCache.searches = JSON.parse(saved);
+      let localCache = JSON.parse(saved);
+      placesCache.searches = localCache;
     }
   }
 }
 
 async function savePlacesCache() {
   try {
-    // Save to localStorage first (always)
-    safeSetItem('mailslot-places-cache', JSON.stringify(placesCache.searches));
+    // Save FULL data to cloud first (keep all search history in Supabase)
+    const fullDataStr = JSON.stringify(placesCache.searches);
+    const fullSizeKB = Math.round(fullDataStr.length / 1024);
 
-    // Check size before saving to cloud
-    const dataStr = JSON.stringify(placesCache.searches);
-    const sizeKB = Math.round(dataStr.length / 1024);
-
-    console.log(`💾 Saving prospect cache to cloud (${sizeKB} KB)...`);
+    console.log(`💾 Saving prospect cache to cloud (${fullSizeKB} KB, ${Object.keys(placesCache.searches).length} searches)...`);
 
     // Supabase has a reasonable size limit - if under 5MB we're good
-    if (dataStr.length > 5000000) {
-      console.warn('⚠️ Prospect cache too large for cloud sync, keeping local only');
+    if (fullDataStr.length <= 5000000) {
+      await saveToCloud('placesCache', placesCache.searches);
+      console.log(`✅ Prospect cache saved to cloud (${fullSizeKB} KB)`);
+    } else {
+      console.warn('⚠️ Prospect cache too large for cloud sync (>5MB), keeping local only');
       toast('⚠️ Prospect data is large - saved locally only', false);
-      return;
     }
 
-    // Save to cloud
-    await saveToCloud('placesCache', placesCache.searches);
-    console.log(`✅ Prospect cache saved to cloud (${sizeKB} KB)`);
+    // Prune for localStorage only (to avoid quota issues)
+    const prunedData = pruneOldCacheEntries(placesCache.searches);
+    safeSetItem('mailslot-places-cache', JSON.stringify(prunedData));
+
+    // Keep full data in memory (placesCache.searches stays unpruned)
+    // This ensures new searches are added to the full dataset
 
   } catch(e) {
     console.error('Error saving places cache to cloud:', e);
-    // Data is already in localStorage, so no data loss
+    // Try to save pruned version to localStorage as fallback
+    const prunedData = pruneOldCacheEntries(placesCache.searches);
+    safeSetItem('mailslot-places-cache', JSON.stringify(prunedData));
   }
 }
 
@@ -3506,13 +3649,8 @@ async function enrichBusinessWebsite(business) {
     console.log(`🔍 Enriching: ${businessName}`);
     let foundItems = [];
 
-    // Check if we have quota remaining
-    if (enrichmentQuota.queriesUsed >= enrichmentQuota.dailyLimit) {
-      console.log(`⚠️ Daily enrichment limit reached (${enrichmentQuota.dailyLimit} queries)`);
-      toast(`⚠️ Daily search limit reached (${enrichmentQuota.dailyLimit}/day). Resets at midnight.`, false);
-      business.enriched = true;
-      return;
-    }
+    // Track usage (informational - Serper primary has 2,500/month shared)
+    // No hard blocking - Serper will return errors when quota exhausted
 
     // 1. Search for website (if not already set)
     if (!business.website) {
@@ -3527,7 +3665,7 @@ async function enrichBusinessWebsite(business) {
     }
 
     // 2. Search for Facebook page (if not already set)
-    if (!business.facebook && enrichmentQuota.queriesUsed < enrichmentQuota.dailyLimit) {
+    if (!business.facebook) {
       const fbQuery = `${businessName} ${location} site:facebook.com`;
       const fbResult = await searchBusinessWebsite(fbQuery, businessName);
       trackEnrichmentQuery(1);
@@ -3556,7 +3694,7 @@ async function enrichBusinessWebsite(business) {
     }
 
     // 3. Search for Instagram (if not already set)
-    if (!business.instagram && enrichmentQuota.queriesUsed < enrichmentQuota.dailyLimit) {
+    if (!business.instagram) {
       const igQuery = `${businessName} ${location} site:instagram.com`;
       const igResult = await searchBusinessWebsite(igQuery, businessName);
       trackEnrichmentQuery(1);
@@ -3603,10 +3741,104 @@ async function enrichBusinessWebsite(business) {
 }
 
 /**
- * Search for businesses using Yelp Fusion API
- * FREE: 2,500 calls per day - NO COST!
+ * Enrich a business when moved from Prospect List to To Contact column
+ * Runs Serper search + website scraping asynchronously
  */
-async function searchYelpBusinesses(zipCode, category, progressInfo = null) {
+async function enrichBusinessOnMove(lead) {
+  const businessName = lead.businessName || lead.name || 'Unknown';
+  const location = lead.address ? lead.address.split(',').slice(-2).join(',').trim() : '';
+
+  console.log(`🎯 Enriching on move: ${businessName}`);
+  toast(`🔍 Enriching ${businessName}...`, true);
+
+  try {
+    // Search for website if missing
+    if (!lead.website) {
+      const websiteQuery = `${businessName} ${location} official website`;
+      const website = await searchBusinessWebsite(websiteQuery, businessName);
+      if (website && !website.includes('yelp.com') && !website.includes('facebook.com') && !website.includes('instagram.com')) {
+        lead.website = website;
+        console.log(`✅ Found website: ${website}`);
+      }
+    }
+
+    // Search for Facebook if missing
+    if (!lead.facebook) {
+      const fbQuery = `${businessName} ${location} site:facebook.com`;
+      const fbResult = await searchBusinessWebsite(fbQuery, businessName);
+      if (fbResult && fbResult.includes('facebook.com') && !fbResult.includes('instagram.com')) {
+        let cleanFbUrl = fbResult;
+        if (fbResult.includes('/posts/') || fbResult.includes('/photos/')) {
+          const pageMatch = fbResult.match(/(https?:\/\/[^\/]*facebook\.com\/[^\/\?]+)/);
+          if (pageMatch) cleanFbUrl = pageMatch[1];
+        }
+        lead.facebook = cleanFbUrl;
+        console.log(`✅ Found Facebook: ${cleanFbUrl}`);
+      }
+    }
+
+    // Search for Instagram if missing
+    if (!lead.instagram) {
+      const igQuery = `${businessName} ${location} site:instagram.com`;
+      const igResult = await searchBusinessWebsite(igQuery, businessName);
+      if (igResult && igResult.includes('instagram.com') && !igResult.includes('facebook.com')) {
+        let cleanedUrl = igResult;
+        if (igResult.includes('/p/') || igResult.includes('/reel/')) {
+          const match = igResult.match(/instagram\.com\/([^\/\?]+)/);
+          if (match && match[1] && !['p', 'reel', 'stories'].includes(match[1])) {
+            cleanedUrl = `https://instagram.com/${match[1]}`;
+          }
+        }
+        lead.instagram = cleanedUrl;
+        console.log(`✅ Found Instagram: ${cleanedUrl}`);
+      }
+    }
+
+    // Scrape website for email if we have a website
+    if (lead.website && !lead.email) {
+      const enrichedData = await fetchSmartEnrichment(lead.website, businessName);
+      lead.email = lead.email || enrichedData.email || '';
+      lead.facebook = lead.facebook || enrichedData.facebook || '';
+      lead.instagram = lead.instagram || enrichedData.instagram || '';
+      lead.linkedin = lead.linkedin || enrichedData.linkedin || '';
+      lead.twitter = lead.twitter || enrichedData.twitter || '';
+      lead.contactNames = enrichedData.contactNames || lead.contactNames || [];
+      if (enrichedData.enriched) {
+        lead.enriched = true;
+        lead.pagesScraped = enrichedData.pagesScraped;
+      }
+    }
+
+    lead.enriched = true;
+
+    // Save and re-render to show new data
+    await saveKanban();
+    renderKanban();
+
+    const foundItems = [];
+    if (lead.website) foundItems.push('website');
+    if (lead.facebook) foundItems.push('FB');
+    if (lead.instagram) foundItems.push('IG');
+    if (lead.email) foundItems.push('email');
+
+    if (foundItems.length > 0) {
+      toast(`✅ Found ${foundItems.join(', ')} for ${businessName}`, true);
+    } else {
+      toast(`⚠️ No contact info found for ${businessName}`, false);
+    }
+
+  } catch (error) {
+    console.error('Enrichment on move failed:', error);
+    toast(`⚠️ Enrichment failed for ${businessName}`, false);
+  }
+}
+
+/**
+ * Search for businesses using Outscraper API (Google Maps data)
+ * Returns: name, address, phone, website, email, Facebook, Instagram
+ * Cost: ~$3 per 1,000 businesses
+ */
+async function searchOutscraperBusinesses(zipCode, category, progressInfo = null) {
   try {
     const cacheKey = `${zipCode}-${category}`;
 
@@ -3616,77 +3848,48 @@ async function searchYelpBusinesses(zipCode, category, progressInfo = null) {
       const cacheDate = new Date(cached.cachedUntil);
 
       if (new Date() < cacheDate) {
-        showSuccess('✅ Using cached results (FREE!)');
+        showSuccess('✅ Using cached results');
         return cached.cachedData || cached.businesses || [];
       }
     }
 
     showInfo(`🔍 ProspectRadar™ searching "${category}" in ${zipCode}...`);
 
-    // Call Yelp API via our serverless function (no radius - we filter by exact ZIP)
-    const response = await fetch('/api/yelp', {
+    // Call Outscraper API via our serverless function
+    const response = await fetch('/api/outscraper-search', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        location: zipCode,
-        term: category,
-        limit: 50 // Yelp max per request
+        zipCode: zipCode,
+        category: category,
+        limit: 40 // Get up to 40 businesses per category
       })
     });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || 'Yelp API request failed');
+      throw new Error(errorData.error || 'Business search failed');
     }
 
     const data = await response.json();
-    const yelpBusinesses = data.businesses || [];
 
-    console.log(`✅ Yelp returned ${yelpBusinesses.length} businesses`);
+    if (data.error) {
+      throw new Error(data.error);
+    }
 
-    // Filter to EXACT ZIP code matches only (no radius search)
-    const exactZipMatches = yelpBusinesses.filter(biz => {
-      const bizZip = (biz.zip || '').trim();
-      // Only keep businesses that exactly match the searched ZIP code
-      const isExactMatch = bizZip === zipCode;
-      if (!isExactMatch && bizZip) {
-        console.log(`🚫 Filtered out: ${biz.name} (ZIP: ${bizZip} != ${zipCode})`);
-      }
-      return isExactMatch;
-    });
+    const businesses = data.businesses || [];
 
-    console.log(`📍 Filtered to ${exactZipMatches.length} businesses in exact ZIP ${zipCode} (removed ${yelpBusinesses.length - exactZipMatches.length} from other ZIPs)`);
+    console.log(`✅ Outscraper returned ${businesses.length} businesses with enrichment data`);
 
-    // Transform Yelp data to our expected format (website enrichment happens when added to kanban)
-    const businesses = exactZipMatches.map(biz => ({
-      placeId: `yelp_${biz.yelp_id}`,
-      name: biz.name,
-      address: biz.address,
-      city: biz.city,
-      state: biz.state,
-      zip: biz.zip,
-      zipCode: biz.zip,
-      actualZip: biz.zip,
-      phone: biz.phone,
-      website: '', // Will be enriched when added to kanban
-      yelpUrl: biz.website,
-      rating: biz.rating,
-      reviewCount: biz.review_count,
-      categories: biz.categories,
-      lat: biz.lat,
-      lng: biz.lng,
-      imageUrl: biz.image_url,
-      isClosed: biz.is_closed,
-      price: biz.price,
-      source: 'yelp',
-      searchedZipCode: zipCode,
-      category: category,
-      enriched: false
-    }));
+    // Log enrichment stats
+    const withEmail = businesses.filter(b => b.email).length;
+    const withWebsite = businesses.filter(b => b.website).length;
+    const withFacebook = businesses.filter(b => b.facebook).length;
+    const withInstagram = businesses.filter(b => b.instagram).length;
 
-    console.log(`✅ Transformed ${businesses.length} Yelp businesses (websites will be enriched when added to kanban)`);
+    console.log(`📊 Enrichment: ${withEmail} emails, ${withWebsite} websites, ${withFacebook} FB, ${withInstagram} IG`);
 
     // Cache results for 30 days
     const cachedUntil = new Date();
@@ -3698,7 +3901,7 @@ async function searchYelpBusinesses(zipCode, category, progressInfo = null) {
       lastFetched: new Date().toISOString()
     };
 
-    // Save cache to cloud (must save .searches, not the whole object)
+    // Save cache to cloud
     await savePlacesCache();
 
     showSuccess(`✅ Found ${businesses.length} businesses in ${zipCode}!`);
@@ -3712,12 +3915,17 @@ async function searchYelpBusinesses(zipCode, category, progressInfo = null) {
   }
 }
 
+// Legacy Yelp function - now redirects to Outscraper
+async function searchYelpBusinesses(zipCode, category, progressInfo = null) {
+  return await searchOutscraperBusinesses(zipCode, category, progressInfo);
+}
+
 /**
- * Search for businesses - redirects to Yelp API
+ * Search for businesses - uses Outscraper API
  * Legacy name kept for compatibility with existing code
  */
 async function searchPlaces(zipCode, category, progressInfo = null) {
-  return await searchYelpBusinesses(zipCode, category, progressInfo);
+  return await searchOutscraperBusinesses(zipCode, category, progressInfo);
 }
 
 // Alias for backward compatibility
@@ -5500,6 +5708,10 @@ async function generateSparkComment() {
   }
 
   try {
+    // Get campaign settings for context
+    const homeCount = document.getElementById('campaignHomeCount')?.value || campaignSettings.homeCount || 5000;
+    const spotPrice = document.getElementById('campaignSpotPrice')?.value || campaignSettings.spotPrice || '$500';
+
     const response = await fetch('/api/ai/generate-comment', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -5509,6 +5721,8 @@ async function generateSparkComment() {
         platform,
         groupName,
         sellLevel,
+        homeCount,
+        spotPrice,
         refinement: ''
       })
     });
@@ -5845,38 +6059,64 @@ document.addEventListener('DOMContentLoaded', () => {
   setTimeout(loadSparkData, 200);
 });
 
-// Open selected prospect's Facebook page
-function openSparkFacebook() {
+// Open selected prospect's social page based on platform selection
+function openSparkSocial() {
   const prospect = closeDealsState?.selectedProspect;
+  const platform = document.getElementById('sparkPlatform')?.value || 'facebook';
 
   if (!prospect) {
     toast('Select a prospect first', false);
     return;
   }
 
-  // Check if prospect has a Facebook URL from enrichment
-  if (prospect.facebook) {
-    let fbUrl = prospect.facebook;
-    // Ensure it has protocol
-    if (!fbUrl.startsWith('http')) {
-      fbUrl = 'https://' + fbUrl;
+  const businessName = prospect.businessName || document.getElementById('sparkBusinessName')?.value?.trim();
+
+  if (platform === 'instagram') {
+    // Check if prospect has Instagram URL from enrichment
+    if (prospect.instagram) {
+      let igUrl = prospect.instagram;
+      if (!igUrl.startsWith('http')) {
+        igUrl = 'https://' + igUrl;
+      }
+      window.open(igUrl, '_blank');
+      return;
     }
-    window.open(fbUrl, '_blank');
-    return;
+    // No Instagram URL - search for them
+    if (businessName) {
+      const searchUrl = `https://www.instagram.com/${encodeURIComponent(businessName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase())}`;
+      window.open(searchUrl, '_blank');
+      toast('Opening Instagram for ' + businessName, true);
+    }
+  } else {
+    // Facebook
+    if (prospect.facebook) {
+      let fbUrl = prospect.facebook;
+      if (!fbUrl.startsWith('http')) {
+        fbUrl = 'https://' + fbUrl;
+      }
+      window.open(fbUrl, '_blank');
+      return;
+    }
+    // No Facebook URL - search for them
+    if (businessName) {
+      const searchUrl = `https://www.facebook.com/search/pages?q=${encodeURIComponent(businessName)}`;
+      window.open(searchUrl, '_blank');
+      toast('Searching Facebook for ' + businessName, true);
+    }
   }
 
-  // No Facebook URL - search for them on Facebook
-  const businessName = prospect.businessName || document.getElementById('sparkBusinessName')?.value?.trim();
-  if (businessName) {
-    const searchUrl = `https://www.facebook.com/search/pages?q=${encodeURIComponent(businessName)}`;
-    window.open(searchUrl, '_blank');
-    toast('Searching Facebook for ' + businessName, true);
-  } else {
+  if (!businessName) {
     toast('No business name to search', false);
   }
 }
 
+// Keep old name for backwards compatibility
+function openSparkFacebook() {
+  openSparkSocial();
+}
+
 // Expose Spark functions globally
+window.openSparkSocial = openSparkSocial;
 window.openSparkFacebook = openSparkFacebook;
 window.generateSparkComment = generateSparkComment;
 window.refineSparkComment = refineSparkComment;
@@ -5961,15 +6201,16 @@ function getCloseDealsProspects() {
   }
 
   // Map kanban columns to close deals statuses
-  // new = prospect-list (just added, never contacted)
-  // contacted = to-contact + in-progress (reached out but not committed)
+  // Column 1 (prospect-list) is NOT included - it's just a staging area
+  // Only columns 2+ appear in Close Deals
+  // new = to-contact (ready to contact, enriched)
+  // contacted = in-progress (reached out but not committed)
   // interested (Hot) = committed (ready to close)
 
   const columnMapping = {
-    'prospect-list': 'new',
-    'to-contact': 'contacted',     // "to-contact" = has been contacted
-    'in-progress': 'contacted',    // actively working = has been contacted
-    'committed': 'interested'
+    'to-contact': 'new',           // Column 2 = ready to reach out
+    'in-progress': 'contacted',    // Column 3 = actively working
+    'committed': 'interested'      // Column 4 = hot lead
   };
 
   Object.entries(columnMapping).forEach(([column, status]) => {
@@ -6908,9 +7149,10 @@ let prospectPoolState = {
   manualProspects: [] // Prospects manually moved from Prospecting to Pool
 };
 
-// Track daily Google Custom Search API usage (resets at midnight)
+// Track search API usage (Serper primary: 2,500/month, Google fallback: 100/day)
+// This is informational only - Serper doesn't enforce per-user limits
 let enrichmentQuota = {
-  dailyLimit: 100,
+  dailyLimit: 83, // ~2,500/month ÷ 30 days
   queriesUsed: 0,
   lastResetDate: null
 };
@@ -8344,8 +8586,8 @@ function renderProspectPool() {
             <p class="text-sm text-gray-600">${prospects.length} total • <span class="text-green-600">${enrichedCount} enriched</span> • <span class="text-blue-600">${rawCount} raw</span></p>
           </div>
           ${availableToAdd > 0 ? `
-          <button onclick="addAllCategoryToKanban('${category}')" class="px-3 py-1.5 bg-purple-600 text-white text-sm font-bold rounded-lg hover:bg-purple-700 transition-all flex items-center gap-2">
-            ➕ Add All ${availableToAdd}
+          <button onclick="selectAllInCategory('${category}')" class="px-3 py-1.5 bg-purple-600 text-white text-sm font-bold rounded-lg hover:bg-purple-700 transition-all flex items-center gap-2">
+            ☑️ Select All ${availableToAdd}
           </button>
           ` : `<span class="text-xs text-gray-400 italic">All added</span>`}
         </div>
@@ -8843,42 +9085,71 @@ async function addFromProspectPool() {
           enriched: business.enriched || false
         };
 
-        // Step 1: Only fetch from API if we don't have basic data yet
-        if (business.placeId && !details.phone && !details.website) {
-          btn.textContent = `⏳ Fetching details... (${i + 1}/${selectedBusinesses.length})`;
-          const apiDetails = await fetchPlaceDetails(business.placeId);
-          // Merge API data (don't overwrite existing enriched data)
-          details.phone = details.phone || apiDetails.phone || '';
-          details.website = details.website || apiDetails.website || '';
+        // ENRICHMENT: Run Serper search + website scrape BEFORE adding
+        btn.textContent = `🔍 Enriching... (${i + 1}/${selectedBusinesses.length})`;
+        const businessName = business.name || business.businessName;
+        const location = business.address ? business.address.split(',').slice(-2).join(',').trim() : '';
+
+        // Search for website if missing
+        if (!details.website) {
+          const websiteQuery = `${businessName} ${location} official website`;
+          const website = await searchBusinessWebsite(websiteQuery, businessName);
+          if (website && !website.includes('yelp.com') && !website.includes('facebook.com') && !website.includes('instagram.com')) {
+            details.website = website;
+          }
         }
 
-        // Step 2: Check if user wants Smart Enrichment AND we don't have enriched data yet
-        const enableSmartEnrichment = document.getElementById('enableSmartEnrichment')?.checked;
-        const needsEnrichment = !details.email && !details.facebook && !details.instagram;
-
-        if (enableSmartEnrichment && details.website && needsEnrichment) {
-          // Use our custom scraper to find emails, social media, etc.
-          btn.textContent = `🎯 Smart enriching... (${i + 1}/${selectedBusinesses.length})`;
-          const enrichedData = await fetchSmartEnrichment(details.website, business.name);
-
-          // Merge enriched data (preserve existing data)
-          details = {
-            phone: details.phone || enrichedData.phone || '',
-            website: details.website || '',
-            email: details.email || enrichedData.email || '',
-            facebook: details.facebook || enrichedData.facebook || '',
-            instagram: details.instagram || enrichedData.instagram || '',
-            linkedin: details.linkedin || enrichedData.linkedin || '',
-            twitter: details.twitter || enrichedData.twitter || '',
-            contactNames: enrichedData.contactNames || [],
-            source: enrichedData.enriched ? '9x12pro-scraper' : details.source,
-            enriched: enrichedData.enriched || details.enriched,
-            pagesScraped: enrichedData.pagesScraped
-          };
+        // Search for Facebook if missing
+        if (!details.facebook) {
+          const fbQuery = `${businessName} ${location} site:facebook.com`;
+          const fbResult = await searchBusinessWebsite(fbQuery, businessName);
+          if (fbResult && fbResult.includes('facebook.com') && !fbResult.includes('instagram.com')) {
+            let cleanFbUrl = fbResult;
+            if (fbResult.includes('/posts/') || fbResult.includes('/photos/')) {
+              const pageMatch = fbResult.match(/(https?:\/\/[^\/]*facebook\.com\/[^\/\?]+)/);
+              if (pageMatch) cleanFbUrl = pageMatch[1];
+            }
+            details.facebook = cleanFbUrl;
+          }
         }
 
-        // Build notes based on enrichment source
-        let notes = `Found via ${details.source === '9x12pro-scraper' ? 'Google Places + Smart Enrichment' : 'Google Places'}\nAddress: ${business.address}\nRating: ${business.rating} (${business.userRatingsTotal} reviews)\n`;
+        // Search for Instagram if missing
+        if (!details.instagram) {
+          const igQuery = `${businessName} ${location} site:instagram.com`;
+          const igResult = await searchBusinessWebsite(igQuery, businessName);
+          if (igResult && igResult.includes('instagram.com') && !igResult.includes('facebook.com')) {
+            let cleanedUrl = igResult;
+            if (igResult.includes('/p/') || igResult.includes('/reel/')) {
+              const match = igResult.match(/instagram\.com\/([^\/\?]+)/);
+              if (match && match[1] && !['p', 'reel', 'stories'].includes(match[1])) {
+                cleanedUrl = `https://instagram.com/${match[1]}`;
+              }
+            }
+            details.instagram = cleanedUrl;
+          }
+        }
+
+        // Scrape website for email if we have a website
+        if (details.website && !details.email) {
+          btn.textContent = `📧 Finding email... (${i + 1}/${selectedBusinesses.length})`;
+          const enrichedData = await fetchSmartEnrichment(details.website, businessName);
+          details.email = details.email || enrichedData.email || '';
+          details.facebook = details.facebook || enrichedData.facebook || '';
+          details.instagram = details.instagram || enrichedData.instagram || '';
+          details.linkedin = details.linkedin || enrichedData.linkedin || '';
+          details.twitter = details.twitter || enrichedData.twitter || '';
+          details.contactNames = enrichedData.contactNames || details.contactNames || [];
+          if (enrichedData.enriched) {
+            details.enriched = true;
+            details.pagesScraped = enrichedData.pagesScraped;
+            details.source = '9x12pro-scraper';
+          }
+        }
+
+        details.enriched = true;
+
+        // Build notes
+        let notes = `Found via ${details.source || 'Yelp'}\nAddress: ${business.address}\nRating: ${business.rating} (${business.userRatingsTotal} reviews)\n`;
         if (details.phone) notes += `Phone: ${details.phone}\n`;
         if (details.website) notes += `Website: ${details.website}\n`;
         if (details.email) notes += `📧 Email: ${details.email}\n`;
@@ -8925,16 +9196,7 @@ async function addFromProspectPool() {
       kanbanState.columns[prospectingColumn].push(newLead);
       addedCount++;
       console.log('🔵 Added to kanban. Total added:', addedCount);
-
-      // Enrich with website if from Yelp and no website yet
-      if (newLead.source === 'yelp' && !newLead.website && !newLead.enriched) {
-        enrichBusinessWebsite(newLead); // Fire and forget - runs async
-      }
-
-      // Small delay to avoid rate limiting
-      if (i < selectedBusinesses.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 300));
-      }
+      // Enrichment already done above - business is ready to be moved to column 2
     }
 
     console.log('🔵 Saving kanban...');
@@ -8990,35 +9252,15 @@ function clearProspectPool() {
   toast('Prospect pool cleared', true);
 }
 
-// Add all businesses from a category to the kanban pipeline
-async function addAllCategoryToKanban(category) {
-  // Read current ZIP filter state from checkboxes (same as renderProspectPool)
-  const zipCheckboxContainer = document.getElementById('prospectPoolZipCheckboxes');
-  const selectedZips = [];
-  let allSelected = false;
+// Select all businesses in a category (check their checkboxes)
+function selectAllInCategory(category) {
+  // Get active ZIP filter (if any)
+  const zipCheckboxes = document.querySelectorAll('#poolZipFilterContainer input[type="checkbox"]:checked');
+  const activeZips = new Set();
+  zipCheckboxes.forEach(cb => activeZips.add(cb.value));
+  const hasZipFilter = activeZips.size > 0;
 
-  if (zipCheckboxContainer) {
-    const checkboxes = zipCheckboxContainer.querySelectorAll('input[type="checkbox"]:checked');
-    checkboxes.forEach(cb => {
-      if (cb.value === 'all') {
-        allSelected = true;
-      } else {
-        selectedZips.push(cb.value);
-      }
-    });
-  } else {
-    // No checkboxes = first load, default to all
-    allSelected = true;
-  }
-
-  const filterByZip = !allSelected; // Filter unless ALL is checked
-
-  // Read date filter (same as renderProspectPool)
-  const filterDays = document.getElementById('prospectPoolDateFilter')?.value || 'all';
-  const now = new Date();
-  const cutoffDate = filterDays === 'all' ? null : new Date(now.getTime() - (parseInt(filterDays) * 24 * 60 * 60 * 1000));
-
-  // Build the unified pool same as renderProspectPool does
+  // Build set of IDs already in system (to skip)
   const existingPlaceIds = new Set();
   Object.values(kanbanState.columns).forEach(column => {
     if (Array.isArray(column)) {
@@ -9031,266 +9273,111 @@ async function addAllCategoryToKanban(category) {
     if (client.placeId) existingPlaceIds.add(client.placeId);
   });
 
-  // Collect prospects from this category
-  const prospectsToAdd = [];
-  const seenPlaceIds = new Set();
+  // First pass: collect all eligible IDs in this category (respecting ZIP filter)
+  const eligibleIds = new Set();
 
   // From manual prospects
   prospectPoolState.manualProspects.forEach(prospect => {
     const prospectCategory = prospect.category || 'other';
     if (prospectCategory !== category) return;
-    if (prospect.placeId && existingPlaceIds.has(prospect.placeId)) return;
-    if (prospect.placeId && seenPlaceIds.has(prospect.placeId)) return;
-
-    // Apply ZIP filter to manual prospects
-    const prospectZip = prospect.zipCode || prospect.actualZip;
-    if (filterByZip && prospectZip && !selectedZips.includes(prospectZip)) return;
-
-    prospectsToAdd.push({ ...prospect, type: 'manual' });
-    if (prospect.placeId) seenPlaceIds.add(prospect.placeId);
+    const prospectId = prospect.placeId || prospect.id;
+    if (existingPlaceIds.has(prospectId)) return;
+    // ZIP filter check
+    if (hasZipFilter) {
+      const prospectZip = prospect.actualZip || prospect.zipCode || '';
+      if (!activeZips.has(prospectZip)) return;
+    }
+    eligibleIds.add(prospectId);
   });
 
   // From search cache
   Object.keys(placesCache.searches).forEach(cacheKey => {
     const [searchedZipCode, cacheCategory] = cacheKey.split('-');
     if (cacheCategory !== category) return;
+    // ZIP filter: only include cache entries matching active ZIP filter
+    if (hasZipFilter && !activeZips.has(searchedZipCode)) return;
 
     const cached = placesCache.searches[cacheKey];
     if (!cached.cachedData) return;
 
-    // Apply date filter to cache entry (same as renderProspectPool)
-    if (cutoffDate && cached.fetchedAt) {
-      const fetchedDate = new Date(cached.fetchedAt);
-      if (fetchedDate < cutoffDate) return; // Skip old cache entries
-    }
-
     cached.cachedData.forEach(business => {
       if (business.placeId && existingPlaceIds.has(business.placeId)) return;
-      if (business.placeId && seenPlaceIds.has(business.placeId)) return;
-      if (notInterestedState.placeIds.has(business.placeId)) return;
-
-      // Apply ZIP filter (use actualZip if available, fallback to searchedZipCode)
-      const businessZip = business.actualZip || searchedZipCode;
-      if (filterByZip && !selectedZips.includes(businessZip)) return;
-
-      prospectsToAdd.push({
-        ...business,
-        zipCode: searchedZipCode,
-        type: 'search'
-      });
-      if (business.placeId) seenPlaceIds.add(business.placeId);
+      if (notInterestedState?.placeIds?.has(business.placeId)) return;
+      eligibleIds.add(business.placeId);
     });
   });
 
-  if (prospectsToAdd.length === 0) {
-    toast('No new businesses to add from this category', false);
-    return;
+  // Check if all eligible are already selected (toggle logic)
+  let allSelected = true;
+  eligibleIds.forEach(id => {
+    if (!prospectPoolState.selectedIds.has(id)) {
+      allSelected = false;
+    }
+  });
+
+  let actionTaken = '';
+  let count = 0;
+
+  if (allSelected && eligibleIds.size > 0) {
+    // UNCHECK all eligible
+    eligibleIds.forEach(id => {
+      prospectPoolState.selectedIds.delete(id);
+      count++;
+    });
+    actionTaken = 'unchecked';
+  } else {
+    // CHECK all eligible
+    eligibleIds.forEach(id => {
+      prospectPoolState.selectedIds.add(id);
+      count++;
+    });
+    actionTaken = 'selected';
   }
 
-  const confirmed = confirm(`Add all ${prospectsToAdd.length} businesses from "${category.replace(/_/g, ' ')}" to your pipeline?\n\nThis will enrich each business with contact data (may take a moment).`);
-  if (!confirmed) return;
+  // Update UI
+  renderProspectPool();
+  updatePoolSelectedCount();
 
-  const prospectingColumn = 'prospect-list';
-  const currentMailerId = state.current?.Mailer_ID || null;
-  let addedCount = 0;
-
-  // Find the button to show progress
-  const btn = event?.target || document.querySelector(`button[onclick*="addAllCategoryToKanban('${category}')"]`);
-  const originalText = btn?.textContent || '';
-  if (btn) btn.disabled = true;
-
-  try {
-    for (let i = 0; i < prospectsToAdd.length; i++) {
-      const prospect = prospectsToAdd[i];
-      const businessName = prospect.businessName || prospect.name || 'Unknown';
-
-      // Update progress
-      if (btn) btn.textContent = `⏳ ${i + 1}/${prospectsToAdd.length}`;
-
-      // Start with existing data from prospect (may already be enriched from cache)
-      let details = {
-        phone: prospect.phone || '',
-        website: prospect.website || '',
-        email: prospect.email || '',
-        facebook: prospect.facebook || '',
-        instagram: prospect.instagram || '',
-        linkedin: prospect.linkedin || '',
-        twitter: prospect.twitter || '',
-        contactNames: prospect.contactNames || [],
-        source: prospect.source || 'prospect-pool',
-        enriched: prospect.enriched || false
-      };
-
-      // Enrichment Step 1: Use DuckDuckGo to find website/Facebook/Instagram (FREE - no quota!)
-      const needsSearch = !details.website || !details.facebook || !details.instagram;
-      if (needsSearch) {
-        if (btn) btn.textContent = `🦆 Searching ${i + 1}/${prospectsToAdd.length}`;
-
-        // Build search location from address
-        const location = prospect.address ? prospect.address.split(',').slice(-2).join(',').trim() : '';
-
-        try {
-          // Search for website if missing
-          if (!details.website) {
-            const websiteQuery = `${businessName} ${location} official website`;
-            const website = await searchBusinessWebsite(websiteQuery, businessName);
-            if (website && !website.includes('yelp.com') && !website.includes('facebook.com') && !website.includes('instagram.com')) {
-              details.website = website;
-              console.log(`✅ Found website: ${website}`);
-            }
-          }
-
-          // Search for Facebook if missing
-          if (!details.facebook) {
-            const fbQuery = `${businessName} ${location} site:facebook.com`;
-            const fbResult = await searchBusinessWebsite(fbQuery, businessName);
-            if (fbResult && fbResult.includes('facebook.com') && !fbResult.includes('instagram.com')) {
-              let cleanFbUrl = fbResult;
-              if (fbResult.includes('/posts/') || fbResult.includes('/photos/')) {
-                const pageMatch = fbResult.match(/(https?:\/\/[^\/]*facebook\.com\/[^\/\?]+)/);
-                if (pageMatch) cleanFbUrl = pageMatch[1];
-              }
-              details.facebook = cleanFbUrl;
-              console.log(`✅ Found Facebook: ${cleanFbUrl}`);
-            }
-          }
-
-          // Search for Instagram if missing
-          if (!details.instagram) {
-            const igQuery = `${businessName} ${location} site:instagram.com`;
-            const igResult = await searchBusinessWebsite(igQuery, businessName);
-            if (igResult && igResult.includes('instagram.com') && !igResult.includes('facebook.com')) {
-              let cleanedUrl = igResult;
-              if (igResult.includes('/p/') || igResult.includes('/reel/')) {
-                const match = igResult.match(/instagram\.com\/([^\/\?]+)/);
-                if (match && match[1] && !['p', 'reel', 'stories'].includes(match[1])) {
-                  cleanedUrl = `https://instagram.com/${match[1]}`;
-                }
-              }
-              details.instagram = cleanedUrl;
-              console.log(`✅ Found Instagram: ${cleanedUrl}`);
-            }
-          }
-        } catch (e) {
-          console.warn(`DuckDuckGo search failed for ${businessName}:`, e);
-        }
-      }
-
-      // Enrichment Step 2: Scrape website for email + any missing social links
-      if (details.website) {
-        if (btn) btn.textContent = `🎯 Scraping ${i + 1}/${prospectsToAdd.length}`;
-        try {
-          const enrichedData = await fetchSmartEnrichment(details.website, businessName);
-          // Get email
-          details.email = details.email || enrichedData.email || '';
-          // Get social links (website scraper may find these too)
-          details.facebook = details.facebook || enrichedData.facebook || '';
-          details.instagram = details.instagram || enrichedData.instagram || '';
-          details.linkedin = details.linkedin || enrichedData.linkedin || '';
-          details.twitter = details.twitter || enrichedData.twitter || '';
-          details.contactNames = enrichedData.contactNames || details.contactNames || [];
-          if (enrichedData.enriched) {
-            details.source = '9x12pro-scraper';
-            details.enriched = true;
-            details.pagesScraped = enrichedData.pagesScraped;
-          }
-        } catch (e) {
-          console.warn(`Website scrape failed for ${businessName}:`, e);
-        }
-      }
-
-      // Build notes
-      let notes = `Added via bulk category add\n`;
-      if (prospect.address) notes += `Address: ${prospect.address}\n`;
-      if (prospect.rating) notes += `Rating: ${prospect.rating} (${prospect.userRatingsTotal || prospect.review_count || 0} reviews)\n`;
-      if (details.phone) notes += `Phone: ${details.phone}\n`;
-      if (details.website) notes += `Website: ${details.website}\n`;
-      if (details.email) notes += `📧 Email: ${details.email}\n`;
-      if (details.facebook) notes += `📘 Facebook: ${details.facebook}\n`;
-      if (details.instagram) notes += `📷 Instagram: ${details.instagram}\n`;
-      if (details.linkedin) notes += `💼 LinkedIn: ${details.linkedin}\n`;
-      if (details.twitter) notes += `🐦 Twitter: ${details.twitter}\n`;
-      if (details.contactNames?.length > 0) notes += `👤 Contacts: ${details.contactNames.join(', ')}\n`;
-      if (details.enriched && details.pagesScraped) notes += `\n✅ Enriched (${details.pagesScraped} pages scraped)`;
-
-      const newLead = {
-        id: Date.now() + Math.random(),
-        businessName: businessName,
-        contactName: details.contactNames?.length > 0 ? details.contactNames[0] : '',
-        phone: details.phone,
-        email: details.email,
-        estimatedValue: 500,
-        notes: notes.trim(),
-        source: details.source,
-        placeId: prospect.placeId,
-        website: details.website,
-        facebook: details.facebook,
-        instagram: details.instagram,
-        linkedin: details.linkedin,
-        twitter: details.twitter,
-        category: category,
-        zipCode: prospect.zipCode || null,
-        actualZip: prospect.actualZip || null,
-        address: prospect.address || '',
-        rating: prospect.rating || 0,
-        userRatingsTotal: prospect.userRatingsTotal || prospect.review_count || 0,
-        mailerId: currentMailerId,
-        addedDate: new Date().toISOString(),
-        interactions: [],
-        enriched: details.enriched
-      };
-
-      kanbanState.columns[prospectingColumn].push(newLead);
-      addedCount++;
-
-      // Small delay between API calls to avoid rate limiting
-      if (i < prospectsToAdd.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 200));
-      }
+  const zipNote = hasZipFilter ? ` (filtered by ZIP)` : '';
+  if (count > 0) {
+    if (actionTaken === 'selected') {
+      toast(`✅ Selected ${count} ${category.replace(/_/g, ' ')} businesses${zipNote}. Click "Start Outreach" to add them.`, true);
+    } else {
+      toast(`☐ Unchecked ${count} ${category.replace(/_/g, ' ')} businesses${zipNote}`, true);
     }
-
-    saveKanban();
-    renderKanban();
-    renderProspectPool();
-
-    toast(`✅ Added ${addedCount} ${category.replace(/_/g, ' ')} businesses to pipeline!`, true);
-
-    // Switch to Close Deals tab to show the added businesses
-    if (addedCount > 0 && typeof switchMainTab === 'function') {
-      switchMainTab('close-deals');
-    }
-
-    // Track Getting Started progress
-    if (addedCount > 0) {
-      markGettingStartedComplete('review_prospects');
-      markGettingStartedComplete('add_to_pipeline');
-    }
-  } catch (err) {
-    console.error('Error in bulk add:', err);
-    toast('Some businesses may not have been added. Please try again.', false);
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = originalText;
-    }
+  } else {
+    toast('No businesses available in this category' + zipNote, false);
   }
+}
+window.selectAllInCategory = selectAllInCategory;
+
+// Keep old function name for backwards compatibility (now just calls select)
+function addAllCategoryToKanban(category) {
+  selectAllInCategory(category);
 }
 window.addAllCategoryToKanban = addAllCategoryToKanban;
 
 // Common business categories for dropdown
 const BUSINESS_CATEGORIES = [
-  'restaurant', 'bar', 'pizza', 'bakery', 'cafe', 'coffee_shop',
-  'plumber', 'electrician', 'hvac', 'roofing', 'landscaping', 'contractor',
-  'salon', 'barber', 'spa', 'nail_salon',
-  'dentist', 'chiropractor', 'doctor', 'veterinarian',
-  'auto_repair', 'car_wash', 'tire_shop',
-  'gym', 'yoga', 'martial_arts',
-  'real_estate', 'insurance', 'accountant', 'lawyer',
-  'pet_store', 'groomer',
-  'florist', 'gift_shop', 'jewelry',
-  'dry_cleaner', 'tailor',
-  'funeral_home',
-  'other'
+  'accountant', 'auto_repair', 'bakery', 'bar', 'barber',
+  'cafe', 'car_wash', 'chiropractor', 'coffee_shop', 'contractor',
+  'dentist', 'doctor', 'dry_cleaner',
+  'electrician',
+  'florist', 'funeral_home',
+  'gift_shop', 'groomer', 'gym',
+  'hvac',
+  'insurance',
+  'jewelry',
+  'landscaping', 'lawyer',
+  'martial_arts',
+  'nail_salon',
+  'pet_store', 'pizza', 'plumber',
+  'real_estate', 'restaurant', 'roofing',
+  'salon', 'spa',
+  'tailor', 'tire_shop',
+  'veterinarian',
+  'yoga',
+  'other'  // Keep 'other' at the end
 ];
 
 // Edit a prospect's category with dropdown
@@ -9960,8 +10047,8 @@ function importProspectPoolCSV(event) {
         }
       }
 
-      // Save to localStorage
-      localStorage.setItem('mailslot-places-cache', JSON.stringify(placesCache));
+      // Save to localStorage (use safeSetItem to handle quota)
+      safeSetItem('mailslot-places-cache', JSON.stringify(placesCache.searches));
 
       // Save kanban changes to cloud
       saveKanban();
@@ -11630,7 +11717,7 @@ function addNewInteraction() {
         }
       }
     });
-    localStorage.setItem('mailslot-places-cache', JSON.stringify(placesCache));
+    safeSetItem('mailslot-places-cache', JSON.stringify(placesCache.searches));
   } else if (source === 'kanban') {
     // Update in kanban
     Object.keys(kanbanState.columns).forEach(columnKey => {
@@ -12143,7 +12230,7 @@ async function markNotInterested() {
       removedCount += (beforeLength - cached.cachedData.length);
     }
   });
-  localStorage.setItem('mailslot-places-cache', JSON.stringify(placesCache));
+  safeSetItem('mailslot-places-cache', JSON.stringify(placesCache.searches));
 
   console.log(`Removed ${removedCount} items from prospect pool for: ${businessName}`);
 
@@ -12215,7 +12302,7 @@ async function markProspectNotInterested(placeId, businessName) {
       removedCount += (beforeLength - cached.cachedData.length);
     }
   });
-  localStorage.setItem('mailslot-places-cache', JSON.stringify(placesCache));
+  safeSetItem('mailslot-places-cache', JSON.stringify(placesCache.searches));
 
   toast(`✅ "${businessName}" marked as Not Interested`, true);
 
@@ -12584,6 +12671,19 @@ function renderKanban() {
     `
     : ''; // Hidden for now
 
+  // Collect unique ZIPs from column 1 for the filter dropdown
+  const column1Items = kanbanState.columns['prospect-list'] || [];
+  const column1Zips = new Set();
+  column1Items.forEach(item => {
+    if (item && typeof item === 'object') {
+      // Check multiple possible ZIP properties
+      const zip = item.actualZip || item.zipCode || item.zip;
+      if (zip) column1Zips.add(String(zip));
+    }
+  });
+  const sortedZips = Array.from(column1Zips).sort();
+  console.log('📍 Column 1 ZIPs found:', sortedZips, 'from', column1Items.length, 'items');
+
   const columnsHTML = columnDefs.map(col => {
     const rawItems = kanbanState.columns[col.key] || [];
     console.log(`Rendering column ${col.key}: ${rawItems.length} raw items, currentMailerId: ${currentMailerId}`);
@@ -12606,6 +12706,15 @@ function renderKanban() {
       return true;
     });
 
+    // Apply ZIP filter for column 1 only
+    if (col.key === 'prospect-list' && kanbanState.column1ZipFilter) {
+      items = items.filter(item => {
+        if (typeof item !== 'object') return true;
+        const itemZip = item.actualZip || item.zipCode || '';
+        return itemZip === kanbanState.column1ZipFilter;
+      });
+    }
+
     // Sort Prospecting column: items with phone/website/email first
     if (col.key === 'prospect-list') {
       items = items.sort((a, b) => {
@@ -12615,8 +12724,17 @@ function renderKanban() {
       });
     }
 
+    // ZIP filter dropdown for column 1 (show if any items have ZIPs)
+    const zipFilterHTML = col.key === 'prospect-list' && sortedZips.length >= 1 ? `
+      <select id="kanbanColumn1ZipFilter" onchange="setKanbanColumn1ZipFilter(this.value)" class="text-xs px-1 py-0.5 border rounded bg-white">
+        <option value="">All ZIPs (${rawItems.length})</option>
+        ${sortedZips.map(zip => `<option value="${zip}" ${kanbanState.column1ZipFilter === zip ? 'selected' : ''}>${zip}</option>`).join('')}
+      </select>
+    ` : '';
+
     // Add buttons for columns
     const buttons = `
+        ${zipFilterHTML}
         <button onclick="openLeadModal('${col.key}')" class="text-xs px-2 py-1 bg-${col.color}-600 text-white rounded hover:bg-${col.color}-700" title="Add lead manually">
           +
         </button>
@@ -13296,10 +13414,6 @@ function setupKanbanDrag() {
         });
 
         if (!alreadyExists) {
-          // Enrich with website if not already enriched (from Yelp source)
-          if (itemToMove && !itemToMove.website && !itemToMove.enriched && itemToMove.source === 'yelp') {
-            enrichBusinessWebsite(itemToMove);
-          }
           kanbanState.columns[toColumn].push(itemToMove);
         }
 
@@ -13937,6 +14051,20 @@ function saveContactLater() {
 window.openContactLaterModal = openContactLaterModal;
 window.closeContactLaterModal = closeContactLaterModal;
 window.saveContactLater = saveContactLater;
+
+/**
+ * Set ZIP filter for kanban column 1
+ */
+function setKanbanColumn1ZipFilter(zip) {
+  kanbanState.column1ZipFilter = zip || '';
+  renderKanban();
+  if (zip) {
+    toast(`📍 Filtering column 1 by ZIP: ${zip}`, true);
+  } else {
+    toast('📍 Showing all ZIPs in column 1', true);
+  }
+}
+window.setKanbanColumn1ZipFilter = setKanbanColumn1ZipFilter;
 
 function openLeadModal(column = null, leadId = null) {
   const modal = document.getElementById("leadModal");
@@ -15711,6 +15839,7 @@ function loadAllData() {
   // Load prospect cache from cloud with merge
   loadPlacesCache().then(() => {
     renderProspectPool(); // Re-render to show loaded prospects
+    updateCacheStatus(); // Update dashboard cache display
 
     // Save to cloud to ensure computer's data is uploaded
     savePlacesCache();
