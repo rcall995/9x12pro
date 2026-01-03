@@ -31,7 +31,7 @@
   <meta name="format-detection" content="telephone=no" />
   <script>
     // Cache busting version - update this to force reload on all devices
-    window.APP_VERSION = '2025-12-10-v137';
+    window.APP_VERSION = '2026-01-03-v152';
     window.CACHE_BUST = '?v=' + window.APP_VERSION;
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -92,7 +92,7 @@
   </script>
 
   <!-- External Stylesheet -->
-  <link rel="stylesheet" href="styles.css?v=2025-12-10-v116">
+  <link rel="stylesheet" href="styles.css?v=2026-01-03-v152">
 </head>
 <body class="bg-gray-100 min-h-screen font-sans">
   <!-- Inline script to set initial tab state before page renders -->
@@ -310,6 +310,24 @@
                 </div>
             </div>
 
+            <!-- STORAGE & CACHE WIDGET -->
+            <div class="bg-white rounded-2xl shadow-lg border-2 border-gray-200 p-6 mt-8">
+                <div class="flex items-center gap-3 mb-4">
+                    <span class="text-3xl">💾</span>
+                    <div>
+                        <h4 class="text-xl font-black text-gray-900">Storage & Cache</h4>
+                        <p class="text-sm text-gray-500">Manage local browser storage</p>
+                    </div>
+                </div>
+                <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                    <div class="flex-1">
+                        <p class="text-sm text-gray-600" id="cacheStatusText">Loading cache info...</p>
+                    </div>
+                    <button onclick="clearLocalCache()" class="px-4 py-2 bg-red-500 text-white rounded-lg font-bold hover:bg-red-600 transition-all text-sm">
+                        🗑️ Clear Local Cache
+                    </button>
+                </div>
+            </div>
 
             </div>
             <!-- END OVERVIEW SUB-PANE -->
@@ -1283,8 +1301,8 @@
                                         <label class="text-xs font-bold text-gray-700 block mb-1">Business Name</label>
                                         <div class="flex gap-2">
                                             <input type="text" id="sparkBusinessName" placeholder="e.g., Joe's Pizza" class="flex-1 px-3 py-2 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-orange-300">
-                                            <button onclick="openSparkFacebook()" id="sparkFacebookBtn" class="px-3 py-2 bg-blue-600 text-white text-sm font-bold rounded hover:bg-blue-700 transition-all" title="Open Facebook page">
-                                                📘 FB
+                                            <button onclick="openSparkSocial()" id="sparkSocialBtn" class="px-3 py-2 bg-gradient-to-r from-blue-600 to-pink-500 text-white text-sm font-bold rounded hover:opacity-90 transition-all" title="Open social page based on platform selection">
+                                                🔗 Open
                                             </button>
                                         </div>
                                     </div>
