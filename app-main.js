@@ -3845,9 +3845,10 @@ async function enrichBusinessOnMove(lead) {
 }
 
 /**
- * Search for businesses using Foursquare Places API
- * Returns: name, address, phone, website, email, Facebook, Instagram
- * Cost: FREE ($200/month credits = ~10,000 searches)
+ * Search for businesses using Outscraper API (Google Maps data)
+ * Returns: name, address, phone, website
+ * Cost: ~$3 per 1,000 businesses
+ * Note: Smart enrichment (FREE) scrapes websites for emails/social after
  */
 async function searchFoursquareBusinesses(zipCode, category, progressInfo = null) {
   try {
@@ -3866,8 +3867,9 @@ async function searchFoursquareBusinesses(zipCode, category, progressInfo = null
 
     showInfo(`🔍 ProspectRadar™ searching "${category}" in ${zipCode}...`);
 
-    // Call Foursquare API via our serverless function (FREE - $200/month credits)
-    const response = await fetch('/api/foursquare-search', {
+    // Call Outscraper API via our serverless function (~$3/1000 businesses)
+    // Smart enrichment (FREE) scrapes websites for emails/social after
+    const response = await fetch('/api/outscraper-search', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -3875,7 +3877,7 @@ async function searchFoursquareBusinesses(zipCode, category, progressInfo = null
       body: JSON.stringify({
         zipCode: zipCode,
         category: category,
-        limit: 50 // Get up to 50 businesses per category (Foursquare max)
+        limit: 40 // Get up to 40 businesses per category
       })
     });
 
@@ -3892,7 +3894,7 @@ async function searchFoursquareBusinesses(zipCode, category, progressInfo = null
 
     const businesses = data.businesses || [];
 
-    console.log(`✅ Foursquare returned ${businesses.length} businesses (FREE)`);
+    console.log(`✅ Outscraper returned ${businesses.length} businesses`);
 
     // Log enrichment stats
     const withEmail = businesses.filter(b => b.email).length;
