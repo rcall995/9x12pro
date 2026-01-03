@@ -3834,11 +3834,11 @@ async function enrichBusinessOnMove(lead) {
 }
 
 /**
- * Search for businesses using Outscraper API (Google Maps data)
+ * Search for businesses using Foursquare Places API
  * Returns: name, address, phone, website, email, Facebook, Instagram
- * Cost: ~$3 per 1,000 businesses
+ * Cost: FREE ($200/month credits = ~10,000 searches)
  */
-async function searchOutscraperBusinesses(zipCode, category, progressInfo = null) {
+async function searchFoursquareBusinesses(zipCode, category, progressInfo = null) {
   try {
     const cacheKey = `${zipCode}-${category}`;
 
@@ -3855,8 +3855,8 @@ async function searchOutscraperBusinesses(zipCode, category, progressInfo = null
 
     showInfo(`🔍 ProspectRadar™ searching "${category}" in ${zipCode}...`);
 
-    // Call Outscraper API via our serverless function
-    const response = await fetch('/api/outscraper-search', {
+    // Call Foursquare API via our serverless function (FREE - $200/month credits)
+    const response = await fetch('/api/foursquare-search', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -3864,7 +3864,7 @@ async function searchOutscraperBusinesses(zipCode, category, progressInfo = null
       body: JSON.stringify({
         zipCode: zipCode,
         category: category,
-        limit: 40 // Get up to 40 businesses per category
+        limit: 50 // Get up to 50 businesses per category (Foursquare max)
       })
     });
 
@@ -3881,7 +3881,7 @@ async function searchOutscraperBusinesses(zipCode, category, progressInfo = null
 
     const businesses = data.businesses || [];
 
-    console.log(`✅ Outscraper returned ${businesses.length} businesses with enrichment data`);
+    console.log(`✅ Foursquare returned ${businesses.length} businesses (FREE)`);
 
     // Log enrichment stats
     const withEmail = businesses.filter(b => b.email).length;
@@ -3915,17 +3915,22 @@ async function searchOutscraperBusinesses(zipCode, category, progressInfo = null
   }
 }
 
-// Legacy Yelp function - now redirects to Outscraper
+// Alias for backward compatibility
+async function searchOutscraperBusinesses(zipCode, category, progressInfo = null) {
+  return await searchFoursquareBusinesses(zipCode, category, progressInfo);
+}
+
+// Legacy Yelp function - now redirects to Foursquare
 async function searchYelpBusinesses(zipCode, category, progressInfo = null) {
-  return await searchOutscraperBusinesses(zipCode, category, progressInfo);
+  return await searchFoursquareBusinesses(zipCode, category, progressInfo);
 }
 
 /**
- * Search for businesses - uses Outscraper API
+ * Search for businesses - uses Foursquare API (FREE)
  * Legacy name kept for compatibility with existing code
  */
 async function searchPlaces(zipCode, category, progressInfo = null) {
-  return await searchOutscraperBusinesses(zipCode, category, progressInfo);
+  return await searchFoursquareBusinesses(zipCode, category, progressInfo);
 }
 
 // Alias for backward compatibility
