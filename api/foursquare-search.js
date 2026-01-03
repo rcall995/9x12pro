@@ -30,30 +30,18 @@ export default async function handler(req, res) {
     // Build search query
     const searchQuery = category || 'businesses';
 
-    // Foursquare Place Search API
+    // Foursquare Place Search API v3
     // Using 'near' parameter with ZIP code for location
     const params = new URLSearchParams({
       query: searchQuery,
       near: `${zipCode}, USA`,
-      limit: Math.min(limit, 50), // Max 50 per request
-      fields: [
-        'fsq_id',
-        'name',
-        'location',
-        'tel',
-        'website',
-        'email',
-        'social_media',
-        'rating',
-        'categories',
-        'hours',
-        'verified'
-      ].join(',')
+      limit: Math.min(limit, 50) // Max 50 per request
     });
 
     const url = `https://api.foursquare.com/v3/places/search?${params.toString()}`;
 
     console.log('🔍 Foursquare search:', searchQuery, 'near', zipCode);
+    console.log('🔗 Foursquare URL:', url);
 
     const response = await fetch(url, {
       method: 'GET',
@@ -83,6 +71,7 @@ export default async function handler(req, res) {
     }
 
     const data = await response.json();
+    console.log('📦 Foursquare raw response:', JSON.stringify(data).substring(0, 500));
     console.log('📦 Foursquare returned', data.results?.length || 0, 'places');
 
     if (!data.results || data.results.length === 0) {
