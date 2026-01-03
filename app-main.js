@@ -27,7 +27,15 @@ var authCheckInterval = setInterval(function() {
 }, 100);
 
 // Auto-update checker: Periodically check if app version has changed
+let updateBannerDismissed = false; // Track if user dismissed the banner this session
+
 function checkForAppUpdate() {
+  // Don't show again if user already dismissed this session
+  if (updateBannerDismissed) return;
+
+  // Don't create duplicate banners
+  if (document.getElementById('update-banner')) return;
+
   // Check if config version differs from page version
   if (window.APP_CONFIG && window.APP_CONFIG.app.version !== window.APP_VERSION) {
     console.log('🔄 New version detected:', window.APP_CONFIG.app.version, '(current:', window.APP_VERSION + ')');
@@ -55,21 +63,24 @@ function checkForAppUpdate() {
         <button onclick="location.reload(true)" style="background: white; color: #667eea; padding: 8px 20px; border-radius: 8px; font-weight: bold; border: none; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2); transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
           Refresh Now
         </button>
-        <button onclick="this.parentElement.parentElement.remove()" style="background: transparent; color: white; padding: 8px 16px; border-radius: 8px; border: 2px solid white; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='transparent'">
+        <button onclick="updateBannerDismissed=true; this.parentElement.parentElement.remove()" style="background: transparent; color: white; padding: 8px 16px; border-radius: 8px; border: 2px solid white; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='transparent'">
           Later
         </button>
       </div>
     `;
 
-    // Add animation
-    const style = document.createElement('style');
-    style.textContent = `
-      @keyframes slideDown {
-        from { transform: translateY(-100%); }
-        to { transform: translateY(0); }
-      }
-    `;
-    document.head.appendChild(style);
+    // Add animation (only once)
+    if (!document.getElementById('update-banner-style')) {
+      const style = document.createElement('style');
+      style.id = 'update-banner-style';
+      style.textContent = `
+        @keyframes slideDown {
+          from { transform: translateY(-100%); }
+          to { transform: translateY(0); }
+        }
+      `;
+      document.head.appendChild(style);
+    }
     document.body.appendChild(updateBanner);
   }
 }
