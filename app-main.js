@@ -3877,6 +3877,53 @@ async function enrichBusinessOnMove(lead) {
 }
 
 /**
+ * Deduplicate businesses by name - keeps the entry with most contact info
+ * Chains with multiple locations are consolidated into one entry
+ */
+function deduplicateBusinesses(businesses) {
+  if (!businesses || businesses.length === 0) return [];
+
+  // Group by normalized business name
+  const groups = {};
+  businesses.forEach(biz => {
+    // Normalize name: lowercase, trim, remove extra spaces
+    const normalizedName = (biz.name || '').toLowerCase().trim().replace(/\s+/g, ' ');
+    if (!groups[normalizedName]) {
+      groups[normalizedName] = [];
+    }
+    groups[normalizedName].push(biz);
+  });
+
+  // For each group, keep the entry with the most contact info
+  const deduplicated = [];
+  Object.values(groups).forEach(group => {
+    if (group.length === 1) {
+      deduplicated.push(group[0]);
+    } else {
+      // Score each entry by contact info completeness
+      const scored = group.map(biz => {
+        let score = 0;
+        if (biz.email) score += 3;
+        if (biz.website && !biz.website.includes('facebook.com')) score += 2;
+        if (biz.phone) score += 2;
+        if (biz.facebook) score += 1;
+        if (biz.instagram) score += 1;
+        return { biz, score };
+      });
+      // Sort by score descending and keep the best one
+      scored.sort((a, b) => b.score - a.score);
+      const best = scored[0].biz;
+      // Add note about multiple locations
+      best.multipleLocations = group.length;
+      deduplicated.push(best);
+      console.log(`📍 Deduplicated "${best.name}": kept 1 of ${group.length} locations`);
+    }
+  });
+
+  return deduplicated;
+}
+
+/**
  * Search for businesses using Outscraper API (Google Maps data)
  * Returns: name, address, phone, website
  * Cost: ~$3 per 1,000 businesses
@@ -3924,9 +3971,14 @@ async function searchFoursquareBusinesses(zipCode, category, progressInfo = null
       throw new Error(data.error);
     }
 
-    const businesses = data.businesses || [];
+    const rawBusinesses = data.businesses || [];
+    console.log(`✅ HERE returned ${rawBusinesses.length} businesses`);
 
-    console.log(`✅ HERE returned ${businesses.length} businesses`);
+    // Deduplicate businesses with multiple locations (keep best contact info)
+    const businesses = deduplicateBusinesses(rawBusinesses);
+    if (businesses.length < rawBusinesses.length) {
+      console.log(`📍 Deduplicated: ${rawBusinesses.length} → ${businesses.length} unique businesses`);
+    }
 
     // Log enrichment stats
     const withEmail = businesses.filter(b => b.email).length;
@@ -7988,7 +8040,10 @@ async function moveSelectedToPool() {
 
   // Collect all selected prospects
   prospectingSelectionState.selectedIds.forEach(leadId => {
-    const leadIndex = items.findIndex(item => typeof item === 'object' && item.id === leadId);
+    // Convert both to strings for comparison (IDs can be numbers or strings)
+    const leadIdStr = String(leadId);
+    const leadIndex = items.findIndex(item => typeof item === 'object' && String(item.id) === leadIdStr);
+    console.log(`🔵 Looking for leadId: ${leadIdStr}, found at index: ${leadIndex}`);
     if (leadIndex !== -1) {
       movedProspects.push({
         lead: items[leadIndex],
@@ -14364,7 +14419,15 @@ async function moveProspectBackToPool(leadId, event) {
     event.preventDefault();
   }
 
-  const items = kanbanState.columns['prospect-list'] || [];
+  console.log('🔴 moveProspectBackToPool called with leadId:', leadId);
+
+  // Get direct reference to the column array
+  if (!kanbanState.columns['prospect-list']) {
+    kanbanState.columns['prospect-list'] = [];
+  }
+  const items = kanbanState.columns['prospect-list'];
+
+  console.log('🔴 prospect-list has', items.length, 'items before removal');
 
   // Find by ID - convert both to strings for comparison to avoid floating point precision issues
   let index = items.findIndex((item, idx) => {
@@ -14393,8 +14456,12 @@ async function moveProspectBackToPool(leadId, event) {
   const prospect = items[index];
   const prospectName = typeof prospect === 'string' ? prospect : (prospect.businessName || 'Unnamed Prospect');
 
-  // Remove from Prospecting column
-  items.splice(index, 1);
+  console.log('🔴 Found prospect at index', index, ':', prospectName);
+
+  // Remove from Prospecting column - directly modify kanbanState
+  kanbanState.columns['prospect-list'].splice(index, 1);
+
+  console.log('🔴 prospect-list has', kanbanState.columns['prospect-list'].length, 'items after removal');
 
   // Add to manual prospects in pool ONLY if not already there
   if (!prospectPoolState.manualProspects) {
@@ -14439,11 +14506,17 @@ async function moveProspectBackToPool(leadId, event) {
   // Clear from selection if it was selected
   prospectingSelectionState.selectedIds.delete(leadId);
 
+  console.log('🔴 About to save kanban. Current prospect-list length:', kanbanState.columns['prospect-list']?.length);
   await saveKanban(); // Save kanban without this prospect
+  console.log('🔴 After saveKanban. prospect-list length:', kanbanState.columns['prospect-list']?.length);
+
   // Save pool with this prospect (triggers deduplication)
   await saveManualProspects();
+
+  console.log('🔴 About to renderKanban. prospect-list length:', kanbanState.columns['prospect-list']?.length);
   renderKanban();
   renderProspectPool();
+  console.log('🔴 Render complete. Move successful for:', prospectName);
   toast(`"${prospectName}" moved back to Prospect Pool`, true);
 }
 

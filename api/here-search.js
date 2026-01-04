@@ -108,6 +108,10 @@ export default async function handler(req, res) {
       // Get primary category
       const primaryCategory = place.categories?.[0]?.name || category || '';
 
+      // Truncate ZIP to 5 digits (remove ZIP+4 suffix)
+      const rawZip = address.postalCode || zipCode;
+      const zip5 = rawZip ? rawZip.substring(0, 5) : zipCode.substring(0, 5);
+
       return {
         placeId: place.id || `here_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         name: place.title || '',
@@ -115,8 +119,8 @@ export default async function handler(req, res) {
         fullAddress: address.label || '',
         city: address.city || '',
         state: address.state || address.stateCode || '',
-        zip: address.postalCode || zipCode,
-        zipCode: address.postalCode || zipCode,
+        zip: zip5,
+        zipCode: zip5,
         phone: phone,
         website: website,
         email: email,
@@ -127,7 +131,7 @@ export default async function handler(req, res) {
         lng: place.position?.lng || 0,
         isClosed: false,
         source: 'here',
-        searchedZipCode: zipCode,
+        searchedZipCode: zipCode.substring(0, 5),
         category: category
       };
     });

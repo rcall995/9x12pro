@@ -20,7 +20,21 @@
       "Bash(test:*)",
       "Bash(curl:*)",
       "Bash(node:*)",
-      "Bash(app-main-fixed.js)"
+      "Bash(app-main-fixed.js)",
+      "Bash(cat:*)",
+      "WebSearch",
+      "WebFetch(domain:searx.space)",
+      "Bash(vercel logs:*)",
+      "Bash(vercel env:*)",
+      "WebFetch(domain:docs.foursquare.com)",
+      "WebFetch(domain:www.here.com)",
+      "WebFetch(domain:www.g2.com)",
+      "WebFetch(domain:distancematrix.ai)",
+      "WebFetch(domain:mapscaping.com)",
+      "WebFetch(domain:status.here.com)",
+      "Bash(time curl -s -X POST https://9x12pro.com/api/here-search -H \"Content-Type: application/json\" -d \"{\"\"zipCode\"\":\"\"14072\"\",\"\"category\"\":\"\"plumbers\"\",\"\"limit\"\":20}\")",
+      "Bash(time curl -s -X POST https://9x12pro.com/api/here-search -H \"Content-Type: application/json\" -d \"{\"\"zipCode\"\":\"\"90210\"\",\"\"category\"\":\"\"auto repair\"\",\"\"limit\"\":20}\" -o /dev/null)",
+      "Bash(time curl -s -X POST https://9x12pro.com/api/here-search -H \"Content-Type: application/json\" -d \"{\"\"zipCode\"\":\"\"33139\"\",\"\"category\"\":\"\"dentists\"\",\"\"limit\"\":20}\" -o /dev/null)"
     ],
     "deny": [],
     "ask": []
