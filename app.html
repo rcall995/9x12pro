@@ -32,7 +32,7 @@
   <script>
     // Cache busting version - UPDATE THIS for new releases!
     // Also update config.js app.version to match
-    window.APP_VERSION = '2026-01-03-v152';
+    window.APP_VERSION = '2026-01-03-v162';
     window.CACHE_BUST = '?v=' + window.APP_VERSION;
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -3644,20 +3644,22 @@
     // Register service worker for PWA functionality
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/service-worker.js')
+        // updateViaCache: 'none' forces browser to always check for SW updates
+        navigator.serviceWorker.register('/service-worker.js', { updateViaCache: 'none' })
           .then((registration) => {
             console.log('✅ Service Worker registered:', registration.scope);
 
-            // Check for updates
+            // Force check for updates on every page load
+            registration.update();
+
+            // Auto-activate new service worker when found
             registration.addEventListener('updatefound', () => {
               const newWorker = registration.installing;
               newWorker.addEventListener('statechange', () => {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  // New version available
-                  if (confirm('New version available! Reload to update?')) {
-                    newWorker.postMessage({ type: 'SKIP_WAITING' });
-                    window.location.reload();
-                  }
+                  // Auto-update without asking - just reload
+                  console.log('🔄 New version found - auto-updating...');
+                  newWorker.postMessage({ type: 'SKIP_WAITING' });
                 }
               });
             });
@@ -3667,11 +3669,12 @@
           });
       });
 
-      // Handle service worker updates
+      // Handle service worker updates - auto-reload when new SW takes control
       let refreshing = false;
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (!refreshing) {
           refreshing = true;
+          console.log('🔄 New service worker active - reloading...');
           window.location.reload();
         }
       });

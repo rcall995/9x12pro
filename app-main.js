@@ -530,7 +530,7 @@ const isValidPair=(a,b)=>PAIRS.some(([x,y])=>x===Math.min(a,b)&&y===Math.max(a,b
 const mateOf = n => { for (const [a,b] of PAIRS) { if (a===n) return b; if (b===n) return a; } return null; };
 
 // VERSION CHECK - If you don't see this in console, you're viewing cached HTML
-console.log('🔥 APP VERSION: 2026-01-03-v151 - Switch from Yelp to Outscraper for business search');
+console.log('🔥 APP VERSION: 2026-01-03-v161 - Switch to HERE API (250k FREE/month)');
 
 const state = {
   mailers: [],
@@ -632,9 +632,9 @@ const placesCache = {
 
 // Cache size limits to prevent localStorage quota issues
 const CACHE_LIMITS = {
-  MAX_ENTRIES: 200,        // Maximum number of search cache entries
-  MAX_SIZE_KB: 1500,       // Maximum cache size in KB (leaves room for other localStorage data)
-  MIN_ENTRIES_TO_KEEP: 50  // Always keep at least this many recent entries
+  MAX_ENTRIES: 600,        // Maximum number of search cache entries
+  MAX_SIZE_KB: 4000,       // Maximum cache size in KB (leaves room for other localStorage data)
+  MIN_ENTRIES_TO_KEEP: 100 // Always keep at least this many recent entries
 };
 
 // NOT INTERESTED LIST STATE (permanent exclusion list)
@@ -3329,9 +3329,52 @@ async function loadPlacesCache() {
   }
 }
 
+// Debounce timer for cache saves - prevents rapid-fire cloud uploads
+let savePlacesCacheTimer = null;
+let savePlacesCachePending = false;
+let lastCloudSaveTime = 0;
+const CLOUD_SAVE_MIN_INTERVAL = 60000; // Minimum 60 seconds between cloud saves
+const CLOUD_SAVE_DEBOUNCE = 15000; // Wait 15 seconds of inactivity before saving
+
 async function savePlacesCache() {
+  // Save to localStorage immediately (fast, local)
   try {
-    // Save FULL data to cloud first (keep all search history in Supabase)
+    const prunedData = pruneOldCacheEntries(placesCache.searches);
+    safeSetItem('mailslot-places-cache', JSON.stringify(prunedData));
+  } catch(e) {
+    console.error('Error saving places cache to localStorage:', e);
+  }
+
+  // Debounce cloud save - wait for inactivity before uploading
+  if (savePlacesCacheTimer) {
+    clearTimeout(savePlacesCacheTimer);
+  }
+
+  savePlacesCachePending = true;
+  savePlacesCacheTimer = setTimeout(async () => {
+    // Check if enough time has passed since last cloud save
+    const timeSinceLastSave = Date.now() - lastCloudSaveTime;
+    if (timeSinceLastSave >= CLOUD_SAVE_MIN_INTERVAL) {
+      await savePlacesCacheToCloud();
+    } else {
+      // Schedule for later when the interval has passed
+      const waitTime = CLOUD_SAVE_MIN_INTERVAL - timeSinceLastSave;
+      console.log(`⏳ Cloud save queued (${Math.round(waitTime/1000)}s until next allowed save)`);
+      setTimeout(() => savePlacesCacheToCloud(), waitTime);
+    }
+    savePlacesCachePending = false;
+  }, CLOUD_SAVE_DEBOUNCE);
+}
+
+// Actual cloud save - called after debounce delay
+async function savePlacesCacheToCloud() {
+  // Double-check minimum interval
+  const timeSinceLastSave = Date.now() - lastCloudSaveTime;
+  if (timeSinceLastSave < CLOUD_SAVE_MIN_INTERVAL) {
+    return; // Skip, too soon
+  }
+
+  try {
     const fullDataStr = JSON.stringify(placesCache.searches);
     const fullSizeKB = Math.round(fullDataStr.length / 1024);
 
@@ -3340,24 +3383,13 @@ async function savePlacesCache() {
     // Supabase has a reasonable size limit - if under 5MB we're good
     if (fullDataStr.length <= 5000000) {
       await saveToCloud('placesCache', placesCache.searches);
+      lastCloudSaveTime = Date.now();
       console.log(`✅ Prospect cache saved to cloud (${fullSizeKB} KB)`);
     } else {
       console.warn('⚠️ Prospect cache too large for cloud sync (>5MB), keeping local only');
-      toast('⚠️ Prospect data is large - saved locally only', false);
     }
-
-    // Prune for localStorage only (to avoid quota issues)
-    const prunedData = pruneOldCacheEntries(placesCache.searches);
-    safeSetItem('mailslot-places-cache', JSON.stringify(prunedData));
-
-    // Keep full data in memory (placesCache.searches stays unpruned)
-    // This ensures new searches are added to the full dataset
-
   } catch(e) {
     console.error('Error saving places cache to cloud:', e);
-    // Try to save pruned version to localStorage as fallback
-    const prunedData = pruneOldCacheEntries(placesCache.searches);
-    safeSetItem('mailslot-places-cache', JSON.stringify(prunedData));
   }
 }
 
@@ -3867,9 +3899,9 @@ async function searchFoursquareBusinesses(zipCode, category, progressInfo = null
 
     showInfo(`🔍 ProspectRadar™ searching "${category}" in ${zipCode}...`);
 
-    // Call Outscraper API via our serverless function (~$3/1000 businesses)
-    // Smart enrichment (FREE) scrapes websites for emails/social after
-    const response = await fetch('/api/outscraper-search', {
+    // Call HERE Places API via our serverless function (FREE: 250,000/month!)
+    // Much faster than Outscraper - direct API instead of scraping
+    const response = await fetch('/api/here-search', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -3877,7 +3909,7 @@ async function searchFoursquareBusinesses(zipCode, category, progressInfo = null
       body: JSON.stringify({
         zipCode: zipCode,
         category: category,
-        limit: 40 // Get up to 40 businesses per category
+        limit: 50
       })
     });
 
@@ -3894,7 +3926,7 @@ async function searchFoursquareBusinesses(zipCode, category, progressInfo = null
 
     const businesses = data.businesses || [];
 
-    console.log(`✅ Outscraper returned ${businesses.length} businesses`);
+    console.log(`✅ HERE returned ${businesses.length} businesses`);
 
     // Log enrichment stats
     const withEmail = businesses.filter(b => b.email).length;
@@ -7867,6 +7899,20 @@ function selectAllProspects() {
   toast(`Selected ${prospectingSelectionState.selectedIds.size} prospects`, true);
 }
 
+// Clear all prospect selections
+function clearProspectingSelection() {
+  const previousCount = prospectingSelectionState.selectedIds.size;
+  prospectingSelectionState.selectedIds.clear();
+
+  // Update UI
+  updateMoveToPoolButton();
+  renderKanban();
+
+  if (previousCount > 0) {
+    toast(`Cleared ${previousCount} selections`, true);
+  }
+}
+
 // Toggle selection of a prospect in To Contact column for bulk messaging
 function toggleToContactSelection(leadId) {
   // Ensure consistent type - convert to string for comparison
@@ -9245,9 +9291,9 @@ async function addFromProspectPool() {
       markGettingStartedComplete('add_to_pipeline');
     }
 
-    // Switch to Close Deals tab
+    // Switch to Pipeline tab
     console.log('🔵 DEBUG: Before switchTab, prospect-list length:', kanbanState.columns['prospect-list']?.length);
-    switchTab('outreach');
+    switchTab('pipeline');
     console.log('🔵 DEBUG: After switchTab, prospect-list length:', kanbanState.columns['prospect-list']?.length);
   } catch(err) {
     console.error('Error adding from pool:', err);
@@ -9273,10 +9319,18 @@ function clearProspectPool() {
 // Select all businesses in a category (check their checkboxes)
 function selectAllInCategory(category) {
   // Get active ZIP filter (if any)
-  const zipCheckboxes = document.querySelectorAll('#poolZipFilterContainer input[type="checkbox"]:checked');
+  const zipCheckboxes = document.querySelectorAll('#prospectPoolZipCheckboxes input[type="checkbox"]:checked');
   const activeZips = new Set();
-  zipCheckboxes.forEach(cb => activeZips.add(cb.value));
-  const hasZipFilter = activeZips.size > 0;
+  let allZipsSelected = false;
+  zipCheckboxes.forEach(cb => {
+    if (cb.value === 'all') {
+      allZipsSelected = true;
+    } else {
+      activeZips.add(cb.value);
+    }
+  });
+  // If "ALL" is checked, don't filter by ZIP
+  const hasZipFilter = !allZipsSelected && activeZips.size > 0;
 
   // Build set of IDs already in system (to skip)
   const existingPlaceIds = new Set();
@@ -12751,8 +12805,24 @@ function renderKanban() {
     ` : '';
 
     // Add buttons for columns
+    const hasSelections = prospectingSelectionState.selectedIds.size > 0;
+    const prospectListButtons = col.key === 'prospect-list' ? `
+        <button onclick="selectAllProspects()" class="text-xs px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600" title="Select All">
+          ☑ All
+        </button>
+        ${hasSelections ? `
+          <button onclick="clearProspectingSelection()" class="text-xs px-2 py-1 bg-gray-400 text-white rounded hover:bg-gray-500" title="Clear Selection">
+            ✕ Clear
+          </button>
+          <button id="btnMoveSelectedToPool" onclick="moveSelectedToPool()" class="text-xs px-2 py-1 bg-orange-500 text-white rounded hover:bg-orange-600" title="Move selected to Pool">
+            ⬅ ${prospectingSelectionState.selectedIds.size} to Pool
+          </button>
+        ` : ''}
+      ` : '';
+
     const buttons = `
         ${zipFilterHTML}
+        ${prospectListButtons}
         <button onclick="openLeadModal('${col.key}')" class="text-xs px-2 py-1 bg-${col.color}-600 text-white rounded hover:bg-${col.color}-700" title="Add lead manually">
           +
         </button>
@@ -12760,9 +12830,9 @@ function renderKanban() {
 
     return `
       <div class="kanban-column" data-column="${col.key}">
-        <div class="flex justify-between items-center mb-2">
+        <div class="flex flex-wrap justify-between items-center mb-2 gap-1">
           <div class="font-semibold text-sm text-${col.color}-600">${col.title} (${items.length})</div>
-          ${buttons}
+          <div class="flex gap-1 flex-wrap">${buttons}</div>
         </div>
         ${items.map((item, idx) => {
           // Support both string (legacy) and object format
