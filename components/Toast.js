@@ -4,7 +4,7 @@
  * Replaces alert() calls with non-blocking toast notifications.
  * Supports success, warning, error, and info types.
  * Auto-dismisses after configurable duration.
- * Maintains a queue for multiple toasts.
+ * Stacks multiple toasts vertically without overlap.
  */
 
 class ToastManager {
@@ -29,13 +29,24 @@ class ToastManager {
         bottom: 22px;
         right: 22px;
         z-index: 10000;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
         pointer-events: none;
       `;
       document.body.appendChild(this.container);
     }
+  }
+
+  /**
+   * Reposition all toasts to stack properly
+   */
+  repositionToasts() {
+    let offset = 0;
+    // Iterate through visible toasts and stack them
+    this.toasts.forEach((toast) => {
+      if (toast.element && toast.element.parentNode) {
+        toast.element.style.bottom = offset + 'px';
+        offset += toast.element.offsetHeight + 10; // 10px gap
+      }
+    });
   }
 
   /**
@@ -49,10 +60,13 @@ class ToastManager {
     this.toasts.push(toast);
     this.container.appendChild(toast.element);
 
-    // Trigger animation
-    setTimeout(() => {
-      toast.element.classList.add('toast-show');
-    }, 10);
+    // Trigger animation after a tiny delay (allows CSS to apply)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        toast.element.classList.add('toast-show');
+        this.repositionToasts();
+      });
+    });
 
     // Auto-dismiss
     if (duration > 0) {
@@ -72,6 +86,9 @@ class ToastManager {
     const element = document.createElement('div');
     element.className = `toast toast-${type}`;
     element.style.cssText = `
+      position: absolute;
+      right: 0;
+      bottom: 0;
       padding: 0.75rem 1rem;
       border-radius: 0.5rem;
       color: #fff;
@@ -87,7 +104,7 @@ class ToastManager {
       cursor: pointer;
       opacity: 0;
       transform: translateX(100%);
-      transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+      transition: all 0.3s ease-out;
     `;
 
     // Set background color based on type
@@ -111,7 +128,7 @@ class ToastManager {
     element.innerHTML = `
       <span style="font-size: 1.25rem; font-weight: 700;">${icon}</span>
       <span style="flex: 1;">${this.escapeHtml(message)}</span>
-      <span style="opacity: 0.7; font-size: 0.75rem;">✕</span>
+      <span style="opacity: 0.7; font-size: 0.75rem; margin-left: 8px;">✕</span>
     `;
 
     const toast = {
@@ -145,15 +162,21 @@ class ToastManager {
     toast.element.style.opacity = '0';
     toast.element.style.transform = 'translateX(100%)';
 
+    // Remove from array immediately to update positions
+    const index = this.toasts.indexOf(toast);
+    if (index > -1) {
+      this.toasts.splice(index, 1);
+    }
+
+    // Reposition remaining toasts
+    setTimeout(() => {
+      this.repositionToasts();
+    }, 50);
+
     // Remove from DOM after animation
     setTimeout(() => {
       if (toast.element && toast.element.parentNode) {
         toast.element.parentNode.removeChild(toast.element);
-      }
-      // Remove from array
-      const index = this.toasts.indexOf(toast);
-      if (index > -1) {
-        this.toasts.splice(index, 1);
       }
     }, 300);
   }

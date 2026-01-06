@@ -34,7 +34,8 @@
       "WebFetch(domain:status.here.com)",
       "Bash(time curl -s -X POST https://9x12pro.com/api/here-search -H \"Content-Type: application/json\" -d \"{\"\"zipCode\"\":\"\"14072\"\",\"\"category\"\":\"\"plumbers\"\",\"\"limit\"\":20}\")",
       "Bash(time curl -s -X POST https://9x12pro.com/api/here-search -H \"Content-Type: application/json\" -d \"{\"\"zipCode\"\":\"\"90210\"\",\"\"category\"\":\"\"auto repair\"\",\"\"limit\"\":20}\" -o /dev/null)",
-      "Bash(time curl -s -X POST https://9x12pro.com/api/here-search -H \"Content-Type: application/json\" -d \"{\"\"zipCode\"\":\"\"33139\"\",\"\"category\"\":\"\"dentists\"\",\"\"limit\"\":20}\" -o /dev/null)"
+      "Bash(time curl -s -X POST https://9x12pro.com/api/here-search -H \"Content-Type: application/json\" -d \"{\"\"zipCode\"\":\"\"33139\"\",\"\"category\"\":\"\"dentists\"\",\"\"limit\"\":20}\" -o /dev/null)",
+      "WebFetch(domain:www.facebook.com)"
     ],
     "deny": [],
     "ask": []

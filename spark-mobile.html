@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Spark Mobile | 9x12 Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <style>
+        * { -webkit-tap-highlight-color: transparent; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overscroll-behavior: none;
+        }
+        .touch-btn {
+            min-height: 48px;
+            touch-action: manipulation;
+        }
+        .template-card {
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+        .template-card:active {
+            transform: scale(0.98);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .toast-mobile {
+            animation: slideUp 0.3s ease-out;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .generating { animation: pulse 1s ease-in-out infinite; }
+        /* Safe area for notch phones */
+        .safe-top { padding-top: max(12px, env(safe-area-inset-top)); }
+        .safe-bottom { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen safe-top">
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-orange-500 to-red-500 text-white px-4 py-3 sticky top-0 z-50 shadow-lg safe-top">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <a href="/app.html" class="p-2 -ml-2 hover:bg-white/20 rounded-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                    </svg>
+                </a>
+                <h1 class="text-lg font-bold">Spark Mobile</h1>
+            </div>
+            <div id="rateLimits" class="flex items-center gap-2 text-xs bg-white/20 rounded-full px-3 py-1">
+                <span id="hourlyCount">0/5 hr</span>
+                <span class="opacity-50">|</span>
+                <span id="dailyCount">0/30 day</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="px-4 py-4 pb-24 space-y-4">
+        <!-- Quick Templates Section -->
+        <section id="templatesSection">
+            <div class="flex items-center justify-between mb-2">
+                <h2 class="text-sm font-bold text-gray-600 uppercase tracking-wide">Quick Templates</h2>
+                <button onclick="toggleTemplates()" class="text-xs text-orange-600 font-semibold">Hide</button>
+            </div>
+            <div id="templateGrid" class="grid grid-cols-2 gap-2">
+                <!-- Templates populated by JS -->
+            </div>
+        </section>
+
+        <!-- Divider -->
+        <div class="border-t border-gray-300"></div>
+
+        <!-- AI Comment Generator -->
+        <section>
+            <h2 class="text-sm font-bold text-gray-600 uppercase tracking-wide mb-3">AI Comment Generator</h2>
+
+            <!-- Business Name -->
+            <div class="mb-3">
+                <input
+                    type="text"
+                    id="businessName"
+                    placeholder="Business name (e.g., Joe's Pizza)"
+                    class="w-full px-4 py-3 text-base border-2 border-gray-300 rounded-xl focus:border-orange-500 focus:outline-none touch-btn"
+                >
+            </div>
+
+            <!-- Platform & Sell Level Row -->
+            <div class="flex gap-2 mb-3">
+                <select id="platform" class="flex-1 px-3 py-3 text-base border-2 border-gray-300 rounded-xl focus:border-orange-500 focus:outline-none touch-btn bg-white">
+                    <option value="facebook">Facebook</option>
+                    <option value="instagram">Instagram</option>
+                    <option value="nextdoor">Nextdoor</option>
+                    <option value="google">Google</option>
+                </select>
+                <select id="sellLevel" class="flex-1 px-3 py-3 text-base border-2 border-gray-300 rounded-xl focus:border-orange-500 focus:outline-none touch-btn bg-white">
+                    <option value="1">No Sell</option>
+                    <option value="2">Soft</option>
+                    <option value="3" selected>Balanced</option>
+                    <option value="4">Direct</option>
+                    <option value="5">Strong</option>
+                </select>
+            </div>
+
+            <!-- Post Content -->
+            <div class="mb-3">
+                <textarea
+                    id="postContent"
+                    rows="3"
+                    placeholder="Paste the business's post content here..."
+                    class="w-full px-4 py-3 text-base border-2 border-gray-300 rounded-xl focus:border-orange-500 focus:outline-none resize-none"
+                ></textarea>
+            </div>
+
+            <!-- Generate Button -->
+            <button
+                onclick="generateComment()"
+                id="generateBtn"
+                class="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white text-lg font-bold rounded-xl shadow-lg active:scale-[0.98] transition-transform touch-btn"
+            >
+                Generate Comment
+            </button>
+
+            <!-- Result Area -->
+            <div id="resultArea" class="hidden mt-4">
+                <div id="resultText" class="p-4 bg-white rounded-xl border-2 border-gray-200 text-base leading-relaxed min-h-[100px]">
+                    <!-- Generated comment appears here -->
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex gap-2 mt-3">
+                    <button
+                        onclick="copyComment()"
+                        id="copyBtn"
+                        class="flex-1 py-4 bg-green-600 text-white text-lg font-bold rounded-xl shadow-lg active:scale-[0.98] transition-transform touch-btn flex items-center justify-center gap-2"
+                    >
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+                        </svg>
+                        Copy
+                    </button>
+                    <button
+                        onclick="openSocial()"
+                        class="py-4 px-6 bg-blue-600 text-white text-lg font-bold rounded-xl shadow-lg active:scale-[0.98] transition-transform touch-btn"
+                        title="Open social platform"
+                    >
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Refine Input -->
+                <div class="flex gap-2 mt-3">
+                    <input
+                        type="text"
+                        id="refineInput"
+                        placeholder="Refine: 'less salesy', 'add emoji'..."
+                        class="flex-1 px-4 py-3 text-base border-2 border-gray-300 rounded-xl focus:border-orange-500 focus:outline-none touch-btn"
+                    >
+                    <button
+                        onclick="refineComment()"
+                        class="px-4 py-3 bg-purple-600 text-white font-bold rounded-xl shadow active:scale-[0.98] transition-transform touch-btn"
+                    >
+                        Refine
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Mobile Toast -->
+    <div id="mobileToast" class="fixed bottom-4 left-4 right-4 hidden z-50 safe-bottom">
+        <div class="bg-green-600 text-white px-4 py-3 rounded-xl shadow-xl text-center font-semibold toast-mobile">
+            Copied to clipboard!
+        </div>
+    </div>
+
+    <!-- Supabase & Config -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="/config.js"></script>
+
+    <script>
+        // Quick templates for common scenarios
+        const QUICK_TEMPLATES = [
+            {
+                id: 'compliment',
+                title: 'Compliment',
+                icon: '👏',
+                text: 'This is amazing! Love what you\'re doing for the community. Keep up the great work! 🙌'
+            },
+            {
+                id: 'food',
+                title: 'Food Post',
+                icon: '🍕',
+                text: 'That looks absolutely delicious! 😋 I need to stop by and try this soon!'
+            },
+            {
+                id: 'congrats',
+                title: 'Congrats',
+                icon: '🎉',
+                text: 'Congratulations! That\'s such exciting news. Wishing you continued success! 🌟'
+            },
+            {
+                id: 'helpful',
+                title: 'Helpful Info',
+                icon: '💡',
+                text: 'Thanks for sharing this! Really helpful info for the community. 👍'
+            },
+            {
+                id: 'support',
+                title: 'Local Support',
+                icon: '❤️',
+                text: 'Love supporting local businesses like yours! The community is lucky to have you.'
+            },
+            {
+                id: 'question',
+                title: 'Question',
+                icon: '❓',
+                text: 'This looks great! Do you have more info about hours/pricing? Would love to check it out!'
+            },
+            {
+                id: 'milestone',
+                title: 'Milestone',
+                icon: '🏆',
+                text: 'What an incredible milestone! Your hard work really shows. Cheers to many more! 🥂'
+            },
+            {
+                id: 'welcome',
+                title: 'Welcome',
+                icon: '👋',
+                text: 'Welcome to the neighborhood! So excited to have you here. Looking forward to visiting soon!'
+            }
+        ];
+
+        // State
+        let sparkState = {
+            settings: { groupName: '', hourlyLimit: 5, dailyLimit: 30 },
+            usageLog: [],
+            currentComment: '',
+            templatesVisible: true
+        };
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSparkData();
+            renderTemplates();
+            updateRateLimits();
+        });
+
+        // Load data from localStorage
+        function loadSparkData() {
+            try {
+                const saved = localStorage.getItem('spark-data');
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    sparkState.settings = data.settings || sparkState.settings;
+                    sparkState.usageLog = data.usageLog || [];
+                }
+                // Clean old entries
+                const now = Date.now();
+                sparkState.usageLog = sparkState.usageLog.filter(ts => now - ts < 24 * 60 * 60 * 1000);
+            } catch (e) {
+                console.error('Error loading Spark data:', e);
+            }
+        }
+
+        // Save data to localStorage
+        function saveSparkData() {
+            try {
+                const existing = JSON.parse(localStorage.getItem('spark-data') || '{}');
+                localStorage.setItem('spark-data', JSON.stringify({
+                    ...existing,
+                    usageLog: sparkState.usageLog
+                }));
+            } catch (e) {
+                console.error('Error saving Spark data:', e);
+            }
+        }
+
+        // Render template cards
+        function renderTemplates() {
+            const grid = document.getElementById('templateGrid');
+            grid.innerHTML = QUICK_TEMPLATES.map(t => `
+                <button
+                    onclick="copyTemplate('${t.id}')"
+                    class="template-card bg-white p-3 rounded-xl border-2 border-gray-200 text-left active:border-orange-500"
+                >
+                    <div class="text-2xl mb-1">${t.icon}</div>
+                    <div class="font-semibold text-sm text-gray-800">${t.title}</div>
+                </button>
+            `).join('');
+        }
+
+        // Toggle templates visibility
+        function toggleTemplates() {
+            const section = document.getElementById('templateGrid');
+            const btn = event.target;
+            sparkState.templatesVisible = !sparkState.templatesVisible;
+            section.classList.toggle('hidden', !sparkState.templatesVisible);
+            btn.textContent = sparkState.templatesVisible ? 'Hide' : 'Show';
+        }
+
+        // Copy template
+        function copyTemplate(id) {
+            const template = QUICK_TEMPLATES.find(t => t.id === id);
+            if (template) {
+                navigator.clipboard.writeText(template.text).then(() => {
+                    showToast(`${template.icon} ${template.title} copied!`);
+                }).catch(() => {
+                    showToast('Failed to copy', true);
+                });
+            }
+        }
+
+        // Update rate limits display
+        function updateRateLimits() {
+            const now = Date.now();
+            const hourAgo = now - 60 * 60 * 1000;
+            const dayAgo = now - 24 * 60 * 60 * 1000;
+
+            const hourlyUsed = sparkState.usageLog.filter(ts => ts > hourAgo).length;
+            const dailyUsed = sparkState.usageLog.filter(ts => ts > dayAgo).length;
+
+            const { hourlyLimit, dailyLimit } = sparkState.settings;
+
+            document.getElementById('hourlyCount').textContent = `${hourlyUsed}/${hourlyLimit} hr`;
+            document.getElementById('dailyCount').textContent = `${dailyUsed}/${dailyLimit} day`;
+
+            // Update button state
+            const btn = document.getElementById('generateBtn');
+            const disabled = hourlyUsed >= hourlyLimit || dailyUsed >= dailyLimit;
+            btn.disabled = disabled;
+            btn.classList.toggle('opacity-50', disabled);
+        }
+
+        // Generate comment via API
+        async function generateComment() {
+            const businessName = document.getElementById('businessName').value.trim();
+            const postContent = document.getElementById('postContent').value.trim();
+            const platform = document.getElementById('platform').value;
+            const sellLevel = parseInt(document.getElementById('sellLevel').value);
+
+            if (!businessName) {
+                showToast('Enter a business name', true);
+                return;
+            }
+            if (!postContent) {
+                showToast('Paste post content', true);
+                return;
+            }
+
+            // Check rate limits
+            const now = Date.now();
+            const hourAgo = now - 60 * 60 * 1000;
+            const dayAgo = now - 24 * 60 * 60 * 1000;
+            const hourlyUsed = sparkState.usageLog.filter(ts => ts > hourAgo).length;
+            const dailyUsed = sparkState.usageLog.filter(ts => ts > dayAgo).length;
+
+            if (hourlyUsed >= sparkState.settings.hourlyLimit) {
+                showToast('Hourly limit reached', true);
+                return;
+            }
+            if (dailyUsed >= sparkState.settings.dailyLimit) {
+                showToast('Daily limit reached', true);
+                return;
+            }
+
+            const btn = document.getElementById('generateBtn');
+            const resultArea = document.getElementById('resultArea');
+            const resultText = document.getElementById('resultText');
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="generating">Generating...</span>';
+
+            try {
+                const response = await fetch('/api/ai/generate-comment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        businessName,
+                        postContent,
+                        platform,
+                        sellLevel,
+                        groupName: sparkState.settings.groupName
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to generate');
+                }
+
+                sparkState.currentComment = data.comment;
+                resultText.textContent = data.comment;
+                resultArea.classList.remove('hidden');
+
+            } catch (error) {
+                console.error('Generate error:', error);
+                showToast(error.message || 'Generation failed', true);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Generate Comment';
+                updateRateLimits();
+            }
+        }
+
+        // Refine comment
+        async function refineComment() {
+            const refinement = document.getElementById('refineInput').value.trim();
+            if (!refinement) {
+                showToast('Enter refinement', true);
+                return;
+            }
+            if (!sparkState.currentComment) {
+                showToast('Generate first', true);
+                return;
+            }
+
+            const businessName = document.getElementById('businessName').value.trim();
+            const postContent = document.getElementById('postContent').value.trim();
+            const platform = document.getElementById('platform').value;
+            const resultText = document.getElementById('resultText');
+
+            resultText.innerHTML = '<span class="generating text-gray-400">Refining...</span>';
+
+            try {
+                const response = await fetch('/api/ai/generate-comment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        businessName,
+                        postContent,
+                        platform,
+                        sellLevel: 3,
+                        groupName: sparkState.settings.groupName,
+                        refinement: `Previous: "${sparkState.currentComment}". User wants: ${refinement}`
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to refine');
+                }
+
+                sparkState.currentComment = data.comment;
+                resultText.textContent = data.comment;
+                document.getElementById('refineInput').value = '';
+
+            } catch (error) {
+                console.error('Refine error:', error);
+                resultText.textContent = sparkState.currentComment;
+                showToast(error.message || 'Refinement failed', true);
+            }
+        }
+
+        // Copy comment
+        function copyComment() {
+            if (!sparkState.currentComment) return;
+
+            navigator.clipboard.writeText(sparkState.currentComment).then(() => {
+                // Log usage
+                sparkState.usageLog.push(Date.now());
+                saveSparkData();
+                updateRateLimits();
+
+                // Show success
+                showToast('Copied to clipboard!');
+
+                // Visual feedback on button
+                const btn = document.getElementById('copyBtn');
+                btn.innerHTML = `
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    Copied!
+                `;
+                btn.classList.remove('bg-green-600');
+                btn.classList.add('bg-green-700');
+
+                setTimeout(() => {
+                    btn.innerHTML = `
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+                        </svg>
+                        Copy
+                    `;
+                    btn.classList.remove('bg-green-700');
+                    btn.classList.add('bg-green-600');
+                }, 2000);
+            }).catch(() => {
+                showToast('Failed to copy', true);
+            });
+        }
+
+        // Open social platform
+        function openSocial() {
+            const platform = document.getElementById('platform').value;
+            const businessName = document.getElementById('businessName').value.trim();
+
+            const urls = {
+                facebook: 'https://www.facebook.com/search/posts?q=' + encodeURIComponent(businessName),
+                instagram: 'https://www.instagram.com/explore/search/keyword/?q=' + encodeURIComponent(businessName),
+                nextdoor: 'https://nextdoor.com/search/?query=' + encodeURIComponent(businessName),
+                google: 'https://www.google.com/search?q=' + encodeURIComponent(businessName + ' reviews')
+            };
+
+            window.open(urls[platform] || urls.facebook, '_blank');
+        }
+
+        // Show toast notification
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('mobileToast');
+            const inner = toast.querySelector('div');
+
+            inner.textContent = message;
+            inner.className = `${isError ? 'bg-red-600' : 'bg-green-600'} text-white px-4 py-3 rounded-xl shadow-xl text-center font-semibold toast-mobile`;
+
+            toast.classList.remove('hidden');
+
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 2500);
+        }
+    </script>
+</body>
+</html>

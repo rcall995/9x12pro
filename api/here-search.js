@@ -136,14 +136,15 @@ export default async function handler(req, res) {
       };
     });
 
-    // Filter to businesses near the searched ZIP (within ~10 miles)
+    // Filter to exact ZIP code match only
+    const searchedZip5 = zipCode.substring(0, 5);
     const zipFiltered = businesses.filter(biz => {
-      if (!biz.zip) return true;
-      // Keep if ZIP matches or starts with same 3 digits (nearby)
-      return biz.zip === zipCode || biz.zip.substring(0, 3) === zipCode.substring(0, 3);
+      if (!biz.zip) return false; // Exclude if no ZIP
+      // Exact 5-digit ZIP match only
+      return biz.zip === searchedZip5;
     });
 
-    console.log(`✅ Returning ${zipFiltered.length} businesses`);
+    console.log(`✅ Returning ${zipFiltered.length} businesses (exact ZIP: ${searchedZip5})`);
 
     return res.status(200).json({
       businesses: zipFiltered,

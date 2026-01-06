@@ -262,6 +262,137 @@ function safeRemoveItem(key) {
   }
 }
 
+/* ========= INDEXEDDB STORAGE ========= */
+// IndexedDB for large data storage (50MB+ vs localStorage's 5MB)
+const IDB_NAME = '9x12pro-db';
+const IDB_VERSION = 1;
+const IDB_STORE = 'appData';
+
+let idbInstance = null;
+
+// Initialize IndexedDB
+function initIndexedDB() {
+  return new Promise((resolve, reject) => {
+    if (idbInstance) {
+      resolve(idbInstance);
+      return;
+    }
+
+    const request = indexedDB.open(IDB_NAME, IDB_VERSION);
+
+    request.onerror = (event) => {
+      console.error('IndexedDB error:', event.target.error);
+      reject(event.target.error);
+    };
+
+    request.onsuccess = (event) => {
+      idbInstance = event.target.result;
+      console.log('✅ IndexedDB initialized');
+      resolve(idbInstance);
+    };
+
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        db.createObjectStore(IDB_STORE, { keyPath: 'key' });
+        console.log('📦 IndexedDB store created');
+      }
+    };
+  });
+}
+
+// Save data to IndexedDB
+async function idbSet(key, value) {
+  try {
+    const db = await initIndexedDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([IDB_STORE], 'readwrite');
+      const store = transaction.objectStore(IDB_STORE);
+      const request = store.put({ key, value, timestamp: Date.now() });
+
+      request.onsuccess = () => {
+        console.log(`💾 IndexedDB saved: ${key}`);
+        resolve(true);
+      };
+      request.onerror = (event) => {
+        console.error(`IndexedDB save error for ${key}:`, event.target.error);
+        reject(event.target.error);
+      };
+    });
+  } catch (err) {
+    console.error('IndexedDB set failed:', err);
+    return false;
+  }
+}
+
+// Get data from IndexedDB
+async function idbGet(key) {
+  try {
+    const db = await initIndexedDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([IDB_STORE], 'readonly');
+      const store = transaction.objectStore(IDB_STORE);
+      const request = store.get(key);
+
+      request.onsuccess = (event) => {
+        const result = event.target.result;
+        resolve(result ? result.value : null);
+      };
+      request.onerror = (event) => {
+        console.error(`IndexedDB get error for ${key}:`, event.target.error);
+        reject(event.target.error);
+      };
+    });
+  } catch (err) {
+    console.error('IndexedDB get failed:', err);
+    return null;
+  }
+}
+
+// Delete data from IndexedDB
+async function idbDelete(key) {
+  try {
+    const db = await initIndexedDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([IDB_STORE], 'readwrite');
+      const store = transaction.objectStore(IDB_STORE);
+      const request = store.delete(key);
+
+      request.onsuccess = () => resolve(true);
+      request.onerror = (event) => reject(event.target.error);
+    });
+  } catch (err) {
+    console.error('IndexedDB delete failed:', err);
+    return false;
+  }
+}
+
+// Migrate data from localStorage to IndexedDB (one-time migration)
+async function migrateLocalStorageToIDB() {
+  const migrationKey = 'idb-migration-complete';
+  if (localStorage.getItem(migrationKey)) return; // Already migrated
+
+  console.log('🔄 Migrating localStorage to IndexedDB...');
+
+  const keysToMigrate = ['mailslot-kanban', 'mailslot-places-cache', 'mailslot-prospect-cache'];
+
+  for (const key of keysToMigrate) {
+    try {
+      const data = localStorage.getItem(key);
+      if (data) {
+        await idbSet(key, JSON.parse(data));
+        localStorage.removeItem(key); // Free up localStorage space
+        console.log(`✅ Migrated ${key} to IndexedDB`);
+      }
+    } catch (err) {
+      console.warn(`Failed to migrate ${key}:`, err);
+    }
+  }
+
+  localStorage.setItem(migrationKey, 'true');
+  console.log('✅ IndexedDB migration complete');
+}
+
 /* ========= CACHE MANAGEMENT ========= */
 
 // Clear local cache (keeps cloud data intact)
@@ -356,19 +487,19 @@ async function loadFromCloud(dataType) {
 
     const appData = data?.data || null;
 
-    // Cache to localStorage
+    // Cache to IndexedDB (async, don't block)
     if (appData !== null && appData !== undefined) {
-      safeSetItem(`mailslot-${dataType}`, JSON.stringify(appData));
+      idbSet(`mailslot-${dataType}`, appData).catch(e => console.warn('IDB cache failed:', e));
     }
 
     return appData;
   } catch (err) {
-    console.warn(`⚠️ Failed to load ${dataType} from cloud, using localStorage:`, err);
+    console.warn(`⚠️ Failed to load ${dataType} from cloud, using IndexedDB cache:`, err);
     cloudSyncState.syncErrors[dataType] = err.message;
 
-    // Fallback to localStorage
-    const cached = safeGetItem(`mailslot-${dataType}`);
-    return cached ? JSON.parse(cached) : null;
+    // Fallback to IndexedDB
+    const cached = await idbGet(`mailslot-${dataType}`);
+    return cached || null;
   }
 }
 
@@ -388,8 +519,8 @@ async function saveToCloud(dataType, data, options = {}) {
 
     if (error) throw error;
 
-    // Update cache
-    safeSetItem(`mailslot-${dataType}`, JSON.stringify(data));
+    // Update cache in IndexedDB (async, don't block)
+    idbSet(`mailslot-${dataType}`, data).catch(e => console.warn('IDB cache update failed:', e));
     cloudSyncState.lastSync = Date.now();
     delete cloudSyncState.syncErrors[dataType];
 
@@ -399,8 +530,8 @@ async function saveToCloud(dataType, data, options = {}) {
     console.error(`❌ Failed to save ${dataType} to cloud:`, err);
     cloudSyncState.syncErrors[dataType] = err.message;
 
-    // Still save to localStorage as backup
-    safeSetItem(`mailslot-${dataType}`, JSON.stringify(data));
+    // Still save to IndexedDB as backup
+    idbSet(`mailslot-${dataType}`, data).catch(e => console.warn('IDB backup failed:', e));
 
     // Check if this is a permanent failure (data too large)
     if (err.message && err.message.includes('Data too large')) {
@@ -664,17 +795,25 @@ const ensureHttps = url => {
 };
 const show = (el, on=true) => el && el.classList.toggle("hidden", !on);
 const toast = (msg, ok=true, durationMs=null) => {
-  const t = document.getElementById("toast");
-  t.textContent = msg;
-  t.className = `toast ${ok ? "toast-ok" : "toast-warn"}`;
-  t.classList.remove("hidden");
-  t.removeAttribute("aria-hidden");
-
   // Calculate duration based on message length if not specified
   // Base: 2000ms, +50ms per character over 20 chars, max 6000ms
   const duration = durationMs || Math.min(2000 + Math.max(0, msg.length - 20) * 50, 6000);
 
-  setTimeout(()=>{ t.classList.add("hidden"); t.setAttribute("aria-hidden","true"); }, duration);
+  // Use unified ToastManager if available (stacks toasts properly)
+  if (window.toastManager) {
+    window.toastManager.show(msg, ok ? 'success' : 'warning', duration);
+    return;
+  }
+
+  // Fallback to old toast element
+  const t = document.getElementById("toast");
+  if (t) {
+    t.textContent = msg;
+    t.className = `toast ${ok ? "toast-ok" : "toast-warn"}`;
+    t.classList.remove("hidden");
+    t.removeAttribute("aria-hidden");
+    setTimeout(()=>{ t.classList.add("hidden"); t.setAttribute("aria-hidden","true"); }, duration);
+  }
 };
 
 function formatDate(dateStr) {
@@ -3279,9 +3418,8 @@ async function loadPlacesCache() {
     // Load from cloud first (contains full history)
     const cloudData = await loadFromCloud('placesCache') || {};
 
-    // Load from localStorage (may be pruned)
-    const localSaved = safeGetItem('mailslot-places-cache');
-    const localData = localSaved ? JSON.parse(localSaved) : {};
+    // Load from IndexedDB (may be pruned)
+    const localData = await idbGet('mailslot-places-cache') || {};
 
     // Merge cloud and local data (keep newer entries)
     // Cloud has full history, local may have newer entries not yet synced
@@ -3313,18 +3451,17 @@ async function loadPlacesCache() {
 
     console.log(`📦 Loaded prospect cache: ${Object.keys(merged).length} searches, ${totalProspects} total prospects`);
 
-    // Save PRUNED data to localStorage only (to avoid quota issues)
+    // Save PRUNED data to IndexedDB (no quota issues with 50MB+ limit)
     const prunedData = pruneOldCacheEntries(merged);
-    safeSetItem('mailslot-places-cache', JSON.stringify(prunedData));
-    console.log(`💾 localStorage: ${Object.keys(prunedData).length} searches (pruned for quota)`);
+    await idbSet('mailslot-places-cache', prunedData);
+    console.log(`💾 IndexedDB: ${Object.keys(prunedData).length} searches cached`);
 
   } catch(e) {
     console.error('Error loading places cache:', e);
-    // Fall back to localStorage only
-    const saved = safeGetItem('mailslot-places-cache');
+    // Fall back to IndexedDB only
+    const saved = await idbGet('mailslot-places-cache');
     if (saved) {
-      let localCache = JSON.parse(saved);
-      placesCache.searches = localCache;
+      placesCache.searches = saved;
     }
   }
 }
@@ -3337,12 +3474,12 @@ const CLOUD_SAVE_MIN_INTERVAL = 60000; // Minimum 60 seconds between cloud saves
 const CLOUD_SAVE_DEBOUNCE = 15000; // Wait 15 seconds of inactivity before saving
 
 async function savePlacesCache() {
-  // Save to localStorage immediately (fast, local)
+  // Save to IndexedDB immediately (fast, local, no quota issues)
   try {
     const prunedData = pruneOldCacheEntries(placesCache.searches);
-    safeSetItem('mailslot-places-cache', JSON.stringify(prunedData));
+    await idbSet('mailslot-places-cache', prunedData);
   } catch(e) {
-    console.error('Error saving places cache to localStorage:', e);
+    console.error('Error saving places cache to IndexedDB:', e);
   }
 
   // Debounce cloud save - wait for inactivity before uploading
@@ -10175,7 +10312,7 @@ function importProspectPoolCSV(event) {
       }
 
       // Save to localStorage (use safeSetItem to handle quota)
-      safeSetItem('mailslot-places-cache', JSON.stringify(placesCache.searches));
+      idbSet('mailslot-places-cache', placesCache.searches);
 
       // Save kanban changes to cloud
       saveKanban();
@@ -11844,7 +11981,7 @@ function addNewInteraction() {
         }
       }
     });
-    safeSetItem('mailslot-places-cache', JSON.stringify(placesCache.searches));
+    idbSet('mailslot-places-cache', placesCache.searches);
   } else if (source === 'kanban') {
     // Update in kanban
     Object.keys(kanbanState.columns).forEach(columnKey => {
@@ -12357,7 +12494,7 @@ async function markNotInterested() {
       removedCount += (beforeLength - cached.cachedData.length);
     }
   });
-  safeSetItem('mailslot-places-cache', JSON.stringify(placesCache.searches));
+  idbSet('mailslot-places-cache', placesCache.searches);
 
   console.log(`Removed ${removedCount} items from prospect pool for: ${businessName}`);
 
@@ -12429,7 +12566,7 @@ async function markProspectNotInterested(placeId, businessName) {
       removedCount += (beforeLength - cached.cachedData.length);
     }
   });
-  safeSetItem('mailslot-places-cache', JSON.stringify(placesCache.searches));
+  idbSet('mailslot-places-cache', placesCache.searches);
 
   toast(`✅ "${businessName}" marked as Not Interested`, true);
 
@@ -12457,12 +12594,12 @@ async function loadKanban() {
     if (cloudData && typeof cloudData === 'object' && Object.keys(cloudData).length > 0) {
       kanbanState.columns = cloudData;
     } else {
-      // Fallback to localStorage
-      const saved = localStorage.getItem('mailslot-kanban');
+      // Fallback to IndexedDB
+      const saved = await idbGet('mailslot-kanban');
       if (saved) {
-        kanbanState.columns = JSON.parse(saved);
+        kanbanState.columns = saved;
       }
-      // Sync default/localStorage data to cloud if cloud was empty
+      // Sync default/IndexedDB data to cloud if cloud was empty
       saveToCloud('kanban', kanbanState.columns).catch(e => console.warn('Failed to sync kanban to cloud:', e));
     }
 
@@ -12498,7 +12635,7 @@ async function loadKanban() {
     if (migrationNeeded) {
       console.log('✅ Column migration complete, saving to cloud...');
       await saveToCloud('kanban', kanbanState.columns).catch(e => console.warn('Failed to save migrated kanban:', e));
-      localStorage.setItem('mailslot-kanban', JSON.stringify(kanbanState.columns));
+      await idbSet('mailslot-kanban', kanbanState.columns);
     }
 
     // Ensure all required columns exist
@@ -13024,11 +13161,31 @@ function renderKanban() {
                 if (item.linkedin) contactIcons.push(`<a href="${esc(ensureHttps(item.linkedin))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="💼 ${esc(item.linkedin)}">💼</a>`);
                 if (item.twitter) contactIcons.push(`<a href="${esc(ensureHttps(item.twitter))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="🐦 ${esc(item.twitter)}">🐦</a>`);
 
-                return contactIcons.length > 0 ? `
+                // Contact tracking status
+                const ct = item.contactTracking || {};
+                const emailedClass = ct.emailed ? 'bg-green-100 text-green-700 border-green-400' : 'bg-gray-100 text-gray-400 border-gray-300';
+                const dmedClass = ct.dmed ? 'bg-green-100 text-green-700 border-green-400' : 'bg-gray-100 text-gray-400 border-gray-300';
+                const textedClass = ct.texted ? 'bg-green-100 text-green-700 border-green-400' : 'bg-gray-100 text-gray-400 border-gray-300';
+
+                const contactTrackingHTML = `
+                  <div class="flex gap-1 items-center justify-center py-2 mt-2 border-t border-gray-200">
+                    <button onclick="toggleContactTracking('${leadId}', 'emailed', event)" class="flex items-center gap-1 px-2 py-1 text-xs border rounded-full cursor-pointer hover:scale-105 transition-transform ${emailedClass}" title="${ct.emailed ? 'Emailed ' + (ct.emailedDate ? new Date(ct.emailedDate).toLocaleDateString() : '') : 'Click to mark as emailed'}">
+                      ✉️ ${ct.emailed ? '✓' : ''}
+                    </button>
+                    <button onclick="toggleContactTracking('${leadId}', 'dmed', event)" class="flex items-center gap-1 px-2 py-1 text-xs border rounded-full cursor-pointer hover:scale-105 transition-transform ${dmedClass}" title="${ct.dmed ? 'DM sent ' + (ct.dmedDate ? new Date(ct.dmedDate).toLocaleDateString() : '') : 'Click to mark as DM sent'}">
+                      💬 ${ct.dmed ? '✓' : ''}
+                    </button>
+                    <button onclick="toggleContactTracking('${leadId}', 'texted', event)" class="flex items-center gap-1 px-2 py-1 text-xs border rounded-full cursor-pointer hover:scale-105 transition-transform ${textedClass}" title="${ct.texted ? 'Texted ' + (ct.textedDate ? new Date(ct.textedDate).toLocaleDateString() : '') : 'Click to mark as texted'}">
+                      📱 ${ct.texted ? '✓' : ''}
+                    </button>
+                  </div>
+                `;
+
+                return (contactIcons.length > 0 ? `
                   <div class="flex gap-2 items-center justify-center py-2 mt-2 border-t border-gray-200">
                     ${contactIcons.join('')}
                   </div>
-                ` : '';
+                ` : '') + contactTrackingHTML;
               })() : ''}
               ${col.key === 'to-contact' ? `
                 <div class="mt-2 pt-2 border-t border-gray-200 space-y-2">
@@ -14649,6 +14806,63 @@ function handleCommunicating(leadId, event) {
   toast(`${businessName} moved to In Progress`);
 }
 
+// Toggle contact tracking status (emailed, dmed, texted)
+function toggleContactTracking(leadId, method, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+
+  // Find lead in any column
+  let foundItem = null;
+  let foundColumn = null;
+
+  for (const colKey of Object.keys(kanbanState.columns)) {
+    const items = kanbanState.columns[colKey] || [];
+    const item = items.find(i => i && typeof i === 'object' && String(i.id) === String(leadId));
+    if (item) {
+      foundItem = item;
+      foundColumn = colKey;
+      break;
+    }
+  }
+
+  if (!foundItem) {
+    console.warn('Contact tracking: Lead not found', leadId);
+    return;
+  }
+
+  // Initialize contactTracking if not exists
+  if (!foundItem.contactTracking) {
+    foundItem.contactTracking = {
+      emailed: false,
+      emailedDate: null,
+      dmed: false,
+      dmedDate: null,
+      texted: false,
+      textedDate: null
+    };
+  }
+
+  // Toggle the method
+  const wasSet = foundItem.contactTracking[method];
+  foundItem.contactTracking[method] = !wasSet;
+  foundItem.contactTracking[method + 'Date'] = wasSet ? null : new Date().toISOString();
+
+  // Update last contacted date
+  if (!wasSet) {
+    foundItem.lastContacted = new Date().toISOString();
+  }
+
+  // Save and re-render
+  saveKanban();
+  renderKanban();
+
+  const methodNames = { emailed: 'Email', dmed: 'DM', texted: 'Text' };
+  const action = wasSet ? 'unmarked' : 'marked';
+  toast(`${methodNames[method]} ${action} for ${foundItem.businessName || 'business'}`);
+}
+
 // Handle "Not Interested" button click
 function handleNotInterested(leadId, event) {
   if (event) {
@@ -15945,8 +16159,11 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // Separate function for loading all data (called after auth is ready)
-function loadAllData() {
-  // Load all state from cloud (with localStorage fallback)
+async function loadAllData() {
+  // Migrate localStorage to IndexedDB (one-time, runs in background)
+  migrateLocalStorageToIDB().catch(e => console.warn('IndexedDB migration skipped:', e));
+
+  // Load all state from cloud (with IndexedDB fallback)
   Promise.allSettled([
     loadExpenses(),
     loadPricing(),
@@ -16042,7 +16259,7 @@ function loadAllData() {
           console.log(`✅ Auto-sync: Found ${newEntriesCount} new/updated searches from cloud`);
 
           // Save merged data locally
-          safeSetItem('mailslot-places-cache', JSON.stringify(placesCache.searches));
+          idbSet('mailslot-places-cache', placesCache.searches);
 
           // Refresh prospect pool if user is viewing it
           const prospectTab = document.querySelector('.tab-pane[data-content="prospects"]');
