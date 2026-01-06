@@ -92,19 +92,19 @@
                     <option value="">-- Select from To Contact --</option>
                 </select>
                 <!-- Social Media Quick Links (shown when business selected) -->
-                <div id="socialLinks" class="hidden flex gap-2 mt-2 justify-center">
-                    <button onclick="openBusinessSocial('facebook')" id="btnFacebook" class="hidden px-4 py-2 bg-blue-600 text-white font-bold rounded-lg touch-btn flex items-center gap-2">
-                        📘 Facebook
+                <div id="socialLinks" class="hidden flex flex-wrap gap-2 mt-2 justify-center">
+                    <button onclick="openBusinessSocial('facebook')" id="btnFacebook" class="hidden px-4 py-2 bg-blue-600 text-white font-bold rounded-lg touch-btn flex items-center gap-2 active:scale-95">
+                        📘 Open Facebook
                     </button>
-                    <button onclick="openBusinessSocial('instagram')" id="btnInstagram" class="hidden px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-lg touch-btn flex items-center gap-2">
-                        📷 Instagram
+                    <button onclick="openBusinessSocial('instagram')" id="btnInstagram" class="hidden px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-lg touch-btn flex items-center gap-2 active:scale-95">
+                        📷 Open Instagram
                     </button>
-                    <button onclick="openBusinessSocial('website')" id="btnWebsite" class="hidden px-4 py-2 bg-gray-600 text-white font-bold rounded-lg touch-btn flex items-center gap-2">
+                    <button onclick="openBusinessSocial('website')" id="btnWebsite" class="hidden px-4 py-2 bg-gray-600 text-white font-bold rounded-lg touch-btn flex items-center gap-2 active:scale-95">
                         🌐 Website
                     </button>
-                    <button onclick="searchBusinessOnPlatform()" id="btnSearch" class="px-4 py-2 bg-orange-500 text-white font-bold rounded-lg touch-btn flex items-center gap-2">
-                        🔍 Search
-                    </button>
+                </div>
+                <div id="noSocialMsg" class="hidden text-center text-sm text-red-500 mt-2">
+                    ⚠️ No social media URLs saved for this business
                 </div>
             </div>
 
@@ -377,6 +377,7 @@
             const picker = document.getElementById('businessPicker');
             const selected = picker.options[picker.selectedIndex];
             const socialLinks = document.getElementById('socialLinks');
+            const noSocialMsg = document.getElementById('noSocialMsg');
             const btnFacebook = document.getElementById('btnFacebook');
             const btnInstagram = document.getElementById('btnInstagram');
             const btnWebsite = document.getElementById('btnWebsite');
@@ -393,16 +394,26 @@
                     website: selected.dataset.website || ''
                 };
 
-                // Show social links section
-                socialLinks.classList.remove('hidden');
+                console.log('📋 Selected business:', sparkState.selectedBusiness);
 
-                // Show/hide individual buttons based on available data
-                btnFacebook.classList.toggle('hidden', !sparkState.selectedBusiness.facebook);
-                btnInstagram.classList.toggle('hidden', !sparkState.selectedBusiness.instagram);
-                btnWebsite.classList.toggle('hidden', !sparkState.selectedBusiness.website);
+                // Check if any social URLs exist
+                const hasFacebook = !!sparkState.selectedBusiness.facebook;
+                const hasInstagram = !!sparkState.selectedBusiness.instagram;
+                const hasWebsite = !!sparkState.selectedBusiness.website;
+                const hasAnySocial = hasFacebook || hasInstagram || hasWebsite;
+
+                // Show/hide buttons based on available data
+                btnFacebook.classList.toggle('hidden', !hasFacebook);
+                btnInstagram.classList.toggle('hidden', !hasInstagram);
+                btnWebsite.classList.toggle('hidden', !hasWebsite);
+
+                // Show social links section if any exist, otherwise show warning
+                socialLinks.classList.toggle('hidden', !hasAnySocial);
+                noSocialMsg.classList.toggle('hidden', hasAnySocial);
             } else {
-                // Hide social links if no business selected
+                // Hide everything if no business selected
                 socialLinks.classList.add('hidden');
+                noSocialMsg.classList.add('hidden');
                 sparkState.selectedBusiness = null;
             }
         }
@@ -431,26 +442,6 @@
                 }
                 window.open(url, '_blank');
             }
-        }
-
-        // Search for business on selected platform (uses Google to avoid login walls)
-        function searchBusinessOnPlatform() {
-            const businessName = document.getElementById('businessName').value.trim();
-            if (!businessName) {
-                showToast('Select a business first', true);
-                return;
-            }
-
-            const platform = document.getElementById('platform').value;
-            // Use Google search to find social pages - avoids login requirements
-            const urls = {
-                facebook: 'https://www.google.com/search?q=' + encodeURIComponent(businessName + ' facebook'),
-                instagram: 'https://www.google.com/search?q=' + encodeURIComponent(businessName + ' instagram'),
-                nextdoor: 'https://www.google.com/search?q=' + encodeURIComponent(businessName + ' nextdoor'),
-                google: 'https://www.google.com/search?q=' + encodeURIComponent(businessName + ' reviews')
-            };
-
-            window.open(urls[platform] || urls.facebook, '_blank');
         }
 
         // Escape HTML for safety
@@ -716,38 +707,30 @@
             });
         }
 
-        // Open social platform - use direct URL if available, otherwise Google search
+        // Open social platform - use direct URL from selected business
         function openSocial() {
             const platform = document.getElementById('platform').value;
-            const businessName = document.getElementById('businessName').value.trim();
 
-            // Check if we have a direct URL for this platform
-            if (sparkState.selectedBusiness) {
-                let directUrl = null;
-                if (platform === 'facebook' && sparkState.selectedBusiness.facebook) {
-                    directUrl = sparkState.selectedBusiness.facebook;
-                } else if (platform === 'instagram' && sparkState.selectedBusiness.instagram) {
-                    directUrl = sparkState.selectedBusiness.instagram;
-                }
-
-                if (directUrl) {
-                    if (!directUrl.startsWith('http')) {
-                        directUrl = 'https://' + directUrl;
-                    }
-                    window.open(directUrl, '_blank');
-                    return;
-                }
+            if (!sparkState.selectedBusiness) {
+                showToast('Select a business first', true);
+                return;
             }
 
-            // Fallback to Google search (avoids login walls)
-            const urls = {
-                facebook: 'https://www.google.com/search?q=' + encodeURIComponent(businessName + ' facebook'),
-                instagram: 'https://www.google.com/search?q=' + encodeURIComponent(businessName + ' instagram'),
-                nextdoor: 'https://www.google.com/search?q=' + encodeURIComponent(businessName + ' nextdoor'),
-                google: 'https://www.google.com/search?q=' + encodeURIComponent(businessName + ' reviews')
-            };
+            let url = null;
+            if (platform === 'facebook') {
+                url = sparkState.selectedBusiness.facebook;
+            } else if (platform === 'instagram') {
+                url = sparkState.selectedBusiness.instagram;
+            }
 
-            window.open(urls[platform] || urls.facebook, '_blank');
+            if (url) {
+                if (!url.startsWith('http')) {
+                    url = 'https://' + url;
+                }
+                window.open(url, '_blank');
+            } else {
+                showToast(`No ${platform} URL saved for this business`, true);
+            }
         }
 
         // Show toast notification
