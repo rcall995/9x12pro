@@ -661,7 +661,7 @@ const isValidPair=(a,b)=>PAIRS.some(([x,y])=>x===Math.min(a,b)&&y===Math.max(a,b
 const mateOf = n => { for (const [a,b] of PAIRS) { if (a===n) return b; if (b===n) return a; } return null; };
 
 // VERSION CHECK - If you don't see this in console, you're viewing cached HTML
-console.log('🔥 APP VERSION: 2026-01-06-v176 - Facing Slip bookmarklet fix');
+console.log('🔥 APP VERSION: 2026-01-06-v177 - Facing Slip UI cleanup');
 
 const state = {
   mailers: [],
