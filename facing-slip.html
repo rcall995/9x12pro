@@ -17,17 +17,24 @@
                 width: 100%;
             }
             .facing-slip {
-                page-break-after: always;
                 page-break-inside: avoid;
+                height: 5in;
+                width: 7.5in;
+                margin: 0 auto 0.25in auto;
+                font-size: 11pt;
             }
-            .facing-slip:last-child {
-                page-break-after: auto;
+            /* Force page break after every 2nd slip */
+            .facing-slip:nth-child(2n) {
+                page-break-after: always;
             }
             .no-print { display: none !important; }
+            @page {
+                margin: 0.25in;
+            }
         }
         .facing-slip {
             width: 8.5in;
-            min-height: 5.5in;
+            min-height: 5in;
             border: 2px solid #000;
             font-family: Arial, sans-serif;
             background: #fff;
