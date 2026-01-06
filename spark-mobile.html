@@ -433,7 +433,7 @@
             }
         }
 
-        // Search for business on selected platform
+        // Search for business on selected platform (uses Google to avoid login walls)
         function searchBusinessOnPlatform() {
             const businessName = document.getElementById('businessName').value.trim();
             if (!businessName) {
@@ -442,10 +442,11 @@
             }
 
             const platform = document.getElementById('platform').value;
+            // Use Google search to find social pages - avoids login requirements
             const urls = {
-                facebook: 'https://www.facebook.com/search/pages?q=' + encodeURIComponent(businessName),
-                instagram: 'https://www.instagram.com/explore/search/keyword/?q=' + encodeURIComponent(businessName),
-                nextdoor: 'https://nextdoor.com/search/?query=' + encodeURIComponent(businessName),
+                facebook: 'https://www.google.com/search?q=' + encodeURIComponent(businessName + ' facebook'),
+                instagram: 'https://www.google.com/search?q=' + encodeURIComponent(businessName + ' instagram'),
+                nextdoor: 'https://www.google.com/search?q=' + encodeURIComponent(businessName + ' nextdoor'),
                 google: 'https://www.google.com/search?q=' + encodeURIComponent(businessName + ' reviews')
             };
 
@@ -715,15 +716,34 @@
             });
         }
 
-        // Open social platform
+        // Open social platform - use direct URL if available, otherwise Google search
         function openSocial() {
             const platform = document.getElementById('platform').value;
             const businessName = document.getElementById('businessName').value.trim();
 
+            // Check if we have a direct URL for this platform
+            if (sparkState.selectedBusiness) {
+                let directUrl = null;
+                if (platform === 'facebook' && sparkState.selectedBusiness.facebook) {
+                    directUrl = sparkState.selectedBusiness.facebook;
+                } else if (platform === 'instagram' && sparkState.selectedBusiness.instagram) {
+                    directUrl = sparkState.selectedBusiness.instagram;
+                }
+
+                if (directUrl) {
+                    if (!directUrl.startsWith('http')) {
+                        directUrl = 'https://' + directUrl;
+                    }
+                    window.open(directUrl, '_blank');
+                    return;
+                }
+            }
+
+            // Fallback to Google search (avoids login walls)
             const urls = {
-                facebook: 'https://www.facebook.com/search/posts?q=' + encodeURIComponent(businessName),
-                instagram: 'https://www.instagram.com/explore/search/keyword/?q=' + encodeURIComponent(businessName),
-                nextdoor: 'https://nextdoor.com/search/?query=' + encodeURIComponent(businessName),
+                facebook: 'https://www.google.com/search?q=' + encodeURIComponent(businessName + ' facebook'),
+                instagram: 'https://www.google.com/search?q=' + encodeURIComponent(businessName + ' instagram'),
+                nextdoor: 'https://www.google.com/search?q=' + encodeURIComponent(businessName + ' nextdoor'),
                 google: 'https://www.google.com/search?q=' + encodeURIComponent(businessName + ' reviews')
             };
 
