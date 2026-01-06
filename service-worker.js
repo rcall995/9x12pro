@@ -5,12 +5,13 @@
  */
 
 // Update this version when you want to force a cache refresh
-const CACHE_VERSION = 'v106';
+const CACHE_VERSION = 'v107';
 const CACHE_NAME = `9x12-pro-${CACHE_VERSION}`;
 
 // Core app files to cache on install
 const urlsToCache = [
   '/app.html',
+  '/app-main.js',
   '/index.html',
   '/login.html',
   '/auth-root.js',
