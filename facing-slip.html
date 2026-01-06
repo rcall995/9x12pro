@@ -171,13 +171,23 @@
                         <p class="text-sm text-gray-600 mb-3">Drag this button to your bookmarks bar. Then on the USPS EDDM site, select your routes and click the bookmark to copy them.</p>
 
                         <div class="flex flex-wrap items-center gap-3">
-                            <!-- Bookmarklet Button -->
-                            <a href="javascript:(function(){try{const rows=document.querySelectorAll('tr');const data=[];rows.forEach(row=>{const cb=row.querySelector('input[type=checkbox]');if(cb&&cb.checked){const cells=row.querySelectorAll('td');if(cells.length>=4){const routeCell=cells[0]||cells[1];const routeText=routeCell?.textContent?.trim()||'';const match=routeText.match(/(\d{5})-?([A-Z]\d{3})/i);if(match){const totalCell=Array.from(cells).find(c=>c.textContent?.match(/^\d{3,4}$/));const total=totalCell?.textContent?.trim()||'0';data.push(match[1]+','+match[2]+','+total);}}}});if(data.length===0){alert('No routes selected! Check the boxes next to routes first.');}else{navigator.clipboard.writeText(data.join('\n')).then(()=>alert('Copied '+data.length+' routes!\\n\\nNow go to 9x12pro.com/facing-slip.html and paste into Bulk Import.')).catch(()=>{prompt('Copy this:',data.join('\\n'));});}}catch(e){alert('Error: '+e.message);}})();"
+                            <!-- Bookmarklet Button - handles USPS custom checkboxes -->
+                            <a href="javascript:(function(){try{const data=[];document.querySelectorAll('tr').forEach(row=>{const cell1=row.querySelector('td');if(!cell1)return;const isChecked=row.querySelector('input[type=checkbox]:checked')||row.querySelector('.mat-checkbox-checked')||row.querySelector('[aria-checked=true]')||row.classList.contains('selected')||row.querySelector('mat-checkbox.mat-checkbox-checked')||row.querySelector('svg.checked')||(row.querySelector('mat-checkbox')&&row.querySelector('mat-checkbox').classList.contains('mat-checkbox-checked'));if(isChecked){const text=row.textContent;const match=text.match(/(\d{5})-([A-Z]\d{3})/i);if(match){const nums=text.match(/\d{3,4}/g);const total=nums&&nums.length>=2?nums[1]:'0';data.push(match[1]+','+match[2]+','+total);}}});if(data.length===0){const allText=document.body.innerText;const routes=allText.match(/\d{5}-[A-Z]\d{3}/gi)||[];alert('Found '+routes.length+' routes on page but none appear selected.\\n\\nTry: Select routes, then manually copy the table.');}else{navigator.clipboard.writeText(data.join('\\n')).then(()=>alert('Copied '+data.length+' routes!\\n\\nPaste into 9x12pro.com/facing-slip.html')).catch(()=>{prompt('Copy this manually:',data.join('\\n'));});}}catch(e){alert('Error: '+e.message);}})();"
                                class="inline-block px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transition-all cursor-grab active:cursor-grabbing"
                                onclick="event.preventDefault(); alert('Drag this button to your bookmarks bar!');">
                                 📋 Grab USPS Routes
                             </a>
                             <span class="text-xs text-gray-500">← Drag to bookmarks bar</span>
+                        </div>
+
+                        <!-- Fallback: Manual table copy instructions -->
+                        <div class="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <p class="text-xs font-semibold text-yellow-800 mb-1">Alternative: Copy Table Directly</p>
+                            <ol class="text-xs text-yellow-700 space-y-0.5 list-decimal list-inside">
+                                <li>On USPS site, click and drag to select the route rows you want</li>
+                                <li>Press Ctrl+C to copy</li>
+                                <li>Come here and press Ctrl+V anywhere on this page</li>
+                            </ol>
                         </div>
 
                         <details class="mt-3">
@@ -392,12 +402,44 @@
             let imported = 0;
 
             lines.forEach(line => {
-                // Split by comma or tab
-                const parts = line.split(/[,\t]+/).map(p => p.trim());
-                if (parts.length >= 3) {
-                    const zip = parts[0].replace(/\D/g, '').substring(0, 5);
-                    const route = parts[1].toUpperCase();
-                    const pieces = parseInt(parts[2].replace(/\D/g, ''));
+                // Try to find route pattern: 12345-C001 or 12345,C001 or similar
+                const routeMatch = line.match(/(\d{5})[-\s,]*([A-Z]\d{3})/i);
+
+                if (routeMatch) {
+                    const zip = routeMatch[1];
+                    const route = routeMatch[2].toUpperCase();
+
+                    // Find the "Total" column - look for 3-4 digit numbers
+                    // In USPS format: Route, Residential, Business, Total
+                    // The Total is usually the 4th number or the one after Business count
+                    const numbers = line.match(/\b\d{2,4}\b/g) || [];
+
+                    // Filter to likely piece counts (200-2000 range typically)
+                    let pieces = 0;
+
+                    // Try to find Total: it's usually 3rd or 4th number, and larger than business count
+                    if (numbers.length >= 3) {
+                        // Numbers are typically: Residential, Business, Total, percentages...
+                        // Total = Residential + Business, so it's usually the largest of the first few
+                        const firstFew = numbers.slice(0, 4).map(n => parseInt(n));
+                        // Total is likely the one that equals sum of first two (Res + Biz)
+                        for (let i = 2; i < firstFew.length; i++) {
+                            if (Math.abs(firstFew[i] - (firstFew[0] + firstFew[1])) <= 5) {
+                                pieces = firstFew[i];
+                                break;
+                            }
+                        }
+                        // Fallback: just use the 3rd number (index 2)
+                        if (pieces === 0 && firstFew[2] > 100) {
+                            pieces = firstFew[2];
+                        }
+                    }
+
+                    // Last fallback - just use any 3-digit number
+                    if (pieces === 0) {
+                        const threeDigit = line.match(/\b[3-9]\d{2}\b/);
+                        if (threeDigit) pieces = parseInt(threeDigit[0]);
+                    }
 
                     if (zip.length === 5 && route && pieces > 0) {
                         const bundles = Math.ceil(pieces / bundleSize);
@@ -418,7 +460,11 @@
             });
 
             document.getElementById('bulkImport').value = '';
-            alert(`Imported ${imported} routes`);
+            if (imported > 0) {
+                alert(`Imported ${imported} routes!`);
+            } else {
+                alert('No routes found. Make sure data includes ZIP-Route (e.g., 14072-C001) and piece counts.');
+            }
             renderRoutes();
         }
 
