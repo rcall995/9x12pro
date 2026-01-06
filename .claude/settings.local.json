@@ -42,7 +42,10 @@
       "WebFetch(domain:www.9x12crm.com)",
       "WebFetch(domain:eddm.tools)",
       "WebFetch(domain:adsuitecrm.com)",
-      "WebFetch(domain:www.usps.com)"
+      "WebFetch(domain:www.usps.com)",
+      "WebFetch(domain:developer.squareup.com)",
+      "WebFetch(domain:mailboxmixer.com)",
+      "WebFetch(domain:10kpostcards.com)"
     ],
     "deny": [],
     "ask": []

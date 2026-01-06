@@ -91,6 +91,21 @@
                 >
                     <option value="">-- Select from To Contact --</option>
                 </select>
+                <!-- Social Media Quick Links (shown when business selected) -->
+                <div id="socialLinks" class="hidden flex gap-2 mt-2 justify-center">
+                    <button onclick="openBusinessSocial('facebook')" id="btnFacebook" class="hidden px-4 py-2 bg-blue-600 text-white font-bold rounded-lg touch-btn flex items-center gap-2">
+                        📘 Facebook
+                    </button>
+                    <button onclick="openBusinessSocial('instagram')" id="btnInstagram" class="hidden px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-lg touch-btn flex items-center gap-2">
+                        📷 Instagram
+                    </button>
+                    <button onclick="openBusinessSocial('website')" id="btnWebsite" class="hidden px-4 py-2 bg-gray-600 text-white font-bold rounded-lg touch-btn flex items-center gap-2">
+                        🌐 Website
+                    </button>
+                    <button onclick="searchBusinessOnPlatform()" id="btnSearch" class="px-4 py-2 bg-orange-500 text-white font-bold rounded-lg touch-btn flex items-center gap-2">
+                        🔍 Search
+                    </button>
+                </div>
             </div>
 
             <!-- Business Name -->
@@ -257,7 +272,8 @@
             usageLog: [],
             currentComment: '',
             templatesVisible: true,
-            toContactBusinesses: []
+            toContactBusinesses: [],
+            selectedBusiness: null
         };
 
         // IndexedDB helpers (same as main app)
@@ -301,18 +317,27 @@
                 let toContactItems = null;
 
                 // Try IndexedDB first (key is 'mailslot-kanban')
-                const kanbanData = await idbGet('mailslot-kanban');
+                // NOTE: Main app stores as { key, value, timestamp } so we need to access .value
+                const kanbanRecord = await idbGet('mailslot-kanban');
+                console.log('📦 Raw kanban record:', kanbanRecord);
+
+                // Handle both wrapped ({ key, value }) and unwrapped formats
+                const kanbanData = kanbanRecord?.value || kanbanRecord;
+
                 if (kanbanData && kanbanData['to-contact']) {
                     toContactItems = kanbanData['to-contact'];
+                    console.log('✅ Found to-contact in IndexedDB:', toContactItems.length, 'items');
                 }
 
                 // Fallback to localStorage if IndexedDB is empty
                 if (!toContactItems || toContactItems.length === 0) {
+                    console.log('⚠️ Trying localStorage fallback...');
                     const localData = localStorage.getItem('mailslot-kanban');
                     if (localData) {
                         const parsed = JSON.parse(localData);
                         if (parsed && parsed['to-contact']) {
                             toContactItems = parsed['to-contact'];
+                            console.log('✅ Found to-contact in localStorage:', toContactItems.length, 'items');
                         }
                     }
                 }
@@ -324,12 +349,14 @@
                             id: item.id,
                             name: item.businessName,
                             category: item.category || '',
-                            facebookUrl: item.facebookUrl || item.facebook || ''
+                            facebook: item.facebook || '',
+                            instagram: item.instagram || '',
+                            website: item.website || ''
                         }));
                     renderBusinessPicker();
-                    console.log('Loaded', sparkState.toContactBusinesses.length, 'businesses from To Contact');
+                    console.log('✅ Loaded', sparkState.toContactBusinesses.length, 'businesses from To Contact');
                 } else {
-                    console.log('No businesses found in To Contact column');
+                    console.log('❌ No businesses found in To Contact column');
                 }
             } catch (e) {
                 console.error('Error loading kanban data:', e);
@@ -342,17 +369,87 @@
             const businesses = sparkState.toContactBusinesses;
 
             picker.innerHTML = `<option value="">-- Select from To Contact (${businesses.length}) --</option>` +
-                businesses.map(b => `<option value="${b.id}" data-name="${escapeHtml(b.name)}" data-fb="${escapeHtml(b.facebookUrl)}">${b.name}${b.category ? ' (' + b.category + ')' : ''}</option>`).join('');
+                businesses.map(b => `<option value="${b.id}" data-name="${escapeHtml(b.name)}" data-facebook="${escapeHtml(b.facebook)}" data-instagram="${escapeHtml(b.instagram)}" data-website="${escapeHtml(b.website)}">${b.name}${b.category ? ' (' + b.category + ')' : ''}</option>`).join('');
         }
 
         // Handle business selection
         function selectBusiness() {
             const picker = document.getElementById('businessPicker');
             const selected = picker.options[picker.selectedIndex];
+            const socialLinks = document.getElementById('socialLinks');
+            const btnFacebook = document.getElementById('btnFacebook');
+            const btnInstagram = document.getElementById('btnInstagram');
+            const btnWebsite = document.getElementById('btnWebsite');
 
             if (selected && selected.value) {
+                // Set business name
                 document.getElementById('businessName').value = selected.dataset.name || '';
+
+                // Store selected business data
+                sparkState.selectedBusiness = {
+                    name: selected.dataset.name || '',
+                    facebook: selected.dataset.facebook || '',
+                    instagram: selected.dataset.instagram || '',
+                    website: selected.dataset.website || ''
+                };
+
+                // Show social links section
+                socialLinks.classList.remove('hidden');
+
+                // Show/hide individual buttons based on available data
+                btnFacebook.classList.toggle('hidden', !sparkState.selectedBusiness.facebook);
+                btnInstagram.classList.toggle('hidden', !sparkState.selectedBusiness.instagram);
+                btnWebsite.classList.toggle('hidden', !sparkState.selectedBusiness.website);
+            } else {
+                // Hide social links if no business selected
+                socialLinks.classList.add('hidden');
+                sparkState.selectedBusiness = null;
             }
+        }
+
+        // Open business social media page directly
+        function openBusinessSocial(platform) {
+            if (!sparkState.selectedBusiness) return;
+
+            let url = '';
+            switch(platform) {
+                case 'facebook':
+                    url = sparkState.selectedBusiness.facebook;
+                    break;
+                case 'instagram':
+                    url = sparkState.selectedBusiness.instagram;
+                    break;
+                case 'website':
+                    url = sparkState.selectedBusiness.website;
+                    break;
+            }
+
+            if (url) {
+                // Ensure URL has protocol
+                if (!url.startsWith('http')) {
+                    url = 'https://' + url;
+                }
+                window.open(url, '_blank');
+            }
+        }
+
+        // Search for business on selected platform
+        function searchBusinessOnPlatform() {
+            const businessName = document.getElementById('businessName').value.trim();
+            if (!businessName) {
+                showToast('Select a business first', true);
+                return;
+            }
+
+            const platform = document.getElementById('platform').value;
+            const urls = {
+                facebook: 'https://www.facebook.com/search/pages?q=' + encodeURIComponent(businessName),
+                instagram: 'https://www.instagram.com/explore/search/keyword/?q=' + encodeURIComponent(businessName),
+                nextdoor: 'https://nextdoor.com/search/?query=' + encodeURIComponent(businessName),
+                google: 'https://www.google.com/search?q=' + encodeURIComponent(businessName + ' reviews')
+            };
+
+            window.open(urls[platform] || urls.facebook, '_blank');
         }
 
         // Escape HTML for safety
