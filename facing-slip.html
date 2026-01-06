@@ -162,14 +162,45 @@
                 </div>
             </div>
 
+            <!-- USPS Route Grabber Bookmarklet -->
+            <div class="mb-4 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-200 rounded-xl">
+                <div class="flex items-start gap-3">
+                    <span class="text-2xl">🔖</span>
+                    <div class="flex-1">
+                        <h3 class="font-bold text-purple-800 mb-1">One-Click USPS Route Grabber</h3>
+                        <p class="text-sm text-gray-600 mb-3">Drag this button to your bookmarks bar. Then on the USPS EDDM site, select your routes and click the bookmark to copy them.</p>
+
+                        <div class="flex flex-wrap items-center gap-3">
+                            <!-- Bookmarklet Button -->
+                            <a href="javascript:(function(){try{const rows=document.querySelectorAll('tr');const data=[];rows.forEach(row=>{const cb=row.querySelector('input[type=checkbox]');if(cb&&cb.checked){const cells=row.querySelectorAll('td');if(cells.length>=4){const routeCell=cells[0]||cells[1];const routeText=routeCell?.textContent?.trim()||'';const match=routeText.match(/(\d{5})-?([A-Z]\d{3})/i);if(match){const totalCell=Array.from(cells).find(c=>c.textContent?.match(/^\d{3,4}$/));const total=totalCell?.textContent?.trim()||'0';data.push(match[1]+','+match[2]+','+total);}}}});if(data.length===0){alert('No routes selected! Check the boxes next to routes first.');}else{navigator.clipboard.writeText(data.join('\n')).then(()=>alert('Copied '+data.length+' routes!\\n\\nNow go to 9x12pro.com/facing-slip.html and paste into Bulk Import.')).catch(()=>{prompt('Copy this:',data.join('\\n'));});}}catch(e){alert('Error: '+e.message);}})();"
+                               class="inline-block px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transition-all cursor-grab active:cursor-grabbing"
+                               onclick="event.preventDefault(); alert('Drag this button to your bookmarks bar!');">
+                                📋 Grab USPS Routes
+                            </a>
+                            <span class="text-xs text-gray-500">← Drag to bookmarks bar</span>
+                        </div>
+
+                        <details class="mt-3">
+                            <summary class="text-xs text-purple-600 cursor-pointer hover:text-purple-800">How to use</summary>
+                            <ol class="mt-2 text-xs text-gray-600 space-y-1 list-decimal list-inside">
+                                <li>Drag the purple button above to your browser's bookmarks bar</li>
+                                <li>Go to <a href="https://eddm.usps.com" target="_blank" class="text-blue-600 underline">eddm.usps.com</a> and select your routes</li>
+                                <li>Click the "Grab USPS Routes" bookmark</li>
+                                <li>Come back here and paste into the box below</li>
+                            </ol>
+                        </details>
+                    </div>
+                </div>
+            </div>
+
             <!-- Bulk Import -->
-            <details class="mb-4">
+            <details class="mb-4" id="bulkImportSection">
                 <summary class="cursor-pointer text-sm text-blue-600 font-semibold hover:text-blue-800">
                     Bulk Import (paste from USPS or spreadsheet)
                 </summary>
                 <div class="mt-3 p-4 bg-blue-50 rounded-lg">
                     <p class="text-xs text-gray-600 mb-2">Paste route data - one route per line. Format: ZIP, Route, Pieces (comma or tab separated)</p>
-                    <textarea id="bulkImport" rows="4" placeholder="14072, C001, 500&#10;14072, C002, 425&#10;14072, C003, 380"
+                    <textarea id="bulkImport" rows="4" placeholder="14072, C001, 517&#10;14072, C002, 544&#10;14072, C003, 517"
                         class="w-full px-3 py-2 border-2 rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm"></textarea>
                     <button onclick="importBulk()" class="mt-2 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700">
                         Import Routes
@@ -284,6 +315,23 @@
             // Enter key handlers
             document.getElementById('totalPieces').addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') addRoute();
+            });
+
+            // Auto-detect paste anywhere on page
+            document.addEventListener('paste', (e) => {
+                const text = e.clipboardData?.getData('text') || '';
+                // Check if it looks like route data (has ZIP-Route pattern)
+                if (text.match(/\d{5}[,\t\-]/)) {
+                    // Open bulk import section
+                    const details = document.getElementById('bulkImportSection');
+                    details.open = true;
+                    // Put data in textarea
+                    document.getElementById('bulkImport').value = text;
+                    document.getElementById('bulkImport').focus();
+                    // Scroll to it
+                    details.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    e.preventDefault();
+                }
             });
         });
 
