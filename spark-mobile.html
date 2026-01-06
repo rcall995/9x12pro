@@ -298,9 +298,27 @@
         // Load businesses from kanban 'to-contact' column
         async function loadToContactBusinesses() {
             try {
-                const kanbanData = await idbGet('kanban-state');
-                if (kanbanData && kanbanData.columns && kanbanData.columns['to-contact']) {
-                    sparkState.toContactBusinesses = kanbanData.columns['to-contact']
+                let toContactItems = null;
+
+                // Try IndexedDB first (key is 'mailslot-kanban')
+                const kanbanData = await idbGet('mailslot-kanban');
+                if (kanbanData && kanbanData['to-contact']) {
+                    toContactItems = kanbanData['to-contact'];
+                }
+
+                // Fallback to localStorage if IndexedDB is empty
+                if (!toContactItems || toContactItems.length === 0) {
+                    const localData = localStorage.getItem('mailslot-kanban');
+                    if (localData) {
+                        const parsed = JSON.parse(localData);
+                        if (parsed && parsed['to-contact']) {
+                            toContactItems = parsed['to-contact'];
+                        }
+                    }
+                }
+
+                if (toContactItems && toContactItems.length > 0) {
+                    sparkState.toContactBusinesses = toContactItems
                         .filter(item => typeof item === 'object' && item.businessName)
                         .map(item => ({
                             id: item.id,
@@ -309,6 +327,9 @@
                             facebookUrl: item.facebookUrl || item.facebook || ''
                         }));
                     renderBusinessPicker();
+                    console.log('Loaded', sparkState.toContactBusinesses.length, 'businesses from To Contact');
+                } else {
+                    console.log('No businesses found in To Contact column');
                 }
             } catch (e) {
                 console.error('Error loading kanban data:', e);
