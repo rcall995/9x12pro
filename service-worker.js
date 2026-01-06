@@ -5,7 +5,7 @@
  */
 
 // Update this version when you want to force a cache refresh
-const CACHE_VERSION = 'v101';
+const CACHE_VERSION = 'v102';
 const CACHE_NAME = `9x12-pro-${CACHE_VERSION}`;
 
 // Core app files to cache on install
@@ -15,7 +15,8 @@ const urlsToCache = [
   '/login.html',
   '/auth-root.js',
   '/config.js',
-  '/spark-mobile.html'
+  '/spark-mobile.html',
+  '/facing-slip.html'
 ];
 
 // External resources - don't cache these, always fetch fresh

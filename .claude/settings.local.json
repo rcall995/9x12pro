@@ -35,7 +35,14 @@
       "Bash(time curl -s -X POST https://9x12pro.com/api/here-search -H \"Content-Type: application/json\" -d \"{\"\"zipCode\"\":\"\"14072\"\",\"\"category\"\":\"\"plumbers\"\",\"\"limit\"\":20}\")",
       "Bash(time curl -s -X POST https://9x12pro.com/api/here-search -H \"Content-Type: application/json\" -d \"{\"\"zipCode\"\":\"\"90210\"\",\"\"category\"\":\"\"auto repair\"\",\"\"limit\"\":20}\" -o /dev/null)",
       "Bash(time curl -s -X POST https://9x12pro.com/api/here-search -H \"Content-Type: application/json\" -d \"{\"\"zipCode\"\":\"\"33139\"\",\"\"category\"\":\"\"dentists\"\",\"\"limit\"\":20}\" -o /dev/null)",
-      "WebFetch(domain:www.facebook.com)"
+      "WebFetch(domain:www.facebook.com)",
+      "WebFetch(domain:9x12pro.com)",
+      "WebFetch(domain:9x12crm.com)",
+      "WebFetch(domain:eddmdroppro.com)",
+      "WebFetch(domain:www.9x12crm.com)",
+      "WebFetch(domain:eddm.tools)",
+      "WebFetch(domain:adsuitecrm.com)",
+      "WebFetch(domain:www.usps.com)"
     ],
     "deny": [],
     "ask": []

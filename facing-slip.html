@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EDDM Facing Slip Generator | 9x12 Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <style>
+        @media print {
+            body * { visibility: hidden; }
+            #printArea, #printArea * { visibility: visible; }
+            #printArea {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+            }
+            .facing-slip {
+                page-break-after: always;
+                page-break-inside: avoid;
+            }
+            .facing-slip:last-child {
+                page-break-after: auto;
+            }
+            .no-print { display: none !important; }
+        }
+        .facing-slip {
+            width: 8.5in;
+            min-height: 5.5in;
+            border: 2px solid #000;
+            font-family: Arial, sans-serif;
+            background: #fff;
+        }
+        .slip-header {
+            background: #000;
+            color: #fff;
+            padding: 8px 12px;
+            font-weight: bold;
+            font-size: 14pt;
+        }
+        .slip-row {
+            display: flex;
+            border-bottom: 1px solid #000;
+        }
+        .slip-cell {
+            padding: 8px 12px;
+            border-right: 1px solid #000;
+        }
+        .slip-cell:last-child {
+            border-right: none;
+        }
+        .slip-label {
+            font-size: 9pt;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        .slip-value {
+            font-size: 18pt;
+            font-weight: bold;
+        }
+        .slip-value-lg {
+            font-size: 24pt;
+            font-weight: bold;
+        }
+        .checkbox-row {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .checkbox-box {
+            width: 18px;
+            height: 18px;
+            border: 2px solid #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-4 shadow-lg no-print">
+        <div class="max-w-6xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <a href="/app.html" class="p-2 -ml-2 hover:bg-white/20 rounded-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                    </svg>
+                </a>
+                <div>
+                    <h1 class="text-xl font-bold">EDDM Facing Slip Generator</h1>
+                    <p class="text-xs text-blue-200">Generate USPS-compliant facing slips for your mailings</p>
+                </div>
+            </div>
+            <a href="https://www.usps.com/business/pdf/eddm-retail-facing-slip.pdf" target="_blank" class="text-xs text-blue-200 hover:text-white underline">
+                Official USPS Form
+            </a>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 py-6">
+        <!-- Input Form -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-6 no-print">
+            <h2 class="text-lg font-bold text-gray-800 mb-4">Add Routes</h2>
+
+            <!-- Quick Add Form -->
+            <div class="grid grid-cols-1 md:grid-cols-6 gap-4 mb-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">ZIP Code *</label>
+                    <input type="text" id="zipCode" maxlength="5" placeholder="14072"
+                        class="w-full px-3 py-2 border-2 rounded-lg focus:border-blue-500 focus:outline-none text-center font-mono text-lg">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">Route # *</label>
+                    <input type="text" id="routeNumber" placeholder="C001"
+                        class="w-full px-3 py-2 border-2 rounded-lg focus:border-blue-500 focus:outline-none text-center font-mono text-lg uppercase">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">Total Pieces *</label>
+                    <input type="number" id="totalPieces" placeholder="500" min="1"
+                        class="w-full px-3 py-2 border-2 rounded-lg focus:border-blue-500 focus:outline-none text-center font-mono text-lg">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">Pieces/Bundle</label>
+                    <select id="bundleSize" class="w-full px-3 py-2 border-2 rounded-lg focus:border-blue-500 focus:outline-none text-center">
+                        <option value="100">100 (recommended)</option>
+                        <option value="75">75</option>
+                        <option value="50">50</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">Delivery Type</label>
+                    <select id="deliveryType" class="w-full px-3 py-2 border-2 rounded-lg focus:border-blue-500 focus:outline-none">
+                        <option value="residential">Residential Only</option>
+                        <option value="both">Res + Business</option>
+                    </select>
+                </div>
+                <div class="flex items-end">
+                    <button onclick="addRoute()" class="w-full px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition">
+                        + Add Route
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mailing Date -->
+            <div class="flex flex-wrap gap-4 items-center mb-4 p-3 bg-gray-50 rounded-lg">
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">Mailing Date</label>
+                    <input type="date" id="mailingDate" class="px-3 py-2 border-2 rounded-lg focus:border-blue-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">Mailer Name (optional)</label>
+                    <input type="text" id="mailerName" placeholder="Your Company Name"
+                        class="px-3 py-2 border-2 rounded-lg focus:border-blue-500 focus:outline-none w-64">
+                </div>
+            </div>
+
+            <!-- Bulk Import -->
+            <details class="mb-4">
+                <summary class="cursor-pointer text-sm text-blue-600 font-semibold hover:text-blue-800">
+                    Bulk Import (paste from USPS or spreadsheet)
+                </summary>
+                <div class="mt-3 p-4 bg-blue-50 rounded-lg">
+                    <p class="text-xs text-gray-600 mb-2">Paste route data - one route per line. Format: ZIP, Route, Pieces (comma or tab separated)</p>
+                    <textarea id="bulkImport" rows="4" placeholder="14072, C001, 500&#10;14072, C002, 425&#10;14072, C003, 380"
+                        class="w-full px-3 py-2 border-2 rounded-lg focus:border-blue-500 focus:outline-none font-mono text-sm"></textarea>
+                    <button onclick="importBulk()" class="mt-2 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700">
+                        Import Routes
+                    </button>
+                </div>
+            </details>
+
+            <!-- Routes Table -->
+            <div id="routesTable" class="hidden">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="font-bold text-gray-700">Routes to Generate</h3>
+                    <div class="flex gap-2">
+                        <button onclick="clearAllRoutes()" class="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded">
+                            Clear All
+                        </button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="px-3 py-2 text-left">ZIP</th>
+                                <th class="px-3 py-2 text-left">Route</th>
+                                <th class="px-3 py-2 text-right">Pieces</th>
+                                <th class="px-3 py-2 text-right">Bundles</th>
+                                <th class="px-3 py-2 text-center">Type</th>
+                                <th class="px-3 py-2 text-center">Slips</th>
+                                <th class="px-3 py-2"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="routesList"></tbody>
+                        <tfoot class="bg-gray-100 font-bold">
+                            <tr>
+                                <td class="px-3 py-2" colspan="2">TOTALS</td>
+                                <td class="px-3 py-2 text-right" id="totalPiecesSum">0</td>
+                                <td class="px-3 py-2 text-right" id="totalBundlesSum">0</td>
+                                <td class="px-3 py-2"></td>
+                                <td class="px-3 py-2 text-center" id="totalSlipsSum">0</td>
+                                <td class="px-3 py-2"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Generate Buttons -->
+        <div id="generateSection" class="hidden bg-white rounded-xl shadow-lg p-6 mb-6 no-print">
+            <div class="flex flex-wrap gap-4 items-center justify-between">
+                <div>
+                    <h3 class="font-bold text-gray-800">Ready to Generate</h3>
+                    <p class="text-sm text-gray-500" id="generateSummary">0 facing slips for 0 routes</p>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="generateSlips()" class="px-6 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        Generate Facing Slips
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Print Area -->
+        <div id="printArea" class="hidden">
+            <!-- Facing slips will be generated here -->
+        </div>
+
+        <!-- Print Controls (shown after generation) -->
+        <div id="printControls" class="hidden bg-white rounded-xl shadow-lg p-6 mb-6 no-print">
+            <div class="flex flex-wrap gap-4 items-center justify-between">
+                <div>
+                    <h3 class="font-bold text-green-700">Facing Slips Generated!</h3>
+                    <p class="text-sm text-gray-500" id="printSummary">Scroll down to preview, then print</p>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="window.print()" class="px-6 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                        </svg>
+                        Print All Slips
+                    </button>
+                    <button onclick="hideSlips()" class="px-4 py-3 bg-gray-200 text-gray-700 font-bold rounded-lg hover:bg-gray-300 transition">
+                        Edit Routes
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slips Preview Container -->
+        <div id="slipsPreview" class="hidden space-y-6">
+            <!-- Generated slips appear here for on-screen preview -->
+        </div>
+    </main>
+
+    <script>
+        // State
+        let routes = [];
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            // Set default date to today
+            document.getElementById('mailingDate').valueAsDate = new Date();
+
+            // Load saved mailer name
+            const savedName = localStorage.getItem('facing-slip-mailer-name');
+            if (savedName) {
+                document.getElementById('mailerName').value = savedName;
+            }
+
+            // Enter key handlers
+            document.getElementById('totalPieces').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') addRoute();
+            });
+        });
+
+        // Add a route
+        function addRoute() {
+            const zip = document.getElementById('zipCode').value.trim();
+            const route = document.getElementById('routeNumber').value.trim().toUpperCase();
+            const pieces = parseInt(document.getElementById('totalPieces').value) || 0;
+            const bundleSize = parseInt(document.getElementById('bundleSize').value);
+            const deliveryType = document.getElementById('deliveryType').value;
+
+            if (!zip || zip.length !== 5) {
+                alert('Please enter a valid 5-digit ZIP code');
+                document.getElementById('zipCode').focus();
+                return;
+            }
+            if (!route) {
+                alert('Please enter a route number (e.g., C001)');
+                document.getElementById('routeNumber').focus();
+                return;
+            }
+            if (pieces < 1) {
+                alert('Please enter the total pieces for this route');
+                document.getElementById('totalPieces').focus();
+                return;
+            }
+
+            // Calculate bundles
+            const bundles = Math.ceil(pieces / bundleSize);
+            const lastBundlePieces = pieces % bundleSize || bundleSize;
+
+            routes.push({
+                zip,
+                route,
+                pieces,
+                bundleSize,
+                bundles,
+                lastBundlePieces,
+                deliveryType
+            });
+
+            // Clear inputs for next entry
+            document.getElementById('routeNumber').value = '';
+            document.getElementById('totalPieces').value = '';
+            document.getElementById('routeNumber').focus();
+
+            renderRoutes();
+        }
+
+        // Import bulk routes
+        function importBulk() {
+            const text = document.getElementById('bulkImport').value.trim();
+            if (!text) return;
+
+            const lines = text.split('\n');
+            const bundleSize = parseInt(document.getElementById('bundleSize').value);
+            const deliveryType = document.getElementById('deliveryType').value;
+            let imported = 0;
+
+            lines.forEach(line => {
+                // Split by comma or tab
+                const parts = line.split(/[,\t]+/).map(p => p.trim());
+                if (parts.length >= 3) {
+                    const zip = parts[0].replace(/\D/g, '').substring(0, 5);
+                    const route = parts[1].toUpperCase();
+                    const pieces = parseInt(parts[2].replace(/\D/g, ''));
+
+                    if (zip.length === 5 && route && pieces > 0) {
+                        const bundles = Math.ceil(pieces / bundleSize);
+                        const lastBundlePieces = pieces % bundleSize || bundleSize;
+
+                        routes.push({
+                            zip,
+                            route,
+                            pieces,
+                            bundleSize,
+                            bundles,
+                            lastBundlePieces,
+                            deliveryType
+                        });
+                        imported++;
+                    }
+                }
+            });
+
+            document.getElementById('bulkImport').value = '';
+            alert(`Imported ${imported} routes`);
+            renderRoutes();
+        }
+
+        // Remove a route
+        function removeRoute(index) {
+            routes.splice(index, 1);
+            renderRoutes();
+        }
+
+        // Clear all routes
+        function clearAllRoutes() {
+            if (confirm('Clear all routes?')) {
+                routes = [];
+                renderRoutes();
+            }
+        }
+
+        // Render routes table
+        function renderRoutes() {
+            const table = document.getElementById('routesTable');
+            const list = document.getElementById('routesList');
+            const section = document.getElementById('generateSection');
+
+            if (routes.length === 0) {
+                table.classList.add('hidden');
+                section.classList.add('hidden');
+                return;
+            }
+
+            table.classList.remove('hidden');
+            section.classList.remove('hidden');
+
+            let totalPieces = 0;
+            let totalBundles = 0;
+            let totalSlips = 0;
+
+            list.innerHTML = routes.map((r, i) => {
+                totalPieces += r.pieces;
+                totalBundles += r.bundles;
+                totalSlips += r.bundles; // One slip per bundle
+
+                return `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="px-3 py-2 font-mono">${r.zip}</td>
+                        <td class="px-3 py-2 font-mono font-bold">${r.route}</td>
+                        <td class="px-3 py-2 text-right">${r.pieces.toLocaleString()}</td>
+                        <td class="px-3 py-2 text-right">${r.bundles}</td>
+                        <td class="px-3 py-2 text-center text-xs">${r.deliveryType === 'residential' ? 'Res' : 'Res+Biz'}</td>
+                        <td class="px-3 py-2 text-center">${r.bundles}</td>
+                        <td class="px-3 py-2 text-center">
+                            <button onclick="removeRoute(${i})" class="text-red-500 hover:text-red-700">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('totalPiecesSum').textContent = totalPieces.toLocaleString();
+            document.getElementById('totalBundlesSum').textContent = totalBundles;
+            document.getElementById('totalSlipsSum').textContent = totalSlips;
+            document.getElementById('generateSummary').textContent = `${totalSlips} facing slips for ${routes.length} routes`;
+        }
+
+        // Generate facing slips
+        function generateSlips() {
+            const mailingDate = document.getElementById('mailingDate').value;
+            const mailerName = document.getElementById('mailerName').value.trim();
+
+            // Save mailer name for next time
+            if (mailerName) {
+                localStorage.setItem('facing-slip-mailer-name', mailerName);
+            }
+
+            const formattedDate = mailingDate ? new Date(mailingDate + 'T00:00:00').toLocaleDateString('en-US', {
+                month: '2-digit',
+                day: '2-digit',
+                year: 'numeric'
+            }) : '';
+
+            let slipsHTML = '';
+            let slipCount = 0;
+
+            routes.forEach(route => {
+                for (let b = 1; b <= route.bundles; b++) {
+                    const piecesInBundle = (b === route.bundles) ? route.lastBundlePieces : route.bundleSize;
+                    slipCount++;
+
+                    slipsHTML += generateSlipHTML({
+                        zip: route.zip,
+                        route: route.route,
+                        bundleNumber: b,
+                        totalBundles: route.bundles,
+                        piecesInBundle,
+                        totalPieces: route.pieces,
+                        deliveryType: route.deliveryType,
+                        mailingDate: formattedDate,
+                        mailerName
+                    });
+                }
+            });
+
+            document.getElementById('printArea').innerHTML = slipsHTML;
+            document.getElementById('slipsPreview').innerHTML = slipsHTML;
+
+            document.getElementById('printArea').classList.remove('hidden');
+            document.getElementById('slipsPreview').classList.remove('hidden');
+            document.getElementById('printControls').classList.remove('hidden');
+            document.getElementById('printSummary').textContent = `${slipCount} facing slips ready to print`;
+
+            // Scroll to preview
+            document.getElementById('printControls').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Generate single slip HTML
+        function generateSlipHTML(data) {
+            const isResidential = data.deliveryType === 'residential';
+
+            return `
+                <div class="facing-slip mx-auto mb-6 bg-white">
+                    <!-- Header -->
+                    <div class="slip-header text-center">
+                        EVERY DOOR DIRECT MAIL - RETAIL FACING SLIP
+                    </div>
+
+                    <!-- Row 1: ZIP and Route -->
+                    <div class="slip-row">
+                        <div class="slip-cell" style="width: 50%;">
+                            <div class="slip-label">5-Digit ZIP Code (Required)</div>
+                            <div class="slip-value-lg">${data.zip}</div>
+                        </div>
+                        <div class="slip-cell" style="width: 50%;">
+                            <div class="slip-label">Carrier Route Number (Required)</div>
+                            <div class="slip-value-lg">${data.route}</div>
+                        </div>
+                    </div>
+
+                    <!-- Row 2: Delivery Type -->
+                    <div class="slip-row">
+                        <div class="slip-cell" style="width: 100%;">
+                            <div class="slip-label">Delivery Type (Check One)</div>
+                            <div class="checkbox-row" style="padding: 8px 0;">
+                                <div class="checkbox-item">
+                                    <div class="checkbox-box">${isResidential ? 'X' : ''}</div>
+                                    <span style="font-size: 12pt;">Residential Only</span>
+                                </div>
+                                <div class="checkbox-item">
+                                    <div class="checkbox-box">${!isResidential ? 'X' : ''}</div>
+                                    <span style="font-size: 12pt;">Residential & Business</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Row 3: Bundle Info and Date -->
+                    <div class="slip-row">
+                        <div class="slip-cell" style="width: 25%;">
+                            <div class="slip-label">Bundle #</div>
+                            <div class="slip-value">${data.bundleNumber} of ${data.totalBundles}</div>
+                        </div>
+                        <div class="slip-cell" style="width: 25%;">
+                            <div class="slip-label"># Pieces This Bundle</div>
+                            <div class="slip-value">${data.piecesInBundle}</div>
+                        </div>
+                        <div class="slip-cell" style="width: 25%;">
+                            <div class="slip-label">Total Pieces (Route)</div>
+                            <div class="slip-value">${data.totalPieces.toLocaleString()}</div>
+                        </div>
+                        <div class="slip-cell" style="width: 25%;">
+                            <div class="slip-label">Mailing Date</div>
+                            <div class="slip-value" style="font-size: 14pt;">${data.mailingDate || '___/___/______'}</div>
+                        </div>
+                    </div>
+
+                    <!-- Row 4: Mailer Info -->
+                    <div class="slip-row">
+                        <div class="slip-cell" style="width: 100%;">
+                            <div class="slip-label">Mailer Name / Company (Optional)</div>
+                            <div class="slip-value" style="font-size: 14pt; min-height: 24px;">${data.mailerName || ''}</div>
+                        </div>
+                    </div>
+
+                    <!-- Row 5: Do Not Deliver -->
+                    <div class="slip-row" style="border-bottom: none;">
+                        <div class="slip-cell" style="width: 100%;">
+                            <div class="slip-label">Do Not Deliver Addresses (if any)</div>
+                            <div style="min-height: 60px; border-top: 1px dashed #999; margin-top: 4px;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Footer -->
+                    <div style="background: #f3f4f6; padding: 6px 12px; font-size: 8pt; color: #666; text-align: center; border-top: 1px solid #000;">
+                        Generated by 9x12 Pro | Place this slip on TOP of each bundle | Bundles must be 50-100 pieces, max 6" high
+                    </div>
+                </div>
+            `;
+        }
+
+        // Hide slips and go back to editing
+        function hideSlips() {
+            document.getElementById('printArea').classList.add('hidden');
+            document.getElementById('slipsPreview').classList.add('hidden');
+            document.getElementById('printControls').classList.add('hidden');
+            document.getElementById('routesTable').scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>

@@ -32,7 +32,7 @@
   <script>
     // Cache busting version - UPDATE THIS for new releases!
     // Also update config.js app.version to match
-    window.APP_VERSION = '2026-01-06-v172';
+    window.APP_VERSION = '2026-01-06-v173';
     window.CACHE_BUST = '?v=' + window.APP_VERSION;
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -632,6 +632,18 @@
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- QUICK TOOLS BAR -->
+            <div class="flex flex-wrap gap-3 mb-6">
+                <a href="/facing-slip.html" target="_blank" class="flex items-center gap-2 px-4 py-2 bg-white border-2 border-blue-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-all shadow-sm">
+                    <span class="text-xl">📋</span>
+                    <span class="font-semibold text-gray-700">Facing Slip Generator</span>
+                </a>
+                <a href="/spark-mobile.html" target="_blank" class="flex items-center gap-2 px-4 py-2 bg-white border-2 border-orange-200 rounded-xl hover:border-orange-400 hover:bg-orange-50 transition-all shadow-sm">
+                    <span class="text-xl">📱</span>
+                    <span class="font-semibold text-gray-700">Mobile Spark</span>
+                </a>
             </div>
 
             <!-- SALES PIPELINE KANBAN -->
