@@ -15844,8 +15844,9 @@ function openPricingModal() {
   const mailerId = state.current.Mailer_ID;
 
   // Load existing pricing for this postcard
-  const pricing = productionState.pricing[mailerId] || { singleAd: 0, doubleAd: 0, bannerAd: 0 };
+  const pricing = productionState.pricing[mailerId] || { singleAd: 0, doubleAd: 0, bannerAd: 0, homeCount: 0 };
 
+  document.getElementById("pricingHomeCount").value = pricing.homeCount || '';
   document.getElementById("pricingSingleAd").value = pricing.singleAd || '';
   document.getElementById("pricingDoubleAd").value = pricing.doubleAd || '';
   document.getElementById("pricingBannerAd").value = pricing.bannerAd || '';
@@ -15882,11 +15883,12 @@ async function savePricingModal() {
   if (!state.current) return;
 
   const mailerId = state.current.Mailer_ID;
+  const homeCount = parseInt(document.getElementById("pricingHomeCount").value) || 0;
   const singleAd = parseFloat(document.getElementById("pricingSingleAd").value) || 0;
   const doubleAd = parseFloat(document.getElementById("pricingDoubleAd").value) || 0;
   const bannerAd = parseFloat(document.getElementById("pricingBannerAd").value) || 0;
 
-  productionState.pricing[mailerId] = { singleAd, doubleAd, bannerAd };
+  productionState.pricing[mailerId] = { singleAd, doubleAd, bannerAd, homeCount };
 
   // Save revenue goal
   const singleCount = parseFloat(document.getElementById("goalSingleCount").value) || 0;
