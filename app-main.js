@@ -28,6 +28,7 @@ var authCheckInterval = setInterval(function() {
 
 // Auto-update checker: Periodically check if app version has changed
 let updateBannerDismissed = false; // Track if user dismissed the banner this session
+const LAST_VERSION_KEY = '9x12_last_version';
 
 function checkForAppUpdate() {
   // Don't show again if user already dismissed this session
@@ -36,9 +37,12 @@ function checkForAppUpdate() {
   // Don't create duplicate banners
   if (document.getElementById('update-banner')) return;
 
-  // Check if config version differs from page version
-  if (window.APP_CONFIG && window.APP_CONFIG.app.version !== window.APP_VERSION) {
-    console.log('🔄 New version detected:', window.APP_CONFIG.app.version, '(current:', window.APP_VERSION + ')');
+  // Check if config version differs from last seen version (stored in localStorage)
+  const currentVersion = window.APP_CONFIG?.app?.version;
+  const lastVersion = localStorage.getItem(LAST_VERSION_KEY);
+
+  if (currentVersion && lastVersion && currentVersion !== lastVersion) {
+    console.log('🔄 New version detected:', currentVersion, '(last seen:', lastVersion + ')');
 
     // Show persistent banner prompting refresh
     const updateBanner = document.createElement('div');
@@ -82,6 +86,9 @@ function checkForAppUpdate() {
       document.head.appendChild(style);
     }
     document.body.appendChild(updateBanner);
+  } else if (currentVersion) {
+    // No update needed - save current version as last seen
+    localStorage.setItem(LAST_VERSION_KEY, currentVersion);
   }
 }
 
@@ -660,8 +667,8 @@ const keyPair = (a,b)=>[Math.min(a,b),Math.max(a,b)].join("-");
 const isValidPair=(a,b)=>PAIRS.some(([x,y])=>x===Math.min(a,b)&&y===Math.max(a,b));
 const mateOf = n => { for (const [a,b] of PAIRS) { if (a===n) return b; if (b===n) return a; } return null; };
 
-// VERSION CHECK - If you don't see this in console, you're viewing cached HTML
-console.log('🔥 APP VERSION: 2026-01-06-v178 - Spark Mobile business picker fix');
+// VERSION CHECK - reads from config.js (single source of truth)
+console.log('🔥 APP VERSION:', window.APP_CONFIG?.app?.version || 'unknown');
 
 const state = {
   mailers: [],
