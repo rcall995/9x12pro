@@ -6873,6 +6873,302 @@ window.sendEmailToSelected = sendEmailToSelected;
 window.callSelected = callSelected;
 window.updateCloseDealsStatus = updateCloseDealsStatus;
 
+// ========== PIPELINE OUTREACH PANEL FUNCTIONS ==========
+// State for Pipeline Outreach (separate from Close Deals)
+let pipelineOutreachState = {
+  selectedProspect: null,
+  aiResults: {}
+};
+
+// Open Pipeline Outreach panel with selected prospect
+function openPipelineOutreach(prospect) {
+  if (!prospect) return;
+
+  pipelineOutreachState.selectedProspect = prospect;
+
+  const panel = document.getElementById('pipelineOutreachPanel');
+  const nameEl = document.getElementById('pipelineProspectName');
+  const infoEl = document.getElementById('pipelineProspectInfo');
+  const iconEl = document.getElementById('pipelineProspectIcon');
+  const fbBtn = document.getElementById('pipelineFacebookBtn');
+  const igBtn = document.getElementById('pipelineInstagramBtn');
+
+  if (!panel) return;
+
+  // Update display
+  nameEl.textContent = prospect.businessName || prospect.title || 'Unknown Business';
+
+  let infoText = [];
+  if (prospect.zipCode) infoText.push(prospect.zipCode);
+  if (prospect.phone) infoText.push(prospect.phone);
+  infoEl.textContent = infoText.join(' • ') || 'No contact info';
+
+  // Category icon
+  const categoryIcons = {
+    'restaurant': '🍽️', 'auto': '🚗', 'salon': '💇', 'dentist': '🦷',
+    'contractor': '🔨', 'fitness': '💪', 'retail': '🛍️', 'service': '🔧'
+  };
+  iconEl.textContent = categoryIcons[prospect.category] || '🏢';
+
+  // Social buttons
+  if (prospect.facebook) {
+    fbBtn.href = prospect.facebook;
+    fbBtn.classList.remove('hidden');
+    fbBtn.classList.add('flex');
+  } else {
+    fbBtn.classList.add('hidden');
+    fbBtn.classList.remove('flex');
+  }
+
+  if (prospect.instagram) {
+    igBtn.href = prospect.instagram;
+    igBtn.classList.remove('hidden');
+    igBtn.classList.add('flex');
+  } else {
+    igBtn.classList.add('hidden');
+    igBtn.classList.remove('flex');
+  }
+
+  // Clear previous results
+  document.getElementById('pipelineTextResult').textContent = 'Click Generate to create a personalized text message.';
+  document.getElementById('pipelineEmailResult').textContent = 'Click Generate to create a personalized email.';
+  document.getElementById('pipelineEmailSubject').classList.add('hidden');
+  document.getElementById('pipelineCopyTextBtn').classList.add('hidden');
+  document.getElementById('pipelineCopyEmailBtn').classList.add('hidden');
+
+  // Show panel
+  panel.classList.remove('hidden');
+
+  // Scroll to panel
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Close Pipeline Outreach panel
+function closePipelineOutreach() {
+  const panel = document.getElementById('pipelineOutreachPanel');
+  if (panel) {
+    panel.classList.add('hidden');
+  }
+  pipelineOutreachState.selectedProspect = null;
+}
+
+// Switch Pipeline Outreach tabs
+function switchPipelineOutreachTab(tabName) {
+  // Update buttons
+  document.querySelectorAll('.pipeline-outreach-tab-btn').forEach(btn => {
+    btn.classList.remove('active', 'bg-white', 'shadow', 'text-orange-600');
+    btn.classList.add('text-gray-600');
+  });
+  const activeBtn = document.querySelector(`[data-pipeline-outreach-tab="${tabName}"]`);
+  if (activeBtn) {
+    activeBtn.classList.add('active', 'bg-white', 'shadow', 'text-orange-600');
+    activeBtn.classList.remove('text-gray-600');
+  }
+
+  // Update content
+  document.querySelectorAll('.pipeline-outreach-pane').forEach(pane => pane.classList.add('hidden'));
+  const activePane = document.querySelector(`[data-pipeline-outreach-content="${tabName}"]`);
+  if (activePane) activePane.classList.remove('hidden');
+}
+
+// Generate AI pitch for Pipeline Outreach
+async function generatePipelinePitch(type) {
+  const prospect = pipelineOutreachState.selectedProspect;
+  if (!prospect) {
+    toast('Please select a prospect first', false);
+    return;
+  }
+
+  const btn = document.getElementById(`pipelineGen${type.charAt(0).toUpperCase() + type.slice(1)}Btn`);
+  const resultEl = document.getElementById(`pipeline${type.charAt(0).toUpperCase() + type.slice(1)}Result`);
+  const copyBtn = document.getElementById(`pipelineCopy${type.charAt(0).toUpperCase() + type.slice(1)}Btn`);
+
+  if (!btn || !resultEl) return;
+
+  btn.disabled = true;
+  btn.textContent = '...';
+  resultEl.textContent = 'Generating...';
+
+  try {
+    // Get user settings
+    const yourName = document.getElementById('salesToolkitName')?.value || 'there';
+    const company = document.getElementById('salesToolkitCompany')?.value || '';
+    const spotPrice = document.getElementById('salesToolkitSpotPrice')?.value || '$500';
+    const zipCode = prospect.zipCode || document.getElementById('campaignZipCode')?.value || '';
+
+    const prompt = type === 'text'
+      ? `Write a short, friendly text message (under 160 chars) from ${yourName}${company ? ' at ' + company : ''} to ${prospect.businessName || 'a local business'} about advertising on a community postcard mailing to ${zipCode || 'their area'}. Spot is ${spotPrice}. Be casual and conversational.`
+      : `Write a professional but friendly email from ${yourName}${company ? ' at ' + company : ''} to ${prospect.businessName || 'a local business'} about advertising on a 9x12 community postcard. Include:
+- Going to ~5,000 homes in ${zipCode || 'their area'}
+- They'd be the only ${prospect.category || 'business'} on the card
+- Spot price is ${spotPrice}
+- End with a soft close
+
+Format: Start with "Subject: " line, then the email body.`;
+
+    const response = await fetch('/api/ai/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, type })
+    });
+
+    const data = await response.json();
+
+    if (data.error) throw new Error(data.error);
+
+    const result = data.result || data.text || '';
+
+    if (type === 'email' && result.includes('Subject:')) {
+      const [subjectLine, ...bodyParts] = result.split('\n');
+      document.getElementById('pipelineEmailSubject').textContent = subjectLine;
+      document.getElementById('pipelineEmailSubject').classList.remove('hidden');
+      resultEl.textContent = bodyParts.join('\n').trim();
+    } else {
+      resultEl.textContent = result;
+    }
+
+    pipelineOutreachState.aiResults[type] = result;
+    copyBtn.classList.remove('hidden');
+
+  } catch (error) {
+    console.error('Pipeline AI generation error:', error);
+    resultEl.textContent = 'Error generating message. Please try again.';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Generate';
+  }
+}
+
+// Copy Pipeline Outreach result
+function copyPipelineResult(type) {
+  const result = pipelineOutreachState.aiResults[type];
+  if (!result) return;
+
+  navigator.clipboard.writeText(result).then(() => {
+    toast('Copied!', true);
+  }).catch(() => {
+    toast('Failed to copy', false);
+  });
+}
+
+// Copy Pipeline call script with filled placeholders
+function copyPipelineCallScript() {
+  const prospect = pipelineOutreachState.selectedProspect;
+  const yourName = document.getElementById('salesToolkitName')?.value || '[YOUR_NAME]';
+  const spotPrice = document.getElementById('salesToolkitSpotPrice')?.value || '[SPOT_PRICE]';
+  const zipCode = prospect?.zipCode || document.getElementById('campaignZipCode')?.value || '[ZIP]';
+  const businessType = prospect?.category || '[BUSINESS_TYPE]';
+  const contactName = prospect?.contactName || prospect?.businessName || '[CONTACT]';
+
+  const script = `1. PATTERN INTERRUPT:
+"Hey, is this ${contactName}? This is ${yourName}, I do local advertising in ${zipCode}. Got a quick question - do you guys do any direct mail marketing?"
+
+2. THE PITCH:
+"I put together a community postcard for about 5,000 homes in ${zipCode}. You'd be the ONLY ${businessType} on the card."
+
+3. PRICE:
+"It's ${spotPrice} for the spot. If even ONE person calls you from this card, you've probably made that back."
+
+4. CLOSE:
+"Want me to save your spot? Just need a quick yes and I'll send over the details."`;
+
+  navigator.clipboard.writeText(script).then(() => {
+    toast('Call script copied!', true);
+  }).catch(() => {
+    toast('Failed to copy', false);
+  });
+}
+
+// Quick action buttons for Pipeline Outreach
+function pipelineSendText() {
+  const prospect = pipelineOutreachState.selectedProspect;
+  if (!prospect?.phone) {
+    toast('No phone number available', false);
+    return;
+  }
+  const message = pipelineOutreachState.aiResults?.text || '';
+  window.open(`sms:${prospect.phone}${message ? '?body=' + encodeURIComponent(message) : ''}`, '_blank');
+}
+
+function pipelineSendEmail() {
+  const prospect = pipelineOutreachState.selectedProspect;
+  if (!prospect?.email) {
+    toast('No email available', false);
+    return;
+  }
+  const result = pipelineOutreachState.aiResults?.email || '';
+  let subject = '';
+  let body = result;
+  if (result.includes('Subject:')) {
+    const [subjectLine, ...bodyParts] = result.split('\n');
+    subject = subjectLine.replace('Subject:', '').trim();
+    body = bodyParts.join('\n').trim();
+  }
+  window.open(`mailto:${prospect.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+}
+
+function pipelineCall() {
+  const prospect = pipelineOutreachState.selectedProspect;
+  if (!prospect?.phone) {
+    toast('No phone number available', false);
+    return;
+  }
+  window.open(`tel:${prospect.phone}`, '_blank');
+}
+
+// Open Pipeline Outreach from kanban card
+function openPipelineOutreachFromKanban(leadId) {
+  // Find the prospect in kanban columns
+  const kanban = crmState.kanban || {};
+  let prospect = null;
+
+  for (const column of Object.values(kanban)) {
+    if (Array.isArray(column)) {
+      const found = column.find(item =>
+        (typeof item === 'object' && item.id === leadId) ||
+        (typeof item === 'string' && item === leadId)
+      );
+      if (found && typeof found === 'object') {
+        prospect = found;
+        break;
+      }
+    }
+  }
+
+  if (!prospect) {
+    // Try to find in prospect pool
+    const prospectPool = crmState.prospectPool || {};
+    for (const zips of Object.values(prospectPool)) {
+      if (Array.isArray(zips)) {
+        const found = zips.find(p => p.id === leadId);
+        if (found) {
+          prospect = found;
+          break;
+        }
+      }
+    }
+  }
+
+  if (!prospect) {
+    toast('Could not find prospect data', false);
+    return;
+  }
+
+  openPipelineOutreach(prospect);
+}
+
+// Expose Pipeline Outreach functions globally
+window.openPipelineOutreach = openPipelineOutreach;
+window.closePipelineOutreach = closePipelineOutreach;
+window.switchPipelineOutreachTab = switchPipelineOutreachTab;
+window.generatePipelinePitch = generatePipelinePitch;
+window.copyPipelineResult = copyPipelineResult;
+window.copyPipelineCallScript = copyPipelineCallScript;
+window.pipelineSendText = pipelineSendText;
+window.pipelineSendEmail = pipelineSendEmail;
+window.pipelineCall = pipelineCall;
+window.openPipelineOutreachFromKanban = openPipelineOutreachFromKanban;
+
 // Load Sales Toolkit settings on page load (for the Close Deals tab)
 document.addEventListener('DOMContentLoaded', function() {
   // Delay slightly to ensure DOM is ready
@@ -9111,6 +9407,22 @@ function renderProspectPool() {
       filterProspectPool(prospectPoolSearchTerm);
     }, 0);
   }
+
+  // ALSO render to inline containers in Search tab (merged Pool view)
+  const inlineContainer = document.getElementById('inlineProspectPoolContainer');
+  const inlineStatsContainer = document.getElementById('inlineProspectPoolStats');
+  const inlineZipCheckboxes = document.getElementById('inlineProspectPoolZipCheckboxes');
+
+  if (inlineContainer && container) {
+    inlineContainer.innerHTML = container.innerHTML;
+  }
+  if (inlineStatsContainer && statsContainer) {
+    inlineStatsContainer.innerHTML = statsContainer.innerHTML;
+  }
+  if (inlineZipCheckboxes && zipCheckboxContainer) {
+    inlineZipCheckboxes.innerHTML = zipCheckboxContainer.innerHTML;
+  }
+
   console.log('🔵 DEBUG: renderProspectPool EXIT - prospect-list length:', kanbanState.columns['prospect-list']?.length);
 }
 
@@ -9193,10 +9505,17 @@ function updatePoolSelectedCount() {
   const btnEl = document.getElementById('btnAddFromPool');
   const actionBar = document.getElementById('prospectPoolActionBar');
 
+  // Also get inline elements (in Search tab)
+  const inlineCountEl = document.getElementById('inlineProspectPoolSelectedCount');
+  const inlineActionBar = document.getElementById('inlineProspectPoolActionBar');
+
   const count = prospectPoolState.selectedIds.size;
 
   if (countEl) {
     countEl.textContent = count;
+  }
+  if (inlineCountEl) {
+    inlineCountEl.textContent = count;
   }
 
   if (btnEl) {
@@ -9205,11 +9524,10 @@ function updatePoolSelectedCount() {
 
   // Show/hide the action bar based on selection
   if (actionBar) {
-    if (count > 0) {
-      actionBar.style.display = 'block';
-    } else {
-      actionBar.style.display = 'none';
-    }
+    actionBar.style.display = count > 0 ? 'block' : 'none';
+  }
+  if (inlineActionBar) {
+    inlineActionBar.style.display = count > 0 ? 'block' : 'none';
   }
 }
 
@@ -13020,12 +13338,21 @@ function renderKanban() {
         </button>
       `;
 
+    // Empty state messages for each column
+    const emptyStates = {
+      'prospect-list': '<div class="text-center p-4 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg"><span class="text-2xl mb-2 block">📋</span><p class="text-xs font-medium">No prospects yet</p><p class="text-xs">Use the Search tab to find businesses</p></div>',
+      'to-contact': '<div class="text-center p-4 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg"><span class="text-2xl mb-2 block">📞</span><p class="text-xs font-medium">Ready to reach out</p><p class="text-xs">Drag prospects here when ready to contact</p></div>',
+      'in-progress': '<div class="text-center p-4 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg"><span class="text-2xl mb-2 block">💬</span><p class="text-xs font-medium">In conversation</p><p class="text-xs">Move deals here once you\'ve made contact</p></div>',
+      'committed': '<div class="text-center p-4 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg"><span class="text-2xl mb-2 block">🎉</span><p class="text-xs font-medium">Almost there!</p><p class="text-xs">Deals awaiting final confirmation</p></div>'
+    };
+
     return `
       <div class="kanban-column" data-column="${col.key}">
         <div class="flex flex-wrap justify-between items-center mb-2 gap-1">
           <div class="font-semibold text-sm text-${col.color}-600">${col.title} (${items.length})</div>
           <div class="flex gap-1 flex-wrap">${buttons}</div>
         </div>
+        ${items.length === 0 ? emptyStates[col.key] || '' : ''}
         ${items.map((item, idx) => {
           // Support both string (legacy) and object format
           // Add safety check for null/undefined items
@@ -13082,6 +13409,7 @@ function renderKanban() {
                     ${item.zipCode ? `<div class="text-xs text-gray-500 font-medium mt-0.5">📍 ${esc(item.zipCode)}</div>` : ''}
                   </div>
                   <div class="flex gap-1 flex-shrink-0">
+                    <button onclick="event.stopPropagation(); openPipelineOutreachFromKanban('${leadId}')" class="text-orange-600 hover:text-orange-800 text-sm cursor-pointer" title="Outreach Tools">💬</button>
                     <button onclick="event.stopPropagation(); openClientModalForProspect('${leadId}')" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View/Edit Business">👁</button>
                     <button onclick="openContactLaterModal('${leadId}', event)" class="text-purple-600 hover:text-purple-800 text-sm cursor-pointer" title="Contact Later">📅</button>
                     ${isClient
@@ -16477,6 +16805,22 @@ function switchTab(tabName) {
     // Auto-save before switching tabs if there are unsaved changes
     if (state.dirty) {
         performAutoSave(); // Immediate save on tab switch
+    }
+
+    // Handle Reports tab - redirect to Dashboard with Reports sub-pane
+    if (tabName === 'reports') {
+        localStorage.setItem('9x12_active_tab', 'dashboard');
+        // Switch to dashboard first
+        switchTab('dashboard');
+        // Then switch to reports sub-pane
+        setTimeout(() => switchDashboardTab('reports'), 50);
+        // Highlight the reports nav button
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('active', 'bg-white', 'shadow-md');
+        });
+        const reportsBtn = document.querySelector('.tab-btn[data-tab="reports"]');
+        if (reportsBtn) reportsBtn.classList.add('active', 'bg-white', 'shadow-md');
+        return;
     }
 
     // Save current tab to remember it on refresh
@@ -20376,3 +20720,105 @@ function closeProspectSuccessModal() {
     modal.style.display = 'none';
   }
 }
+
+// ========== ONBOARDING WIZARD ==========
+let onboardingStep = 1;
+const ONBOARDING_COMPLETED_KEY = '9x12_onboarding_completed';
+
+// Check if should show onboarding on page load
+function checkOnboarding() {
+  const completed = localStorage.getItem(ONBOARDING_COMPLETED_KEY);
+  if (!completed) {
+    // Show onboarding after a short delay to let the app load
+    setTimeout(() => {
+      showOnboarding();
+    }, 1000);
+  }
+}
+
+// Show the onboarding modal
+function showOnboarding() {
+  const modal = document.getElementById('onboardingModal');
+  if (modal) {
+    modal.classList.remove('hidden');
+    onboardingStep = 1;
+    updateOnboardingUI();
+  }
+}
+
+// Update the onboarding UI for current step
+function updateOnboardingUI() {
+  // Hide all steps
+  document.querySelectorAll('.onboarding-step').forEach(step => {
+    step.classList.add('hidden');
+  });
+
+  // Show current step
+  const currentStep = document.querySelector(`[data-onboarding-step="${onboardingStep}"]`);
+  if (currentStep) {
+    currentStep.classList.remove('hidden');
+  }
+
+  // Update dots
+  for (let i = 1; i <= 3; i++) {
+    const dot = document.getElementById(`onboardingDot${i}`);
+    if (dot) {
+      if (i <= onboardingStep) {
+        dot.classList.remove('bg-gray-300');
+        dot.classList.add('bg-indigo-600');
+      } else {
+        dot.classList.remove('bg-indigo-600');
+        dot.classList.add('bg-gray-300');
+      }
+    }
+  }
+
+  // Update button text
+  const nextBtn = document.getElementById('onboardingNextBtn');
+  if (nextBtn) {
+    nextBtn.textContent = onboardingStep === 3 ? 'Get Started!' : 'Next →';
+  }
+}
+
+// Move to next onboarding step
+function nextOnboardingStep() {
+  if (onboardingStep < 3) {
+    onboardingStep++;
+    updateOnboardingUI();
+  } else {
+    completeOnboarding();
+  }
+}
+
+// Skip onboarding
+function skipOnboarding() {
+  completeOnboarding();
+}
+
+// Complete onboarding and close modal
+function completeOnboarding() {
+  localStorage.setItem(ONBOARDING_COMPLETED_KEY, 'true');
+  const modal = document.getElementById('onboardingModal');
+  if (modal) {
+    modal.classList.add('hidden');
+  }
+  toast('Welcome to 9x12 Pro! 🎉', true);
+}
+
+// Reset onboarding (for testing)
+function resetOnboarding() {
+  localStorage.removeItem(ONBOARDING_COMPLETED_KEY);
+  toast('Onboarding reset. Refresh to see it again.', true);
+}
+
+// Expose onboarding functions globally
+window.showOnboarding = showOnboarding;
+window.nextOnboardingStep = nextOnboardingStep;
+window.skipOnboarding = skipOnboarding;
+window.resetOnboarding = resetOnboarding;
+
+// Check onboarding on DOMContentLoaded
+document.addEventListener('DOMContentLoaded', function() {
+  // Delay check to let app fully load
+  setTimeout(checkOnboarding, 2000);
+});

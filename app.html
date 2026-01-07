@@ -171,33 +171,29 @@
   <div class="max-w-6xl mx-auto px-3 mt-4">
     <div id="mainNavigation" class="bg-white border-2 border-gray-200 rounded-xl p-2 shadow-sm">
       <div class="flex items-center justify-between gap-1">
-        <button onclick="switchTab('dashboard')" data-tab="dashboard" class="tab-btn flex-1 flex flex-col lg:flex-row items-center justify-center gap-1 lg:gap-2 px-2 py-2 lg:py-2.5 rounded-lg transition-all hover:bg-indigo-50 group" id="nav-dashboard">
+        <button onclick="switchTab('dashboard')" data-tab="dashboard" class="tab-btn flex-1 flex flex-col lg:flex-row items-center justify-center gap-1 lg:gap-2 px-2 py-2 lg:py-2.5 rounded-lg transition-all hover:bg-indigo-50 group" id="nav-dashboard" title="Dashboard - Your command center with tasks, templates & renewals">
           <span class="text-xl lg:text-2xl">🏠</span>
           <span class="text-xs lg:text-sm font-bold text-gray-600 group-hover:text-indigo-600">Home</span>
         </button>
-        <button onclick="switchTab('lead-generation')" data-tab="lead-generation" class="tab-btn flex-1 flex flex-col lg:flex-row items-center justify-center gap-1 lg:gap-2 px-2 py-2 lg:py-2.5 rounded-lg transition-all hover:bg-indigo-50 group" id="nav-generator">
+        <button onclick="switchTab('lead-generation')" data-tab="lead-generation" class="tab-btn flex-1 flex flex-col lg:flex-row items-center justify-center gap-1 lg:gap-2 px-2 py-2 lg:py-2.5 rounded-lg transition-all hover:bg-indigo-50 group" id="nav-generator" title="Search - Find local businesses by ZIP code and category">
           <span class="text-xl lg:text-2xl">🔍</span>
-          <span class="text-xs lg:text-sm font-bold text-gray-600 group-hover:text-indigo-600">Find</span>
+          <span class="text-xs lg:text-sm font-bold text-gray-600 group-hover:text-indigo-600">Search</span>
         </button>
-        <button onclick="switchTab('prospects')" data-tab="prospects" class="tab-btn flex-1 flex flex-col lg:flex-row items-center justify-center gap-1 lg:gap-2 px-2 py-2 lg:py-2.5 rounded-lg transition-all hover:bg-indigo-50 group" id="nav-pool">
-          <span class="text-xl lg:text-2xl">🎯</span>
-          <span class="text-xs lg:text-sm font-bold text-gray-600 group-hover:text-indigo-600">Pool</span>
-        </button>
-        <button onclick="switchTab('pipeline')" data-tab="pipeline" class="tab-btn flex-1 flex flex-col lg:flex-row items-center justify-center gap-1 lg:gap-2 px-2 py-2 lg:py-2.5 rounded-lg transition-all hover:bg-indigo-50 group" id="nav-pipeline">
+        <button onclick="switchTab('pipeline')" data-tab="pipeline" class="tab-btn flex-1 flex flex-col lg:flex-row items-center justify-center gap-1 lg:gap-2 px-2 py-2 lg:py-2.5 rounded-lg transition-all hover:bg-indigo-50 group" id="nav-pipeline" title="Pipeline - Manage your sales funnel with drag & drop kanban">
           <span class="text-xl lg:text-2xl">📊</span>
           <span class="text-xs lg:text-sm font-bold text-gray-600 group-hover:text-indigo-600">Pipeline</span>
         </button>
-        <button onclick="switchTab('outreach')" data-tab="outreach" class="tab-btn flex-1 flex flex-col lg:flex-row items-center justify-center gap-1 lg:gap-2 px-2 py-2 lg:py-2.5 rounded-lg transition-all hover:bg-orange-50 group" id="nav-outreach">
-          <span class="text-xl lg:text-2xl">💰</span>
-          <span class="text-xs lg:text-sm font-bold text-gray-600 group-hover:text-orange-600">Close</span>
-        </button>
-        <button onclick="switchTab('manager')" data-tab="manager" class="tab-btn flex-1 flex flex-col lg:flex-row items-center justify-center gap-1 lg:gap-2 px-2 py-2 lg:py-2.5 rounded-lg transition-all hover:bg-indigo-50 group" id="nav-campaigns">
+        <button onclick="switchTab('manager')" data-tab="manager" class="tab-btn flex-1 flex flex-col lg:flex-row items-center justify-center gap-1 lg:gap-2 px-2 py-2 lg:py-2.5 rounded-lg transition-all hover:bg-indigo-50 group" id="nav-campaigns" title="Campaigns - Design & manage your postcard layouts">
           <span class="text-xl lg:text-2xl">📮</span>
-          <span class="text-xs lg:text-sm font-bold text-gray-600 group-hover:text-indigo-600">Cards</span>
+          <span class="text-xs lg:text-sm font-bold text-gray-600 group-hover:text-indigo-600">Campaigns</span>
         </button>
-        <button onclick="switchTab('clients')" data-tab="clients" class="tab-btn flex-1 flex flex-col lg:flex-row items-center justify-center gap-1 lg:gap-2 px-2 py-2 lg:py-2.5 rounded-lg transition-all hover:bg-indigo-50 group" id="nav-clients">
+        <button onclick="switchTab('clients')" data-tab="clients" class="tab-btn flex-1 flex flex-col lg:flex-row items-center justify-center gap-1 lg:gap-2 px-2 py-2 lg:py-2.5 rounded-lg transition-all hover:bg-indigo-50 group" id="nav-clients" title="Clients - Your client database with contact history">
           <span class="text-xl lg:text-2xl">👥</span>
           <span class="text-xs lg:text-sm font-bold text-gray-600 group-hover:text-indigo-600">Clients</span>
+        </button>
+        <button onclick="switchTab('reports')" data-tab="reports" class="tab-btn flex-1 flex flex-col lg:flex-row items-center justify-center gap-1 lg:gap-2 px-2 py-2 lg:py-2.5 rounded-lg transition-all hover:bg-indigo-50 group" id="nav-reports" title="Reports - Track revenue, profit & financial metrics">
+          <span class="text-xl lg:text-2xl">💰</span>
+          <span class="text-xs lg:text-sm font-bold text-gray-600 group-hover:text-indigo-600">Reports</span>
         </button>
       </div>
     </div>
@@ -714,6 +710,158 @@
                     </div>
                 </div>
             </div>
+
+            <!-- OUTREACH TOOLKIT (appears when kanban card selected) -->
+            <div id="pipelineOutreachPanel" class="hidden bg-white rounded-2xl shadow-xl border-2 border-orange-200 mt-8 overflow-hidden">
+                <!-- Selected Prospect Header -->
+                <div class="bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 p-4">
+                    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-2xl" id="pipelineProspectIcon">🏢</div>
+                            <div class="text-white">
+                                <h3 class="font-bold text-lg" id="pipelineProspectName">Select a prospect</h3>
+                                <p class="text-sm text-orange-100" id="pipelineProspectInfo">Click a card above to reach out</p>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-2 items-center">
+                            <div class="flex gap-1">
+                                <button onclick="pipelineSendText()" class="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg font-bold text-sm text-white flex items-center gap-1" title="Send Text">
+                                    <span>💬</span><span class="hidden sm:inline">Text</span>
+                                </button>
+                                <button onclick="pipelineSendEmail()" class="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg font-bold text-sm text-white flex items-center gap-1" title="Send Email">
+                                    <span>📧</span><span class="hidden sm:inline">Email</span>
+                                </button>
+                                <button onclick="pipelineCall()" class="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg font-bold text-sm text-white flex items-center gap-1" title="Call">
+                                    <span>📞</span><span class="hidden sm:inline">Call</span>
+                                </button>
+                                <a id="pipelineFacebookBtn" href="#" target="_blank" class="hidden px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg font-bold text-sm text-white flex items-center gap-1" title="Facebook">
+                                    <span>📘</span><span class="hidden sm:inline">FB</span>
+                                </a>
+                                <a id="pipelineInstagramBtn" href="#" target="_blank" class="hidden px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg font-bold text-sm text-white flex items-center gap-1" title="Instagram">
+                                    <span>📸</span><span class="hidden sm:inline">IG</span>
+                                </a>
+                            </div>
+                            <button onclick="closePipelineOutreach()" class="text-white/80 hover:text-white p-2" title="Close">
+                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Template Tabs -->
+                <div class="bg-gray-50 border-b p-2 flex gap-1">
+                    <button onclick="switchPipelineOutreachTab('text')" data-pipeline-outreach-tab="text" class="pipeline-outreach-tab-btn active bg-white shadow text-orange-600 flex-1 px-3 py-2 text-sm font-bold rounded-lg flex items-center justify-center gap-1">
+                        <span>💬</span> <span class="hidden sm:inline">Text</span>
+                    </button>
+                    <button onclick="switchPipelineOutreachTab('email')" data-pipeline-outreach-tab="email" class="pipeline-outreach-tab-btn flex-1 px-3 py-2 text-sm font-bold rounded-lg flex items-center justify-center gap-1 hover:bg-white text-gray-600">
+                        <span>📧</span> <span class="hidden sm:inline">Email</span>
+                    </button>
+                    <button onclick="switchPipelineOutreachTab('phone')" data-pipeline-outreach-tab="phone" class="pipeline-outreach-tab-btn flex-1 px-3 py-2 text-sm font-bold rounded-lg flex items-center justify-center gap-1 hover:bg-white text-gray-600">
+                        <span>📞</span> <span class="hidden sm:inline">Phone</span>
+                    </button>
+                    <button onclick="switchPipelineOutreachTab('objections')" data-pipeline-outreach-tab="objections" class="pipeline-outreach-tab-btn flex-1 px-3 py-2 text-sm font-bold rounded-lg flex items-center justify-center gap-1 hover:bg-white text-gray-600">
+                        <span>🛡️</span> <span class="hidden sm:inline">Objections</span>
+                    </button>
+                </div>
+
+                <!-- TEXT Tab -->
+                <div data-pipeline-outreach-content="text" class="pipeline-outreach-pane p-4">
+                    <div class="p-4 bg-purple-50 border-2 border-purple-300 rounded-lg">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="px-2 py-0.5 bg-purple-600 text-white text-xs font-bold rounded">AI TEXT MESSAGE</span>
+                            <div class="flex gap-2">
+                                <button onclick="generatePipelinePitch('text')" id="pipelineGenTextBtn" class="px-3 py-1.5 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 font-bold">Generate</button>
+                                <button onclick="copyPipelineResult('text')" id="pipelineCopyTextBtn" class="px-3 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 font-bold hidden">Copy</button>
+                            </div>
+                        </div>
+                        <div id="pipelineTextResult" class="text-sm text-gray-700 font-mono bg-white p-3 rounded border min-h-[80px]">Select a prospect from the kanban and click Generate.</div>
+                    </div>
+                </div>
+
+                <!-- EMAIL Tab -->
+                <div data-pipeline-outreach-content="email" class="pipeline-outreach-pane hidden p-4">
+                    <div class="p-4 bg-purple-50 border-2 border-purple-300 rounded-lg">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="px-2 py-0.5 bg-purple-600 text-white text-xs font-bold rounded">AI EMAIL</span>
+                            <div class="flex gap-2">
+                                <button onclick="generatePipelinePitch('email')" id="pipelineGenEmailBtn" class="px-3 py-1.5 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 font-bold">Generate</button>
+                                <button onclick="copyPipelineResult('email')" id="pipelineCopyEmailBtn" class="px-3 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 font-bold hidden">Copy</button>
+                            </div>
+                        </div>
+                        <div id="pipelineEmailSubject" class="text-sm text-purple-700 font-bold mb-2 hidden bg-white px-3 py-2 rounded border">Subject: </div>
+                        <div id="pipelineEmailResult" class="text-sm text-gray-700 font-mono whitespace-pre-wrap bg-white p-3 rounded border min-h-[100px]">Select a prospect from the kanban and click Generate.</div>
+                    </div>
+                </div>
+
+                <!-- PHONE Tab -->
+                <div data-pipeline-outreach-content="phone" class="pipeline-outreach-pane hidden p-4">
+                    <div class="flex justify-end mb-3">
+                        <button onclick="copyPipelineCallScript()" class="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 font-bold">Copy Script</button>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div class="p-3 bg-green-50 border border-green-200 rounded-lg">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="w-6 h-6 bg-green-600 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
+                                <span class="font-bold text-green-900 text-sm">Pattern Interrupt</span>
+                            </div>
+                            <p class="text-xs text-gray-700 italic">"Hey, is this [CONTACT]? This is [YOUR_NAME], I do local advertising in [ZIP]. Got a quick question - do you guys do any direct mail marketing?"</p>
+                        </div>
+                        <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="w-6 h-6 bg-emerald-600 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                                <span class="font-bold text-emerald-900 text-sm">The Pitch</span>
+                            </div>
+                            <p class="text-xs text-gray-700 italic">"I put together a community postcard for about 5,000 homes in the ZIP. You'd be the ONLY [BUSINESS_TYPE] on the card."</p>
+                        </div>
+                        <div class="p-3 bg-teal-50 border border-teal-200 rounded-lg">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="w-6 h-6 bg-teal-600 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span>
+                                <span class="font-bold text-teal-900 text-sm">Price</span>
+                            </div>
+                            <p class="text-xs text-gray-700 italic">"It's [SPOT_PRICE] for the spot. If even ONE person calls you from this card, you've probably made that back."</p>
+                        </div>
+                        <div class="p-3 bg-cyan-50 border border-cyan-200 rounded-lg">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="w-6 h-6 bg-cyan-600 text-white rounded-full flex items-center justify-center text-xs font-bold">4</span>
+                                <span class="font-bold text-cyan-900 text-sm">Close</span>
+                            </div>
+                            <p class="text-xs text-gray-700 italic">"Want me to save your spot? Just need a quick yes and I'll send over the details."</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- OBJECTIONS Tab -->
+                <div data-pipeline-outreach-content="objections" class="pipeline-outreach-pane hidden p-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <p class="font-bold text-yellow-900 text-sm mb-1">"How much is it?"</p>
+                            <p class="text-xs text-gray-700">"It's [SPOT_PRICE]. You're in front of 5,000 homes. ONE customer and you've probably made it back."</p>
+                        </div>
+                        <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <p class="font-bold text-yellow-900 text-sm mb-1">"I need to think about it"</p>
+                            <p class="text-xs text-gray-700">"Totally fair. I only have one [BUSINESS_TYPE] spot and another guy's interested. Can I pencil you in?"</p>
+                        </div>
+                        <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <p class="font-bold text-yellow-900 text-sm mb-1">"Mailers don't work"</p>
+                            <p class="text-xs text-gray-700">"What did you try? This is different - 5,000 homes, you're the only [BUSINESS_TYPE] on the card."</p>
+                        </div>
+                        <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <p class="font-bold text-yellow-900 text-sm mb-1">"No budget"</p>
+                            <p class="text-xs text-gray-700">"What if we did half now and half when the card drops?"</p>
+                        </div>
+                        <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <p class="font-bold text-yellow-900 text-sm mb-1">"Send me info"</p>
+                            <p class="text-xs text-gray-700">"Everything I'd send I can tell you in 30 seconds. 9x12 postcard, 5,000 homes, only [BUSINESS_TYPE], [SPOT_PRICE]. You in?"</p>
+                        </div>
+                        <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <p class="font-bold text-yellow-900 text-sm mb-1">"Not interested"</p>
+                            <p class="text-xs text-gray-700">"No problem. Is it the timing, price, or you just don't do this type of advertising?"</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- TASKS TAB -->
@@ -1005,8 +1153,80 @@
                         <li>• Search multiple categories at once for better coverage</li>
                         <li>• Use custom categories for niche industries (e.g., "snowplowing")</li>
                         <li>• Results are linked to your current postcard automatically</li>
-                        <li>• Check Prospect Pool tab to review and select businesses</li>
+                        <li>• Scroll down to see and select your discovered prospects</li>
                     </ul>
+                </div>
+            </div>
+
+            <!-- INLINE PROSPECT POOL RESULTS (merged from Pool tab) -->
+            <div id="inlineProspectPool" class="mt-8">
+                <div class="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-xl shadow-lg p-4 mb-4">
+                    <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
+                        <div class="flex items-center gap-3">
+                            <span class="text-3xl">🎯</span>
+                            <div>
+                                <h2 class="text-2xl font-black text-white">Your Discovered Prospects</h2>
+                                <p class="text-sm text-emerald-100">Select businesses to add to your pipeline</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="openAddManualBusinessModal()" class="px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30 font-bold text-sm">
+                                ➕ Add Manually
+                            </button>
+                            <button onclick="exportProspectPoolCSV()" class="px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30 font-bold text-sm">
+                                📥 Export
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ZIP CODE FILTER (inline) -->
+                <div class="bg-white border rounded-lg p-4 mb-4">
+                    <h3 class="text-sm font-bold text-gray-700 mb-3">Filter by ZIP Code</h3>
+                    <div id="inlineProspectPoolZipCheckboxes" class="flex flex-wrap gap-2">
+                        <!-- ZIP checkboxes populated by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Enrichment Quota Counter -->
+                <div class="mb-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-lg">🔍</span>
+                        <span class="text-sm font-medium text-gray-700">Google Search Enrichment:</span>
+                        <span id="inlineEnrichmentQuotaCounter" class="text-sm">
+                            <span class="text-green-600 font-bold">0</span>
+                            <span class="text-gray-500">/ 100</span>
+                            <span class="text-gray-400 text-xs ml-1">searches today</span>
+                        </span>
+                    </div>
+                </div>
+
+                <div id="inlineProspectPoolStats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    <!-- Stats populated by JavaScript -->
+                </div>
+
+                <div id="inlineProspectPoolContainer">
+                    <div class="text-center py-12 text-gray-500">
+                        <span class="text-4xl mb-4 block">🔍</span>
+                        <p class="text-lg font-medium">No prospects yet</p>
+                        <p class="text-sm">Use the search above to discover local businesses</p>
+                    </div>
+                </div>
+
+                <!-- ACTION BAR for inline pool -->
+                <div id="inlineProspectPoolActionBar" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-40 transition-all duration-300" style="display: none;">
+                    <div class="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-full shadow-2xl border-2 border-emerald-300 px-6 py-3 flex items-center gap-4">
+                        <div class="flex items-center gap-2 text-white">
+                            <span id="inlineProspectPoolSelectedCount" class="text-2xl font-black">0</span>
+                            <span class="text-sm font-medium">selected</span>
+                        </div>
+                        <button onclick="addFromProspectPool()" class="px-6 py-2 bg-white text-emerald-600 rounded-full font-bold text-sm hover:bg-emerald-50 shadow-lg transform hover:scale-105 transition-all">
+                            📊 Add to Pipeline
+                        </button>
+                        <button onclick="clearProspectPoolSelection()" class="text-white hover:text-emerald-100 transition-colors" title="Clear selection">
+                            ✕
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -3700,6 +3920,113 @@
       });
     }
   </script>
+
+  <!-- ONBOARDING WIZARD MODAL -->
+  <div id="onboardingModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden">
+      <!-- Header -->
+      <div class="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white">
+        <h2 class="text-2xl font-black">Welcome to 9x12 Pro!</h2>
+        <p class="text-indigo-100 mt-1">Let's get you started in 60 seconds</p>
+      </div>
+
+      <!-- Step Content -->
+      <div id="onboardingContent" class="p-6">
+        <!-- Step 1: Welcome -->
+        <div data-onboarding-step="1" class="onboarding-step">
+          <div class="text-center mb-6">
+            <span class="text-6xl">🚀</span>
+            <h3 class="text-xl font-bold text-gray-900 mt-4">Your Postcard Business, Streamlined</h3>
+            <p class="text-gray-600 mt-2">9x12 Pro helps you find prospects, manage your pipeline, and close more deals.</p>
+          </div>
+          <div class="space-y-3">
+            <div class="flex items-center gap-3 p-3 bg-indigo-50 rounded-lg">
+              <span class="text-2xl">🔍</span>
+              <div><strong>Search</strong> - Find local businesses by ZIP code</div>
+            </div>
+            <div class="flex items-center gap-3 p-3 bg-purple-50 rounded-lg">
+              <span class="text-2xl">📊</span>
+              <div><strong>Pipeline</strong> - Track deals with drag & drop kanban</div>
+            </div>
+            <div class="flex items-center gap-3 p-3 bg-pink-50 rounded-lg">
+              <span class="text-2xl">📮</span>
+              <div><strong>Campaigns</strong> - Design your postcard layout</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Quick Start -->
+        <div data-onboarding-step="2" class="onboarding-step hidden">
+          <div class="text-center mb-6">
+            <span class="text-6xl">⚡</span>
+            <h3 class="text-xl font-bold text-gray-900 mt-4">Quick Start Guide</h3>
+            <p class="text-gray-600 mt-2">Follow these steps to land your first client:</p>
+          </div>
+          <div class="space-y-4">
+            <div class="flex items-start gap-3">
+              <span class="w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold flex-shrink-0">1</span>
+              <div>
+                <strong class="block">Search for businesses</strong>
+                <span class="text-sm text-gray-600">Enter a ZIP code and category to find prospects</span>
+              </div>
+            </div>
+            <div class="flex items-start gap-3">
+              <span class="w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold flex-shrink-0">2</span>
+              <div>
+                <strong class="block">Add to Pipeline</strong>
+                <span class="text-sm text-gray-600">Select businesses and start your outreach</span>
+              </div>
+            </div>
+            <div class="flex items-start gap-3">
+              <span class="w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold flex-shrink-0">3</span>
+              <div>
+                <strong class="block">Close the deal</strong>
+                <span class="text-sm text-gray-600">Use AI templates to pitch & convert to clients</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Pro Tips -->
+        <div data-onboarding-step="3" class="onboarding-step hidden">
+          <div class="text-center mb-6">
+            <span class="text-6xl">💡</span>
+            <h3 class="text-xl font-bold text-gray-900 mt-4">Pro Tips</h3>
+            <p class="text-gray-600 mt-2">Get the most out of 9x12 Pro:</p>
+          </div>
+          <div class="space-y-3">
+            <div class="p-3 bg-green-50 rounded-lg border border-green-200">
+              <strong class="text-green-800">Spark Comments</strong>
+              <p class="text-sm text-green-700">Use AI to generate personalized social media comments that warm up prospects</p>
+            </div>
+            <div class="p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <strong class="text-blue-800">Daily Goal Tracking</strong>
+              <p class="text-sm text-blue-700">Set a daily outreach goal in Pipeline to stay consistent</p>
+            </div>
+            <div class="p-3 bg-purple-50 rounded-lg border border-purple-200">
+              <strong class="text-purple-800">Facing Slip Generator</strong>
+              <p class="text-sm text-purple-700">Create USPS-ready facing slips for your mailings with one click</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="p-4 bg-gray-50 border-t flex justify-between items-center">
+        <div class="flex gap-2">
+          <span id="onboardingDot1" class="w-2 h-2 rounded-full bg-indigo-600"></span>
+          <span id="onboardingDot2" class="w-2 h-2 rounded-full bg-gray-300"></span>
+          <span id="onboardingDot3" class="w-2 h-2 rounded-full bg-gray-300"></span>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="skipOnboarding()" class="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm font-medium">Skip</button>
+          <button onclick="nextOnboardingStep()" id="onboardingNextBtn" class="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm hover:bg-indigo-700">
+            Next →
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 
 </body>
 </html>
