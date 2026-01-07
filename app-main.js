@@ -30,6 +30,46 @@ var authCheckInterval = setInterval(function() {
 let updateBannerDismissed = false; // Track if user dismissed the banner this session
 const LAST_VERSION_KEY = '9x12_last_version';
 
+// Force refresh by clearing all caches and unregistering service worker
+async function forceAppRefresh() {
+  console.log('🔄 Force refreshing app...');
+
+  try {
+    // Clear all caches
+    if ('caches' in window) {
+      const cacheNames = await caches.keys();
+      await Promise.all(cacheNames.map(name => {
+        console.log('Deleting cache:', name);
+        return caches.delete(name);
+      }));
+      console.log('✅ All caches cleared');
+    }
+
+    // Unregister service workers
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map(reg => {
+        console.log('Unregistering service worker');
+        return reg.unregister();
+      }));
+      console.log('✅ Service workers unregistered');
+    }
+
+    // Update stored version so banner doesn't show again after refresh
+    const currentVersion = window.APP_CONFIG?.app?.version;
+    if (currentVersion) {
+      localStorage.setItem(LAST_VERSION_KEY, currentVersion);
+    }
+
+    // Hard reload
+    window.location.href = window.location.href.split('?')[0] + '?v=' + Date.now();
+  } catch (err) {
+    console.error('Error during force refresh:', err);
+    // Fallback to simple reload
+    window.location.reload();
+  }
+}
+
 function checkForAppUpdate() {
   // Don't show again if user already dismissed this session
   if (updateBannerDismissed) return;
@@ -64,7 +104,7 @@ function checkForAppUpdate() {
     updateBanner.innerHTML = `
       <div style="max-width: 800px; margin: 0 auto; display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap;">
         <span>🎉 New version available (${window.APP_CONFIG.app.version})!</span>
-        <button onclick="location.reload(true)" style="background: white; color: #667eea; padding: 8px 20px; border-radius: 8px; font-weight: bold; border: none; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2); transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+        <button onclick="forceAppRefresh()" style="background: white; color: #667eea; padding: 8px 20px; border-radius: 8px; font-weight: bold; border: none; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2); transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
           Refresh Now
         </button>
         <button onclick="updateBannerDismissed=true; this.parentElement.parentElement.remove()" style="background: transparent; color: white; padding: 8px 16px; border-radius: 8px; border: 2px solid white; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='transparent'">
