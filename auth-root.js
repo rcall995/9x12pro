@@ -100,9 +100,8 @@ function checkRootUserApproval(userId, user, retryCount) {
       authReady = true;
       window.authReady = true;
 
-      // Show the page content
-      console.log('🎨 Setting body display to block');
-      document.body.style.display = 'block';
+      // Page content is visible - loading overlay will hide when campaigns load
+      console.log('🎨 Auth complete, loading overlay will hide when data loads');
 
       // Add logout button if needed
       addLogoutButton();
@@ -177,10 +176,10 @@ function addLogoutButton() {
   }
 }
 
-// Hide page initially
+// Don't hide body - loading overlay covers content during auth check
 console.log('🚀 auth-root.js loaded');
 console.log('🔍 Checking for window.supabaseClient:', typeof window.supabaseClient);
-document.body.style.display = 'none';
+// document.body.style.display = 'none'; // Removed - loading overlay handles this
 
 // Initialize auth when page loads
 if (typeof window.supabaseClient !== 'undefined') {
