@@ -16901,6 +16901,7 @@ function switchTab(tabName) {
     // Handle Reports tab - redirect to Dashboard with Reports sub-pane
     if (tabName === 'reports') {
         localStorage.setItem('9x12_active_tab', 'dashboard');
+        localStorage.setItem('9x12_dashboard_subtab', 'reports');
         // Switch to dashboard first
         switchTab('dashboard');
         // Then switch to reports sub-pane
@@ -16912,6 +16913,12 @@ function switchTab(tabName) {
         const reportsBtn = document.querySelector('.tab-btn[data-tab="reports"]');
         if (reportsBtn) reportsBtn.classList.add('active', 'bg-white', 'shadow-md');
         return;
+    }
+
+    // Handle Home/Dashboard tab - reset to Overview sub-pane
+    if (tabName === 'dashboard') {
+        localStorage.setItem('9x12_dashboard_subtab', 'overview');
+        setTimeout(() => switchDashboardTab('overview'), 50);
     }
 
     // Save current tab to remember it on refresh
