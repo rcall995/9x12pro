@@ -9025,6 +9025,8 @@ function populateCategoryDropdown(categories) {
 // Expose new functions globally
 window.toggleProspectRadar = toggleProspectRadar;
 window.filterProspectPoolByCategory = filterProspectPoolByCategory;
+window.applyProspectPoolFilters = applyProspectPoolFilters;
+window.clearContactFilters = clearContactFilters;
 
 function renderProspectPool() {
   console.log('🔵 DEBUG: renderProspectPool ENTRY - prospect-list length:', kanbanState.columns['prospect-list']?.length);
