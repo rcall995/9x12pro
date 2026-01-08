@@ -102,33 +102,25 @@
   </script>
 </head>
 <body class="bg-gray-100 min-h-screen font-sans">
-  <!-- Inline script to set initial tab state before page renders -->
+  <!-- Inline script to set initial tab state - injects CSS immediately to prevent flash -->
   <script>
     (function() {
-      // Hide all tabs initially to prevent flash
+      // Get saved tab IMMEDIATELY and inject CSS to hide wrong tabs
+      var savedTab = localStorage.getItem('9x12_active_tab') || 'dashboard';
+
+      // Create style to hide all non-active tabs before DOM renders
+      var style = document.createElement('style');
+      style.id = 'initial-tab-style';
+      style.textContent = '.tab-pane:not([data-content="' + savedTab + '"]) { display: none !important; }';
+      document.head.appendChild(style);
+
+      // Remove the style once proper tab switching takes over
       document.addEventListener('DOMContentLoaded', function() {
-        const savedTab = localStorage.getItem('9x12_active_tab') || 'dashboard';
-
-        // Hide all tabs and deactivate all buttons
-        document.querySelectorAll('.tab-pane').forEach(pane => {
-          pane.classList.add('hidden');
-          pane.classList.remove('active-pane');
-        });
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-          btn.classList.remove('active');
-        });
-
-        // Show the saved tab
-        const activePane = document.querySelector(`.tab-pane[data-content="${savedTab}"]`);
-        const activeBtn = document.querySelector(`.tab-btn[data-tab="${savedTab}"]`);
-
-        if (activePane) {
-          activePane.classList.remove('hidden');
-          activePane.classList.add('active-pane');
-        }
-        if (activeBtn) {
-          activeBtn.classList.add('active');
-        }
+        // Small delay to let switchTab run first
+        setTimeout(function() {
+          var initialStyle = document.getElementById('initial-tab-style');
+          if (initialStyle) initialStyle.remove();
+        }, 100);
       });
     })();
   </script>
