@@ -29,7 +29,23 @@ var authCheckInterval = setInterval(function() {
 // Auto-update checker: Periodically check if app version has changed
 let updateBannerDismissed = false; // Track if user dismissed the banner this session
 const LAST_VERSION_KEY = '9x12_last_version';
-const REFRESH_FLAG_KEY = '9x12_just_refreshed';
+const REFRESH_PENDING_KEY = '9x12_refresh_pending';
+
+// IMMEDIATELY check if we just refreshed (before anything else runs)
+// This runs synchronously when the script loads
+(function checkRefreshFlag() {
+  const refreshTime = localStorage.getItem(REFRESH_PENDING_KEY);
+  if (refreshTime) {
+    const timeSinceRefresh = Date.now() - parseInt(refreshTime);
+    // If refresh was within last 30 seconds, this is a post-refresh load
+    if (timeSinceRefresh < 30000) {
+      console.log('✅ Post-refresh detected (' + Math.round(timeSinceRefresh/1000) + 's ago), suppressing banner');
+      updateBannerDismissed = true; // Prevent banner from showing
+    }
+    // Always clear the flag after checking
+    localStorage.removeItem(REFRESH_PENDING_KEY);
+  }
+})();
 
 // Force refresh by clearing all caches and unregistering service worker
 async function forceAppRefresh() {
@@ -42,8 +58,9 @@ async function forceAppRefresh() {
       localStorage.setItem(LAST_VERSION_KEY, currentVersion);
       console.log('✅ Version saved to localStorage:', currentVersion);
     }
-    // Set refresh flag to prevent banner from showing immediately after refresh
-    sessionStorage.setItem(REFRESH_FLAG_KEY, Date.now().toString());
+    // Set refresh pending flag - this will be checked on next page load
+    localStorage.setItem(REFRESH_PENDING_KEY, Date.now().toString());
+    console.log('✅ Refresh flag set');
 
     // Clear all caches
     if ('caches' in window) {
@@ -65,11 +82,8 @@ async function forceAppRefresh() {
       console.log('✅ Service workers unregistered');
     }
 
-    // Small delay to ensure localStorage is fully persisted
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    // Hard reload using replace to avoid back button issues
-    window.location.replace(window.location.href.split('?')[0] + '?refresh=' + Date.now());
+    // Hard reload
+    window.location.reload(true);
   } catch (err) {
     console.error('Error during force refresh:', err);
     // Fallback - still set version and reload
@@ -77,35 +91,20 @@ async function forceAppRefresh() {
     if (currentVersion) {
       localStorage.setItem(LAST_VERSION_KEY, currentVersion);
     }
-    sessionStorage.setItem(REFRESH_FLAG_KEY, Date.now().toString());
+    localStorage.setItem(REFRESH_PENDING_KEY, Date.now().toString());
     window.location.reload(true);
   }
 }
 
 function checkForAppUpdate() {
-  // Don't show again if user already dismissed this session
-  if (updateBannerDismissed) return;
+  // Don't show again if user already dismissed this session (or just refreshed)
+  if (updateBannerDismissed) {
+    console.log('⏭️ Update banner suppressed (dismissed or post-refresh)');
+    return;
+  }
 
   // Don't create duplicate banners
   if (document.getElementById('update-banner')) return;
-
-  // Check if we just did a forced refresh (URL contains ?refresh= parameter)
-  // This is more reliable than sessionStorage which can be lost during navigation
-  const urlParams = new URLSearchParams(window.location.search);
-  const refreshParam = urlParams.get('refresh');
-  if (refreshParam) {
-    console.log('✅ Detected forced refresh, updating stored version and cleaning URL');
-    // Update stored version to current
-    const currentVersion = window.APP_CONFIG?.app?.version;
-    if (currentVersion) {
-      localStorage.setItem(LAST_VERSION_KEY, currentVersion);
-      console.log('✅ Version updated to:', currentVersion);
-    }
-    // Clean the URL (remove ?refresh= parameter)
-    const cleanUrl = window.location.href.split('?')[0];
-    window.history.replaceState({}, document.title, cleanUrl);
-    return; // Skip the update check
-  }
 
   // Check if config version differs from last seen version
   const currentVersion = window.APP_CONFIG?.app?.version;
