@@ -15559,7 +15559,8 @@ async function createDuplicatePostcard() {
       productionState.pricing[mailerId] = {
         singleAd: sourcePricing.singleAd || 0,
         doubleAd: sourcePricing.doubleAd || 0,
-        bannerAd: sourcePricing.bannerAd || 0
+        bannerAd: sourcePricing.bannerAd || 0,
+        homeCount: sourcePricing.homeCount || 0
       };
       await savePricing();
     }
@@ -15651,7 +15652,8 @@ async function loadPricing() {
         productionState.pricing[mailerId] = {
           singleAd: parseFloat(pricing.singleAd) || 0,
           doubleAd: parseFloat(pricing.doubleAd) || 0,
-          bannerAd: parseFloat(pricing.bannerAd) || 0
+          bannerAd: parseFloat(pricing.bannerAd) || 0,
+          homeCount: parseInt(pricing.homeCount) || 0
         };
       });
     }
