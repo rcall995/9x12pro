@@ -8499,6 +8499,114 @@ function toggleToContactSelection(leadId) {
   renderKanban();
 }
 
+// Select all items in To Contact column
+function selectAllToContact() {
+  const items = kanbanState.columns['to-contact'] || [];
+
+  if (items.length === 0) {
+    toast('No items in To Contact column', false);
+    return;
+  }
+
+  // Add all items to selection
+  items.forEach(item => {
+    if (typeof item === 'object' && item.id) {
+      toContactSelectionState.selectedIds.add(String(item.id));
+    }
+  });
+
+  updateBulkSendSection();
+  renderKanban();
+  toast(`Selected ${items.length} item${items.length === 1 ? '' : 's'}`, true);
+}
+
+// Clear To Contact column selection
+function clearToContactSelection() {
+  const previousCount = toContactSelectionState.selectedIds.size;
+  toContactSelectionState.selectedIds.clear();
+  updateBulkSendSection();
+  renderKanban();
+
+  if (previousCount > 0) {
+    toast(`Cleared ${previousCount} selection${previousCount === 1 ? '' : 's'}`, true);
+  }
+}
+
+// Move selected items from To Contact back to Prospect List (column 2 -> column 1)
+async function moveSelectedToProspectList() {
+  console.log('🔵 moveSelectedToProspectList CALLED - Starting');
+  const selectedCount = toContactSelectionState.selectedIds.size;
+
+  if (selectedCount === 0) {
+    toast('No items selected', false);
+    return;
+  }
+
+  // Single confirmation for all
+  if (!confirm(`Move ${selectedCount} item${selectedCount === 1 ? '' : 's'} back to Prospect List?`)) {
+    return;
+  }
+
+  const fromColumn = 'to-contact';
+  const toColumn = 'prospect-list';
+  const fromItems = kanbanState.columns[fromColumn] || [];
+  const toItems = kanbanState.columns[toColumn] || [];
+
+  console.log(`🔵 moveSelectedToProspectList - to-contact has ${fromItems.length} items before move`);
+
+  const movedItems = [];
+
+  // Collect all selected items
+  toContactSelectionState.selectedIds.forEach(leadId => {
+    const leadIdStr = String(leadId);
+    const leadIndex = fromItems.findIndex(item => typeof item === 'object' && String(item.id) === leadIdStr);
+    console.log(`🔵 Looking for leadId: ${leadIdStr}, found at index: ${leadIndex}`);
+    if (leadIndex !== -1) {
+      movedItems.push({
+        item: fromItems[leadIndex],
+        index: leadIndex
+      });
+    }
+  });
+
+  // Sort by index descending to safely remove from array
+  movedItems.sort((a, b) => b.index - a.index);
+
+  // Move each item
+  movedItems.forEach(({ item, index }) => {
+    // Check if item already exists in prospect-list (prevent duplicates)
+    const existingIndex = toItems.findIndex(p =>
+      String(p.id) === String(item.id) ||
+      (p.placeId && p.placeId === item.placeId) ||
+      (p.businessName && p.businessName.toLowerCase() === item.businessName.toLowerCase())
+    );
+
+    if (existingIndex === -1) {
+      // Add to prospect-list at the beginning
+      kanbanState.columns[toColumn].unshift({
+        ...item,
+        movedBackDate: new Date().toISOString()
+      });
+    }
+
+    // Remove from to-contact
+    kanbanState.columns[fromColumn].splice(index, 1);
+  });
+
+  // Clear selections
+  toContactSelectionState.selectedIds.clear();
+
+  console.log(`🔵 moveSelectedToProspectList - to-contact now has ${kanbanState.columns[fromColumn].length} items`);
+  console.log(`🔵 moveSelectedToProspectList - prospect-list now has ${kanbanState.columns[toColumn].length} items`);
+
+  await saveKanban();
+  updateBulkSendSection();
+  renderKanban();
+
+  toast(`✅ Moved ${selectedCount} item${selectedCount === 1 ? '' : 's'} back to Prospect List`, true);
+  console.log('🔵 moveSelectedToProspectList - COMPLETE');
+}
+
 // Update bulk send section visibility and content
 function updateBulkSendSection() {
   const bulkSection = document.getElementById('bulkSendSection');
@@ -8746,6 +8854,9 @@ window.moveProspectFromPool = moveProspectFromPool;
 window.filterProspectPoolByDate = filterProspectPoolByDate;
 window.toggleAllZips = toggleAllZips;
 window.handleZipChange = handleZipChange;
+window.selectAllToContact = selectAllToContact;
+window.clearToContactSelection = clearToContactSelection;
+window.moveSelectedToProspectList = moveSelectedToProspectList;
 
 function filterProspectPoolByDate() {
   renderProspectPool();
@@ -13417,9 +13528,26 @@ function renderKanban() {
         ` : ''}
       ` : '';
 
+    // Add buttons for To Contact column (column 2)
+    const hasToContactSelections = toContactSelectionState.selectedIds.size > 0;
+    const toContactButtons = col.key === 'to-contact' ? `
+        <button onclick="selectAllToContact()" class="text-xs px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600" title="Select All">
+          ☑ All
+        </button>
+        ${hasToContactSelections ? `
+          <button onclick="clearToContactSelection()" class="text-xs px-2 py-1 bg-gray-400 text-white rounded hover:bg-gray-500" title="Clear Selection">
+            ✕ Clear
+          </button>
+          <button onclick="moveSelectedToProspectList()" class="text-xs px-2 py-1 bg-purple-500 text-white rounded hover:bg-purple-600" title="Move selected back to Prospect List">
+            ⬅ ${toContactSelectionState.selectedIds.size} to List
+          </button>
+        ` : ''}
+      ` : '';
+
     const buttons = `
         ${zipFilterHTML}
         ${prospectListButtons}
+        ${toContactButtons}
         <button onclick="openLeadModal('${col.key}')" class="text-xs px-2 py-1 bg-${col.color}-600 text-white rounded hover:bg-${col.color}-700" title="Add lead manually">
           +
         </button>
