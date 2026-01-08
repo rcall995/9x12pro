@@ -42,15 +42,15 @@
       window.googleMapsLoaded = true;
     };
   </script>
-  <!-- Core Utilities - Load First -->
-  <script>document.write('<script src="config.js' + window.CACHE_BUST + '"><\/script>');</script>
-  <script>document.write('<script src="error-handler.js' + window.CACHE_BUST + '"><\/script>');</script>
-  <script>document.write('<script src="utils.js' + window.CACHE_BUST + '"><\/script>');</script>
+  <!-- Core Utilities - Load First (synchronous for dependencies) -->
+  <script src="config.js"></script>
+  <script src="error-handler.js"></script>
+  <script src="utils.js"></script>
 
   <!-- New Modular Components -->
-  <script>document.write('<script src="components/Toast.js' + window.CACHE_BUST + '"><\/script>');</script>
-  <script>document.write('<script src="components/BusinessModal.js' + window.CACHE_BUST + '"><\/script>');</script>
-  <script>document.write('<script src="components/FilterBar.js' + window.CACHE_BUST + '"><\/script>');</script>
+  <script src="components/Toast.js"></script>
+  <script src="components/BusinessModal.js"></script>
+  <script src="components/FilterBar.js"></script>
 
   <!-- Google Maps JavaScript API - PLACES LIBRARY DISABLED TO PREVENT CHARGES -->
   <script>
@@ -91,8 +91,15 @@
     })();
   </script>
 
-  <!-- External Stylesheet -->
-  <link rel="stylesheet" href="styles.css?v=2026-01-03-v152">
+  <!-- External Stylesheet - dynamic cache bust -->
+  <script>
+    (function() {
+      var link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'styles.css' + window.CACHE_BUST;
+      document.head.appendChild(link);
+    })();
+  </script>
 </head>
 <body class="bg-gray-100 min-h-screen font-sans">
   <!-- Inline script to set initial tab state before page renders -->
@@ -3220,13 +3227,13 @@
 
 
   <!-- Performance Loader (Shows loading screen to prevent perceived freezing) -->
-  <script>document.write('<script src="performance-loader.js' + window.CACHE_BUST + '" defer><\/script>');</script>
+  <script src="performance-loader.js" defer></script>
 
   <!-- Main Application JavaScript (Refactored) -->
-  <script>document.write('<script src="app-main.js' + window.CACHE_BUST + '" defer><\/script>');</script>
+  <script src="app-main.js" defer></script>
 
   <!-- Authentication -->
-  <script>document.write('<script src="auth-root.js' + window.CACHE_BUST + '"><\/script>');</script>
+  <script src="auth-root.js"></script>
 
   <!-- PWA Service Worker Registration -->
   <script>
