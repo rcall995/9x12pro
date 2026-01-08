@@ -9252,7 +9252,8 @@ function renderProspectPool() {
         return;
       }
 
-      const category = prospect.category || 'other';
+      // Normalize category to lowercase for consistent grouping
+      const category = (prospect.category || 'other').toLowerCase().trim();
       if (!unifiedByCategory[category]) {
         unifiedByCategory[category] = [];
       }
@@ -9274,11 +9275,13 @@ function renderProspectPool() {
   let searchProspectsAdded = 0;
   let searchProspectsSkipped = 0;
 
-  Object.keys(categorizedProspects).forEach(category => {
+  Object.keys(categorizedProspects).forEach(rawCategory => {
+    // Normalize category to lowercase for consistent grouping
+    const category = rawCategory.toLowerCase().trim();
     if (!unifiedByCategory[category]) {
       unifiedByCategory[category] = [];
     }
-    categorizedProspects[category].forEach(prospect => {
+    categorizedProspects[rawCategory].forEach(prospect => {
       // Skip if this placeId was already added from manual prospects
       if (prospect.placeId && unifiedSeenPlaceIds.has(prospect.placeId)) {
         searchProspectsSkipped++;
