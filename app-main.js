@@ -8975,9 +8975,19 @@ function renderProspectPool() {
   if (searchInput) {
     prospectPoolSearchTerm = searchInput.value;
   }
-  const container = document.getElementById('prospectPoolContainer');
-  const statsContainer = document.getElementById('prospectPoolStats');
-  const zipCheckboxContainer = document.getElementById('prospectPoolZipCheckboxes');
+
+  // Try main containers first, fallback to inline containers (Search tab merged view)
+  let container = document.getElementById('prospectPoolContainer');
+  let statsContainer = document.getElementById('prospectPoolStats');
+  let zipCheckboxContainer = document.getElementById('prospectPoolZipCheckboxes');
+
+  // If main containers don't exist, use inline containers directly
+  const useInlineOnly = !container;
+  if (useInlineOnly) {
+    container = document.getElementById('inlineProspectPoolContainer');
+    statsContainer = document.getElementById('inlineProspectPoolStats');
+    zipCheckboxContainer = document.getElementById('inlineProspectPoolZipCheckboxes');
+  }
 
   if (!container || !statsContainer) return;
 
@@ -9607,18 +9617,21 @@ function renderProspectPool() {
   }
 
   // ALSO render to inline containers in Search tab (merged Pool view)
-  const inlineContainer = document.getElementById('inlineProspectPoolContainer');
-  const inlineStatsContainer = document.getElementById('inlineProspectPoolStats');
-  const inlineZipCheckboxes = document.getElementById('inlineProspectPoolZipCheckboxes');
+  // Only copy if we're NOT already rendering directly to inline containers
+  if (!useInlineOnly) {
+    const inlineContainer = document.getElementById('inlineProspectPoolContainer');
+    const inlineStatsContainer = document.getElementById('inlineProspectPoolStats');
+    const inlineZipCheckboxes = document.getElementById('inlineProspectPoolZipCheckboxes');
 
-  if (inlineContainer && container) {
-    inlineContainer.innerHTML = container.innerHTML;
-  }
-  if (inlineStatsContainer && statsContainer) {
-    inlineStatsContainer.innerHTML = statsContainer.innerHTML;
-  }
-  if (inlineZipCheckboxes && zipCheckboxContainer) {
-    inlineZipCheckboxes.innerHTML = zipCheckboxContainer.innerHTML;
+    if (inlineContainer && container) {
+      inlineContainer.innerHTML = container.innerHTML;
+    }
+    if (inlineStatsContainer && statsContainer) {
+      inlineStatsContainer.innerHTML = statsContainer.innerHTML;
+    }
+    if (inlineZipCheckboxes && zipCheckboxContainer) {
+      inlineZipCheckboxes.innerHTML = zipCheckboxContainer.innerHTML;
+    }
   }
 
   console.log('🔵 DEBUG: renderProspectPool EXIT - prospect-list length:', kanbanState.columns['prospect-list']?.length);
