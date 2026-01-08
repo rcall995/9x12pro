@@ -29,38 +29,17 @@ var authCheckInterval = setInterval(function() {
 // Auto-update checker: Periodically check if app version has changed
 let updateBannerDismissed = false; // Track if user dismissed the banner this session
 const LAST_VERSION_KEY = '9x12_last_version';
-const REFRESH_PENDING_KEY = '9x12_refresh_pending';
-
-// IMMEDIATELY check if we just refreshed (before anything else runs)
-// This runs synchronously when the script loads
-(function checkRefreshFlag() {
-  const refreshTime = localStorage.getItem(REFRESH_PENDING_KEY);
-  if (refreshTime) {
-    const timeSinceRefresh = Date.now() - parseInt(refreshTime);
-    // If refresh was within last 30 seconds, this is a post-refresh load
-    if (timeSinceRefresh < 30000) {
-      console.log('✅ Post-refresh detected (' + Math.round(timeSinceRefresh/1000) + 's ago), suppressing banner');
-      updateBannerDismissed = true; // Prevent banner from showing
-    }
-    // Always clear the flag after checking
-    localStorage.removeItem(REFRESH_PENDING_KEY);
-  }
-})();
+const BANNER_SUPPRESS_UNTIL_KEY = '9x12_suppress_banner_until';
 
 // Force refresh by clearing all caches and unregistering service worker
 async function forceAppRefresh() {
   console.log('🔄 Force refreshing app...');
 
   try {
-    // FIRST: Set flags SYNCHRONOUSLY before any async operations
-    const currentVersion = window.APP_CONFIG?.app?.version;
-    if (currentVersion) {
-      localStorage.setItem(LAST_VERSION_KEY, currentVersion);
-      console.log('✅ Version saved to localStorage:', currentVersion);
-    }
-    // Set refresh pending flag - this will be checked on next page load
-    localStorage.setItem(REFRESH_PENDING_KEY, Date.now().toString());
-    console.log('✅ Refresh flag set');
+    // Set "don't show banner until" timestamp (60 seconds from now)
+    // This survives page reload and any double-load issues
+    localStorage.setItem(BANNER_SUPPRESS_UNTIL_KEY, (Date.now() + 60000).toString());
+    console.log('✅ Banner suppression set for 60 seconds');
 
     // Clear all caches
     if ('caches' in window) {
@@ -86,25 +65,38 @@ async function forceAppRefresh() {
     window.location.reload(true);
   } catch (err) {
     console.error('Error during force refresh:', err);
-    // Fallback - still set version and reload
-    const currentVersion = window.APP_CONFIG?.app?.version;
-    if (currentVersion) {
-      localStorage.setItem(LAST_VERSION_KEY, currentVersion);
-    }
-    localStorage.setItem(REFRESH_PENDING_KEY, Date.now().toString());
+    localStorage.setItem(BANNER_SUPPRESS_UNTIL_KEY, (Date.now() + 60000).toString());
     window.location.reload(true);
   }
 }
 
 function checkForAppUpdate() {
-  // Don't show again if user already dismissed this session (or just refreshed)
+  // Don't show again if user already dismissed this session
   if (updateBannerDismissed) {
-    console.log('⏭️ Update banner suppressed (dismissed or post-refresh)');
+    console.log('⏭️ Update banner suppressed (user dismissed)');
     return;
   }
 
   // Don't create duplicate banners
   if (document.getElementById('update-banner')) return;
+
+  // Check if we're in the suppression window (after clicking Refresh Now)
+  const suppressUntil = localStorage.getItem(BANNER_SUPPRESS_UNTIL_KEY);
+  if (suppressUntil) {
+    const suppressTime = parseInt(suppressUntil);
+    if (Date.now() < suppressTime) {
+      console.log('⏭️ Update banner suppressed (within 60s of refresh)');
+      // Also save current version so banner doesn't show after suppression expires
+      const currentVersion = window.APP_CONFIG?.app?.version;
+      if (currentVersion) {
+        localStorage.setItem(LAST_VERSION_KEY, currentVersion);
+      }
+      localStorage.removeItem(BANNER_SUPPRESS_UNTIL_KEY);
+      return;
+    }
+    // Suppression expired, remove it
+    localStorage.removeItem(BANNER_SUPPRESS_UNTIL_KEY);
+  }
 
   // Check if config version differs from last seen version
   const currentVersion = window.APP_CONFIG?.app?.version;
