@@ -1143,16 +1143,20 @@
                     </div>
                 </div>
 
-                <div class="bg-white rounded-2xl shadow-xl border-2 border-green-100 p-6 hover:shadow-2xl transition-all">
-                    <div class="flex items-center gap-2 mb-3">
-                        <span class="text-3xl">💰</span>
-                        <div class="text-base font-bold text-gray-600">Revenue Progress</div>
+                <div class="bg-white rounded-2xl shadow-xl border-2 border-green-100 p-6 hover:shadow-2xl transition-all cursor-pointer" onclick="openPricingModal()">
+                    <div class="flex items-center justify-between gap-2 mb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="text-3xl">💰</span>
+                            <div class="text-base font-bold text-gray-600">Revenue Progress</div>
+                        </div>
+                        <span class="text-sm text-green-600 font-bold bg-green-50 px-3 py-1 rounded-full">✎ Pricing</span>
                     </div>
                     <div class="text-4xl font-black text-green-600" id="currentRevenue">$0</div>
                     <p class="text-sm text-gray-500 mt-2 font-medium" id="revenueProgressText">of $9,000 goal</p>
                     <div class="w-full h-3 bg-gray-200 rounded-full mt-3">
                         <div id="revenueProgressBar" class="h-3 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full transition-all duration-300 shadow-lg" style="width: 0%;"></div>
                     </div>
+                    <p class="text-xs text-gray-400 mt-2">Click to set ad rates</p>
                 </div>
 
                 <div class="bg-white rounded-2xl shadow-xl border-2 border-blue-100 p-6 hover:shadow-2xl transition-all">
@@ -1207,9 +1211,6 @@
                     <div class="flex flex-wrap gap-2">
                         <button id="btnEditStatusModal" onclick="openEditStatusModal()" class="flex-1 min-w-[100px] px-3 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-bold transition-all transform hover:scale-105">
                             📝 Status
-                        </button>
-                        <button onclick="openPricingModal()" class="flex-1 min-w-[100px] px-3 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 text-xs font-bold transition-all transform hover:scale-105">
-                            💰 Pricing
                         </button>
                         <button onclick="openEditDetailsModal()" class="flex-1 min-w-[100px] px-3 py-2 rounded-lg bg-teal-600 text-white hover:bg-teal-700 text-xs font-bold transition-all transform hover:scale-105">
                             📅 Details
