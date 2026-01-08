@@ -4,11 +4,8 @@ console.log('🚀 Main app.html script starting...');
 function hideLoadingOverlay() {
   const overlay = document.getElementById('app-loading-overlay');
   if (overlay) {
-    overlay.style.opacity = '0';
-    setTimeout(() => {
-      overlay.style.display = 'none';
-      console.log('✅ Loading overlay hidden');
-    }, 300);
+    overlay.remove(); // Completely remove from DOM
+    console.log('✅ Loading overlay removed');
   }
 }
 
