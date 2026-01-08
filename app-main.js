@@ -1,4 +1,17 @@
 console.log('🚀 Main app.html script starting...');
+
+// Hide loading overlay - called when app is ready
+function hideLoadingOverlay() {
+  const overlay = document.getElementById('app-loading-overlay');
+  if (overlay) {
+    overlay.style.opacity = '0';
+    setTimeout(() => {
+      overlay.style.display = 'none';
+      console.log('✅ Loading overlay hidden');
+    }, 300);
+  }
+}
+
 /* ========= CONFIG ========= */
 // Supabase client is initialized in HEAD section
 var supabaseClient = window.supabaseClient; // Local reference
@@ -17424,6 +17437,7 @@ async function loadCampaigns(restoreMailerId = null) {
   } catch (err) {
     console.error('Failed to load campaigns from Supabase:', err);
     toast("⚠️ Failed to load campaigns. Please refresh.", false);
+    hideLoadingOverlay(); // Still hide overlay on error
   }
 }
 
@@ -17551,6 +17565,9 @@ function onCampaignsLoaded(res, restoreMailerId = null){
 
   // Render cards in progress on dashboard
   renderCardsInProgress();
+
+  // Hide loading overlay - app is now ready
+  hideLoadingOverlay();
 }
 
 // Populate town selector from available mailers
