@@ -188,6 +188,10 @@
           <span class="text-xl lg:text-2xl">🔍</span>
           <span class="text-xs lg:text-sm font-bold text-gray-600 group-hover:text-indigo-600">Search</span>
         </button>
+        <button onclick="switchTab('tasks')" data-tab="tasks" class="tab-btn flex-1 flex flex-col lg:flex-row items-center justify-center gap-1 lg:gap-2 px-2 py-2 lg:py-2.5 rounded-lg transition-all hover:bg-indigo-50 group" id="nav-tasks" title="Tasks - Manage your to-do list and follow-ups">
+          <span class="text-xl lg:text-2xl">✅</span>
+          <span class="text-xs lg:text-sm font-bold text-gray-600 group-hover:text-indigo-600">Tasks</span>
+        </button>
         <button onclick="switchTab('pipeline')" data-tab="pipeline" class="tab-btn flex-1 flex flex-col lg:flex-row items-center justify-center gap-1 lg:gap-2 px-2 py-2 lg:py-2.5 rounded-lg transition-all hover:bg-indigo-50 group" id="nav-pipeline" title="Pipeline - Manage your sales funnel with drag & drop kanban">
           <span class="text-xl lg:text-2xl">📊</span>
           <span class="text-xs lg:text-sm font-bold text-gray-600 group-hover:text-indigo-600">Pipeline</span>
@@ -231,32 +235,7 @@
                 </div>
             </div>
 
-            <!-- DASHBOARD SUB-NAVIGATION -->
-            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-3 mb-6 flex gap-2 justify-center flex-wrap">
-                <button onclick="switchDashboardTab('overview')" data-dashboard-tab="overview" class="dashboard-tab-btn active px-4 py-3 rounded-lg font-bold text-sm transition-all hover:bg-white hover:shadow-md flex items-center gap-2">
-                    <span class="text-xl">🎯</span>
-                    <span>Overview</span>
-                </button>
-                <button onclick="switchDashboardTab('tasks')" data-dashboard-tab="tasks" class="dashboard-tab-btn px-4 py-3 rounded-lg font-bold text-sm transition-all hover:bg-white hover:shadow-md flex items-center gap-2">
-                    <span class="text-xl">✅</span>
-                    <span>Tasks</span>
-                </button>
-                <button onclick="switchDashboardTab('reports')" data-dashboard-tab="reports" class="dashboard-tab-btn px-4 py-3 rounded-lg font-bold text-sm transition-all hover:bg-white hover:shadow-md flex items-center gap-2">
-                    <span class="text-xl">💰</span>
-                    <span>Reports</span>
-                </button>
-                <button onclick="switchDashboardTab('templates')" data-dashboard-tab="templates" class="dashboard-tab-btn px-4 py-3 rounded-lg font-bold text-sm transition-all hover:bg-white hover:shadow-md flex items-center gap-2">
-                    <span class="text-xl">📧</span>
-                    <span>Templates</span>
-                </button>
-                <button onclick="switchDashboardTab('renewals')" data-dashboard-tab="renewals" class="dashboard-tab-btn px-4 py-3 rounded-lg font-bold text-sm transition-all hover:bg-white hover:shadow-md flex items-center gap-2">
-                    <span class="text-xl">📋</span>
-                    <span>Renewals</span>
-                </button>
-            </div>
-
-            <!-- OVERVIEW SUB-PANE -->
-            <div id="dashboard-overview" class="dashboard-sub-pane">
+            <!-- HOME/OVERVIEW CONTENT (no sub-navigation) -->
 
             <!-- GETTING STARTED CHECKLIST (Full Width) -->
             <div id="gettingStartedWidget" class="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl shadow-lg border-2 border-green-200 p-6 mb-8">
@@ -343,12 +322,11 @@
                     </button>
                 </div>
             </div>
+        </div>
+        <!-- END DASHBOARD/HOME TAB -->
 
-            </div>
-            <!-- END OVERVIEW SUB-PANE -->
-
-            <!-- TASKS SUB-PANE -->
-            <div id="dashboard-tasks" class="dashboard-sub-pane hidden">
+        <!-- TASKS TAB (new main tab) -->
+        <div data-content="tasks" class="tab-pane hidden">
                 <!-- HERO SECTION -->
                 <div class="bg-gradient-to-br from-green-600 via-emerald-600 to-teal-600 rounded-2xl shadow-2xl p-8 md:p-12 mb-8 text-white relative overflow-hidden">
                     <div class="absolute inset-0 opacity-10">
@@ -386,11 +364,11 @@
                         <!-- Tasks dynamically populated -->
                     </div>
                 </div>
-            </div>
-            <!-- END TASKS SUB-PANE -->
+        </div>
+        <!-- END TASKS TAB -->
 
-            <!-- REPORTS SUB-PANE -->
-            <div id="dashboard-reports" class="dashboard-sub-pane hidden">
+        <!-- REPORTS TAB (standalone main tab) -->
+        <div data-content="reports" class="tab-pane hidden">
                 <!-- HERO SECTION -->
                 <div class="bg-gradient-to-br from-amber-600 via-orange-600 to-rose-600 rounded-2xl shadow-2xl p-8 md:p-12 mb-8 text-white relative overflow-hidden">
                     <div class="absolute inset-0 opacity-10">
@@ -523,110 +501,8 @@
                     <span id="transactionCount" class="text-base font-bold text-gray-600 bg-gray-100 px-6 py-3 rounded-xl">0 transactions</span>
                 </div>
             </div>
-            <!-- END REPORTS SUB-PANE -->
-
-            <!-- TEMPLATES SUB-PANE -->
-            <div id="dashboard-templates" class="dashboard-sub-pane hidden">
-                <!-- HERO SECTION -->
-                <div class="bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 rounded-2xl shadow-2xl p-8 md:p-12 mb-8 text-white relative overflow-hidden">
-                    <div class="absolute inset-0 opacity-10">
-                        <div class="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
-                        <div class="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
-                    </div>
-
-                    <div class="relative z-10">
-                        <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-                            <div class="flex items-center gap-3">
-                                <span class="text-6xl">📧</span>
-                                <div>
-                                    <h2 class="text-5xl font-black tracking-tight">Message Templates</h2>
-                                    <p class="text-2xl text-blue-100 mt-2">Manage Your Outreach Templates</p>
-                                </div>
-                            </div>
-                            <button onclick="openCreateTemplateModal()" class="px-6 py-3 bg-white text-indigo-600 rounded-xl font-bold hover:bg-indigo-50 transition-all shadow-lg transform hover:scale-105">
-                                + New Template
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- TEMPLATE CATEGORIES -->
-                <div class="space-y-6">
-                    <!-- Prospect Templates -->
-                    <div class="bg-gradient-to-r from-teal-50 to-cyan-50 border-2 border-teal-200 rounded-2xl p-6">
-                        <h5 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                            <span class="text-3xl">🎯</span>
-                            <span>Prospect Templates</span>
-                            <span id="dashboardProspectTemplateCount" class="text-sm font-bold text-teal-600 bg-teal-100 px-3 py-1 rounded-full">(0)</span>
-                        </h5>
-                        <div id="dashboardProspectTemplatesList" class="space-y-2">
-                            <!-- Dynamically populated -->
-                        </div>
-                    </div>
-
-                    <!-- Client Templates -->
-                    <div class="bg-gradient-to-r from-purple-50 to-fuchsia-50 border-2 border-purple-200 rounded-2xl p-6">
-                        <h5 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                            <span class="text-3xl">👥</span>
-                            <span>Client Templates</span>
-                            <span id="dashboardClientTemplateCount" class="text-sm font-bold text-purple-600 bg-purple-100 px-3 py-1 rounded-full">(0)</span>
-                        </h5>
-                        <div id="dashboardClientTemplatesList" class="space-y-2">
-                            <!-- Dynamically populated -->
-                        </div>
-                    </div>
-
-                    <!-- Follow-up Templates -->
-                    <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl p-6">
-                        <h5 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                            <span class="text-3xl">🔄</span>
-                            <span>Follow-up Templates</span>
-                            <span id="dashboardFollowupTemplateCount" class="text-sm font-bold text-blue-600 bg-blue-100 px-3 py-1 rounded-full">(0)</span>
-                        </h5>
-                        <div id="dashboardFollowupTemplatesList" class="space-y-2">
-                            <!-- Dynamically populated -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <!-- END TEMPLATES SUB-PANE -->
-
-            <!-- RENEWALS SUB-PANE -->
-            <div id="dashboard-renewals" class="dashboard-sub-pane hidden">
-                <!-- HERO SECTION -->
-                <div class="bg-gradient-to-br from-amber-600 via-yellow-600 to-orange-600 rounded-2xl shadow-2xl p-8 md:p-12 mb-8 text-white relative overflow-hidden">
-                    <div class="absolute inset-0 opacity-10">
-                        <div class="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
-                        <div class="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
-                    </div>
-
-                    <div class="relative z-10">
-                        <div class="flex items-center gap-3 mb-4">
-                            <span class="text-6xl">📋</span>
-                            <div>
-                                <h2 class="text-5xl font-black tracking-tight">Contract Renewals</h2>
-                                <p class="text-2xl text-amber-100 mt-2">Track Upcoming Expiration Dates</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- CONTRACTS EXPIRING LIST -->
-                <div class="bg-white rounded-2xl shadow-xl border-2 border-amber-100 p-6 md:p-8">
-                    <div class="flex items-center gap-3 mb-6">
-                        <span class="text-4xl">⏰</span>
-                        <div>
-                            <h4 class="text-2xl font-black text-gray-900">Upcoming Renewals</h4>
-                            <p class="text-sm text-gray-500">Keep track of client contract renewals</p>
-                        </div>
-                    </div>
-                    <div id="contractsExpiringList" class="space-y-3">
-                        <!-- Dynamically populated by renderContractsExpiring() -->
-                    </div>
-                </div>
-            </div>
-            <!-- END RENEWALS SUB-PANE -->
         </div>
+        <!-- END REPORTS TAB -->
 
         <!-- SALES PIPELINE TAB -->
         <div data-content="pipeline" class="tab-pane hidden">
@@ -873,6 +749,38 @@
                             <p class="font-bold text-yellow-900 text-sm mb-1">"Not interested"</p>
                             <p class="text-xs text-gray-700">"No problem. Is it the timing, price, or you just don't do this type of advertising?"</p>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TEMPLATES SECTION (in Pipeline) -->
+            <div class="mt-8 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl p-6">
+                <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
+                    <div class="flex items-center gap-3">
+                        <span class="text-4xl">📧</span>
+                        <div>
+                            <h4 class="text-2xl font-black text-gray-900">Message Templates</h4>
+                            <p class="text-sm text-gray-500">Outreach templates for prospects</p>
+                        </div>
+                    </div>
+                    <button onclick="openCreateTemplateModal()" class="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg text-sm">
+                        + New Template
+                    </button>
+                </div>
+                <div class="space-y-4">
+                    <div class="bg-white rounded-xl p-4 border border-blue-100">
+                        <h5 class="font-bold text-gray-800 mb-2 flex items-center gap-2">
+                            <span>🎯</span> Prospect Templates
+                            <span id="dashboardProspectTemplateCount" class="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">(0)</span>
+                        </h5>
+                        <div id="dashboardProspectTemplatesList" class="space-y-2 text-sm"></div>
+                    </div>
+                    <div class="bg-white rounded-xl p-4 border border-blue-100">
+                        <h5 class="font-bold text-gray-800 mb-2 flex items-center gap-2">
+                            <span>🔄</span> Follow-up Templates
+                            <span id="dashboardFollowupTemplateCount" class="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">(0)</span>
+                        </h5>
+                        <div id="dashboardFollowupTemplatesList" class="space-y-2 text-sm"></div>
                     </div>
                 </div>
             </div>
@@ -1378,11 +1286,31 @@
                     </div>
                 </div>
             </div>
+
+            <!-- RENEWALS SECTION -->
+            <div class="bg-white rounded-2xl shadow-xl border-2 border-orange-100 p-6 md:p-8 mt-8">
+                <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
+                    <div class="flex items-center gap-3">
+                        <span class="text-4xl">🔄</span>
+                        <div>
+                            <h3 class="text-2xl font-black text-gray-900">Contract Renewals</h3>
+                            <p class="text-sm text-gray-600">Clients due for renewal outreach (30+ days since mail drop)</p>
+                        </div>
+                    </div>
+                    <button onclick="checkRenewals()" class="px-5 py-2.5 bg-orange-600 text-white rounded-xl text-sm font-bold hover:bg-orange-700 shadow-lg transform hover:scale-105 transition-all">
+                        🔄 Refresh Renewals
+                    </button>
+                </div>
+
+                <div id="renewalList" class="space-y-3">
+                    <p class="text-base text-gray-500 text-center py-8 font-medium">Select a campaign to check for renewals</p>
+                </div>
+            </div>
         </div>
 
     </div>
   </main>
-  
+
   <!-- Edit Spot Modal -->
   <div id="editModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
     <div class="modal" id="editDialog" aria-labelledby="modalTitle">
