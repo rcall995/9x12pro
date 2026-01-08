@@ -89,21 +89,22 @@ function checkForAppUpdate() {
   // Don't create duplicate banners
   if (document.getElementById('update-banner')) return;
 
-  // Check if we just refreshed (within last 60 seconds) - skip banner
-  const refreshTime = sessionStorage.getItem(REFRESH_FLAG_KEY);
-  if (refreshTime) {
-    const timeSinceRefresh = Date.now() - parseInt(refreshTime);
-    if (timeSinceRefresh < 60000) {
-      console.log('⏳ Recently refreshed (' + Math.round(timeSinceRefresh/1000) + 's ago), skipping update check');
-      sessionStorage.removeItem(REFRESH_FLAG_KEY);
-      // Update stored version
-      const currentVersion = window.APP_CONFIG?.app?.version;
-      if (currentVersion) {
-        localStorage.setItem(LAST_VERSION_KEY, currentVersion);
-      }
-      return;
+  // Check if we just did a forced refresh (URL contains ?refresh= parameter)
+  // This is more reliable than sessionStorage which can be lost during navigation
+  const urlParams = new URLSearchParams(window.location.search);
+  const refreshParam = urlParams.get('refresh');
+  if (refreshParam) {
+    console.log('✅ Detected forced refresh, updating stored version and cleaning URL');
+    // Update stored version to current
+    const currentVersion = window.APP_CONFIG?.app?.version;
+    if (currentVersion) {
+      localStorage.setItem(LAST_VERSION_KEY, currentVersion);
+      console.log('✅ Version updated to:', currentVersion);
     }
-    sessionStorage.removeItem(REFRESH_FLAG_KEY);
+    // Clean the URL (remove ?refresh= parameter)
+    const cleanUrl = window.location.href.split('?')[0];
+    window.history.replaceState({}, document.title, cleanUrl);
+    return; // Skip the update check
   }
 
   // Check if config version differs from last seen version
