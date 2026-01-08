@@ -8894,33 +8894,29 @@ function applyProspectPoolFilters() {
 }
 
 function clearContactFilters() {
-  document.getElementById('filterHasEmail').checked = false;
-  document.getElementById('filterHasPhone').checked = false;
-  document.getElementById('filterHasFacebook').checked = false;
-  document.getElementById('filterHasInstagram').checked = false;
-  document.getElementById('filterHasWebsite').checked = false;
+  const filters = ['filterHasEmail', 'filterHasPhone', 'filterHasFacebook', 'filterHasInstagram', 'filterHasWebsite'];
+  filters.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.checked = false;
+  });
   renderProspectPool();
 }
 
 // Helper function to check if business matches contact filters
 function matchesContactFilters(business) {
-  // Get filter checkboxes - return true if they don't exist yet (during initial load)
+  // Get filter checkboxes - some may not exist if removed from UI
   const emailFilter = document.getElementById('filterHasEmail');
   const phoneFilter = document.getElementById('filterHasPhone');
   const facebookFilter = document.getElementById('filterHasFacebook');
-  const instagramFilter = document.getElementById('filterHasInstagram');
+  const instagramFilter = document.getElementById('filterHasInstagram'); // Optional - may not exist
   const websiteFilter = document.getElementById('filterHasWebsite');
 
-  // If filter elements don't exist yet, show all (during initial render)
-  if (!emailFilter || !phoneFilter || !facebookFilter || !instagramFilter || !websiteFilter) {
-    return true;
-  }
-
-  const hasEmail = emailFilter.checked;
-  const hasPhone = phoneFilter.checked;
-  const hasFacebook = facebookFilter.checked;
-  const hasInstagram = instagramFilter.checked;
-  const hasWebsite = websiteFilter.checked;
+  // Get checked state (false if element doesn't exist)
+  const hasEmail = emailFilter?.checked || false;
+  const hasPhone = phoneFilter?.checked || false;
+  const hasFacebook = facebookFilter?.checked || false;
+  const hasInstagram = instagramFilter?.checked || false;
+  const hasWebsite = websiteFilter?.checked || false;
 
   // If no filters are selected, show all
   if (!hasEmail && !hasPhone && !hasFacebook && !hasInstagram && !hasWebsite) {
