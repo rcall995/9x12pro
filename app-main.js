@@ -8968,6 +8968,68 @@ function matchesContactFilters(business) {
 // Store search term to preserve during re-renders
 var prospectPoolSearchTerm = '';
 
+// Store category filter state
+var prospectPoolCategoryFilter = '';
+
+// Toggle ProspectRadar section collapse/expand
+function toggleProspectRadar() {
+  const collapsed = document.getElementById('prospectRadarCollapsed');
+  const expanded = document.getElementById('prospectRadarExpanded');
+
+  if (!collapsed || !expanded) return;
+
+  if (expanded.classList.contains('hidden')) {
+    // Expand
+    expanded.classList.remove('hidden');
+    collapsed.classList.add('hidden');
+  } else {
+    // Collapse
+    expanded.classList.add('hidden');
+    collapsed.classList.remove('hidden');
+  }
+}
+
+// Filter prospect pool by category
+function filterProspectPoolByCategory() {
+  const select = document.getElementById('prospectPoolCategoryFilter');
+  if (select) {
+    prospectPoolCategoryFilter = select.value;
+  }
+  renderProspectPool();
+}
+
+// Populate category dropdown from available categories
+function populateCategoryDropdown(categories) {
+  const select = document.getElementById('prospectPoolCategoryFilter');
+  if (!select) return;
+
+  // Keep current selection
+  const currentValue = select.value;
+
+  // Clear options except first
+  select.innerHTML = '<option value="">All Categories</option>';
+
+  // Sort categories alphabetically
+  const sortedCategories = [...categories].sort((a, b) => a.localeCompare(b));
+
+  sortedCategories.forEach(cat => {
+    const option = document.createElement('option');
+    option.value = cat;
+    // Capitalize first letter
+    option.textContent = cat.charAt(0).toUpperCase() + cat.slice(1);
+    select.appendChild(option);
+  });
+
+  // Restore selection if still valid
+  if (currentValue && categories.includes(currentValue)) {
+    select.value = currentValue;
+  }
+}
+
+// Expose new functions globally
+window.toggleProspectRadar = toggleProspectRadar;
+window.filterProspectPoolByCategory = filterProspectPoolByCategory;
+
 function renderProspectPool() {
   console.log('🔵 DEBUG: renderProspectPool ENTRY - prospect-list length:', kanbanState.columns['prospect-list']?.length);
   // Save current search value if it exists
@@ -9304,6 +9366,19 @@ function renderProspectPool() {
 
   console.log(`🔵 Prospect Pool Deduplication: Manual=${manualProspectsAdded} added (${manualProspectsSkipped} duplicates skipped), Search=${searchProspectsAdded} added (${searchProspectsSkipped} duplicates skipped)`);
 
+  // Collect all available categories for the dropdown
+  const allCategories = Object.keys(unifiedByCategory).filter(cat => unifiedByCategory[cat].length > 0);
+  populateCategoryDropdown(allCategories);
+
+  // Apply category filter if set
+  let filteredByCategory = unifiedByCategory;
+  if (prospectPoolCategoryFilter) {
+    filteredByCategory = {};
+    if (unifiedByCategory[prospectPoolCategoryFilter]) {
+      filteredByCategory[prospectPoolCategoryFilter] = unifiedByCategory[prospectPoolCategoryFilter];
+    }
+  }
+
   // Render unified pool header
   container.innerHTML = `
     <div class="bg-indigo-50 border-2 border-indigo-200 rounded-lg p-4 mb-6">
@@ -9326,8 +9401,8 @@ function renderProspectPool() {
       </div>
     </div>
 
-    ${Object.keys(unifiedByCategory).sort().map(category => {
-    const prospects = unifiedByCategory[category];
+    ${Object.keys(filteredByCategory).sort().map(category => {
+    const prospects = filteredByCategory[category];
 
     // Hide categories with zero businesses
     if (!prospects || prospects.length === 0) {

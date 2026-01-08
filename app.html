@@ -788,88 +788,65 @@
 
         <!-- LEAD GENERATION TAB -->
         <div data-content="lead-generation" class="tab-pane hidden">
-            <!-- HERO SECTION -->
-            <div class="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 rounded-2xl shadow-2xl p-8 md:p-12 mb-8 text-white relative overflow-hidden">
-                <!-- Background Pattern -->
-                <div class="absolute inset-0 opacity-10">
-                    <div class="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
-                    <div class="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
-                </div>
-
-                <div class="relative z-10">
-                    <div class="flex items-center gap-3 mb-4">
-                        <span class="text-6xl">🚀</span>
-                        <div>
-                            <h2 class="text-5xl font-black tracking-tight">Prospect Generator</h2>
-                            <p class="text-2xl text-purple-100 mt-2">Generate Qualified Prospects in Seconds</p>
-                        </div>
-                    </div>
-
-                    <div class="grid md:grid-cols-3 gap-6 mt-8">
-                        <div class="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
-                            <div class="text-4xl mb-3">⚡</div>
-                            <div class="text-3xl font-bold mb-2">ZIP-to-Leads</div>
-                            <p class="text-purple-100">Enter a ZIP code, get qualified prospects with contact info instantly</p>
-                        </div>
-                        <div class="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
-                            <div class="text-4xl mb-3">📧</div>
-                            <div class="text-3xl font-bold mb-2">Auto-Enriched</div>
-                            <p class="text-purple-100">Emails, phone numbers & social media found automatically</p>
-                        </div>
-                        <div class="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
-                            <div class="text-4xl mb-3">🎯</div>
-                            <div class="text-3xl font-bold mb-2">Pipeline Ready</div>
-                            <p class="text-purple-100">Search → Select → Add to Pipeline in seconds</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- SEARCH INTERFACE -->
-            <div class="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl shadow-2xl p-8 text-white mb-8">
-                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
-                    <div>
-                        <h3 class="text-3xl font-black mb-3 flex items-center gap-3">
-                            <span class="text-4xl">🔍</span> ProspectRadar™
-                        </h3>
-                        <p class="text-xl text-purple-100">
-                            Discover local businesses and build your prospect list in seconds
-                        </p>
-                    </div>
-                    <div class="flex flex-col gap-4">
-                        <!-- ZIP Code Input - Up to 3 ZIPs -->
-                        <div class="bg-white/20 backdrop-blur-md rounded-xl px-6 py-4 border-2 border-white/30 shadow-lg">
-                            <div class="text-sm text-purple-100 mb-2 font-semibold">📍 Enter ZIP Codes (max 3)</div>
-                            <div class="flex gap-3 items-center flex-wrap">
-                                <input
-                                    id="bulkPopZip1"
-                                    type="text"
-                                    placeholder="ZIP 1"
-                                    maxlength="5"
-                                    class="w-24 px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white text-center font-bold text-lg placeholder-purple-200 focus:outline-none focus:ring-2 focus:ring-white/50"
-                                />
-                                <input
-                                    id="bulkPopZip2"
-                                    type="text"
-                                    placeholder="ZIP 2"
-                                    maxlength="5"
-                                    class="w-24 px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white text-center font-bold text-lg placeholder-purple-200 focus:outline-none focus:ring-2 focus:ring-white/50"
-                                />
-                                <input
-                                    id="bulkPopZip3"
-                                    type="text"
-                                    placeholder="ZIP 3"
-                                    maxlength="5"
-                                    class="w-24 px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white text-center font-bold text-lg placeholder-purple-200 focus:outline-none focus:ring-2 focus:ring-white/50"
-                                />
+            <!-- COLLAPSIBLE PROSPECT RADAR SECTION -->
+            <div id="prospectRadarSection" class="mb-6">
+                <!-- Collapsed State Header (shown when collapsed) -->
+                <div id="prospectRadarCollapsed" class="hidden bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl shadow-lg p-4 cursor-pointer hover:shadow-xl transition-all" onclick="toggleProspectRadar()">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3 text-white">
+                            <span class="text-3xl">🔍</span>
+                            <div>
+                                <h3 class="text-xl font-bold">ProspectRadar</h3>
+                                <p class="text-sm text-purple-200">Click to search for new prospects</p>
                             </div>
-                            <p class="text-xs text-purple-200 mt-2">Enter 1-3 ZIP codes to search (exact ZIP match only)</p>
                         </div>
+                        <button class="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg font-bold text-sm flex items-center gap-2">
+                            <span>Expand</span>
+                            <span>▼</span>
+                        </button>
                     </div>
                 </div>
 
-                <!-- Business Categories (Full Width) -->
-                <div class="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20 mb-6">
+                <!-- Expanded State (full search interface) -->
+                <div id="prospectRadarExpanded" class="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl shadow-2xl p-6 text-white">
+                    <!-- Header with Collapse Button -->
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center gap-3">
+                            <span class="text-4xl">🔍</span>
+                            <div>
+                                <h3 class="text-2xl font-black">ProspectRadar</h3>
+                                <p class="text-purple-200">Find local businesses by ZIP code</p>
+                            </div>
+                        </div>
+                        <button onclick="toggleProspectRadar()" class="px-3 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg font-bold text-sm flex items-center gap-2" title="Collapse search">
+                            <span>▲</span>
+                        </button>
+                    </div>
+                    <!-- Compact Search Layout -->
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <!-- ZIP Code Input -->
+                        <div class="bg-white/10 backdrop-blur-md rounded-xl px-5 py-4 border border-white/20">
+                            <div class="text-sm text-purple-100 mb-2 font-semibold">📍 ZIP Codes (max 3)</div>
+                            <div class="flex gap-2 items-center">
+                                <input id="bulkPopZip1" type="text" placeholder="ZIP 1" maxlength="5"
+                                    class="w-20 px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white text-center font-bold placeholder-purple-200 focus:outline-none focus:ring-2 focus:ring-white/50" />
+                                <input id="bulkPopZip2" type="text" placeholder="ZIP 2" maxlength="5"
+                                    class="w-20 px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white text-center font-bold placeholder-purple-200 focus:outline-none focus:ring-2 focus:ring-white/50" />
+                                <input id="bulkPopZip3" type="text" placeholder="ZIP 3" maxlength="5"
+                                    class="w-20 px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white text-center font-bold placeholder-purple-200 focus:outline-none focus:ring-2 focus:ring-white/50" />
+                            </div>
+                        </div>
+                        <!-- Search Button -->
+                        <div class="flex items-center">
+                            <button id="btnRunBulkPopulate" onclick="runBulkAutoPopulate()"
+                                class="w-full px-8 py-4 bg-white text-purple-600 text-lg font-black rounded-xl hover:bg-purple-50 transition-all shadow-xl hover:shadow-2xl transform hover:scale-105">
+                                🔍 Search Now
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Business Categories -->
+                    <div class="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20 mt-4">
                         <div class="flex items-center justify-between mb-3">
                             <h4 class="font-semibold flex items-center gap-2">
                                 <span class="text-2xl">🏢</span> Business Categories (Select Multiple)
@@ -904,99 +881,85 @@
                         </div>
                     </div>
 
-                <!-- Search Button & Stats -->
-                <div class="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div class="flex flex-col gap-2">
-                        <div class="flex items-center gap-2 text-sm text-purple-100">
-                            <span class="inline-block w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
-                            <span>Powered by HERE Places API • Real-time local business data</span>
-                        </div>
+                    <!-- Powered by note -->
+                    <div class="mt-4 text-center text-xs text-purple-200">
+                        <span class="inline-block w-2 h-2 bg-yellow-400 rounded-full animate-pulse mr-1"></span>
+                        Powered by HERE Places API • Real-time local business data
                     </div>
-                    <div class="flex flex-col sm:flex-row gap-4 w-full mt-4">
-                        <button
-                            id="btnRunBulkPopulate"
-                            onclick="runBulkAutoPopulate()"
-                            class="flex-1 px-12 py-5 bg-white text-purple-600 text-xl font-black rounded-xl hover:bg-purple-50 transition-all shadow-2xl hover:shadow-3xl transform hover:scale-105 border-4 border-white/50"
-                        >
-                            <span class="text-3xl mr-3">🔍</span> Search & Find Prospects Now
-                        </button>
-                    </div>
-                </div>
-            </div>
+                </div><!-- End prospectRadarExpanded -->
+            </div><!-- End prospectRadarSection -->
 
-            <!-- Help & Tips Section -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                    <h4 class="font-semibold text-blue-900 mb-3 flex items-center gap-2">
-                        <span class="text-2xl">💡</span> How It Works
-                    </h4>
-                    <ul class="text-sm text-blue-800 space-y-2">
-                        <li>• Enter up to 3 ZIP codes to search</li>
-                        <li>• Choose business categories or add custom ones</li>
-                        <li>• Results appear below - select the ones you want</li>
-                        <li>• Click "Add to Pipeline" to start your outreach</li>
-                        <li>• Use the Pipeline tab to manage and close deals</li>
-                    </ul>
-                </div>
-
-                <div class="bg-green-50 border border-green-200 rounded-lg p-6">
-                    <h4 class="font-semibold text-green-900 mb-3 flex items-center gap-2">
-                        <span class="text-2xl">🎯</span> Pro Tips
-                    </h4>
-                    <ul class="text-sm text-green-800 space-y-2">
-                        <li>• Search multiple categories at once for better coverage</li>
-                        <li>• Use custom categories for niche industries (e.g., "snowplowing")</li>
-                        <li>• Click the 💬 button on Pipeline cards for quick outreach</li>
-                        <li>• Use filters to find prospects with phone, email, or social</li>
-                    </ul>
-                </div>
-            </div>
-
-            <!-- INLINE PROSPECT POOL RESULTS (merged from Pool tab) -->
-            <div id="inlineProspectPool" class="mt-8">
-                <div class="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-xl shadow-lg p-4 mb-4">
-                    <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
+            <!-- DISCOVERED PROSPECTS SECTION -->
+            <div id="inlineProspectPool">
+                <!-- Sticky Header -->
+                <div class="sticky top-0 z-30 bg-white pb-4 pt-2 -mx-3 px-3 border-b border-gray-200 shadow-sm">
+                    <!-- Header Row -->
+                    <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-3 mb-4">
                         <div class="flex items-center gap-3">
                             <span class="text-3xl">🎯</span>
                             <div>
-                                <h2 class="text-2xl font-black text-white">Your Discovered Prospects</h2>
-                                <p class="text-sm text-emerald-100">Select businesses to add to your pipeline</p>
+                                <h2 class="text-2xl font-black text-gray-900">Your Discovered Prospects</h2>
+                                <p class="text-sm text-gray-500">Select businesses to add to your pipeline</p>
                             </div>
                         </div>
                         <div class="flex gap-2">
-                            <button onclick="openAddManualBusinessModal()" class="px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30 font-bold text-sm">
+                            <button onclick="openAddManualBusinessModal()" class="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-bold text-sm">
                                 ➕ Add Manually
                             </button>
-                            <button onclick="exportProspectPoolCSV()" class="px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30 font-bold text-sm">
+                            <button onclick="exportProspectPoolCSV()" class="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-bold text-sm border">
                                 📥 Export
                             </button>
                         </div>
                     </div>
-                </div>
 
-                <!-- ZIP CODE FILTER (inline) -->
-                <div class="bg-white border rounded-lg p-4 mb-4">
-                    <h3 class="text-sm font-bold text-gray-700 mb-3">Filter by ZIP Code</h3>
-                    <div id="inlineProspectPoolZipCheckboxes" class="flex flex-wrap gap-2">
-                        <!-- ZIP checkboxes populated by JavaScript -->
+                    <!-- Stats Row -->
+                    <div id="inlineProspectPoolStats" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                        <!-- Stats populated by JavaScript -->
                     </div>
-                </div>
 
-                <!-- Enrichment Quota Counter -->
-                <div class="mb-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                        <span class="text-lg">🔍</span>
-                        <span class="text-sm font-medium text-gray-700">Google Search Enrichment:</span>
-                        <span id="inlineEnrichmentQuotaCounter" class="text-sm">
-                            <span class="text-green-600 font-bold">0</span>
-                            <span class="text-gray-500">/ 100</span>
-                            <span class="text-gray-400 text-xs ml-1">searches today</span>
-                        </span>
+                    <!-- Unified Filter Bar -->
+                    <div class="bg-gray-50 border rounded-xl p-4">
+                        <div class="flex flex-wrap items-center gap-4">
+                            <!-- ZIP Filter -->
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm font-bold text-gray-600">📍 ZIP:</span>
+                                <div id="inlineProspectPoolZipCheckboxes" class="flex flex-wrap gap-1">
+                                    <!-- ZIP checkboxes populated by JavaScript -->
+                                </div>
+                            </div>
+
+                            <!-- Category Filter -->
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm font-bold text-gray-600">🏢 Category:</span>
+                                <select id="prospectPoolCategoryFilter" onchange="filterProspectPoolByCategory()"
+                                    class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                                    <option value="">All Categories</option>
+                                    <!-- Categories populated by JavaScript -->
+                                </select>
+                            </div>
+
+                            <!-- Contact Filters -->
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="text-sm font-bold text-gray-600">Filter:</span>
+                                <label class="flex items-center gap-1 px-2 py-1 bg-white border rounded-lg cursor-pointer hover:bg-gray-50 text-xs">
+                                    <input type="checkbox" id="filterHasPhone" onchange="applyProspectPoolFilters()" class="rounded text-emerald-600">
+                                    <span>📱 Phone</span>
+                                </label>
+                                <label class="flex items-center gap-1 px-2 py-1 bg-white border rounded-lg cursor-pointer hover:bg-gray-50 text-xs">
+                                    <input type="checkbox" id="filterHasEmail" onchange="applyProspectPoolFilters()" class="rounded text-emerald-600">
+                                    <span>📧 Email</span>
+                                </label>
+                                <label class="flex items-center gap-1 px-2 py-1 bg-white border rounded-lg cursor-pointer hover:bg-gray-50 text-xs">
+                                    <input type="checkbox" id="filterHasWebsite" onchange="applyProspectPoolFilters()" class="rounded text-emerald-600">
+                                    <span>🌐 Website</span>
+                                </label>
+                                <label class="flex items-center gap-1 px-2 py-1 bg-white border rounded-lg cursor-pointer hover:bg-gray-50 text-xs">
+                                    <input type="checkbox" id="filterHasFacebook" onchange="applyProspectPoolFilters()" class="rounded text-emerald-600">
+                                    <span>📘 Social</span>
+                                </label>
+                            </div>
+                        </div>
                     </div>
-                </div>
-
-                <div id="inlineProspectPoolStats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                    <!-- Stats populated by JavaScript -->
                 </div>
 
                 <div id="inlineProspectPoolContainer">
