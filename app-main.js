@@ -29,12 +29,22 @@ var authCheckInterval = setInterval(function() {
 // Auto-update checker: Periodically check if app version has changed
 let updateBannerDismissed = false; // Track if user dismissed the banner this session
 const LAST_VERSION_KEY = '9x12_last_version';
+const REFRESH_FLAG_KEY = '9x12_just_refreshed';
 
 // Force refresh by clearing all caches and unregistering service worker
 async function forceAppRefresh() {
   console.log('🔄 Force refreshing app...');
 
   try {
+    // FIRST: Set flags SYNCHRONOUSLY before any async operations
+    const currentVersion = window.APP_CONFIG?.app?.version;
+    if (currentVersion) {
+      localStorage.setItem(LAST_VERSION_KEY, currentVersion);
+      console.log('✅ Version saved to localStorage:', currentVersion);
+    }
+    // Set refresh flag to prevent banner from showing immediately after refresh
+    sessionStorage.setItem(REFRESH_FLAG_KEY, Date.now().toString());
+
     // Clear all caches
     if ('caches' in window) {
       const cacheNames = await caches.keys();
@@ -55,18 +65,20 @@ async function forceAppRefresh() {
       console.log('✅ Service workers unregistered');
     }
 
-    // Update stored version so banner doesn't show again after refresh
+    // Small delay to ensure localStorage is fully persisted
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Hard reload using replace to avoid back button issues
+    window.location.replace(window.location.href.split('?')[0] + '?refresh=' + Date.now());
+  } catch (err) {
+    console.error('Error during force refresh:', err);
+    // Fallback - still set version and reload
     const currentVersion = window.APP_CONFIG?.app?.version;
     if (currentVersion) {
       localStorage.setItem(LAST_VERSION_KEY, currentVersion);
     }
-
-    // Hard reload
-    window.location.href = window.location.href.split('?')[0] + '?v=' + Date.now();
-  } catch (err) {
-    console.error('Error during force refresh:', err);
-    // Fallback to simple reload
-    window.location.reload();
+    sessionStorage.setItem(REFRESH_FLAG_KEY, Date.now().toString());
+    window.location.reload(true);
   }
 }
 
@@ -77,12 +89,38 @@ function checkForAppUpdate() {
   // Don't create duplicate banners
   if (document.getElementById('update-banner')) return;
 
-  // Check if config version differs from last seen version (stored in localStorage)
+  // Check if we just refreshed (within last 60 seconds) - skip banner
+  const refreshTime = sessionStorage.getItem(REFRESH_FLAG_KEY);
+  if (refreshTime) {
+    const timeSinceRefresh = Date.now() - parseInt(refreshTime);
+    if (timeSinceRefresh < 60000) {
+      console.log('⏳ Recently refreshed (' + Math.round(timeSinceRefresh/1000) + 's ago), skipping update check');
+      sessionStorage.removeItem(REFRESH_FLAG_KEY);
+      // Update stored version
+      const currentVersion = window.APP_CONFIG?.app?.version;
+      if (currentVersion) {
+        localStorage.setItem(LAST_VERSION_KEY, currentVersion);
+      }
+      return;
+    }
+    sessionStorage.removeItem(REFRESH_FLAG_KEY);
+  }
+
+  // Check if config version differs from last seen version
   const currentVersion = window.APP_CONFIG?.app?.version;
   const lastVersion = localStorage.getItem(LAST_VERSION_KEY);
 
-  if (currentVersion && lastVersion && currentVersion !== lastVersion) {
-    console.log('🔄 New version detected:', currentVersion, '(last seen:', lastVersion + ')');
+  // First visit - just save current version, no banner
+  if (!lastVersion) {
+    if (currentVersion) {
+      localStorage.setItem(LAST_VERSION_KEY, currentVersion);
+      console.log('📝 First visit, saved version:', currentVersion);
+    }
+    return;
+  }
+
+  if (currentVersion && currentVersion !== lastVersion) {
+    console.log('🆕 New version detected:', currentVersion, '(last seen:', lastVersion + ')');
 
     // Show persistent banner prompting refresh
     const updateBanner = document.createElement('div');
@@ -103,7 +141,7 @@ function checkForAppUpdate() {
     `;
     updateBanner.innerHTML = `
       <div style="max-width: 800px; margin: 0 auto; display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap;">
-        <span>🎉 New version available (${window.APP_CONFIG.app.version})!</span>
+        <span>🎉 New version available (${currentVersion})!</span>
         <button onclick="forceAppRefresh()" style="background: white; color: #667eea; padding: 8px 20px; border-radius: 8px; font-weight: bold; border: none; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2); transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
           Refresh Now
         </button>
