@@ -9563,7 +9563,25 @@ function renderProspectPool() {
 
   // Collect all available categories for the dropdown
   const allCategories = Object.keys(unifiedByCategory).filter(cat => unifiedByCategory[cat].length > 0);
+
+  // Clean up selected categories that no longer exist in current data
+  const validSelectedCategories = new Set();
+  prospectPoolSelectedCategories.forEach(cat => {
+    if (allCategories.includes(cat)) {
+      validSelectedCategories.add(cat);
+    }
+  });
+  // If all selected categories were invalid, clear the selection
+  if (prospectPoolSelectedCategories.size > 0 && validSelectedCategories.size === 0) {
+    prospectPoolSelectedCategories.clear();
+  } else {
+    // Update to only valid categories
+    prospectPoolSelectedCategories.clear();
+    validSelectedCategories.forEach(cat => prospectPoolSelectedCategories.add(cat));
+  }
+
   populateCategoryDropdown(allCategories);
+  updateCategoryFilterSummary();
 
   // Apply category filter if specific categories are selected
   let filteredByCategory = unifiedByCategory;

@@ -45,7 +45,8 @@
       "WebFetch(domain:www.usps.com)",
       "WebFetch(domain:developer.squareup.com)",
       "WebFetch(domain:mailboxmixer.com)",
-      "WebFetch(domain:10kpostcards.com)"
+      "WebFetch(domain:10kpostcards.com)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []
