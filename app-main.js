@@ -9254,12 +9254,34 @@ async function moveSelectedToPool() {
 
     if (existingIndex !== -1) {
       // Update existing prospect instead of creating duplicate
+      // IMPORTANT: Only overwrite with lead values if they're not null/undefined
+      // This prevents losing data like ZIP codes when moving back and forth
+      const existing = prospectPoolState.manualProspects[existingIndex];
       const updatedProspect = {
-        ...prospectPoolState.manualProspects[existingIndex],
-        ...lead,
+        ...existing,
+        // Only overwrite with lead values if they exist (preserve existing data)
+        businessName: lead.businessName || existing.businessName,
+        name: lead.name || existing.name,
+        title: lead.title || existing.title,
+        phone: lead.phone || existing.phone,
+        email: lead.email || existing.email,
+        website: lead.website || existing.website,
+        facebook: lead.facebook || existing.facebook,
+        instagram: lead.instagram || existing.instagram,
+        linkedin: lead.linkedin || existing.linkedin,
+        twitter: lead.twitter || existing.twitter,
+        contactName: lead.contactName || existing.contactName,
+        address: lead.address || existing.address,
+        notes: lead.notes || existing.notes,
+        category: lead.category || existing.category,
+        // ZIP codes - preserve existing if lead has null/undefined
+        zipCode: lead.zipCode || lead.actualZip || lead.zip || existing.zipCode || existing.actualZip || existing.zip,
+        actualZip: lead.actualZip || lead.zipCode || lead.zip || existing.actualZip || existing.zipCode || existing.zip,
+        zip: lead.zip || lead.zipCode || lead.actualZip || existing.zip || existing.zipCode || existing.actualZip,
+        placeId: lead.placeId || existing.placeId,
+        // Always update these
         movedToPoolDate: new Date().toISOString(),
         mailerId: state.current?.Mailer_ID || null,
-        // Preserve enriched status if lead has contact data
         isEnriched: hasEnrichedData,
         enriched: hasEnrichedData
       };
@@ -9268,7 +9290,9 @@ async function moveSelectedToPool() {
         website: updatedProspect.website,
         facebook: updatedProspect.facebook,
         instagram: updatedProspect.instagram,
-        isEnriched: updatedProspect.isEnriched
+        isEnriched: updatedProspect.isEnriched,
+        zipCode: updatedProspect.zipCode,
+        actualZip: updatedProspect.actualZip
       });
     } else {
       // Add new prospect to pool
@@ -10451,7 +10475,10 @@ function renderProspectPool() {
               }
 
               // Show actual ZIP code (not the searched ZIP) - DON'T use town as fallback
-              const displayLocation = prospect.actualZip ? `📍 ${prospect.actualZip}` : (prospect.zipCode ? `📍 ${prospect.zipCode}` : '');
+              // Filter out invalid values like "undefined", "null", or actual undefined/null
+              const rawZipValue = prospect.actualZip || prospect.zipCode || prospect.zip || '';
+              const isValidZip = rawZipValue && rawZipValue !== 'undefined' && rawZipValue !== 'null' && rawZipValue !== 'undefined-undefined';
+              const displayLocation = isValidZip ? `📍 ${rawZipValue}` : '';
 
               // Build metadata line (category only, since ZIP is shown above)
               const metadata = [];
