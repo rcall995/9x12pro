@@ -9346,7 +9346,8 @@ function moveProspectFromPool(prospectId) {
   }
 
   // Build a proper lead object for the kanban
-  const businessName = prospect.businessName || prospect.name || 'Unknown Business';
+  // HERE API uses 'title', Google uses 'name', manual prospects use 'businessName'
+  const businessName = prospect.businessName || prospect.name || prospect.title || 'Unknown Business';
   const newLead = {
     id: Date.now() + Math.random(),
     businessName: businessName,
