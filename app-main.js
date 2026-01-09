@@ -10727,7 +10727,7 @@ async function addFromProspectPool() {
         console.log('🔵 Processing manual business:', business.businessName);
         newLead = {
           id: Date.now() + Math.random(),
-          businessName: business.businessName || business.name,
+          businessName: business.businessName || business.name || business.title || 'Unknown Business',
           contactName: business.contactName || '',
           phone: business.phone || '',
           email: business.email || '',
@@ -10773,7 +10773,7 @@ async function addFromProspectPool() {
 
         // ENRICHMENT: Run Serper search + website scrape BEFORE adding
         btn.textContent = `🔍 Enriching... (${i + 1}/${selectedBusinesses.length})`;
-        const businessName = business.name || business.businessName;
+        const businessName = business.name || business.businessName || business.title || 'Unknown Business';
         const location = business.address ? business.address.split(',').slice(-2).join(',').trim() : '';
 
         // Search for website if missing
@@ -10853,7 +10853,7 @@ async function addFromProspectPool() {
 
         newLead = {
           id: Date.now() + Math.random(),
-          businessName: business.name,
+          businessName: business.name || business.businessName || business.title || 'Unknown Business',
           contactName: details.contactNames && details.contactNames.length > 0 ? details.contactNames[0] : '',
           phone: details.phone || '',
           email: details.email || '',
@@ -14490,7 +14490,7 @@ function renderKanban() {
           // Add safety check for null/undefined items
           if (!item) return '';
 
-          const leadName = typeof item === 'string' ? item : (item.businessName || 'Unnamed Business');
+          const leadName = typeof item === 'string' ? item : (item.businessName || item.name || item.title || 'Unnamed Business');
           const leadId = typeof item === 'string' ? String(idx) : String(item.id || idx);
 
           // Enhanced display for Prospecting column
