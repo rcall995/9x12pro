@@ -9977,8 +9977,8 @@ function renderProspectPool() {
         return;
       }
 
-      // Normalize category to lowercase for consistent grouping
-      const category = (prospect.category || 'other').toLowerCase().trim();
+      // Normalize category to lowercase and replace underscores with spaces for consistent grouping
+      const category = (prospect.category || 'other').toLowerCase().trim().replace(/_/g, ' ');
       if (!unifiedByCategory[category]) {
         unifiedByCategory[category] = [];
       }
@@ -10011,7 +10011,7 @@ function renderProspectPool() {
 
   Object.keys(categorizedProspects).forEach(rawCategory => {
     // Normalize category to lowercase for consistent grouping
-    const category = rawCategory.toLowerCase().trim();
+    const category = rawCategory.toLowerCase().trim().replace(/_/g, ' ');
     if (!unifiedByCategory[category]) {
       unifiedByCategory[category] = [];
     }
