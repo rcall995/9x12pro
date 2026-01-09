@@ -8268,8 +8268,33 @@ function renderBusinessCategories() {
     </label>
   `).join('');
 
+  // Attach Select All event listener
+  const selectAllCheckbox = document.getElementById('selectAllCategories');
+  if (selectAllCheckbox) {
+    // Remove any existing listener first
+    selectAllCheckbox.removeEventListener('change', handleSelectAllCategories);
+    selectAllCheckbox.addEventListener('change', handleSelectAllCategories);
+    console.log('✅ Select All event listener attached');
+  }
+
   // Also update client category dropdowns
   populateClientCategoryDropdowns();
+}
+
+// Handler for Select All categories checkbox
+function handleSelectAllCategories(event) {
+  console.log('handleSelectAllCategories triggered');
+  const checkbox = event.target;
+  const categoryCheckboxes = document.querySelectorAll('.category-checkbox');
+
+  console.log('Checkbox checked:', checkbox.checked);
+  console.log('Category checkboxes found:', categoryCheckboxes.length);
+
+  categoryCheckboxes.forEach(cb => {
+    cb.checked = checkbox.checked;
+  });
+
+  toast(checkbox.checked ? `Selected all ${categoryCheckboxes.length} categories` : 'Cleared all categories', true);
 }
 
 // Populate client category dropdowns with current businessCategories
