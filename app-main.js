@@ -8416,6 +8416,292 @@ async function saveManageCategories() {
   closeManageCategoriesModal();
 }
 
+/**
+ * Category Normalization Mapping
+ * Maps various category strings to a canonical form
+ * Keys are lowercase versions of category strings that should be merged
+ * Values are the canonical category label to use
+ */
+const categoryMergeMapping = {
+  // Automotive variations
+  "auto repair": "Auto Repair",
+  "car repair": "Auto Repair",
+  "auto service": "Auto Repair",
+  "automotive repair": "Auto Repair",
+  "mechanic": "Auto Repair",
+  "car mechanic": "Auto Repair",
+  "auto body": "Auto Body Shop",
+  "body shop": "Auto Body Shop",
+  "collision repair": "Auto Body Shop",
+  "car dealer": "Car Dealer",
+  "auto dealer": "Car Dealer",
+  "used cars": "Car Dealer",
+  "car dealership": "Car Dealer",
+
+  // Real Estate variations
+  "real estate": "Real Estate",
+  "real estate agency": "Real Estate",
+  "realtor": "Real Estate",
+  "real estate agent": "Real Estate",
+  "realty": "Real Estate",
+
+  // Plumbing variations
+  "plumber": "Plumber",
+  "plumbing": "Plumber",
+  "plumbing services": "Plumber",
+  "plumbing contractor": "Plumber",
+
+  // HVAC variations
+  "hvac": "HVAC",
+  "hvac contractor": "HVAC",
+  "heating and cooling": "HVAC",
+  "air conditioning": "HVAC",
+  "heating": "HVAC",
+  "ac repair": "HVAC",
+
+  // Roofing variations
+  "roofer": "Roofer",
+  "roofing": "Roofer",
+  "roofing contractor": "Roofer",
+  "roof repair": "Roofer",
+
+  // Electrician variations
+  "electrician": "Electrician",
+  "electrical": "Electrician",
+  "electrical contractor": "Electrician",
+  "electric": "Electrician",
+
+  // Dentist variations
+  "dentist": "Dentist",
+  "dental": "Dentist",
+  "dental office": "Dentist",
+  "dentistry": "Dentist",
+
+  // Hair/Beauty variations
+  "hair salon": "Hair Salon",
+  "hair care": "Hair Salon",
+  "hairdresser": "Hair Salon",
+  "beauty salon": "Beauty Salon",
+  "beauty shop": "Beauty Salon",
+  "barber": "Barber Shop",
+  "barber shop": "Barber Shop",
+  "barbershop": "Barber Shop",
+
+  // Restaurant variations
+  "restaurant": "Restaurant",
+  "restaurants": "Restaurant",
+  "dining": "Restaurant",
+  "eatery": "Restaurant",
+
+  // Contractor variations
+  "general contractor": "General Contractor",
+  "contractor": "General Contractor",
+  "home improvement": "General Contractor",
+  "remodeling": "General Contractor",
+
+  // Attorney/Lawyer variations
+  "attorney": "Attorney/Lawyer",
+  "lawyer": "Attorney/Lawyer",
+  "law firm": "Attorney/Lawyer",
+  "legal services": "Attorney/Lawyer",
+
+  // Insurance variations
+  "insurance": "Insurance Agency",
+  "insurance agency": "Insurance Agency",
+  "insurance agent": "Insurance Agency",
+
+  // Landscaping variations
+  "landscaping": "Landscaping",
+  "landscaper": "Landscaping",
+  "landscape": "Landscaping",
+  "lawn care": "Lawn Care/Mowing",
+  "lawn service": "Lawn Care/Mowing",
+  "lawn mowing": "Lawn Care/Mowing",
+
+  // Cleaning variations
+  "cleaning service": "Cleaning Service",
+  "cleaning": "Cleaning Service",
+  "house cleaning": "Cleaning Service",
+  "maid service": "Cleaning Service",
+  "janitorial": "Cleaning Service",
+
+  // Moving variations
+  "moving company": "Moving Company",
+  "movers": "Moving Company",
+  "moving": "Moving Company",
+  "moving service": "Moving Company",
+
+  // Photography variations
+  "photography": "Photography",
+  "photographer": "Photography",
+  "photo studio": "Photography",
+
+  // Pet variations
+  "veterinarian": "Veterinarian",
+  "vet": "Veterinarian",
+  "veterinary": "Veterinarian",
+  "animal hospital": "Veterinarian",
+  "pet store": "Pet Store",
+  "pet shop": "Pet Store",
+
+  // Fitness variations
+  "gym": "Gym/Fitness Center",
+  "fitness": "Gym/Fitness Center",
+  "fitness center": "Gym/Fitness Center",
+  "health club": "Gym/Fitness Center",
+
+  // Tree service variations
+  "tree service": "Tree Service",
+  "tree removal": "Tree Service",
+  "tree trimming": "Tree Service",
+  "arborist": "Tree Service",
+
+  // Pest control variations
+  "pest control": "Pest Control",
+  "exterminator": "Pest Control",
+  "pest removal": "Pest Control"
+};
+
+/**
+ * Analyze categories currently used in the client database
+ * Shows unique categories and their counts
+ */
+function analyzeDatabaseCategories() {
+  const clients = Object.values(crmState.clients);
+  const categoryCounts = {};
+  let uncategorized = 0;
+
+  clients.forEach(client => {
+    const cat = (client.category || "").trim();
+    if (!cat) {
+      uncategorized++;
+    } else {
+      categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+    }
+  });
+
+  // Sort by count descending
+  const sorted = Object.entries(categoryCounts)
+    .sort((a, b) => b[1] - a[1]);
+
+  console.log('=== DATABASE CATEGORY ANALYSIS ===');
+  console.log(`Total clients: ${clients.length}`);
+  console.log(`Uncategorized: ${uncategorized}`);
+  console.log(`Unique categories: ${sorted.length}`);
+  console.log('---');
+
+  sorted.forEach(([cat, count]) => {
+    const normalizedTo = getCategoryNormalization(cat);
+    const marker = normalizedTo !== cat ? ` → "${normalizedTo}"` : '';
+    console.log(`  "${cat}": ${count}${marker}`);
+  });
+
+  // Count how many would be normalized
+  const needsNormalization = sorted.filter(([cat]) => getCategoryNormalization(cat) !== cat);
+  console.log('---');
+  console.log(`Categories that will be normalized: ${needsNormalization.length}`);
+
+  return { categoryCounts, uncategorized, total: clients.length };
+}
+
+/**
+ * Get the normalized/canonical category for a given category string
+ */
+function getCategoryNormalization(category) {
+  if (!category) return "";
+
+  const lower = category.toLowerCase().trim();
+
+  // Check if there's a merge mapping
+  if (categoryMergeMapping[lower]) {
+    return categoryMergeMapping[lower];
+  }
+
+  // Check if it matches a businessCategories label (case-insensitive)
+  const matchedCategory = businessCategories.find(c =>
+    c.label.toLowerCase() === lower
+  );
+  if (matchedCategory) {
+    return matchedCategory.label; // Return with proper casing
+  }
+
+  // Return as-is if no mapping found
+  return category;
+}
+
+/**
+ * Normalize all categories in the client database
+ * Merges similar categories to canonical forms
+ */
+async function normalizeDatabaseCategories() {
+  const clients = Object.values(crmState.clients);
+  let updated = 0;
+  const changes = [];
+
+  for (const client of clients) {
+    const oldCategory = client.category || "";
+    const newCategory = getCategoryNormalization(oldCategory);
+
+    if (oldCategory && newCategory !== oldCategory) {
+      changes.push({
+        business: client.businessName,
+        from: oldCategory,
+        to: newCategory
+      });
+      client.category = newCategory;
+      updated++;
+    }
+  }
+
+  if (updated > 0) {
+    // Save to cloud
+    await saveClients();
+
+    console.log('=== CATEGORY NORMALIZATION COMPLETE ===');
+    console.log(`Updated ${updated} clients:`);
+    changes.forEach(c => {
+      console.log(`  "${c.business}": "${c.from}" → "${c.to}"`);
+    });
+
+    // Refresh the client list
+    renderClientList();
+
+    toast(`Normalized ${updated} client categories`, true);
+  } else {
+    console.log('No categories needed normalization');
+    toast('All categories are already normalized', true);
+  }
+
+  return { updated, changes };
+}
+
+/**
+ * Show category normalization dialog
+ */
+function showCategoryNormalizationDialog() {
+  // First analyze
+  const analysis = analyzeDatabaseCategories();
+
+  const categoriesNeedingUpdate = Object.entries(analysis.categoryCounts)
+    .filter(([cat]) => getCategoryNormalization(cat) !== cat);
+
+  if (categoriesNeedingUpdate.length === 0) {
+    toast('All categories are already normalized!', true);
+    return;
+  }
+
+  // Build preview message
+  let message = `Found ${categoriesNeedingUpdate.length} categories to normalize:\n\n`;
+  categoriesNeedingUpdate.forEach(([cat, count]) => {
+    message += `• "${cat}" (${count} clients) → "${getCategoryNormalization(cat)}"\n`;
+  });
+  message += '\nProceed with normalization?';
+
+  if (confirm(message)) {
+    normalizeDatabaseCategories();
+  }
+}
+
 // Deduplicate manual prospects pool
 function deduplicateManualProspects() {
   const seenPlaceIds = new Set();
