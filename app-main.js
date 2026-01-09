@@ -11474,16 +11474,19 @@ function filterProspectPool(searchTerm) {
   prospectPoolSearchTerm = searchTerm; // Save for re-renders
   const term = searchTerm.toLowerCase().trim();
 
-  // Get the prospect pool container
-  const container = document.getElementById('prospectPoolContainer');
+  // Get the prospect pool container - check both standalone and inline versions
+  let container = document.getElementById('prospectPoolContainer');
   if (!container) {
-    console.log('🔍 filterProspectPool: Container not found');
+    container = document.getElementById('inlineProspectPoolContainer');
+  }
+  if (!container) {
+    console.log('🔍 filterProspectPool: No container found');
     return;
   }
 
-  // Get all category sections (direct children with mb-8 class)
+  // Get all category sections (with mb-8 class)
   const categorySections = container.querySelectorAll('.mb-8');
-  console.log('🔍 filterProspectPool: Found', categorySections.length, 'category sections');
+  console.log('🔍 filterProspectPool: Found', categorySections.length, 'category sections in', container.id);
 
   categorySections.forEach(categorySection => {
     // Find the grid container with all prospect cards
