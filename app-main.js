@@ -4153,10 +4153,117 @@ function deduplicateBusinesses(businesses) {
 }
 
 /**
- * Search for businesses using Outscraper API (Google Maps data)
+ * Category Search Terms Mapping
+ * Maps category values to arrays of search terms for more comprehensive results
+ * Each category can have multiple search queries to catch variations in business naming
+ */
+const categorySearchTerms = {
+  // AUTOMOTIVE - different naming conventions
+  'car_repair': ['auto repair', 'car repair', 'mechanic', 'automotive repair'],
+  'auto_body_shop': ['auto body shop', 'collision repair', 'body shop'],
+  'auto_detailing': ['auto detailing', 'car detailing', 'car wash detailing'],
+  'auto_glass': ['auto glass', 'windshield repair', 'car glass'],
+  'car_dealer': ['car dealer', 'auto dealer', 'car dealership', 'used cars'],
+  'car_wash': ['car wash', 'auto wash'],
+  'tire_shop': ['tire shop', 'tire store', 'tires'],
+  'towing_service': ['towing', 'tow truck', 'roadside assistance'],
+
+  // CONSTRUCTION & CONTRACTORS
+  'general_contractor': ['general contractor', 'home builder', 'construction company', 'remodeling contractor'],
+  'electrician': ['electrician', 'electrical contractor', 'electrical services'],
+  'plumber': ['plumber', 'plumbing', 'plumbing contractor'],
+  'roofing_contractor': ['roofing', 'roofer', 'roofing contractor', 'roof repair'],
+  'hvac_contractor': ['hvac', 'heating and cooling', 'air conditioning', 'furnace repair'],
+  'painter': ['painter', 'painting contractor', 'house painter'],
+  'landscaping': ['landscaping', 'landscaper', 'lawn care', 'landscape design'],
+  'handyman': ['handyman', 'home repair', 'handyman services'],
+  'flooring_contractor': ['flooring', 'floor installation', 'hardwood floors', 'carpet installation'],
+  'kitchen_remodeling': ['kitchen remodeling', 'bathroom remodeling', 'kitchen and bath'],
+  'window_installation': ['window installation', 'window replacement', 'windows and doors'],
+  'fence_contractor': ['fence contractor', 'fence installation', 'fencing'],
+  'concrete_contractor': ['concrete contractor', 'concrete work', 'masonry'],
+  'deck_builder': ['deck builder', 'deck construction', 'patio builder'],
+  'gutter_service': ['gutter installation', 'gutter repair', 'gutters'],
+  'siding_contractor': ['siding contractor', 'siding installation', 'vinyl siding'],
+
+  // HOME SERVICES
+  'cleaning': ['cleaning service', 'house cleaning', 'maid service', 'janitorial'],
+  'pest_control': ['pest control', 'exterminator', 'termite control'],
+  'tree_service': ['tree service', 'tree removal', 'tree trimming', 'arborist'],
+  'lawn_care': ['lawn care', 'lawn service', 'lawn mowing', 'yard maintenance'],
+  'pool_service': ['pool service', 'pool cleaning', 'pool repair', 'swimming pool'],
+  'pressure_washing': ['pressure washing', 'power washing'],
+  'junk_removal': ['junk removal', 'hauling', 'trash removal'],
+  'moving_company': ['moving company', 'movers', 'moving service'],
+  'locksmith': ['locksmith', 'lock service', 'key service'],
+
+  // FOOD & DINING
+  'restaurant': ['restaurant', 'dining', 'family restaurant'],
+  'pizza': ['pizza', 'pizzeria', 'pizza delivery'],
+  'cafe': ['cafe', 'coffee shop', 'coffee house', 'bakery cafe'],
+  'bar': ['bar', 'pub', 'tavern', 'sports bar'],
+  'bakery': ['bakery', 'bakeries', 'cake shop'],
+  'meal_delivery': ['catering', 'caterer', 'event catering'],
+
+  // HEALTH & MEDICAL
+  'dentist': ['dentist', 'dental', 'dental office', 'family dentist'],
+  'doctor': ['doctor', 'physician', 'medical clinic', 'family doctor'],
+  'chiropractor': ['chiropractor', 'chiropractic', 'spine care'],
+  'veterinary_care': ['veterinarian', 'vet', 'animal hospital', 'pet clinic'],
+  'optometrist': ['optometrist', 'eye doctor', 'vision care', 'eye care'],
+  'pharmacy': ['pharmacy', 'drug store', 'apothecary'],
+  'physiotherapist': ['physical therapy', 'physiotherapy', 'pt clinic'],
+  'urgent_care': ['urgent care', 'walk-in clinic', 'immediate care'],
+
+  // PROFESSIONAL SERVICES
+  'accountant': ['accountant', 'cpa', 'accounting', 'bookkeeper', 'tax accountant'],
+  'attorney': ['attorney', 'lawyer', 'law firm', 'legal services'],
+  'insurance_agency': ['insurance', 'insurance agent', 'insurance agency'],
+  'real_estate_agency': ['real estate', 'realtor', 'real estate agent', 'property management'],
+  'financial_advisor': ['financial advisor', 'financial planner', 'wealth management'],
+  'tax_service': ['tax preparation', 'tax service', 'tax preparer', 'income tax'],
+
+  // PERSONAL SERVICES
+  'hair_care': ['hair salon', 'hairdresser', 'beauty salon'],
+  'barber': ['barber', 'barbershop', 'barber shop'],
+  'beauty_salon': ['beauty salon', 'spa', 'nail salon', 'aesthetics'],
+  'nail_salon': ['nail salon', 'manicure', 'pedicure', 'nails'],
+  'gym': ['gym', 'fitness center', 'health club', 'fitness'],
+  'yoga_studio': ['yoga', 'yoga studio', 'pilates'],
+  'massage_therapy': ['massage', 'massage therapy', 'spa massage'],
+  'dry_cleaning': ['dry cleaning', 'dry cleaner', 'laundry'],
+  'dog_grooming': ['dog grooming', 'pet grooming', 'groomer'],
+
+  // RETAIL
+  'pet_store': ['pet store', 'pet shop', 'pet supplies'],
+  'florist': ['florist', 'flower shop', 'flowers'],
+  'jewelry_store': ['jewelry store', 'jeweler', 'jewelry shop'],
+  'furniture_store': ['furniture store', 'furniture'],
+  'hardware_store': ['hardware store', 'hardware', 'home improvement'],
+  'liquor_store': ['liquor store', 'wine shop', 'beer store'],
+  'bicycle_store': ['bike shop', 'bicycle store', 'cycling'],
+  'sporting_goods': ['sporting goods', 'sports store', 'outdoor store']
+};
+
+/**
+ * Get search terms for a category - returns array of terms to search
+ */
+function getSearchTermsForCategory(category) {
+  // If we have mapped terms, use them
+  if (categorySearchTerms[category]) {
+    return categorySearchTerms[category];
+  }
+  // Otherwise, convert the category value to a search term
+  // e.g., "car_repair" -> "car repair"
+  const humanReadable = category.replace(/_/g, ' ');
+  return [humanReadable];
+}
+
+/**
+ * Search for businesses using HERE Places API
+ * Now searches multiple terms per category for better coverage
  * Returns: name, address, phone, website
- * Cost: ~$3 per 1,000 businesses
- * Note: Smart enrichment (FREE) scrapes websites for emails/social after
+ * Cost: FREE (250,000/month)
  */
 async function searchFoursquareBusinesses(zipCode, category, progressInfo = null) {
   try {
@@ -4173,35 +4280,57 @@ async function searchFoursquareBusinesses(zipCode, category, progressInfo = null
       }
     }
 
-    showInfo(`🔍 ProspectRadar™ searching "${category}" in ${zipCode}...`);
+    // Get all search terms for this category
+    const searchTerms = getSearchTermsForCategory(category);
+    const allBusinesses = [];
+    const seenPlaceIds = new Set();
 
-    // Call HERE Places API via our serverless function (FREE: 250,000/month!)
-    // Much faster than Outscraper - direct API instead of scraping
-    const response = await fetch('/api/here-search', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        zipCode: zipCode,
-        category: category,
-        limit: 50
-      })
-    });
+    showInfo(`🔍 ProspectRadar™ searching "${category}" in ${zipCode}... (${searchTerms.length} queries)`);
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || 'Business search failed');
+    // Search each term and combine results
+    for (let i = 0; i < searchTerms.length; i++) {
+      const term = searchTerms[i];
+
+      try {
+        const response = await fetch('/api/here-search', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            zipCode: zipCode,
+            category: term,
+            limit: 50
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const businesses = data.businesses || [];
+          console.log(`📍 "${term}" returned ${businesses.length} businesses`);
+
+          // Add unique businesses (dedupe by placeId)
+          businesses.forEach(biz => {
+            if (!seenPlaceIds.has(biz.placeId)) {
+              seenPlaceIds.add(biz.placeId);
+              // Store the original category for consistency
+              biz.category = category;
+              allBusinesses.push(biz);
+            }
+          });
+        }
+      } catch (termError) {
+        console.warn(`⚠️ Search for "${term}" failed:`, termError.message);
+      }
+
+      // Small delay between requests to be nice to the API
+      if (i < searchTerms.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
     }
 
-    const data = await response.json();
-
-    if (data.error) {
-      throw new Error(data.error);
-    }
-
-    const rawBusinesses = data.businesses || [];
-    console.log(`✅ HERE returned ${rawBusinesses.length} businesses`);
+    const rawBusinesses = allBusinesses;
+    console.log(`✅ Combined search returned ${rawBusinesses.length} unique businesses from ${searchTerms.length} queries`);
 
     // Deduplicate businesses with multiple locations (keep best contact info)
     const businesses = deduplicateBusinesses(rawBusinesses);
