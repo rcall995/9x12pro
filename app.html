@@ -917,33 +917,44 @@
                         <!-- Stats populated by JavaScript -->
                     </div>
 
-                    <!-- Unified Filter Bar -->
-                    <div class="bg-gray-50 border rounded-xl p-4">
-                        <div class="flex flex-wrap items-center gap-4">
-                            <!-- ZIP Filter -->
-                            <div class="flex items-center gap-2">
-                                <span class="text-sm font-bold text-gray-600">📍 ZIP:</span>
-                                <div id="inlineProspectPoolZipCheckboxes" class="flex flex-wrap gap-1">
-                                    <!-- ZIP checkboxes populated by JavaScript -->
+                    <!-- Unified Filter Bar - Compact Dropdowns -->
+                    <div class="bg-gray-50 border rounded-xl p-3">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <!-- ZIP Filter Dropdown -->
+                            <div class="relative">
+                                <button onclick="toggleFilterDropdown('zip')" class="flex items-center gap-2 px-3 py-2 bg-white border-2 border-gray-300 rounded-lg hover:border-indigo-400 transition-colors text-sm font-medium">
+                                    <span>📍 ZIP:</span>
+                                    <span id="zipFilterSummary" class="text-indigo-600 font-bold">All</span>
+                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                </button>
+                                <div id="zipFilterDropdown" class="hidden absolute top-full left-0 mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl z-50 p-3 min-w-[300px] max-w-[500px] max-h-[300px] overflow-y-auto">
+                                    <div id="inlineProspectPoolZipCheckboxes" class="flex flex-wrap gap-1">
+                                        <!-- ZIP checkboxes populated by JavaScript -->
+                                    </div>
                                 </div>
                             </div>
 
-                            <!-- Category Filter (multi-select checkboxes) -->
-                            <div class="flex items-center gap-2">
-                                <span class="text-sm font-bold text-gray-600">🏢 Category:</span>
-                                <div id="prospectPoolCategoryCheckboxes" class="flex flex-wrap gap-1 max-w-md">
-                                    <!-- Category checkboxes populated by JavaScript -->
+                            <!-- Category Filter Dropdown -->
+                            <div class="relative">
+                                <button onclick="toggleFilterDropdown('category')" class="flex items-center gap-2 px-3 py-2 bg-white border-2 border-gray-300 rounded-lg hover:border-emerald-400 transition-colors text-sm font-medium">
+                                    <span>🏢 Category:</span>
+                                    <span id="categoryFilterSummary" class="text-emerald-600 font-bold">All</span>
+                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                </button>
+                                <div id="categoryFilterDropdown" class="hidden absolute top-full left-0 mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl z-50 p-3 min-w-[300px] max-w-[500px] max-h-[300px] overflow-y-auto">
+                                    <div id="prospectPoolCategoryCheckboxes" class="flex flex-wrap gap-1">
+                                        <!-- Category checkboxes populated by JavaScript -->
+                                    </div>
                                 </div>
                             </div>
 
                             <!-- Client Status Filter -->
                             <div class="flex items-center gap-2">
-                                <span class="text-sm font-bold text-gray-600">👥 Show:</span>
                                 <select id="prospectPoolClientFilter" onchange="filterProspectPoolByClientStatus()"
-                                    class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500">
-                                    <option value="all">All Prospects</option>
-                                    <option value="new">New Only</option>
-                                    <option value="existing">Existing Clients</option>
+                                    class="px-3 py-2 border-2 border-gray-300 rounded-lg text-sm bg-white hover:border-amber-400 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 font-medium">
+                                    <option value="all">👥 All Prospects</option>
+                                    <option value="new">🆕 New Only</option>
+                                    <option value="existing">⭐ Existing Clients</option>
                                 </select>
                             </div>
                         </div>

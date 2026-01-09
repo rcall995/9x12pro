@@ -8872,6 +8872,7 @@ function toggleAllZips(checkbox) {
     const individualCheckboxes = container.querySelectorAll('input[type="checkbox"]:not([value="all"])');
     individualCheckboxes.forEach(cb => cb.checked = false);
   }
+  updateZipFilterSummary();
   // Re-render to apply filter
   renderProspectPool();
 }
@@ -8886,6 +8887,7 @@ function handleZipChange(checkbox) {
     const allCheckbox = container.querySelector('input[value="all"]');
     if (allCheckbox) allCheckbox.checked = false;
   }
+  updateZipFilterSummary();
   // Re-render to apply filter
   renderProspectPool();
 }
@@ -9055,6 +9057,72 @@ function toggleProspectRadar() {
   }
 }
 
+// Toggle filter dropdowns
+function toggleFilterDropdown(type) {
+  const zipDropdown = document.getElementById('zipFilterDropdown');
+  const categoryDropdown = document.getElementById('categoryFilterDropdown');
+
+  if (type === 'zip') {
+    zipDropdown?.classList.toggle('hidden');
+    categoryDropdown?.classList.add('hidden');
+  } else if (type === 'category') {
+    categoryDropdown?.classList.toggle('hidden');
+    zipDropdown?.classList.add('hidden');
+  }
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', function(e) {
+  const zipDropdown = document.getElementById('zipFilterDropdown');
+  const categoryDropdown = document.getElementById('categoryFilterDropdown');
+
+  // Check if click is outside ZIP dropdown
+  if (zipDropdown && !zipDropdown.classList.contains('hidden')) {
+    const zipButton = zipDropdown.previousElementSibling;
+    if (!zipDropdown.contains(e.target) && !zipButton?.contains(e.target)) {
+      zipDropdown.classList.add('hidden');
+    }
+  }
+
+  // Check if click is outside Category dropdown
+  if (categoryDropdown && !categoryDropdown.classList.contains('hidden')) {
+    const catButton = categoryDropdown.previousElementSibling;
+    if (!categoryDropdown.contains(e.target) && !catButton?.contains(e.target)) {
+      categoryDropdown.classList.add('hidden');
+    }
+  }
+});
+
+// Update ZIP filter summary text
+function updateZipFilterSummary() {
+  const summary = document.getElementById('zipFilterSummary');
+  if (!summary) return;
+
+  const container = document.getElementById('inlineProspectPoolZipCheckboxes');
+  if (!container) return;
+
+  const allCheckbox = container.querySelector('input[value="all"]');
+  const checkedBoxes = container.querySelectorAll('input[type="checkbox"]:checked:not([value="all"])');
+
+  if (allCheckbox?.checked || checkedBoxes.length === 0) {
+    summary.textContent = 'All';
+  } else {
+    summary.textContent = `${checkedBoxes.length} selected`;
+  }
+}
+
+// Update Category filter summary text
+function updateCategoryFilterSummary() {
+  const summary = document.getElementById('categoryFilterSummary');
+  if (!summary) return;
+
+  if (prospectPoolSelectedCategories.size === 0) {
+    summary.textContent = 'All';
+  } else {
+    summary.textContent = `${prospectPoolSelectedCategories.size} selected`;
+  }
+}
+
 // Toggle all categories on/off
 function toggleAllCategories(checkbox) {
   const container = document.getElementById('prospectPoolCategoryCheckboxes');
@@ -9066,6 +9134,7 @@ function toggleAllCategories(checkbox) {
     const individualCheckboxes = container.querySelectorAll('input[type="checkbox"]:not([value="all"])');
     individualCheckboxes.forEach(cb => cb.checked = false);
   }
+  updateCategoryFilterSummary();
   renderProspectPool();
 }
 
@@ -9089,6 +9158,7 @@ function handleCategoryChange(checkbox) {
       if (allCheckbox) allCheckbox.checked = true;
     }
   }
+  updateCategoryFilterSummary();
   renderProspectPool();
 }
 
@@ -9133,6 +9203,7 @@ window.clearContactFilters = clearContactFilters;
 window.filterProspectPoolByClientStatus = filterProspectPoolByClientStatus;
 window.toggleAllCategories = toggleAllCategories;
 window.handleCategoryChange = handleCategoryChange;
+window.toggleFilterDropdown = toggleFilterDropdown;
 
 function renderProspectPool() {
   console.log('🔵 DEBUG: renderProspectPool ENTRY - prospect-list length:', kanbanState.columns['prospect-list']?.length);
