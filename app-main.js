@@ -9955,13 +9955,31 @@ function renderProspectPool() {
   let totalProspects = 0;
   let alreadyInSystem = 0;
 
-  // Check what's already in the system
+  // Check what's already in the system (by placeId AND by normalized name)
   const existingPlaceIds = new Set();
+  const existingNormalizedNames = new Set();
+
+  // Helper to normalize name for matching
+  const normalizeForMatch = (name) => {
+    if (!name) return '';
+    return name.toLowerCase()
+      .replace(/&/g, 'and')
+      .replace(/[''`]/g, '')
+      .replace(/\s+/g, ' ')
+      .replace(/[^\w\s]/g, '')
+      .trim();
+  };
+
   Object.values(kanbanState.columns).forEach(column => {
     if (Array.isArray(column)) {
       column.forEach(lead => {
         if (lead && lead.placeId) {
           existingPlaceIds.add(lead.placeId);
+        }
+        // Also track by normalized name
+        const leadName = lead?.businessName || lead?.name || lead?.title || '';
+        if (leadName) {
+          existingNormalizedNames.add(normalizeForMatch(leadName));
         }
       });
     }
@@ -9970,6 +9988,11 @@ function renderProspectPool() {
   Object.values(crmState.clients).forEach(client => {
     if (client.placeId) {
       existingPlaceIds.add(client.placeId);
+    }
+    // Also track client names
+    const clientName = client.businessName || client.name || '';
+    if (clientName) {
+      existingNormalizedNames.add(normalizeForMatch(clientName));
     }
   });
 
@@ -10021,7 +10044,11 @@ function renderProspectPool() {
       if (seenPlaceIds.has(business.placeId)) return;
 
       if (!notInterestedState.placeIds.has(business.placeId)) {
-        const isInSystem = existingPlaceIds.has(business.placeId);
+        // Check if in system by placeId OR by normalized business name
+        const businessName = business.name || business.businessName || business.title || '';
+        const normalizedBusinessName = normalizeForMatch(businessName);
+        const isInSystem = existingPlaceIds.has(business.placeId) ||
+                          (normalizedBusinessName && existingNormalizedNames.has(normalizedBusinessName));
 
         // Use smart ZIP extraction - tries actualZip, zip, address extraction, then searchedZipCode
         const businessZip = getProspectActualZip(business) || searchedZipCode;
