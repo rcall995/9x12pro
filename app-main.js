@@ -9953,7 +9953,9 @@ function renderProspectPool() {
   let totalProspects = 0;
   let alreadyInSystem = 0;
 
-  // Check what's already in the system (by placeId AND by normalized name)
+  // Check what's already in the KANBAN (by placeId AND by normalized name)
+  // NOTE: Only check kanban columns, NOT CRM clients - we want to show "In System" only for
+  // prospects that are currently in the kanban pipeline, not for existing CRM clients
   const existingPlaceIds = new Set();
   const existingNormalizedNames = new Set();
 
@@ -9983,16 +9985,8 @@ function renderProspectPool() {
     }
   });
 
-  Object.values(crmState.clients).forEach(client => {
-    if (client.placeId) {
-      existingPlaceIds.add(client.placeId);
-    }
-    // Also track client names
-    const clientName = client.businessName || client.name || '';
-    if (clientName) {
-      existingNormalizedNames.add(normalizeForMatch(clientName));
-    }
-  });
+  // DON'T add CRM clients to "In System" check - existing clients should still be
+  // available to add to kanban for the current campaign
 
   // Collect all available ZIP codes for the filter dropdown
   const availableZips = new Set();
@@ -11480,30 +11474,35 @@ function filterProspectPool(searchTerm) {
   prospectPoolSearchTerm = searchTerm; // Save for re-renders
   const term = searchTerm.toLowerCase().trim();
 
-  // Get all category sections
-  const categorySections = document.querySelectorAll('#prospectPoolContainer > .mb-8');
+  // Get the prospect pool container
+  const container = document.getElementById('prospectPoolContainer');
+  if (!container) {
+    console.log('🔍 filterProspectPool: Container not found');
+    return;
+  }
+
+  // Get all category sections (direct children with mb-8 class)
+  const categorySections = container.querySelectorAll('.mb-8');
+  console.log('🔍 filterProspectPool: Found', categorySections.length, 'category sections');
 
   categorySections.forEach(categorySection => {
     // Find the grid container with all prospect cards
     const grid = categorySection.querySelector('.grid');
     if (!grid) return;
 
-    // Get all prospect cards (both enriched and raw) - use data-place-id or onclick with openClientModalForProspect
-    const prospectCards = grid.querySelectorAll('[data-place-id], div[onclick*="openClientModalForProspect"]');
+    // Get all direct children of the grid (the prospect cards)
+    const prospectCards = grid.children;
+    console.log('🔍 filterProspectPool: Found', prospectCards.length, 'cards in grid');
 
     let visibleCount = 0;
 
-    prospectCards.forEach(card => {
+    Array.from(prospectCards).forEach(card => {
       // Get the business name from h5 tag
       const businessName = card.querySelector('h5')?.textContent || '';
-      // Get address from p tag (for raw prospects)
-      const addressElements = card.querySelectorAll('p');
-      let address = '';
-      addressElements.forEach(p => {
-        address += p.textContent + ' ';
-      });
+      // Get all text content for searching
+      const allText = card.textContent || '';
 
-      const matches = businessName.toLowerCase().includes(term) || address.toLowerCase().includes(term);
+      const matches = businessName.toLowerCase().includes(term) || allText.toLowerCase().includes(term);
 
       if (term === '' || matches) {
         card.style.display = '';
