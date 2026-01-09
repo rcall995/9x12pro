@@ -8863,7 +8863,8 @@ function filterProspectPoolByDate() {
 }
 
 function toggleAllZips(checkbox) {
-  const container = document.getElementById('prospectPoolZipCheckboxes');
+  let container = document.getElementById('prospectPoolZipCheckboxes');
+  if (!container) container = document.getElementById('inlineProspectPoolZipCheckboxes');
   if (!container) return;
 
   if (checkbox.checked) {
@@ -8876,7 +8877,8 @@ function toggleAllZips(checkbox) {
 }
 
 function handleZipChange(checkbox) {
-  const container = document.getElementById('prospectPoolZipCheckboxes');
+  let container = document.getElementById('prospectPoolZipCheckboxes');
+  if (!container) container = document.getElementById('inlineProspectPoolZipCheckboxes');
   if (!container) return;
 
   if (checkbox.checked) {
@@ -10115,8 +10117,11 @@ function clearProspectPool() {
 
 // Select all businesses in a category (check their checkboxes)
 function selectAllInCategory(category) {
-  // Get active ZIP filter (if any)
-  const zipCheckboxes = document.querySelectorAll('#prospectPoolZipCheckboxes input[type="checkbox"]:checked');
+  // Get active ZIP filter (if any) - check both possible containers
+  let zipCheckboxes = document.querySelectorAll('#prospectPoolZipCheckboxes input[type="checkbox"]:checked');
+  if (zipCheckboxes.length === 0) {
+    zipCheckboxes = document.querySelectorAll('#inlineProspectPoolZipCheckboxes input[type="checkbox"]:checked');
+  }
   const activeZips = new Set();
   let allZipsSelected = false;
   zipCheckboxes.forEach(cb => {
