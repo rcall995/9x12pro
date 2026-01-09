@@ -9483,11 +9483,9 @@ function moveProspectFromPool(prospectId) {
     }
   }
 
-  // Only remove from manualProspects if it was found there
-  if (isFromManualProspects && prospectIndex !== -1) {
-    prospectPoolState.manualProspects.splice(prospectIndex, 1);
-    saveManualProspects();
-  }
+  // DON'T remove from manualProspects - keep it there so it shows as "In System"
+  // This allows users to see which prospects they've already added to the kanban
+  // The prospect will appear faded with "In System" badge after re-render
 
   // Build a proper lead object for the kanban
   // HERE API uses 'title', Google uses 'name', manual prospects use 'businessName'
@@ -11490,8 +11488,8 @@ function filterProspectPool(searchTerm) {
     const grid = categorySection.querySelector('.grid');
     if (!grid) return;
 
-    // Get all prospect cards (both types - enriched and raw)
-    const prospectCards = grid.querySelectorAll('div[onclick*="openProspectDetailModal"]');
+    // Get all prospect cards (both enriched and raw) - use data-place-id or onclick with openClientModalForProspect
+    const prospectCards = grid.querySelectorAll('[data-place-id], div[onclick*="openClientModalForProspect"]');
 
     let visibleCount = 0;
 
