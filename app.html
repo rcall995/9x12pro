@@ -928,14 +928,12 @@
                                 </div>
                             </div>
 
-                            <!-- Category Filter -->
+                            <!-- Category Filter (multi-select checkboxes) -->
                             <div class="flex items-center gap-2">
                                 <span class="text-sm font-bold text-gray-600">🏢 Category:</span>
-                                <select id="prospectPoolCategoryFilter" onchange="filterProspectPoolByCategory()"
-                                    class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
-                                    <option value="">All Categories</option>
-                                    <!-- Categories populated by JavaScript -->
-                                </select>
+                                <div id="prospectPoolCategoryCheckboxes" class="flex flex-wrap gap-1 max-w-md">
+                                    <!-- Category checkboxes populated by JavaScript -->
+                                </div>
                             </div>
 
                             <!-- Client Status Filter -->

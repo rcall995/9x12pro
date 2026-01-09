@@ -8966,8 +8966,8 @@ function matchesContactFilters(business) {
 // Store search term to preserve during re-renders
 var prospectPoolSearchTerm = '';
 
-// Store category filter state
-var prospectPoolCategoryFilter = '';
+// Store category filter state (Set for multiple selections)
+var prospectPoolSelectedCategories = new Set();
 
 // Store client filter state: 'all' | 'new' | 'existing'
 var prospectPoolClientFilter = 'all';
@@ -9055,41 +9055,74 @@ function toggleProspectRadar() {
   }
 }
 
-// Filter prospect pool by category
-function filterProspectPoolByCategory() {
-  const select = document.getElementById('prospectPoolCategoryFilter');
-  if (select) {
-    prospectPoolCategoryFilter = select.value;
+// Toggle all categories on/off
+function toggleAllCategories(checkbox) {
+  const container = document.getElementById('prospectPoolCategoryCheckboxes');
+  if (!container) return;
+
+  if (checkbox.checked) {
+    // When ALL is checked, clear individual selections
+    prospectPoolSelectedCategories.clear();
+    const individualCheckboxes = container.querySelectorAll('input[type="checkbox"]:not([value="all"])');
+    individualCheckboxes.forEach(cb => cb.checked = false);
   }
   renderProspectPool();
 }
 
-// Populate category dropdown from available categories
+// Handle individual category checkbox change
+function handleCategoryChange(checkbox) {
+  const container = document.getElementById('prospectPoolCategoryCheckboxes');
+  if (!container) return;
+
+  if (checkbox.checked) {
+    // Add to selected categories
+    prospectPoolSelectedCategories.add(checkbox.value);
+    // Uncheck "ALL" when individual is selected
+    const allCheckbox = container.querySelector('input[value="all"]');
+    if (allCheckbox) allCheckbox.checked = false;
+  } else {
+    // Remove from selected categories
+    prospectPoolSelectedCategories.delete(checkbox.value);
+    // If nothing selected, check "ALL"
+    if (prospectPoolSelectedCategories.size === 0) {
+      const allCheckbox = container.querySelector('input[value="all"]');
+      if (allCheckbox) allCheckbox.checked = true;
+    }
+  }
+  renderProspectPool();
+}
+
+// Populate category checkboxes from available categories
 function populateCategoryDropdown(categories) {
-  const select = document.getElementById('prospectPoolCategoryFilter');
-  if (!select) return;
-
-  // Keep current selection
-  const currentValue = select.value;
-
-  // Clear options except first
-  select.innerHTML = '<option value="">All Categories</option>';
+  const container = document.getElementById('prospectPoolCategoryCheckboxes');
+  if (!container) return;
 
   // Sort categories alphabetically
   const sortedCategories = [...categories].sort((a, b) => a.localeCompare(b));
 
-  sortedCategories.forEach(cat => {
-    const option = document.createElement('option');
-    option.value = cat;
-    // Capitalize first letter
-    option.textContent = cat.charAt(0).toUpperCase() + cat.slice(1);
-    select.appendChild(option);
-  });
+  // Determine if ALL should be checked (no individual selections)
+  const allSelected = prospectPoolSelectedCategories.size === 0;
 
-  // Restore selection if still valid
-  if (currentValue && categories.includes(currentValue)) {
-    select.value = currentValue;
-  }
+  container.innerHTML = `
+    <label class="inline-flex items-center gap-1 px-2 py-1 bg-white border-2 rounded-lg cursor-pointer hover:bg-emerald-50 hover:border-emerald-400 transition-colors text-xs ${allSelected ? 'border-emerald-500 bg-emerald-50' : 'border-gray-300'}">
+      <input type="checkbox" value="all" ${allSelected ? 'checked' : ''} onchange="toggleAllCategories(this)" class="w-3 h-3 text-emerald-600 rounded">
+      <span class="font-bold text-gray-900">ALL</span>
+    </label>
+  ` + sortedCategories.map(cat => {
+    const isSelected = prospectPoolSelectedCategories.has(cat);
+    const displayName = cat.charAt(0).toUpperCase() + cat.slice(1);
+    return `
+      <label class="inline-flex items-center gap-1 px-2 py-1 bg-white border-2 rounded-lg cursor-pointer hover:bg-emerald-50 hover:border-emerald-400 transition-colors text-xs ${isSelected ? 'border-emerald-500 bg-emerald-50' : 'border-gray-300'}">
+        <input type="checkbox" value="${cat}" ${isSelected ? 'checked' : ''} onchange="handleCategoryChange(this)" class="w-3 h-3 text-emerald-600 rounded">
+        <span class="text-gray-700">${displayName}</span>
+      </label>
+    `;
+  }).join('');
+}
+
+// Legacy function for backwards compatibility
+function filterProspectPoolByCategory() {
+  renderProspectPool();
 }
 
 // Expose new functions globally
@@ -9098,6 +9131,8 @@ window.filterProspectPoolByCategory = filterProspectPoolByCategory;
 window.applyProspectPoolFilters = applyProspectPoolFilters;
 window.clearContactFilters = clearContactFilters;
 window.filterProspectPoolByClientStatus = filterProspectPoolByClientStatus;
+window.toggleAllCategories = toggleAllCategories;
+window.handleCategoryChange = handleCategoryChange;
 
 function renderProspectPool() {
   console.log('🔵 DEBUG: renderProspectPool ENTRY - prospect-list length:', kanbanState.columns['prospect-list']?.length);
@@ -9459,13 +9494,15 @@ function renderProspectPool() {
   const allCategories = Object.keys(unifiedByCategory).filter(cat => unifiedByCategory[cat].length > 0);
   populateCategoryDropdown(allCategories);
 
-  // Apply category filter if set
+  // Apply category filter if specific categories are selected
   let filteredByCategory = unifiedByCategory;
-  if (prospectPoolCategoryFilter) {
+  if (prospectPoolSelectedCategories.size > 0) {
     filteredByCategory = {};
-    if (unifiedByCategory[prospectPoolCategoryFilter]) {
-      filteredByCategory[prospectPoolCategoryFilter] = unifiedByCategory[prospectPoolCategoryFilter];
-    }
+    prospectPoolSelectedCategories.forEach(cat => {
+      if (unifiedByCategory[cat]) {
+        filteredByCategory[cat] = unifiedByCategory[cat];
+      }
+    });
   }
 
   // Apply client status filter if set
