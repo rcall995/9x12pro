@@ -9348,9 +9348,12 @@ function moveProspectFromPool(prospectId) {
   // Build a proper lead object for the kanban
   // HERE API uses 'title', Google uses 'name', manual prospects use 'businessName'
   const businessName = prospect.businessName || prospect.name || prospect.title || 'Unknown Business';
+  const zipCode = prospect.zipCode || prospect.actualZip || prospect.zip || null;
   const newLead = {
     id: Date.now() + Math.random(),
     businessName: businessName,
+    name: businessName, // Also set 'name' for compatibility with pool renderer
+    title: businessName, // Also set 'title' for compatibility
     contactName: prospect.contactName || prospect.ownerName || '',
     phone: prospect.phone || prospect.contact?.phone || '',
     email: prospect.email || prospect.contact?.email || '',
@@ -9364,8 +9367,9 @@ function moveProspectFromPool(prospectId) {
     linkedin: prospect.linkedin || '',
     twitter: prospect.twitter || '',
     category: prospect.category || 'other',
-    zipCode: prospect.zipCode || prospect.actualZip || null,
-    actualZip: prospect.actualZip || null,
+    zipCode: zipCode,
+    actualZip: zipCode, // Also set actualZip for pool renderer
+    address: prospect.address || prospect.vicinity || '',
     mailerId: prospect.mailerId || state.current?.Mailer_ID,
     movedBackDate: new Date().toISOString()
   };
@@ -10357,8 +10361,9 @@ function renderProspectPool() {
             const isSelected = prospectPoolState.selectedIds.has(prospectId);
             const isDisabled = prospect.inSystem;
 
-            // Handle both name/businessName and address field variations
-            const displayName = prospect.name || prospect.businessName || 'Unnamed Business';
+            // Handle both name/businessName/title and address field variations
+            // HERE API uses 'title', Google uses 'name', manual uses 'businessName'
+            const displayName = prospect.name || prospect.businessName || prospect.title || 'Unnamed Business';
             const displayAddress = prospect.address || '';
 
             // Extract address from notes if not available
@@ -10369,7 +10374,9 @@ function renderProspectPool() {
             }
 
             // Show actual ZIP code (not the searched ZIP) for raw prospects too - DON'T use town as fallback
-            const rawDisplayLocation = prospect.actualZip ? `📍 ${prospect.actualZip}` : (prospect.zipCode ? `📍 ${prospect.zipCode}` : '');
+            // Check for valid ZIP (not undefined, null, or the string "undefined")
+            const rawZip = prospect.actualZip || prospect.zipCode || prospect.zip;
+            const rawDisplayLocation = (rawZip && rawZip !== 'undefined' && rawZip !== 'null') ? `📍 ${rawZip}` : '';
 
             // Extract contact info from notes if available
             let rawPhone = prospect.phone || '';
