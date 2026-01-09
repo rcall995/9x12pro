@@ -17575,6 +17575,32 @@ function useLightTextOn(hex){ try{ const h = hex.replace('#',''); const r=parseI
 // FilterBar removed - using built-in search in Prospect Pool instead
 // Auto-enrichment is now automatic, no checkbox needed
 
+/* ========= SELECT ALL CATEGORIES EVENT DELEGATION ========= */
+// Use event delegation on document body to catch Select All checkbox changes
+// This works even if the checkbox is in a collapsed section
+document.addEventListener('change', function(event) {
+  if (event.target && event.target.id === 'selectAllCategories') {
+    console.log('Select All Categories changed (via delegation)');
+    const checkbox = event.target;
+    const categoryCheckboxes = document.querySelectorAll('.category-checkbox');
+
+    console.log('Checkbox checked:', checkbox.checked);
+    console.log('Category checkboxes found:', categoryCheckboxes.length);
+
+    if (categoryCheckboxes.length === 0) {
+      console.error('No category checkboxes found');
+      toast('No categories to select', false);
+      return;
+    }
+
+    categoryCheckboxes.forEach(cb => {
+      cb.checked = checkbox.checked;
+    });
+
+    toast(checkbox.checked ? `Selected all ${categoryCheckboxes.length} categories` : 'Cleared all categories', true);
+  }
+});
+
 /* ========= INIT ========= */
 document.addEventListener("DOMContentLoaded", () => {
   try {
