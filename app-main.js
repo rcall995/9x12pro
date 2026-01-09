@@ -8980,6 +8980,28 @@ function normalizeBusinessName(name) {
     .replace(/\s+/g, '');
 }
 
+// Extract ZIP code from an address string
+function extractZipFromAddress(address) {
+  if (!address) return null;
+  // Match 5-digit ZIP (optionally with -4 suffix)
+  const match = address.match(/\b(\d{5})(?:-\d{4})?\b/);
+  return match ? match[1] : null;
+}
+
+// Get the best available ZIP for a prospect
+function getProspectActualZip(prospect) {
+  // Priority: actualZip > zip (from API) > extracted from address > zipCode (searched)
+  if (prospect.actualZip) return prospect.actualZip;
+  if (prospect.zip && prospect.zip !== prospect.searchedZipCode) return prospect.zip;
+
+  // Try to extract from address
+  const addressZip = extractZipFromAddress(prospect.address || prospect.fullAddress);
+  if (addressZip) return addressZip;
+
+  // Fallback to zipCode (but this might be searched ZIP)
+  return prospect.zipCode || null;
+}
+
 // Build a set of normalized client business names for fast lookup
 function getClientNameSet() {
   const clients = Object.values(crmState.clients || {});
@@ -9201,8 +9223,8 @@ function renderProspectPool() {
       if (!notInterestedState.placeIds.has(business.placeId)) {
         const isInSystem = existingPlaceIds.has(business.placeId);
 
-        // Use actualZip if available, fallback to searchedZipCode
-        const businessZip = business.actualZip || searchedZipCode;
+        // Use smart ZIP extraction - tries actualZip, zip, address extraction, then searchedZipCode
+        const businessZip = getProspectActualZip(business) || searchedZipCode;
 
         // Track this ZIP as available for filtering
         availableZips.add(businessZip);
@@ -9221,7 +9243,7 @@ function renderProspectPool() {
         categorizedProspects[category].push({
           ...business,
           zipCode: searchedZipCode, // Keep track of which search found this
-          actualZip: business.actualZip, // Preserve the actual ZIP
+          actualZip: businessZip, // Store the smart-extracted ZIP
           inSystem: isInSystem
         });
         seenPlaceIds.add(business.placeId); // Mark as seen
@@ -9311,8 +9333,8 @@ function renderProspectPool() {
   // 1. Add manual prospects (enriched) to unified pool - filter by ZIP and date
   prospectPoolState.manualProspects
     .filter(prospect => {
-      // Filter by selected ZIP codes (use actualZip if available, fallback to zipCode)
-      const prospectZip = prospect.actualZip || prospect.zipCode;
+      // Filter by selected ZIP codes - use smart ZIP extraction
+      const prospectZip = getProspectActualZip(prospect);
       if (filterByZip && prospectZip && !selectedZips.includes(prospectZip)) {
         return false; // Skip if ZIP doesn't match filter
       }
@@ -9342,8 +9364,17 @@ function renderProspectPool() {
       if (!unifiedByCategory[category]) {
         unifiedByCategory[category] = [];
       }
+      // Get the actual ZIP for this prospect (smart extraction)
+      const actualZipForProspect = getProspectActualZip(prospect);
+      // Track this ZIP as available for filtering
+      if (actualZipForProspect) {
+        availableZips.add(actualZipForProspect);
+      }
+
       unifiedByCategory[category].push({
         ...prospect,
+        // Override actualZip with smart extraction for accurate display
+        actualZip: actualZipForProspect,
         // Respect existing isEnriched value (defaults to false for consistent checkbox UI)
         isEnriched: prospect.isEnriched === true, // Only true if explicitly set
         type: 'manual'
