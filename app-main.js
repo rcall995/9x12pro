@@ -9174,7 +9174,7 @@ async function moveSelectedToPool() {
     const existingIndex = prospectPoolState.manualProspects.findIndex(p =>
       p.id === lead.id ||
       (p.placeId && p.placeId === lead.placeId) ||
-      (p.businessName && p.businessName.toLowerCase() === lead.businessName.toLowerCase() && p.mailerId === lead.mailerId)
+      (p.businessName && lead.businessName && p.businessName.toLowerCase() === lead.businessName.toLowerCase() && p.mailerId === lead.mailerId)
     );
 
     if (existingIndex !== -1) {
