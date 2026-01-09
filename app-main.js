@@ -8969,6 +8969,44 @@ var prospectPoolSearchTerm = '';
 // Store category filter state
 var prospectPoolCategoryFilter = '';
 
+// Store client filter state: 'all' | 'new' | 'existing'
+var prospectPoolClientFilter = 'all';
+
+// Helper to normalize business names for matching
+function normalizeBusinessName(name) {
+  if (!name) return '';
+  return name.toLowerCase()
+    .replace(/[^a-z0-9]/g, '') // Remove non-alphanumeric
+    .replace(/\s+/g, '');
+}
+
+// Build a set of normalized client business names for fast lookup
+function getClientNameSet() {
+  const clients = Object.values(crmState.clients || {});
+  const nameSet = new Set();
+  clients.forEach(client => {
+    if (client.businessName) {
+      nameSet.add(normalizeBusinessName(client.businessName));
+    }
+  });
+  return nameSet;
+}
+
+// Check if a prospect matches an existing client
+function isExistingClient(prospect, clientNameSet) {
+  const prospectName = normalizeBusinessName(prospect.name || prospect.businessName);
+  return clientNameSet.has(prospectName);
+}
+
+// Filter prospect pool by client status
+function filterProspectPoolByClientStatus() {
+  const select = document.getElementById('prospectPoolClientFilter');
+  if (select) {
+    prospectPoolClientFilter = select.value;
+  }
+  renderProspectPool();
+}
+
 // Toggle ProspectRadar section collapse/expand
 function toggleProspectRadar() {
   const collapsed = document.getElementById('prospectRadarCollapsed');
@@ -9029,6 +9067,7 @@ window.toggleProspectRadar = toggleProspectRadar;
 window.filterProspectPoolByCategory = filterProspectPoolByCategory;
 window.applyProspectPoolFilters = applyProspectPoolFilters;
 window.clearContactFilters = clearContactFilters;
+window.filterProspectPoolByClientStatus = filterProspectPoolByClientStatus;
 
 function renderProspectPool() {
   console.log('🔵 DEBUG: renderProspectPool ENTRY - prospect-list length:', kanbanState.columns['prospect-list']?.length);
@@ -9207,24 +9246,8 @@ function renderProspectPool() {
     (kanbanState.columns['in-progress'] || []).length +
     (kanbanState.columns['committed'] || []).length;
 
-  statsContainer.innerHTML = `
-    <div class="bg-white border rounded-lg p-4 text-center">
-      <div class="text-3xl font-bold text-purple-600">${kanbanTotalCount}</div>
-      <div class="text-xs text-gray-600 mt-1">My Prospect List</div>
-    </div>
-    <div class="bg-white border rounded-lg p-4 text-center">
-      <div class="text-3xl font-bold text-gray-900">${categoriesWithBusinesses}</div>
-      <div class="text-xs text-gray-600 mt-1">Categories</div>
-    </div>
-    <div class="bg-white border rounded-lg p-4 text-center">
-      <div class="text-3xl font-bold text-indigo-600">${totalProspects}</div>
-      <div class="text-xs text-gray-600 mt-1">Total Businesses</div>
-    </div>
-    <div class="bg-white border rounded-lg p-4 text-center">
-      <div class="text-3xl font-bold text-green-600">${available}</div>
-      <div class="text-xs text-gray-600 mt-1">Available to Add</div>
-    </div>
-  `;
+  // Stats will be updated after client counting - placeholder for now
+  statsContainer.innerHTML = '<div class="col-span-4 text-center text-gray-400 py-2">Loading stats...</div>';
 
   // Populate ZIP code checkboxes
   if (zipCheckboxContainer) {
@@ -9366,6 +9389,33 @@ function renderProspectPool() {
 
   console.log(`🔵 Prospect Pool Deduplication: Manual=${manualProspectsAdded} added (${manualProspectsSkipped} duplicates skipped), Search=${searchProspectsAdded} added (${searchProspectsSkipped} duplicates skipped)`);
 
+  // ========= CLIENT MATCHING: Tag and count existing clients =========
+  const clientNameSet = getClientNameSet();
+  let existingClientsCount = 0;
+  let newProspectsCount = 0;
+  let withContactCount = 0;
+  let totalUnifiedCount = 0;
+
+  // Tag each prospect and count metrics
+  Object.keys(unifiedByCategory).forEach(category => {
+    unifiedByCategory[category].forEach(prospect => {
+      totalUnifiedCount++;
+      const isClient = isExistingClient(prospect, clientNameSet);
+      prospect.isExistingClient = isClient;
+      if (isClient) {
+        existingClientsCount++;
+      } else {
+        newProspectsCount++;
+      }
+      // Count with contact info (has phone, email, or website)
+      const hasContact = prospect.phone || prospect.email || prospect.website ||
+                         prospect.contact?.phone || prospect.contact?.email;
+      if (hasContact) {
+        withContactCount++;
+      }
+    });
+  });
+
   // Collect all available categories for the dropdown
   const allCategories = Object.keys(unifiedByCategory).filter(cat => unifiedByCategory[cat].length > 0);
   populateCategoryDropdown(allCategories);
@@ -9378,6 +9428,51 @@ function renderProspectPool() {
       filteredByCategory[prospectPoolCategoryFilter] = unifiedByCategory[prospectPoolCategoryFilter];
     }
   }
+
+  // Apply client status filter if set
+  if (prospectPoolClientFilter && prospectPoolClientFilter !== 'all') {
+    const tempFiltered = {};
+    Object.keys(filteredByCategory).forEach(category => {
+      const filtered = filteredByCategory[category].filter(prospect => {
+        if (prospectPoolClientFilter === 'existing') {
+          return prospect.isExistingClient === true;
+        } else if (prospectPoolClientFilter === 'new') {
+          return prospect.isExistingClient !== true;
+        }
+        return true;
+      });
+      if (filtered.length > 0) {
+        tempFiltered[category] = filtered;
+      }
+    });
+    filteredByCategory = tempFiltered;
+  }
+
+  // Count what's actually showing after all filters
+  let showingCount = 0;
+  Object.values(filteredByCategory).forEach(prospects => {
+    showingCount += prospects.length;
+  });
+
+  // Now render the real stats with accurate counts
+  statsContainer.innerHTML = `
+    <div class="bg-white border rounded-lg p-3 text-center">
+      <div class="text-2xl font-bold text-indigo-600">${showingCount}<span class="text-sm text-gray-400 font-normal">/${totalUnifiedCount}</span></div>
+      <div class="text-xs text-gray-600 mt-1">Showing</div>
+    </div>
+    <div class="bg-white border rounded-lg p-3 text-center cursor-pointer hover:bg-blue-50 transition-colors ${prospectPoolClientFilter === 'new' ? 'ring-2 ring-blue-500' : ''}" onclick="document.getElementById('prospectPoolClientFilter').value='new'; filterProspectPoolByClientStatus();">
+      <div class="text-2xl font-bold text-blue-600">${newProspectsCount}</div>
+      <div class="text-xs text-gray-600 mt-1">New Prospects</div>
+    </div>
+    <div class="bg-white border rounded-lg p-3 text-center cursor-pointer hover:bg-amber-50 transition-colors ${prospectPoolClientFilter === 'existing' ? 'ring-2 ring-amber-500' : ''}" onclick="document.getElementById('prospectPoolClientFilter').value='existing'; filterProspectPoolByClientStatus();">
+      <div class="text-2xl font-bold text-amber-600">${existingClientsCount}</div>
+      <div class="text-xs text-gray-600 mt-1">Existing Clients</div>
+    </div>
+    <div class="bg-white border rounded-lg p-3 text-center">
+      <div class="text-2xl font-bold text-green-600">${withContactCount}</div>
+      <div class="text-xs text-gray-600 mt-1">With Contact Info</div>
+    </div>
+  `;
 
   // Render unified pool header
   container.innerHTML = `
@@ -9502,15 +9597,16 @@ function renderProspectPool() {
               </div>` : '';
 
               return `
-                <div class="bg-white border-2 ${hasContact ? 'border-green-400' : 'border-gray-200'} rounded-lg p-3 hover:shadow-md transition cursor-pointer relative" onclick="openClientModalForProspect('${prospect.id}')">
-                  <!-- Contact Score Badge (top-right) -->
-                  <div class="absolute top-2 right-2">
+                <div class="bg-white border-2 ${prospect.isExistingClient ? 'border-amber-400 bg-amber-50' : (hasContact ? 'border-green-400' : 'border-gray-200')} rounded-lg p-3 hover:shadow-md transition cursor-pointer relative" onclick="openClientModalForProspect('${prospect.id}')">
+                  <!-- Badges (top-right) -->
+                  <div class="absolute top-2 right-2 flex gap-1">
+                    ${prospect.isExistingClient ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white">⭐ Client</span>' : ''}
                     <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">
                       📞 ${enrichedContactScore}/10
                     </span>
                   </div>
 
-                  <h5 class="font-semibold text-sm text-gray-900 mb-1 pr-20">${esc(prospect.businessName)}</h5>
+                  <h5 class="font-semibold text-sm text-gray-900 mb-1 pr-24">${esc(prospect.businessName)}</h5>
                   ${displayLocation ? `<p class="text-xs text-gray-600 mt-0.5 mb-2">${esc(displayLocation)}</p>` : ''}
                   ${displayAddress ? `<p class="text-xs text-gray-600 mb-2">📍 ${esc(displayAddress)}</p>` : ''}
                   ${ownerDisplay}
@@ -9608,14 +9704,23 @@ function renderProspectPool() {
             const scoreCategory = prospect.scoreCategory || getScoreCategory(leadScore);
             const contactScore = prospect.contactScore || 0;
 
-            // Determine border color based on score
+            // Determine border color - existing client takes priority
             let borderColor = 'border-gray-200';
-            if (scoreCategory.color === 'red') borderColor = 'border-red-400';
-            else if (scoreCategory.color === 'orange') borderColor = 'border-orange-400';
-            else if (scoreCategory.color === 'blue') borderColor = 'border-blue-400';
+            let bgColor = 'bg-white';
+            if (prospect.isExistingClient) {
+              borderColor = 'border-amber-400';
+              bgColor = 'bg-amber-50';
+            } else if (scoreCategory.color === 'red') {
+              borderColor = 'border-red-400';
+            } else if (scoreCategory.color === 'orange') {
+              borderColor = 'border-orange-400';
+            } else if (scoreCategory.color === 'blue') {
+              borderColor = 'border-blue-400';
+            }
 
             return `
-              <div class="prospect-card border-2 border-gray-200 rounded-lg p-3 ${isDisabled ? 'bg-gray-50 opacity-60' : 'bg-white hover:shadow-md'} transition" data-place-id="${prospectId}">
+              <div class="prospect-card border-2 ${borderColor} rounded-lg p-3 ${isDisabled ? 'bg-gray-50 opacity-60' : bgColor + ' hover:shadow-md'} transition relative" data-place-id="${prospectId}">
+                ${prospect.isExistingClient ? '<span class="absolute top-2 right-2 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white">⭐ Client</span>' : ''}
                 <div class="flex items-start gap-2" onclick="openClientModalForProspect(${JSON.stringify(prospect).replace(/"/g, '&quot;')})">
                   <input
                     type="checkbox"
@@ -9625,7 +9730,7 @@ function renderProspectPool() {
                     onclick="event.stopPropagation()"
                     class="mt-1 w-4 h-4 text-indigo-600 rounded cursor-pointer flex-shrink-0"
                   />
-                  <div class="flex-1 min-w-0 cursor-pointer">
+                  <div class="flex-1 min-w-0 cursor-pointer ${prospect.isExistingClient ? 'pr-16' : ''}">
                     <h5 class="font-semibold text-sm text-gray-900 truncate">${esc(displayName)}</h5>
                     ${rawDisplayLocation ? `<p class="text-xs text-gray-600 mt-0.5">${esc(rawDisplayLocation)}</p>` : ''}
                     ${addressToShow ? `<p class="text-xs text-gray-600 mt-0.5">📍 ${esc(addressToShow)}</p>` : ''}

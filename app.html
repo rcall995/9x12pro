@@ -938,6 +938,17 @@
                                 </select>
                             </div>
 
+                            <!-- Client Status Filter -->
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm font-bold text-gray-600">👥 Show:</span>
+                                <select id="prospectPoolClientFilter" onchange="filterProspectPoolByClientStatus()"
+                                    class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500">
+                                    <option value="all">All Prospects</option>
+                                    <option value="new">New Only</option>
+                                    <option value="existing">Existing Clients</option>
+                                </select>
+                            </div>
+
                             <!-- Contact Filters -->
                             <div class="flex items-center gap-2 flex-wrap">
                                 <span class="text-sm font-bold text-gray-600">Filter:</span>
