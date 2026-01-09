@@ -9983,8 +9983,21 @@ function renderProspectPool() {
   const unifiedByCategory = {};
   // Track placeIds to prevent duplicates between manual prospects and search results
   const unifiedSeenPlaceIds = new Set();
+  // Also track normalized business names to catch duplicates with different placeIds
+  const unifiedSeenNames = new Set();
   let manualProspectsAdded = 0;
   let manualProspectsSkipped = 0;
+
+  // Helper to normalize business name for deduplication (handles "& vs and", spacing, etc)
+  const normalizeNameForDedup = (name) => {
+    if (!name) return '';
+    return name.toLowerCase()
+      .replace(/&/g, 'and')
+      .replace(/['']/g, '')
+      .replace(/\s+/g, ' ')
+      .replace(/[^\w\s]/g, '')
+      .trim();
+  };
 
   // 1. Add manual prospects (enriched) to unified pool - filter by ZIP and date
   prospectPoolState.manualProspects
@@ -10008,10 +10021,19 @@ function renderProspectPool() {
       return matchesContactFilters(prospect);
     })
     .forEach(prospect => {
-      // Skip duplicates (prevent same placeId from appearing twice)
+      // Skip duplicates by placeId
       if (prospect.placeId && unifiedSeenPlaceIds.has(prospect.placeId)) {
         manualProspectsSkipped++;
-        console.log(`🔵 Skipping duplicate manual prospect: ${prospect.businessName || prospect.name} (placeId: ${prospect.placeId})`);
+        console.log(`🔵 Skipping duplicate manual prospect (placeId): ${prospect.businessName || prospect.name}`);
+        return;
+      }
+
+      // Also skip duplicates by normalized name (catches "& vs and" variations)
+      const prospectName = prospect.businessName || prospect.name || prospect.title || '';
+      const normalizedName = normalizeNameForDedup(prospectName);
+      if (normalizedName && unifiedSeenNames.has(normalizedName)) {
+        manualProspectsSkipped++;
+        console.log(`🔵 Skipping duplicate manual prospect (name): ${prospectName}`);
         return;
       }
 
@@ -10036,9 +10058,12 @@ function renderProspectPool() {
         type: 'manual'
       });
 
-      // Mark this placeId as seen
+      // Mark this placeId and name as seen
       if (prospect.placeId) {
         unifiedSeenPlaceIds.add(prospect.placeId);
+      }
+      if (normalizedName) {
+        unifiedSeenNames.add(normalizedName);
       }
       manualProspectsAdded++;
     });
@@ -10054,10 +10079,19 @@ function renderProspectPool() {
       unifiedByCategory[category] = [];
     }
     categorizedProspects[rawCategory].forEach(prospect => {
-      // Skip if this placeId was already added from manual prospects
+      // Skip if this placeId was already added
       if (prospect.placeId && unifiedSeenPlaceIds.has(prospect.placeId)) {
         searchProspectsSkipped++;
         return; // Skip duplicate
+      }
+
+      // Also skip if normalized name already exists (catches "& vs and" variations)
+      const prospectName = prospect.name || prospect.businessName || prospect.title || '';
+      const normalizedName = normalizeNameForDedup(prospectName);
+      if (normalizedName && unifiedSeenNames.has(normalizedName)) {
+        searchProspectsSkipped++;
+        console.log(`🔵 Skipping duplicate search prospect (name): ${prospectName}`);
+        return; // Skip duplicate by name
       }
 
       unifiedByCategory[category].push({
@@ -10069,6 +10103,9 @@ function renderProspectPool() {
       // Mark as seen
       if (prospect.placeId) {
         unifiedSeenPlaceIds.add(prospect.placeId);
+      }
+      if (normalizedName) {
+        unifiedSeenNames.add(normalizedName);
       }
       searchProspectsAdded++;
     });
