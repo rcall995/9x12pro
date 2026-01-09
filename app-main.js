@@ -7697,24 +7697,9 @@ async function runBulkAutoPopulate() {
     // Update API usage display
     updateQuickApiUsage();
 
-    // Show success modal with category breakdown (BEFORE enrichment toast)
-    showProspectSuccessModal(categorizedResults, allBusinesses.length);
-
-    // Track that user generated prospects (for Getting Started checklist)
-    markGettingStartedComplete('generate_prospects');
-
-    // Show enrichment status toast AFTER modal
-    if (businessesWithWebsites.length > 0) {
-      setTimeout(() => {
-        toast(`✅ All ${businessesWithWebsites.length} prospects enriched with emails & social media!`, true);
-      }, 500);
-    }
-
-    // Refresh Prospect Pool to show enriched data if currently viewing it
-    const prospectsTab = document.querySelector('[data-content="prospects"]');
-    if (prospectsTab && !prospectsTab.classList.contains('hidden')) {
-      setTimeout(() => renderProspectPool(), 500);
-    }
+    // Show review modal so user can select which prospects to keep
+    // (Review modal handles tracking, toasts, and tab switching)
+    showProspectReviewModal(allBusinesses, categorizedResults);
 
   } catch(err) {
     console.error('Bulk auto-populate error:', err);
@@ -21827,6 +21812,229 @@ function closeProspectSuccessModal() {
     modal.style.display = 'none';
   }
 }
+
+// ========== PROSPECT REVIEW MODAL ==========
+// Stores pending prospects for review before adding to pool
+let pendingProspectsForReview = [];
+
+function showProspectReviewModal(businesses, categorizedResults) {
+  pendingProspectsForReview = businesses;
+
+  // Create modal if it doesn't exist
+  let modal = document.getElementById('prospectReviewModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'prospectReviewModal';
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4';
+    modal.style.display = 'none';
+    document.body.appendChild(modal);
+  }
+
+  // Group businesses by category for display
+  const byCategory = {};
+  businesses.forEach(b => {
+    const cat = b.category || 'Other';
+    if (!byCategory[cat]) byCategory[cat] = [];
+    byCategory[cat].push(b);
+  });
+
+  // Build business list HTML
+  let businessListHTML = '';
+  Object.keys(byCategory).sort().forEach(category => {
+    const catBusinesses = byCategory[category];
+    businessListHTML += `
+      <div class="mb-4">
+        <div class="flex items-center justify-between bg-gray-100 px-3 py-2 rounded-lg mb-2">
+          <span class="font-bold text-gray-800 capitalize">${category}</span>
+          <span class="text-sm text-gray-500">${catBusinesses.length} found</span>
+        </div>
+        <div class="space-y-2 pl-2">
+    `;
+    catBusinesses.forEach((business, idx) => {
+      const uniqueId = `review-${business.placeId || idx}`;
+      businessListHTML += `
+        <label class="flex items-start gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer group">
+          <input type="checkbox" id="${uniqueId}" data-place-id="${business.placeId}" checked
+                 class="review-prospect-checkbox mt-1 rounded text-green-600 focus:ring-green-500">
+          <div class="flex-1 min-w-0">
+            <div class="font-medium text-gray-900 truncate">${business.name}</div>
+            <div class="text-sm text-gray-500 truncate">${business.address || business.vicinity || 'No address'}</div>
+            ${business.phone ? `<div class="text-xs text-gray-400">${business.phone}</div>` : ''}
+          </div>
+          ${business.rating ? `<div class="text-sm text-yellow-600">★ ${business.rating}</div>` : ''}
+        </label>
+      `;
+    });
+    businessListHTML += `</div></div>`;
+  });
+
+  modal.innerHTML = `
+    <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col relative animate-bounce-in">
+      <!-- Header -->
+      <div class="p-6 border-b border-gray-200">
+        <button onclick="closeProspectReviewModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition">
+          <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+          </svg>
+        </button>
+        <div class="text-center">
+          <div class="text-4xl mb-2">🔍</div>
+          <h3 class="text-2xl font-black text-gray-900">Review Found Prospects</h3>
+          <p class="text-gray-600 mt-1">Found <span class="text-green-600 font-bold">${businesses.length}</span> businesses. Uncheck any you don't want to add.</p>
+        </div>
+        <div class="flex items-center justify-center gap-4 mt-4">
+          <button onclick="toggleAllReviewProspects(true)" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">Select All</button>
+          <span class="text-gray-300">|</span>
+          <button onclick="toggleAllReviewProspects(false)" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">Deselect All</button>
+          <span class="text-gray-300">|</span>
+          <span id="reviewSelectedCount" class="text-sm text-gray-500">${businesses.length} selected</span>
+        </div>
+      </div>
+
+      <!-- Scrollable Content -->
+      <div class="flex-1 overflow-y-auto p-6">
+        ${businessListHTML}
+      </div>
+
+      <!-- Footer -->
+      <div class="p-6 border-t border-gray-200 bg-gray-50 rounded-b-3xl">
+        <div class="flex gap-3">
+          <button onclick="confirmProspectReview()" id="btnConfirmReview" class="flex-1 px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 font-black text-base shadow-lg transform hover:scale-105 transition">
+            ✓ Add Selected to Pool
+          </button>
+          <button onclick="closeProspectReviewModal()" class="px-4 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-bold transition">
+            Cancel
+          </button>
+        </div>
+        <p class="text-xs text-gray-400 text-center mt-2">Unchecked businesses will be marked as "Not Interested"</p>
+      </div>
+    </div>
+  `;
+
+  modal.style.display = 'flex';
+
+  // Add event listeners for checkboxes to update count
+  setTimeout(() => {
+    document.querySelectorAll('.review-prospect-checkbox').forEach(cb => {
+      cb.addEventListener('change', updateReviewSelectedCount);
+    });
+  }, 100);
+
+  // Close on backdrop click
+  modal.onclick = (e) => {
+    if (e.target === modal) {
+      closeProspectReviewModal();
+    }
+  };
+}
+
+function closeProspectReviewModal() {
+  const modal = document.getElementById('prospectReviewModal');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+  pendingProspectsForReview = [];
+}
+
+function toggleAllReviewProspects(selectAll) {
+  document.querySelectorAll('.review-prospect-checkbox').forEach(cb => {
+    cb.checked = selectAll;
+  });
+  updateReviewSelectedCount();
+}
+
+function updateReviewSelectedCount() {
+  const total = document.querySelectorAll('.review-prospect-checkbox').length;
+  const selected = document.querySelectorAll('.review-prospect-checkbox:checked').length;
+  const countEl = document.getElementById('reviewSelectedCount');
+  if (countEl) {
+    countEl.textContent = `${selected} of ${total} selected`;
+  }
+
+  // Update button text
+  const btn = document.getElementById('btnConfirmReview');
+  if (btn) {
+    btn.textContent = selected > 0 ? `✓ Add ${selected} to Pool` : 'Skip All';
+  }
+}
+
+async function confirmProspectReview() {
+  const checkboxes = document.querySelectorAll('.review-prospect-checkbox');
+  const selectedPlaceIds = new Set();
+  const rejectedPlaceIds = new Set();
+
+  checkboxes.forEach(cb => {
+    const placeId = cb.dataset.placeId;
+    if (placeId) {
+      if (cb.checked) {
+        selectedPlaceIds.add(placeId);
+      } else {
+        rejectedPlaceIds.add(placeId);
+      }
+    }
+  });
+
+  // Add rejected prospects to "Not Interested" list
+  if (rejectedPlaceIds.size > 0) {
+    const rejectedBusinesses = pendingProspectsForReview.filter(b => rejectedPlaceIds.has(b.placeId));
+
+    rejectedBusinesses.forEach(business => {
+      if (!notInterestedState.placeIds.has(business.placeId)) {
+        notInterestedState.placeIds.add(business.placeId);
+        notInterestedState.businesses.push({
+          placeId: business.placeId,
+          name: business.name,
+          removedAt: new Date().toISOString()
+        });
+      }
+    });
+
+    // Save to localStorage and cloud
+    saveNotInterestedState();
+
+    console.log(`🚫 Marked ${rejectedPlaceIds.size} prospects as "Not Interested"`);
+  }
+
+  // Remove rejected prospects from the cache
+  if (rejectedPlaceIds.size > 0) {
+    Object.keys(placesCache.searches).forEach(cacheKey => {
+      const cached = placesCache.searches[cacheKey];
+      if (cached.cachedData) {
+        cached.cachedData = cached.cachedData.filter(b => !rejectedPlaceIds.has(b.placeId));
+      }
+    });
+    await savePlacesCache();
+  }
+
+  const selectedCount = selectedPlaceIds.size;
+  const rejectedCount = rejectedPlaceIds.size;
+
+  closeProspectReviewModal();
+
+  // Show brief success message
+  if (selectedCount > 0) {
+    toast(`✅ Added ${selectedCount} prospects to pool${rejectedCount > 0 ? `, skipped ${rejectedCount}` : ''}`, true);
+  } else {
+    toast(`Skipped all ${rejectedCount} prospects`, true);
+  }
+
+  // Track that user generated prospects (for Getting Started checklist)
+  if (selectedCount > 0) {
+    markGettingStartedComplete('generate_prospects');
+  }
+
+  // Switch to Prospect Pool tab to show results
+  setTimeout(() => {
+    switchTab('lead-generation');
+    setTimeout(() => renderProspectPool(), 100);
+  }, 500);
+}
+
+// Expose review modal functions globally
+window.showProspectReviewModal = showProspectReviewModal;
+window.closeProspectReviewModal = closeProspectReviewModal;
+window.toggleAllReviewProspects = toggleAllReviewProspects;
+window.confirmProspectReview = confirmProspectReview;
 
 // ========== ONBOARDING WIZARD ==========
 let onboardingStep = 1;
