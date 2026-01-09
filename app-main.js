@@ -8757,9 +8757,34 @@ window.showCategoryNormalizationDialog = showCategoryNormalizationDialog;
 // Deduplicate manual prospects pool
 function deduplicateManualProspects() {
   const seenPlaceIds = new Set();
-  const seenBusinessNames = new Map();
+  const seenNormalizedNames = new Map(); // Map of normalizedName -> index in deduped array
   const deduped = [];
   let totalRemoved = 0;
+
+  // Helper to normalize name for deduplication (handles &/and, apostrophes, spacing)
+  const normalizeNameForDedup = (name) => {
+    if (!name) return '';
+    return name.toLowerCase()
+      .replace(/&/g, 'and')
+      .replace(/[''`]/g, '')
+      .replace(/\s+/g, ' ')
+      .replace(/[^\w\s]/g, '')
+      .trim();
+  };
+
+  // Helper to calculate "data richness" score for keeping the best version
+  const getDataScore = (p) => {
+    let score = 0;
+    if (p.phone) score += 1;
+    if (p.email) score += 2;
+    if (p.website) score += 2;
+    if (p.facebook) score += 1;
+    if (p.instagram) score += 1;
+    if (p.linkedin) score += 1;
+    if (p.contactName) score += 1;
+    if (p.isEnriched) score += 3;
+    return score;
+  };
 
   prospectPoolState.manualProspects.forEach(prospect => {
     if (typeof prospect !== 'object') {
@@ -8767,31 +8792,65 @@ function deduplicateManualProspects() {
       return;
     }
 
-    // Skip if we've seen this placeId
-    if (prospect.placeId) {
-      if (seenPlaceIds.has(prospect.placeId)) {
-        totalRemoved++;
-        return; // Skip duplicate
-      }
-      seenPlaceIds.add(prospect.placeId);
-    }
-    // Fallback to businessName + mailerId
-    else if (prospect.businessName && prospect.mailerId) {
-      const key = `${prospect.businessName.toLowerCase()}|${prospect.mailerId}`;
-      if (seenBusinessNames.has(key)) {
-        totalRemoved++;
-        return; // Skip duplicate
-      }
-      seenBusinessNames.set(key, true);
+    const prospectName = prospect.businessName || prospect.name || prospect.title || '';
+    const normalizedName = normalizeNameForDedup(prospectName);
+
+    // Check 1: Skip if we've seen this placeId
+    if (prospect.placeId && seenPlaceIds.has(prospect.placeId)) {
+      totalRemoved++;
+      console.log(`🧹 Removing duplicate (placeId): ${prospectName}`);
+      return;
     }
 
+    // Check 2: Skip/merge if we've seen this normalized business name
+    if (normalizedName && seenNormalizedNames.has(normalizedName)) {
+      const existingIndex = seenNormalizedNames.get(normalizedName);
+      const existingProspect = deduped[existingIndex];
+
+      // Keep the version with more data (merge if new has better data)
+      const existingScore = getDataScore(existingProspect);
+      const newScore = getDataScore(prospect);
+
+      if (newScore > existingScore) {
+        // Merge new prospect into existing, keeping the richer data
+        deduped[existingIndex] = {
+          ...existingProspect,
+          ...prospect,
+          // Keep earliest movedToPoolDate
+          movedToPoolDate: existingProspect.movedToPoolDate && prospect.movedToPoolDate
+            ? (new Date(existingProspect.movedToPoolDate) < new Date(prospect.movedToPoolDate)
+              ? existingProspect.movedToPoolDate : prospect.movedToPoolDate)
+            : existingProspect.movedToPoolDate || prospect.movedToPoolDate
+        };
+        console.log(`🧹 Merged duplicate (name), kept richer data: ${prospectName}`);
+      } else {
+        console.log(`🧹 Removing duplicate (name): ${prospectName}`);
+      }
+      totalRemoved++;
+
+      // Also track the new placeId if different
+      if (prospect.placeId) {
+        seenPlaceIds.add(prospect.placeId);
+      }
+      return;
+    }
+
+    // Not a duplicate - add to deduped list
     deduped.push(prospect);
+
+    // Track this prospect
+    if (prospect.placeId) {
+      seenPlaceIds.add(prospect.placeId);
+    }
+    if (normalizedName) {
+      seenNormalizedNames.set(normalizedName, deduped.length - 1);
+    }
   });
 
   prospectPoolState.manualProspects = deduped;
 
   if (totalRemoved > 0) {
-    console.log(`🧹 Removed ${totalRemoved} duplicate prospect(s) from manual prospects pool`);
+    console.log(`🧹 Removed/merged ${totalRemoved} duplicate prospect(s) from manual prospects pool`);
   }
 
   return totalRemoved;
@@ -9240,7 +9299,7 @@ async function moveSelectedToPool() {
   console.log(`🔵 moveSelectedToPool - prospect-list has ${kanbanState.columns[prospectingColumn].length} items after removal`);
   console.log('🔵 moveSelectedToPool - About to save');
 
-  saveManualProspects();
+  await saveManualProspects(); // AWAIT to ensure data is saved before continuing
   await saveKanban(); // AWAIT to prevent race condition
 
   console.log(`🔵 moveSelectedToPool - After saveKanban, prospect-list has ${kanbanState.columns[prospectingColumn]?.length} items`);
@@ -9352,19 +9411,50 @@ function moveProspectFromPool(prospectId) {
     return;
   }
 
-  // Check for duplicate by placeId if exists
+  // Check for duplicate by placeId OR by normalized name
   const prospectingColumn = 'prospect-list';
   const existingLeads = kanbanState.columns[prospectingColumn] || [];
+  const currentMailerId = state.current?.Mailer_ID;
 
+  // Get the business name for duplicate checking
+  const businessNameForCheck = prospect.businessName || prospect.name || prospect.title || '';
+
+  // Helper to normalize name for comparison (handles &/and, apostrophes, etc.)
+  const normalizeForDupeCheck = (name) => {
+    if (!name) return '';
+    return name.toLowerCase()
+      .replace(/&/g, 'and')
+      .replace(/[''`]/g, '')
+      .replace(/\s+/g, ' ')
+      .replace(/[^\w\s]/g, '')
+      .trim();
+  };
+
+  const normalizedProspectName = normalizeForDupeCheck(businessNameForCheck);
+
+  // Check by placeId first
   if (prospect.placeId) {
-    const currentMailerId = state.current?.Mailer_ID;
-    const duplicate = existingLeads.find(lead =>
+    const duplicateByPlaceId = existingLeads.find(lead =>
       lead.placeId === prospect.placeId &&
       lead.mailerId === currentMailerId
     );
 
-    if (duplicate) {
-      toast(`"${prospect.businessName}" already exists in Prospecting for this card`, false);
+    if (duplicateByPlaceId) {
+      toast(`"${businessNameForCheck}" already exists in Prospecting for this card`, false);
+      return;
+    }
+  }
+
+  // Also check by normalized business name (catches same business with different placeIds)
+  if (normalizedProspectName) {
+    const duplicateByName = existingLeads.find(lead => {
+      const leadName = lead.businessName || lead.name || lead.title || '';
+      const normalizedLeadName = normalizeForDupeCheck(leadName);
+      return normalizedLeadName === normalizedProspectName && lead.mailerId === currentMailerId;
+    });
+
+    if (duplicateByName) {
+      toast(`"${businessNameForCheck}" already exists in Prospecting (same business name)`, false);
       return;
     }
   }
@@ -10079,12 +10169,25 @@ function renderProspectPool() {
         availableZips.add(actualZipForProspect);
       }
 
+      // DEBUG: Log enrichment status for prospects with contact data
+      const hasContactData = !!(prospect.email || prospect.website || prospect.facebook || prospect.instagram || prospect.linkedin);
+      if (hasContactData) {
+        console.log('🔍 renderProspectPool - Manual prospect with contact data:', {
+          name: prospect.businessName || prospect.name,
+          isEnriched: prospect.isEnriched,
+          enriched: prospect.enriched,
+          hasContactData,
+          website: prospect.website,
+          facebook: prospect.facebook
+        });
+      }
+
       unifiedByCategory[category].push({
         ...prospect,
         // Override actualZip with smart extraction for accurate display
         actualZip: actualZipForProspect,
-        // Respect existing isEnriched value (defaults to false for consistent checkbox UI)
-        isEnriched: prospect.isEnriched === true, // Only true if explicitly set
+        // Respect existing isEnriched value OR detect from contact data presence
+        isEnriched: prospect.isEnriched === true || hasContactData,
         type: 'manual'
       });
 
