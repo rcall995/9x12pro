@@ -5428,9 +5428,26 @@ function toggleAllCategories() {
   const selectAllCheckbox = document.getElementById('selectAllCategories');
   const categoryCheckboxes = document.querySelectorAll('.category-checkbox');
 
+  console.log('toggleAllCategories called');
+  console.log('selectAllCheckbox checked:', selectAllCheckbox?.checked);
+  console.log('Found category checkboxes:', categoryCheckboxes.length);
+
+  if (!selectAllCheckbox) {
+    console.error('selectAllCategories checkbox not found');
+    return;
+  }
+
+  if (categoryCheckboxes.length === 0) {
+    console.error('No category checkboxes found with class .category-checkbox');
+    return;
+  }
+
+  const shouldCheck = selectAllCheckbox.checked;
   categoryCheckboxes.forEach(checkbox => {
-    checkbox.checked = selectAllCheckbox.checked;
+    checkbox.checked = shouldCheck;
   });
+
+  console.log('Set all checkboxes to:', shouldCheck);
 
   // Also update custom category input state when Select All is toggled
   const customCategoryCheckbox = document.getElementById('enableCustomCategory');
