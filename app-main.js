@@ -8268,34 +8268,10 @@ function renderBusinessCategories() {
     </label>
   `).join('');
 
-  // Attach Select All event listener
-  const selectAllCheckbox = document.getElementById('selectAllCategories');
-  if (selectAllCheckbox) {
-    // Remove any existing listener first
-    selectAllCheckbox.removeEventListener('change', handleSelectAllCategories);
-    selectAllCheckbox.addEventListener('change', handleSelectAllCategories);
-    console.log('✅ Select All event listener attached');
-  }
-
   // Also update client category dropdowns
   populateClientCategoryDropdowns();
 }
 
-// Handler for Select All categories checkbox
-function handleSelectAllCategories(event) {
-  console.log('handleSelectAllCategories triggered');
-  const checkbox = event.target;
-  const categoryCheckboxes = document.querySelectorAll('.category-checkbox');
-
-  console.log('Checkbox checked:', checkbox.checked);
-  console.log('Category checkboxes found:', categoryCheckboxes.length);
-
-  categoryCheckboxes.forEach(cb => {
-    cb.checked = checkbox.checked;
-  });
-
-  toast(checkbox.checked ? `Selected all ${categoryCheckboxes.length} categories` : 'Cleared all categories', true);
-}
 
 // Populate client category dropdowns with current businessCategories
 function populateClientCategoryDropdowns() {
@@ -18021,7 +17997,7 @@ function switchTab(tabName) {
         } else {
             renderFinancialRegister();
         }
-    } else if (tabName === 'prospects') {
+    } else if (tabName === 'prospects' || tabName === 'lead-generation') {
         renderProspectPool();
     } else if (tabName === 'outreach') {
         // Render Close Deals prospect list when switching to that tab
@@ -21798,7 +21774,7 @@ function showProspectSuccessModal(categorizedResults, totalCount) {
       </div>
 
       <div class="flex gap-3 sticky bottom-0 bg-white pt-4">
-        <button onclick="closeProspectSuccessModal(); switchTab('prospects'); setTimeout(() => renderProspectPool(), 100);" class="flex-1 px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 font-black text-base shadow-xl transform hover:scale-105 transition">
+        <button onclick="closeProspectSuccessModal(); switchTab('lead-generation'); setTimeout(() => renderProspectPool(), 100);" class="flex-1 px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 font-black text-base shadow-xl transform hover:scale-105 transition">
           Review Prospects →
         </button>
         <button onclick="closeProspectSuccessModal();" class="px-4 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-bold transition">
