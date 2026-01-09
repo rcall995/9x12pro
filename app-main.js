@@ -8559,7 +8559,42 @@ const categoryMergeMapping = {
   // Pest control variations
   "pest control": "Pest Control",
   "exterminator": "Pest Control",
-  "pest removal": "Pest Control"
+  "pest removal": "Pest Control",
+
+  // Veterinary variations (additional)
+  "veterinary hospital": "Veterinarian",
+  "animal clinic": "Veterinarian",
+  "pet hospital": "Veterinarian",
+
+  // Pressure washing variations
+  "power washing": "Pressure Washing",
+  "powerwashing": "Pressure Washing",
+  "pressure wash": "Pressure Washing",
+
+  // Daycare variations
+  "daycare": "Daycare/Preschool",
+  "day care": "Daycare/Preschool",
+  "preschool": "Daycare/Preschool",
+  "childcare": "Daycare/Preschool",
+  "child care": "Daycare/Preschool",
+
+  // Pet care variations
+  "pet care": "Pet Store",
+  "pet services": "Pet Store",
+
+  // Home improvement/construction variations
+  "home remodeling": "General Contractor",
+  "home construction": "General Contractor",
+  "home renovation": "General Contractor",
+  "renovation": "General Contractor",
+
+  // Marketing variations
+  "marketing": "Marketing Agency",
+  "digital marketing": "Marketing Agency",
+  "advertising": "Marketing Agency",
+
+  // Automotive general
+  "automotive": "Auto Repair"
 };
 
 /**
