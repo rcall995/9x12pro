@@ -9177,6 +9177,9 @@ async function moveSelectedToPool() {
       (p.businessName && lead.businessName && p.businessName.toLowerCase() === lead.businessName.toLowerCase() && p.mailerId === lead.mailerId)
     );
 
+    // Determine if lead has enriched data (has contact info beyond just phone)
+    const hasEnrichedData = !!(lead.email || lead.website || lead.facebook || lead.instagram || lead.linkedin);
+
     if (existingIndex !== -1) {
       // Update existing prospect instead of creating duplicate
       prospectPoolState.manualProspects[existingIndex] = {
@@ -9184,19 +9187,19 @@ async function moveSelectedToPool() {
         ...lead,
         movedToPoolDate: new Date().toISOString(),
         mailerId: state.current?.Mailer_ID || null,
-        // DON'T overwrite town - keep the original town from the lead
-        isEnriched: false, // Keep standard search result styling
-        enriched: false // Reset so it can be re-enriched when added to kanban again
+        // Preserve enriched status if lead has contact data
+        isEnriched: hasEnrichedData,
+        enriched: hasEnrichedData
       };
     } else {
       // Add new prospect to pool
       prospectPoolState.manualProspects.push({
         ...lead,
         movedToPoolDate: new Date().toISOString(),
-        mailerId: state.current?.Mailer_ID || null, // Tag with current postcard
-        // DON'T set town to campaign name - keep the original town from the lead
-        isEnriched: false, // Keep standard search result styling
-        enriched: false // Reset so it can be re-enriched when added to kanban again
+        mailerId: state.current?.Mailer_ID || null,
+        // Preserve enriched status if lead has contact data
+        isEnriched: hasEnrichedData,
+        enriched: hasEnrichedData
       });
     }
 
