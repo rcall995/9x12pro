@@ -5424,21 +5424,29 @@ function updateQuickApiUsage() {
 }
 
 // Toggle all category checkboxes
-function toggleAllCategories() {
-  const selectAllCheckbox = document.getElementById('selectAllCategories');
-  const categoryCheckboxes = document.querySelectorAll('.category-checkbox');
-
+function toggleAllCategories(event) {
   console.log('toggleAllCategories called');
+  console.log('Event:', event);
+  console.log('Event target:', event?.target);
+
+  // Get the checkbox - either from event or by ID
+  let selectAllCheckbox = event?.target || document.getElementById('selectAllCategories');
+
+  console.log('selectAllCheckbox:', selectAllCheckbox);
   console.log('selectAllCheckbox checked:', selectAllCheckbox?.checked);
-  console.log('Found category checkboxes:', categoryCheckboxes.length);
 
   if (!selectAllCheckbox) {
     console.error('selectAllCategories checkbox not found');
+    toast('Error: Select All checkbox not found', false);
     return;
   }
 
+  const categoryCheckboxes = document.querySelectorAll('.category-checkbox');
+  console.log('Found category checkboxes:', categoryCheckboxes.length);
+
   if (categoryCheckboxes.length === 0) {
     console.error('No category checkboxes found with class .category-checkbox');
+    toast('No categories to select', false);
     return;
   }
 
@@ -5447,7 +5455,8 @@ function toggleAllCategories() {
     checkbox.checked = shouldCheck;
   });
 
-  console.log('Set all checkboxes to:', shouldCheck);
+  console.log('Set all', categoryCheckboxes.length, 'checkboxes to:', shouldCheck);
+  toast(shouldCheck ? `Selected all ${categoryCheckboxes.length} categories` : 'Cleared all categories', true);
 
   // Also update custom category input state when Select All is toggled
   const customCategoryCheckbox = document.getElementById('enableCustomCategory');
