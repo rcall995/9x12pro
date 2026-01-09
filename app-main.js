@@ -9287,14 +9287,40 @@ async function moveProspectToPool(leadId, event) {
 
 // Move prospect from Pool back to Prospecting
 function moveProspectFromPool(prospectId) {
-  const prospectIndex = prospectPoolState.manualProspects.findIndex(p => p.id === prospectId);
+  // First try to find in manual prospects (by id or placeId)
+  let prospectIndex = prospectPoolState.manualProspects.findIndex(p =>
+    p.id === prospectId || p.placeId === prospectId
+  );
+  let prospect = null;
+  let isFromManualProspects = false;
 
-  if (prospectIndex === -1) {
+  if (prospectIndex !== -1) {
+    prospect = prospectPoolState.manualProspects[prospectIndex];
+    isFromManualProspects = true;
+  } else {
+    // Try to find in search cache (by placeId)
+    for (const cacheKey of Object.keys(placesCache.searches)) {
+      const cached = placesCache.searches[cacheKey];
+      if (cached.cachedData) {
+        const found = cached.cachedData.find(b => b.placeId === prospectId);
+        if (found) {
+          prospect = { ...found };
+          break;
+        }
+      }
+    }
+  }
+
+  if (!prospect) {
+    // Last resort: check the rendered prospects lookup
+    prospect = prospectPoolState.renderedProspects?.[prospectId];
+  }
+
+  if (!prospect) {
+    console.error('Prospect not found:', prospectId);
     toast('Prospect not found in pool', false);
     return;
   }
-
-  const prospect = prospectPoolState.manualProspects[prospectIndex];
 
   // Check for duplicate by placeId if exists
   const prospectingColumn = 'prospect-list';
@@ -9313,22 +9339,44 @@ function moveProspectFromPool(prospectId) {
     }
   }
 
-  // Remove from pool
-  prospectPoolState.manualProspects.splice(prospectIndex, 1);
+  // Only remove from manualProspects if it was found there
+  if (isFromManualProspects && prospectIndex !== -1) {
+    prospectPoolState.manualProspects.splice(prospectIndex, 1);
+    saveManualProspects();
+  }
 
-  // Add back to prospecting with mailerId
-  kanbanState.columns[prospectingColumn].push({
-    ...prospect,
-    mailerId: prospect.mailerId || state.current?.Mailer_ID, // Preserve or set mailerId
+  // Build a proper lead object for the kanban
+  const businessName = prospect.businessName || prospect.name || 'Unknown Business';
+  const newLead = {
+    id: Date.now() + Math.random(),
+    businessName: businessName,
+    contactName: prospect.contactName || prospect.ownerName || '',
+    phone: prospect.phone || prospect.contact?.phone || '',
+    email: prospect.email || prospect.contact?.email || '',
+    estimatedValue: prospect.estimatedValue || 500,
+    notes: prospect.notes || `Added from Prospect Pool\nAddress: ${prospect.address || ''}\nCategory: ${prospect.category || ''}`,
+    source: prospect.source || 'prospect-pool',
+    placeId: prospect.placeId || prospect.id,
+    website: prospect.website || '',
+    facebook: prospect.facebook || '',
+    instagram: prospect.instagram || '',
+    linkedin: prospect.linkedin || '',
+    twitter: prospect.twitter || '',
+    category: prospect.category || 'other',
+    zipCode: prospect.zipCode || prospect.actualZip || null,
+    actualZip: prospect.actualZip || null,
+    mailerId: prospect.mailerId || state.current?.Mailer_ID,
     movedBackDate: new Date().toISOString()
-  });
+  };
 
-  saveManualProspects();
+  // Add to prospecting
+  kanbanState.columns[prospectingColumn].push(newLead);
+
   saveKanban();
   renderProspectPool();
   renderKanban();
 
-  toast(`"${prospect.businessName}" moved back to Prospecting`, true);
+  toast(`"${businessName}" moved to Prospecting`, true);
 }
 
 // Expose functions globally
@@ -10290,7 +10338,7 @@ function renderProspectPool() {
                         📧 Email
                       </button>
                     ` : ''}
-                    <button onclick="event.stopPropagation(); moveProspectFromPool('${prospect.id}')" class="flex-1 px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-semibold text-xs">
+                    <button onclick="event.stopPropagation(); moveProspectFromPool('${prospect.placeId || prospect.id}')" class="flex-1 px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-semibold text-xs">
                       Pipeline →
                     </button>
                     <button onclick="event.stopPropagation(); markProspectNotInterested('${prospect.placeId || prospect.id}', '${esc(prospect.businessName).replace(/'/g, "\\'")}')" class="px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 font-semibold text-xs" title="Not Interested">
