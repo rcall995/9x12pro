@@ -10233,12 +10233,21 @@ function renderProspectPool() {
         });
       }
 
+      // Check if this manual prospect is already in the system (kanban or clients)
+      const manualProspectName = prospect.businessName || prospect.name || prospect.title || '';
+      const normalizedManualName = normalizeForMatch ? normalizeForMatch(manualProspectName) : normalizeNameForDedup(manualProspectName);
+      const isManualInSystem = existingPlaceIds.has(prospect.placeId) ||
+                               existingPlaceIds.has(prospect.id) ||
+                               (normalizedManualName && existingNormalizedNames.has(normalizedManualName));
+
       unifiedByCategory[category].push({
         ...prospect,
         // Override actualZip with smart extraction for accurate display
         actualZip: actualZipForProspect,
         // Respect existing isEnriched value OR detect from contact data presence
         isEnriched: prospect.isEnriched === true || hasContactData,
+        // Mark if already in kanban/clients
+        inSystem: isManualInSystem,
         type: 'manual'
       });
 
@@ -10533,11 +10542,15 @@ function renderProspectPool() {
                 ${priceLevelDisplay ? `<span class="text-green-600 font-bold">${priceLevelDisplay}</span>` : ''}
               </div>` : '';
 
+              // Check if this enriched prospect is already in system
+              const isEnrichedInSystem = prospect.inSystem;
+
               return `
-                <div class="bg-white border-2 ${prospect.isExistingClient ? 'border-amber-400 bg-amber-50' : (hasContact ? 'border-green-400' : 'border-gray-200')} rounded-lg p-3 hover:shadow-md transition cursor-pointer relative" onclick="openClientModalForProspect('${prospect.id}')">
+                <div class="border-2 ${prospect.isExistingClient ? 'border-amber-400 bg-amber-50' : (hasContact ? 'border-green-400 bg-white' : 'border-gray-200 bg-white')} rounded-lg p-3 ${isEnrichedInSystem ? 'opacity-60' : 'hover:shadow-md'} transition cursor-pointer relative" onclick="openClientModalForProspect('${prospect.id}')">
                   <!-- Badges (top-right) -->
                   <div class="absolute top-2 right-2 flex gap-1">
                     ${prospect.isExistingClient ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white">⭐ Client</span>' : ''}
+                    ${isEnrichedInSystem ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-gray-200 text-gray-600">In System</span>' : ''}
                     <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">
                       📞 ${enrichedContactScore}/10
                     </span>
@@ -10567,9 +10580,15 @@ function renderProspectPool() {
                         📧 Email
                       </button>
                     ` : ''}
-                    <button onclick="event.stopPropagation(); moveProspectFromPool('${prospect.placeId || prospect.id}')" class="flex-1 px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-semibold text-xs">
-                      Pipeline →
-                    </button>
+                    ${isEnrichedInSystem ? `
+                      <span class="flex-1 px-3 py-1.5 bg-gray-300 text-gray-600 rounded-md font-semibold text-xs text-center">
+                        ✓ In Pipeline
+                      </span>
+                    ` : `
+                      <button onclick="event.stopPropagation(); moveProspectFromPool('${prospect.placeId || prospect.id}')" class="flex-1 px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-semibold text-xs">
+                        Pipeline →
+                      </button>
+                    `}
                     <button onclick="event.stopPropagation(); markProspectNotInterested('${prospect.placeId || prospect.id}', '${esc(prospect.businessName).replace(/'/g, "\\'")}')" class="px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 font-semibold text-xs" title="Not Interested">
                       🚫
                     </button>
