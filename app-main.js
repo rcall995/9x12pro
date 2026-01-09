@@ -8980,26 +8980,34 @@ function normalizeBusinessName(name) {
     .replace(/\s+/g, '');
 }
 
+// Truncate ZIP to 5 digits (remove +4 suffix)
+function truncateZipTo5(zip) {
+  if (!zip) return null;
+  const str = String(zip).trim();
+  // Return first 5 digits only
+  return str.substring(0, 5);
+}
+
 // Extract ZIP code from an address string
 function extractZipFromAddress(address) {
   if (!address) return null;
   // Match 5-digit ZIP (optionally with -4 suffix)
   const match = address.match(/\b(\d{5})(?:-\d{4})?\b/);
-  return match ? match[1] : null;
+  return match ? match[1] : null; // match[1] is just the 5 digits
 }
 
-// Get the best available ZIP for a prospect
+// Get the best available ZIP for a prospect (always returns 5 digits)
 function getProspectActualZip(prospect) {
   // Priority: actualZip > zip (from API) > extracted from address > zipCode (searched)
-  if (prospect.actualZip) return prospect.actualZip;
-  if (prospect.zip && prospect.zip !== prospect.searchedZipCode) return prospect.zip;
+  if (prospect.actualZip) return truncateZipTo5(prospect.actualZip);
+  if (prospect.zip && prospect.zip !== prospect.searchedZipCode) return truncateZipTo5(prospect.zip);
 
   // Try to extract from address
   const addressZip = extractZipFromAddress(prospect.address || prospect.fullAddress);
-  if (addressZip) return addressZip;
+  if (addressZip) return addressZip; // Already 5 digits from regex
 
   // Fallback to zipCode (but this might be searched ZIP)
-  return prospect.zipCode || null;
+  return truncateZipTo5(prospect.zipCode) || null;
 }
 
 // Build a set of normalized client business names for fast lookup
