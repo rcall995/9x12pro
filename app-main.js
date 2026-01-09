@@ -9170,6 +9170,18 @@ async function moveSelectedToPool() {
 
   // Move each prospect
   movedProspects.forEach(({ lead, index }) => {
+    // DEBUG: Log the lead data to see what's being moved
+    console.log('🔵 moveSelectedToPool - Lead data:', {
+      businessName: lead.businessName,
+      phone: lead.phone,
+      email: lead.email,
+      website: lead.website,
+      facebook: lead.facebook,
+      instagram: lead.instagram,
+      linkedin: lead.linkedin,
+      twitter: lead.twitter
+    });
+
     // Check if prospect already exists in pool (prevent duplicates)
     const existingIndex = prospectPoolState.manualProspects.findIndex(p =>
       p.id === lead.id ||
@@ -9179,10 +9191,11 @@ async function moveSelectedToPool() {
 
     // Determine if lead has enriched data (has contact info beyond just phone)
     const hasEnrichedData = !!(lead.email || lead.website || lead.facebook || lead.instagram || lead.linkedin);
+    console.log('🔵 hasEnrichedData:', hasEnrichedData, 'existingIndex:', existingIndex);
 
     if (existingIndex !== -1) {
       // Update existing prospect instead of creating duplicate
-      prospectPoolState.manualProspects[existingIndex] = {
+      const updatedProspect = {
         ...prospectPoolState.manualProspects[existingIndex],
         ...lead,
         movedToPoolDate: new Date().toISOString(),
@@ -9191,15 +9204,29 @@ async function moveSelectedToPool() {
         isEnriched: hasEnrichedData,
         enriched: hasEnrichedData
       };
+      prospectPoolState.manualProspects[existingIndex] = updatedProspect;
+      console.log('🔵 Updated existing prospect:', {
+        website: updatedProspect.website,
+        facebook: updatedProspect.facebook,
+        instagram: updatedProspect.instagram,
+        isEnriched: updatedProspect.isEnriched
+      });
     } else {
       // Add new prospect to pool
-      prospectPoolState.manualProspects.push({
+      const newProspect = {
         ...lead,
         movedToPoolDate: new Date().toISOString(),
         mailerId: state.current?.Mailer_ID || null,
         // Preserve enriched status if lead has contact data
         isEnriched: hasEnrichedData,
         enriched: hasEnrichedData
+      };
+      prospectPoolState.manualProspects.push(newProspect);
+      console.log('🔵 Added new prospect:', {
+        website: newProspect.website,
+        facebook: newProspect.facebook,
+        instagram: newProspect.instagram,
+        isEnriched: newProspect.isEnriched
       });
     }
 
