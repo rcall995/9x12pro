@@ -2206,9 +2206,14 @@ function openClientModalForProspect(prospectDataOrId) {
       }
     }
 
-    // Search prospect pool if not found in kanban
+    // Search prospect pool manual prospects if not found in kanban
     if (!prospectData) {
       prospectData = prospectPoolState.manualProspects.find(p => String(p.id) === itemId);
+    }
+
+    // Search rendered prospects lookup (for search results not in manualProspects)
+    if (!prospectData && prospectPoolState.renderedProspects) {
+      prospectData = prospectPoolState.renderedProspects[itemId];
     }
 
     // If still not found, show error
@@ -5409,7 +5414,13 @@ function copyCallScript() {
 }
 
 // Send pitch email to a prospect (opens email client with pre-filled template)
-function sendPitchEmail(prospect) {
+function sendPitchEmail(prospectOrId) {
+  // Support both object and ID lookup
+  let prospect = prospectOrId;
+  if (typeof prospectOrId === 'string') {
+    prospect = prospectPoolState.renderedProspects?.[prospectOrId] || prospectOrId;
+  }
+
   const businessName = prospect.businessName || prospect.name || 'Business Owner';
   const businessType = prospect.category || 'local business';
   const zip = prospect.actualZip || prospect.zipCode || prospect.zip || '';
@@ -5498,7 +5509,13 @@ function copySocialTemplate(templateType) {
 }
 
 // Send text message to a prospect (opens SMS app with pre-filled message)
-function sendTextMessage(prospect) {
+function sendTextMessage(prospectOrId) {
+  // Support both object and ID lookup
+  let prospect = prospectOrId;
+  if (typeof prospectOrId === 'string') {
+    prospect = prospectPoolState.renderedProspects?.[prospectOrId] || prospectOrId;
+  }
+
   const businessName = prospect.businessName || prospect.name || 'there';
   const businessType = prospect.category || 'local business';
   const zip = prospect.actualZip || prospect.zipCode || prospect.zip || '';
@@ -7768,7 +7785,8 @@ async function addSelectedProspects() {
 // State for prospect pool selections and manual moves
 let prospectPoolState = {
   selectedIds: new Set(),
-  manualProspects: [] // Prospects manually moved from Prospecting to Pool
+  manualProspects: [], // Prospects manually moved from Prospecting to Pool
+  renderedProspects: {} // Lookup table for all rendered prospects by ID
 };
 
 // Track search API usage (Serper primary: 2,500/month, Google fallback: 100/day)
@@ -9207,6 +9225,10 @@ window.toggleFilterDropdown = toggleFilterDropdown;
 
 function renderProspectPool() {
   console.log('🔵 DEBUG: renderProspectPool ENTRY - prospect-list length:', kanbanState.columns['prospect-list']?.length);
+
+  // Clear the rendered prospects lookup at the start of each render
+  prospectPoolState.renderedProspects = {};
+
   // Save current search value if it exists
   const searchInput = document.getElementById('prospectPoolSearch');
   if (searchInput) {
@@ -9704,6 +9726,12 @@ function renderProspectPool() {
               return zipA.localeCompare(zipB);
             })
             .map(prospect => {
+            // Store prospect in lookup table for later retrieval (avoids unsafe JSON in onclick)
+            const prospectLookupId = prospect.placeId || prospect.id;
+            if (prospectLookupId) {
+              prospectPoolState.renderedProspects[prospectLookupId] = prospect;
+            }
+
             // For enriched prospects (from manual list) - show with green border and contact icons
             if (prospect.isEnriched) {
               const hasContact = prospect.phone || prospect.website || prospect.email || prospect.facebook || prospect.instagram || prospect.linkedin || prospect.twitter;
@@ -9786,16 +9814,16 @@ function renderProspectPool() {
                   ` : '<div class="text-gray-400 italic text-center py-2 mb-2 text-xs border-t border-gray-200">No contact info</div>'}
                   <div class="flex gap-2 flex-wrap">
                     ${prospect.phone ? `
-                      <button onclick="event.stopPropagation(); sendTextMessage(${JSON.stringify(prospect).replace(/"/g, '&quot;')})" class="flex-1 px-3 py-1.5 bg-teal-500 text-white rounded-md hover:bg-teal-600 font-semibold text-xs" title="Send text message">
+                      <button onclick="event.stopPropagation(); sendTextMessage('${prospectLookupId}')" class="flex-1 px-3 py-1.5 bg-teal-500 text-white rounded-md hover:bg-teal-600 font-semibold text-xs" title="Send text message">
                         💬 Text
                       </button>
                     ` : ''}
                     ${prospect.email ? `
-                      <button onclick="event.stopPropagation(); sendPitchEmail(${JSON.stringify(prospect).replace(/"/g, '&quot;')})" class="flex-1 px-3 py-1.5 bg-orange-500 text-white rounded-md hover:bg-orange-600 font-semibold text-xs" title="Send pitch email">
+                      <button onclick="event.stopPropagation(); sendPitchEmail('${prospectLookupId}')" class="flex-1 px-3 py-1.5 bg-orange-500 text-white rounded-md hover:bg-orange-600 font-semibold text-xs" title="Send pitch email">
                         📧 Email
                       </button>
                     ` : ''}
-                    <button onclick="event.stopPropagation(); moveProspectFromPool(${prospect.id})" class="flex-1 px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-semibold text-xs">
+                    <button onclick="event.stopPropagation(); moveProspectFromPool('${prospect.id}')" class="flex-1 px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-semibold text-xs">
                       Pipeline →
                     </button>
                     <button onclick="event.stopPropagation(); markProspectNotInterested('${prospect.placeId || prospect.id}', '${esc(prospect.businessName).replace(/'/g, "\\'")}')" class="px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 font-semibold text-xs" title="Not Interested">
@@ -9808,6 +9836,8 @@ function renderProspectPool() {
 
             // For raw prospects (from search results) - show with checkbox
             const prospectId = prospect.placeId || prospect.id;
+            // Store prospect in lookup table for later retrieval (avoids unsafe JSON in onclick)
+            prospectPoolState.renderedProspects[prospectId] = prospect;
             const isSelected = prospectPoolState.selectedIds.has(prospectId);
             const isDisabled = prospect.inSystem;
 
@@ -9886,7 +9916,7 @@ function renderProspectPool() {
             return `
               <div class="prospect-card border-2 ${borderColor} rounded-lg p-3 ${isDisabled ? 'bg-gray-50 opacity-60' : bgColor + ' hover:shadow-md'} transition relative" data-place-id="${prospectId}">
                 ${prospect.isExistingClient ? '<span class="absolute top-2 right-2 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white">⭐ Client</span>' : ''}
-                <div class="flex items-start gap-2" onclick="openClientModalForProspect(${JSON.stringify(prospect).replace(/"/g, '&quot;')})">
+                <div class="flex items-start gap-2" onclick="openClientModalForProspect('${prospectId}')">
                   <input
                     type="checkbox"
                     ${isSelected ? 'checked' : ''}
