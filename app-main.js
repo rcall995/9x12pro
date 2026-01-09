@@ -8702,6 +8702,11 @@ function showCategoryNormalizationDialog() {
   }
 }
 
+// Expose category normalization functions globally for console access
+window.analyzeDatabaseCategories = analyzeDatabaseCategories;
+window.normalizeDatabaseCategories = normalizeDatabaseCategories;
+window.showCategoryNormalizationDialog = showCategoryNormalizationDialog;
+
 // Deduplicate manual prospects pool
 function deduplicateManualProspects() {
   const seenPlaceIds = new Set();
