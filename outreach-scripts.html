@@ -162,9 +162,12 @@
                 <select id="businessDropdown" onchange="onBusinessSelect()" class="flex-1 min-w-[200px] px-4 py-2 border-2 border-gray-200 rounded-lg text-sm font-medium focus:border-indigo-500 focus:outline-none">
                     <option value="">-- Select a business from your pipeline --</option>
                 </select>
-                <div id="businessInfo" class="hidden text-sm text-gray-600 bg-indigo-50 px-3 py-2 rounded-lg">
+                <div id="businessInfo" class="hidden text-sm text-gray-600 bg-indigo-50 px-3 py-2 rounded-lg flex items-center gap-2">
                     <span id="businessInfoText"></span>
                 </div>
+                <button id="textBusinessBtn" onclick="textSelectedBusiness()" class="hidden px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors flex items-center gap-1" title="Text via Google Voice">
+                    💬 Text
+                </button>
             </div>
             <p id="campaignLoginMsg" class="hidden text-sm text-amber-600 mt-2">
                 <a href="/app.html" class="underline font-medium">Sign in to 9x12 Pro</a> to load your campaigns and pipeline
@@ -745,7 +748,8 @@ No pressure either way.`
             homeCount: '5,000',
             postcardName: '',
             businessName: '',  // Selected business name
-            category: ''       // Selected business category
+            category: '',      // Selected business category
+            businessPhone: ''  // Selected business phone number
         };
         let templates = {};
         let objections = [];
@@ -952,26 +956,62 @@ No pressure either way.`
             const dropdown = document.getElementById('businessDropdown');
             const infoDiv = document.getElementById('businessInfo');
             const infoText = document.getElementById('businessInfoText');
+            const textBtn = document.getElementById('textBusinessBtn');
             const selectedIndex = dropdown.value;
 
             if (selectedIndex === '' || selectedIndex === null) {
                 infoDiv.classList.add('hidden');
+                textBtn.classList.add('hidden');
                 settings.businessName = '';
                 settings.category = '';
+                settings.businessPhone = '';
             } else {
                 const business = pipelineBusinesses[parseInt(selectedIndex)];
                 if (business) {
                     settings.businessName = business.businessName || business.name || '';
                     settings.category = business.category || '';
+                    settings.businessPhone = business.phone || '';
 
                     // Show info
                     const categoryText = settings.category ? ` • ${settings.category}` : '';
                     infoText.textContent = `${settings.businessName}${categoryText}`;
                     infoDiv.classList.remove('hidden');
 
+                    // Show/hide text button based on phone availability
+                    if (settings.businessPhone) {
+                        textBtn.classList.remove('hidden');
+                    } else {
+                        textBtn.classList.add('hidden');
+                    }
+
                     // Re-render templates with new business info
                     renderAllTemplates();
                 }
+            }
+        }
+
+        // Text selected business via Google Voice
+        function textSelectedBusiness() {
+            if (!settings.businessPhone) {
+                showToast('No phone number for this business');
+                return;
+            }
+
+            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+            const cleanPhone = settings.businessPhone.replace(/\D/g, '');
+
+            if (isMobile) {
+                // Mobile: Use native SMS
+                window.location.href = `sms:${cleanPhone}`;
+            } else {
+                // Desktop: Open Google Voice and copy phone number
+                window.open('https://voice.google.com/u/0/messages', '_blank');
+
+                navigator.clipboard.writeText(settings.businessPhone).then(() => {
+                    showToast(`📋 Phone copied: ${settings.businessPhone} - Google Voice opened`);
+                }).catch(() => {
+                    showToast(`💬 Google Voice opened. Text: ${settings.businessPhone}`);
+                });
             }
         }
 
