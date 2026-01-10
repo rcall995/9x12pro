@@ -1347,21 +1347,25 @@ No pressure either way.`
             }
 
             const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-            const cleanPhone = settings.businessPhone.replace(/\D/g, '');
 
-            if (isMobile) {
-                // Mobile: Use native SMS
-                window.location.href = `sms:${cleanPhone}`;
-            } else {
-                // Desktop: Copy phone to clipboard and open Google Voice in popup window
-                navigator.clipboard.writeText(settings.businessPhone).then(() => {
+            // Copy phone to clipboard and open Google Voice
+            navigator.clipboard.writeText(settings.businessPhone).then(() => {
+                if (isMobile) {
+                    // Mobile: Open Google Voice in new tab (will open app if installed)
+                    window.open('https://voice.google.com/u/0/messages', '_blank');
+                } else {
+                    // Desktop: Open in popup window for side-by-side viewing
                     openGoogleVoicePopup();
-                    showToast(`📋 Phone copied: ${settings.businessPhone}`);
-                }).catch(() => {
+                }
+                showToast(`📋 Phone copied: ${settings.businessPhone}`);
+            }).catch(() => {
+                if (isMobile) {
+                    window.open('https://voice.google.com/u/0/messages', '_blank');
+                } else {
                     openGoogleVoicePopup();
-                    showToast(`📱 Text: ${settings.businessPhone}`);
-                });
-            }
+                }
+                showToast(`📱 Text: ${settings.businessPhone}`);
+            });
         }
 
         // Open Google Voice in a separate popup window for side-by-side viewing

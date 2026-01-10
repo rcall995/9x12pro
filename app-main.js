@@ -13620,23 +13620,27 @@ function quickAction(type) {
   }
 }
 
-// Text client via Google Voice (desktop opens GV with phone pre-filled, mobile opens native SMS)
+// Text client via Google Voice (copies phone and opens Google Voice)
 function textClientViaGoogleVoice(phone, businessName) {
   if (!phone) return;
 
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  const cleanPhone = phone.replace(/\D/g, '');
 
-  if (isMobile) {
-    // Mobile: Use native SMS
-    window.location.href = `sms:${cleanPhone}`;
-  } else {
-    // Desktop: Open Google Voice with phone number pre-filled
-    const formattedPhone = cleanPhone.length === 10 ? `+1${cleanPhone}` : `+${cleanPhone}`;
-    const googleVoiceUrl = `https://voice.google.com/u/0/messages?phoneNumber=${encodeURIComponent(formattedPhone)}`;
-    window.open(googleVoiceUrl, '_blank');
-    toast(`💬 Google Voice opened for ${businessName}`, true);
-  }
+  // Copy phone to clipboard and open Google Voice
+  navigator.clipboard.writeText(phone).then(() => {
+    if (isMobile) {
+      // Mobile: Open Google Voice in new tab (will open app if installed)
+      window.open('https://voice.google.com/u/0/messages', '_blank');
+    } else {
+      // Desktop: Open Google Voice in new tab
+      window.open('https://voice.google.com/u/0/messages', '_blank');
+    }
+    toast(`📋 Phone copied: ${phone}`, true);
+  }).catch(() => {
+    // Fallback: just open Google Voice
+    window.open('https://voice.google.com/u/0/messages', '_blank');
+    toast(`📱 Text ${businessName}: ${phone}`, true);
+  });
 }
 
 function addNewInteraction() {
