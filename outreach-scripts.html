@@ -6,8 +6,10 @@
     <title>Outreach Scripts - 9x12 Pro</title>
     <link rel="icon" type="image/png" href="/images/favicon.png">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/config.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <style>
-        .copy-btn:active { transform: scale(0.95); }
+        .copy-btn:active, .edit-btn:active { transform: scale(0.95); }
         .template-card { transition: all 0.2s ease; }
         .template-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
         .sequence-step { position: relative; }
@@ -21,7 +23,26 @@
             background: linear-gradient(to bottom, #8b5cf6, #c4b5fd);
         }
         .tab-btn.active { background: #8b5cf6; color: white; }
-        pre { white-space: pre-wrap; word-wrap: break-word; }
+        pre, textarea { white-space: pre-wrap; word-wrap: break-word; }
+        .editing pre { display: none; }
+        .editing textarea { display: block !important; }
+        textarea.template-edit {
+            display: none;
+            width: 100%;
+            min-height: 150px;
+            font-family: inherit;
+            font-size: 0.875rem;
+            padding: 0.75rem;
+            border: 2px solid #8b5cf6;
+            border-radius: 0.5rem;
+            resize: vertical;
+        }
+        .placeholder {
+            background: #fef3c7;
+            padding: 0 4px;
+            border-radius: 3px;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-purple-50 via-white to-indigo-50 min-h-screen">
@@ -38,20 +59,67 @@
                     Outreach Scripts
                 </h1>
             </div>
-            <span class="text-sm text-gray-500">Copy & Customize</span>
+            <button onclick="toggleSettings()" class="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+                My Info
+            </button>
         </div>
     </header>
+
+    <!-- Settings Panel (collapsible) -->
+    <div id="settingsPanel" class="hidden bg-white border-b border-purple-200 shadow-sm">
+        <div class="max-w-6xl mx-auto px-4 py-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">Your Info (auto-fills templates)</h3>
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Your Name</label>
+                    <input type="text" id="settingName" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-purple-500 focus:outline-none" placeholder="John Smith">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Company</label>
+                    <input type="text" id="settingCompany" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-purple-500 focus:outline-none" placeholder="ABC Marketing">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Phone</label>
+                    <input type="text" id="settingPhone" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-purple-500 focus:outline-none" placeholder="(555) 123-4567">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Spot Price</label>
+                    <input type="text" id="settingPrice" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-purple-500 focus:outline-none" placeholder="$400">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Area Name</label>
+                    <input type="text" id="settingArea" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-purple-500 focus:outline-none" placeholder="Kenmore">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Home Count</label>
+                    <input type="text" id="settingHomes" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-purple-500 focus:outline-none" placeholder="5,000">
+                </div>
+            </div>
+            <div class="flex gap-3 mt-4">
+                <button onclick="saveSettings()" class="px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold text-sm hover:bg-purple-700 transition-colors">
+                    Save & Apply
+                </button>
+                <button onclick="resetAllTemplates()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold text-sm hover:bg-gray-300 transition-colors">
+                    Reset All Templates
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- Main Content -->
     <main class="max-w-6xl mx-auto px-4 py-8">
         <!-- Intro -->
         <div class="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-6 mb-8 text-white">
             <h2 class="text-xl font-bold mb-2">4-Email Sequence + Social Templates</h2>
-            <p class="text-purple-100">Proven outreach scripts for prospecting. Replace [BRACKETS] with your info. Use alongside Spark AI for best results.</p>
+            <p class="text-purple-100">Click the pencil icon to edit any template. Your info auto-fills from settings. Yellow highlights = placeholders to customize per prospect.</p>
         </div>
 
         <!-- Tabs -->
-        <div class="flex flex-wrap gap-2 mb-8">
+        <div class="flex flex-wrap gap-2 mb-4">
             <button onclick="showTab('email')" class="tab-btn active px-4 py-2 rounded-lg font-semibold transition-all bg-gray-100 text-gray-700 hover:bg-purple-100">
                 Email Sequence
             </button>
@@ -66,6 +134,27 @@
             </button>
         </div>
 
+        <!-- Campaign Selector -->
+        <div id="campaignSelector" class="bg-white border-2 border-purple-200 rounded-xl p-4 mb-8">
+            <div class="flex flex-wrap items-center gap-4">
+                <div class="flex items-center gap-2">
+                    <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                    </svg>
+                    <label class="font-semibold text-gray-700">Select Campaign:</label>
+                </div>
+                <select id="campaignDropdown" onchange="onCampaignSelect()" class="flex-1 min-w-[200px] px-4 py-2 border-2 border-gray-200 rounded-lg text-sm font-medium focus:border-purple-500 focus:outline-none">
+                    <option value="">-- Choose a campaign to auto-fill --</option>
+                </select>
+                <div id="campaignInfo" class="hidden text-sm text-gray-600 bg-purple-50 px-3 py-2 rounded-lg">
+                    <span id="campaignInfoText"></span>
+                </div>
+            </div>
+            <p id="campaignLoginMsg" class="hidden text-sm text-amber-600 mt-2">
+                <a href="/app.html" class="underline font-medium">Sign in to 9x12 Pro</a> to load your campaigns
+            </p>
+        </div>
+
         <!-- EMAIL SEQUENCE TAB -->
         <div id="tab-email" class="tab-content">
             <div class="mb-6">
@@ -76,132 +165,140 @@
             <div class="space-y-6">
                 <!-- Email 1 -->
                 <div class="sequence-step">
-                    <div class="template-card bg-white rounded-xl border-2 border-purple-200 p-6 shadow-sm">
+                    <div class="template-card bg-white rounded-xl border-2 border-purple-200 p-6 shadow-sm" data-template="email1">
                         <div class="flex items-start gap-4 mb-4">
                             <div class="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center text-white font-bold text-lg shrink-0">1</div>
                             <div class="flex-1">
                                 <h4 class="font-bold text-gray-900">Initial Outreach</h4>
                                 <p class="text-sm text-gray-500">Day 1 - First contact</p>
                             </div>
-                            <button onclick="copyTemplate('email1')" class="copy-btn px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-colors">
-                                Copy
-                            </button>
+                            <div class="flex gap-2">
+                                <button onclick="toggleEdit('email1')" class="edit-btn p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors" title="Edit template">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                                    </svg>
+                                </button>
+                                <button onclick="copyTemplate('email1')" class="copy-btn px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-colors">
+                                    Copy
+                                </button>
+                            </div>
                         </div>
                         <div class="bg-gray-50 rounded-lg p-4">
                             <p class="text-xs text-purple-600 font-semibold mb-2">SUBJECT:</p>
-                            <p class="text-sm text-gray-700 mb-4" id="email1-subject">Quick question about [BUSINESS_NAME]</p>
+                            <p class="text-sm text-gray-700 mb-4 template-subject" id="email1-subject"></p>
+                            <input type="text" class="template-subject-edit hidden w-full px-3 py-2 border-2 border-purple-500 rounded-lg text-sm mb-4" id="email1-subject-edit">
                             <p class="text-xs text-purple-600 font-semibold mb-2">BODY:</p>
-                            <pre class="text-sm text-gray-700 font-sans" id="email1-body">Hi,
-
-We send out a community postcard called "The [ZIP] Spotlight" that goes to every home in [ZIP] - about [HOME_COUNT] households.
-
-We're filling spots for our next mailing and [BUSINESS_NAME] would be a great fit. You'd be the only [CATEGORY] on the card.
-
-Interested in the details?
-
-[YOUR_NAME]
-[YOUR_PHONE]</pre>
+                            <pre class="text-sm text-gray-700 font-sans template-body" id="email1-body"></pre>
+                            <textarea class="template-edit" id="email1-body-edit"></textarea>
+                        </div>
+                        <div class="edit-actions hidden mt-4 flex gap-2 justify-end">
+                            <button onclick="cancelEdit('email1')" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold text-sm hover:bg-gray-300">Cancel</button>
+                            <button onclick="saveTemplate('email1')" class="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold text-sm hover:bg-green-700">Save Changes</button>
                         </div>
                     </div>
                 </div>
 
                 <!-- Email 2 -->
                 <div class="sequence-step">
-                    <div class="template-card bg-white rounded-xl border-2 border-purple-200 p-6 shadow-sm">
+                    <div class="template-card bg-white rounded-xl border-2 border-purple-200 p-6 shadow-sm" data-template="email2">
                         <div class="flex items-start gap-4 mb-4">
                             <div class="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold text-lg shrink-0">2</div>
                             <div class="flex-1">
                                 <h4 class="font-bold text-gray-900">Follow-Up #1</h4>
                                 <p class="text-sm text-gray-500">Day 3-5 - Gentle bump</p>
                             </div>
-                            <button onclick="copyTemplate('email2')" class="copy-btn px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-colors">
-                                Copy
-                            </button>
+                            <div class="flex gap-2">
+                                <button onclick="toggleEdit('email2')" class="edit-btn p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors" title="Edit template">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                                    </svg>
+                                </button>
+                                <button onclick="copyTemplate('email2')" class="copy-btn px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-colors">
+                                    Copy
+                                </button>
+                            </div>
                         </div>
                         <div class="bg-gray-50 rounded-lg p-4">
                             <p class="text-xs text-purple-600 font-semibold mb-2">SUBJECT:</p>
-                            <p class="text-sm text-gray-700 mb-4" id="email2-subject">Re: Quick question about [BUSINESS_NAME]</p>
+                            <p class="text-sm text-gray-700 mb-4 template-subject" id="email2-subject"></p>
+                            <input type="text" class="template-subject-edit hidden w-full px-3 py-2 border-2 border-purple-500 rounded-lg text-sm mb-4" id="email2-subject-edit">
                             <p class="text-xs text-purple-600 font-semibold mb-2">BODY:</p>
-                            <pre class="text-sm text-gray-700 font-sans" id="email2-body">Hi,
-
-Just following up on my note from a few days ago about The [ZIP] Spotlight postcard.
-
-I know you're busy - just wanted to make sure this didn't get buried.
-
-The [CATEGORY] spot is still open if you're interested.
-
-Worth a quick look?
-
-[YOUR_NAME]
-[YOUR_PHONE]</pre>
+                            <pre class="text-sm text-gray-700 font-sans template-body" id="email2-body"></pre>
+                            <textarea class="template-edit" id="email2-body-edit"></textarea>
+                        </div>
+                        <div class="edit-actions hidden mt-4 flex gap-2 justify-end">
+                            <button onclick="cancelEdit('email2')" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold text-sm hover:bg-gray-300">Cancel</button>
+                            <button onclick="saveTemplate('email2')" class="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold text-sm hover:bg-green-700">Save Changes</button>
                         </div>
                     </div>
                 </div>
 
                 <!-- Email 3 -->
                 <div class="sequence-step">
-                    <div class="template-card bg-white rounded-xl border-2 border-purple-200 p-6 shadow-sm">
+                    <div class="template-card bg-white rounded-xl border-2 border-purple-200 p-6 shadow-sm" data-template="email3">
                         <div class="flex items-start gap-4 mb-4">
                             <div class="w-12 h-12 bg-purple-400 rounded-full flex items-center justify-center text-white font-bold text-lg shrink-0">3</div>
                             <div class="flex-1">
                                 <h4 class="font-bold text-gray-900">Follow-Up #2</h4>
                                 <p class="text-sm text-gray-500">Day 7-10 - Add value</p>
                             </div>
-                            <button onclick="copyTemplate('email3')" class="copy-btn px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-colors">
-                                Copy
-                            </button>
+                            <div class="flex gap-2">
+                                <button onclick="toggleEdit('email3')" class="edit-btn p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors" title="Edit template">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                                    </svg>
+                                </button>
+                                <button onclick="copyTemplate('email3')" class="copy-btn px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-colors">
+                                    Copy
+                                </button>
+                            </div>
                         </div>
                         <div class="bg-gray-50 rounded-lg p-4">
                             <p class="text-xs text-purple-600 font-semibold mb-2">SUBJECT:</p>
-                            <p class="text-sm text-gray-700 mb-4" id="email3-subject">[CATEGORY] spot update - [ZIP] Spotlight</p>
+                            <p class="text-sm text-gray-700 mb-4 template-subject" id="email3-subject"></p>
+                            <input type="text" class="template-subject-edit hidden w-full px-3 py-2 border-2 border-purple-500 rounded-lg text-sm mb-4" id="email3-subject-edit">
                             <p class="text-xs text-purple-600 font-semibold mb-2">BODY:</p>
-                            <pre class="text-sm text-gray-700 font-sans" id="email3-body">Hi,
-
-Wanted to give you a quick update - we're getting close to sending The [ZIP] Spotlight to print.
-
-A few things that might help:
-
-- Your ad reaches [HOME_COUNT] homes in [ZIP]
-- You'd be the ONLY [CATEGORY] on the card
-- We handle all the design work
-- It's a fraction of the cost of solo mailers
-
-If timing isn't right, no worries at all. Just let me know either way?
-
-[YOUR_NAME]
-[YOUR_PHONE]</pre>
+                            <pre class="text-sm text-gray-700 font-sans template-body" id="email3-body"></pre>
+                            <textarea class="template-edit" id="email3-body-edit"></textarea>
+                        </div>
+                        <div class="edit-actions hidden mt-4 flex gap-2 justify-end">
+                            <button onclick="cancelEdit('email3')" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold text-sm hover:bg-gray-300">Cancel</button>
+                            <button onclick="saveTemplate('email3')" class="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold text-sm hover:bg-green-700">Save Changes</button>
                         </div>
                     </div>
                 </div>
 
                 <!-- Email 4 -->
                 <div class="sequence-step">
-                    <div class="template-card bg-white rounded-xl border-2 border-purple-200 p-6 shadow-sm">
+                    <div class="template-card bg-white rounded-xl border-2 border-purple-200 p-6 shadow-sm" data-template="email4">
                         <div class="flex items-start gap-4 mb-4">
                             <div class="w-12 h-12 bg-purple-300 rounded-full flex items-center justify-center text-white font-bold text-lg shrink-0">4</div>
                             <div class="flex-1">
                                 <h4 class="font-bold text-gray-900">Final Attempt</h4>
                                 <p class="text-sm text-gray-500">Day 14+ - Last chance</p>
                             </div>
-                            <button onclick="copyTemplate('email4')" class="copy-btn px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-colors">
-                                Copy
-                            </button>
+                            <div class="flex gap-2">
+                                <button onclick="toggleEdit('email4')" class="edit-btn p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors" title="Edit template">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                                    </svg>
+                                </button>
+                                <button onclick="copyTemplate('email4')" class="copy-btn px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-colors">
+                                    Copy
+                                </button>
+                            </div>
                         </div>
                         <div class="bg-gray-50 rounded-lg p-4">
                             <p class="text-xs text-purple-600 font-semibold mb-2">SUBJECT:</p>
-                            <p class="text-sm text-gray-700 mb-4" id="email4-subject">Closing the loop - [BUSINESS_NAME]</p>
+                            <p class="text-sm text-gray-700 mb-4 template-subject" id="email4-subject"></p>
+                            <input type="text" class="template-subject-edit hidden w-full px-3 py-2 border-2 border-purple-500 rounded-lg text-sm mb-4" id="email4-subject-edit">
                             <p class="text-xs text-purple-600 font-semibold mb-2">BODY:</p>
-                            <pre class="text-sm text-gray-700 font-sans" id="email4-body">Hi,
-
-I've reached out a few times about The [ZIP] Spotlight postcard and haven't heard back, so I'll assume the timing isn't right.
-
-No hard feelings at all - I'll take you off my list.
-
-If things change down the road, feel free to reach out. We do these mailings regularly and would love to have [BUSINESS_NAME] on a future card.
-
-All the best,
-[YOUR_NAME]
-[YOUR_PHONE]</pre>
+                            <pre class="text-sm text-gray-700 font-sans template-body" id="email4-body"></pre>
+                            <textarea class="template-edit" id="email4-body-edit"></textarea>
+                        </div>
+                        <div class="edit-actions hidden mt-4 flex gap-2 justify-end">
+                            <button onclick="cancelEdit('email4')" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold text-sm hover:bg-gray-300">Cancel</button>
+                            <button onclick="saveTemplate('email4')" class="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold text-sm hover:bg-green-700">Save Changes</button>
                         </div>
                     </div>
                 </div>
@@ -229,30 +326,32 @@ All the best,
 
             <div class="grid md:grid-cols-2 gap-6">
                 <!-- Facebook Messenger -->
-                <div class="template-card bg-white rounded-xl border-2 border-blue-200 p-6 shadow-sm">
+                <div class="template-card bg-white rounded-xl border-2 border-blue-200 p-6 shadow-sm" data-template="fb">
                     <div class="flex items-center gap-3 mb-4">
                         <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white text-xl">f</div>
                         <div class="flex-1">
                             <h4 class="font-bold text-gray-900">Facebook Messenger</h4>
                             <p class="text-xs text-gray-500">Message business pages</p>
                         </div>
+                        <button onclick="toggleEdit('fb')" class="edit-btn p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        </button>
                         <button onclick="copyTemplate('fb')" class="copy-btn px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors">
                             Copy
                         </button>
                     </div>
                     <div class="bg-gray-50 rounded-lg p-4">
-                        <pre class="text-sm text-gray-700 font-sans" id="fb-body">Hey! We put out a community postcard in [ZIP] that goes to about [HOME_COUNT] homes.
-
-We're filling spots for the next one and thought [BUSINESS_NAME] would be a great fit. You'd be the only [CATEGORY] on it.
-
-Would you want to see what it looks like?
-
-- [YOUR_NAME]</pre>
+                        <pre class="text-sm text-gray-700 font-sans template-body" id="fb-body"></pre>
+                        <textarea class="template-edit" id="fb-body-edit"></textarea>
+                    </div>
+                    <div class="edit-actions hidden mt-4 flex gap-2 justify-end">
+                        <button onclick="cancelEdit('fb')" class="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                        <button onclick="saveTemplate('fb')" class="px-3 py-1.5 bg-green-600 text-white rounded-lg font-semibold text-sm">Save</button>
                     </div>
                 </div>
 
                 <!-- Instagram DM -->
-                <div class="template-card bg-white rounded-xl border-2 border-pink-200 p-6 shadow-sm">
+                <div class="template-card bg-white rounded-xl border-2 border-pink-200 p-6 shadow-sm" data-template="ig">
                     <div class="flex items-center gap-3 mb-4">
                         <div class="w-10 h-10 bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400 rounded-full flex items-center justify-center text-white text-xl">
                             <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073z"/></svg>
@@ -261,40 +360,50 @@ Would you want to see what it looks like?
                             <h4 class="font-bold text-gray-900">Instagram DM</h4>
                             <p class="text-xs text-gray-500">No message limits!</p>
                         </div>
+                        <button onclick="toggleEdit('ig')" class="edit-btn p-2 text-gray-500 hover:text-pink-600 hover:bg-pink-50 rounded-lg transition-colors" title="Edit">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        </button>
                         <button onclick="copyTemplate('ig')" class="copy-btn px-3 py-1.5 bg-gradient-to-r from-purple-600 to-pink-500 text-white rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity">
                             Copy
                         </button>
                     </div>
                     <div class="bg-gray-50 rounded-lg p-4">
-                        <pre class="text-sm text-gray-700 font-sans" id="ig-body">Hey! Love what you're doing with [BUSINESS_NAME]!
-
-We do a community postcard in [ZIP] - thought you might be interested. You'd be the only [CATEGORY] featured.
-
-Want to see it?</pre>
+                        <pre class="text-sm text-gray-700 font-sans template-body" id="ig-body"></pre>
+                        <textarea class="template-edit" id="ig-body-edit"></textarea>
+                    </div>
+                    <div class="edit-actions hidden mt-4 flex gap-2 justify-end">
+                        <button onclick="cancelEdit('ig')" class="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                        <button onclick="saveTemplate('ig')" class="px-3 py-1.5 bg-green-600 text-white rounded-lg font-semibold text-sm">Save</button>
                     </div>
                 </div>
 
                 <!-- Facebook Follow-up -->
-                <div class="template-card bg-white rounded-xl border-2 border-blue-200 p-6 shadow-sm">
+                <div class="template-card bg-white rounded-xl border-2 border-blue-200 p-6 shadow-sm" data-template="fb-followup">
                     <div class="flex items-center gap-3 mb-4">
                         <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white text-xl">f</div>
                         <div class="flex-1">
                             <h4 class="font-bold text-gray-900">FB Follow-up</h4>
                             <p class="text-xs text-gray-500">If no response after 3-5 days</p>
                         </div>
+                        <button onclick="toggleEdit('fb-followup')" class="edit-btn p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        </button>
                         <button onclick="copyTemplate('fb-followup')" class="copy-btn px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors">
                             Copy
                         </button>
                     </div>
                     <div class="bg-gray-50 rounded-lg p-4">
-                        <pre class="text-sm text-gray-700 font-sans" id="fb-followup-body">Hey just bumping this up - the [CATEGORY] spot is still open on our [ZIP] postcard if you're interested!
-
-No pressure either way.</pre>
+                        <pre class="text-sm text-gray-700 font-sans template-body" id="fb-followup-body"></pre>
+                        <textarea class="template-edit" id="fb-followup-body-edit"></textarea>
+                    </div>
+                    <div class="edit-actions hidden mt-4 flex gap-2 justify-end">
+                        <button onclick="cancelEdit('fb-followup')" class="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                        <button onclick="saveTemplate('fb-followup')" class="px-3 py-1.5 bg-green-600 text-white rounded-lg font-semibold text-sm">Save</button>
                     </div>
                 </div>
 
                 <!-- Instagram Follow-up -->
-                <div class="template-card bg-white rounded-xl border-2 border-pink-200 p-6 shadow-sm">
+                <div class="template-card bg-white rounded-xl border-2 border-pink-200 p-6 shadow-sm" data-template="ig-followup">
                     <div class="flex items-center gap-3 mb-4">
                         <div class="w-10 h-10 bg-gradient-to-br from-purple-500 via-pink-400 to-orange-300 rounded-full flex items-center justify-center text-white text-xl">
                             <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073z"/></svg>
@@ -303,12 +412,20 @@ No pressure either way.</pre>
                             <h4 class="font-bold text-gray-900">IG Follow-up</h4>
                             <p class="text-xs text-gray-500">If no response after 3-5 days</p>
                         </div>
+                        <button onclick="toggleEdit('ig-followup')" class="edit-btn p-2 text-gray-500 hover:text-pink-600 hover:bg-pink-50 rounded-lg transition-colors" title="Edit">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        </button>
                         <button onclick="copyTemplate('ig-followup')" class="copy-btn px-3 py-1.5 bg-gradient-to-r from-purple-600 to-pink-500 text-white rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity">
                             Copy
                         </button>
                     </div>
                     <div class="bg-gray-50 rounded-lg p-4">
-                        <pre class="text-sm text-gray-700 font-sans" id="ig-followup-body">Hey! Just following up on my message about the postcard. Still have the [CATEGORY] spot open if you're interested!</pre>
+                        <pre class="text-sm text-gray-700 font-sans template-body" id="ig-followup-body"></pre>
+                        <textarea class="template-edit" id="ig-followup-body-edit"></textarea>
+                    </div>
+                    <div class="edit-actions hidden mt-4 flex gap-2 justify-end">
+                        <button onclick="cancelEdit('ig-followup')" class="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                        <button onclick="saveTemplate('ig-followup')" class="px-3 py-1.5 bg-green-600 text-white rounded-lg font-semibold text-sm">Save</button>
                     </div>
                 </div>
             </div>
@@ -333,8 +450,8 @@ No pressure either way.</pre>
             </div>
 
             <div class="grid md:grid-cols-2 gap-6">
-                <!-- Initial Text -->
-                <div class="template-card bg-white rounded-xl border-2 border-green-200 p-6 shadow-sm">
+                <!-- SMS templates with edit buttons -->
+                <div class="template-card bg-white rounded-xl border-2 border-green-200 p-6 shadow-sm" data-template="sms1">
                     <div class="flex items-center gap-3 mb-4">
                         <div class="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center text-white text-xl">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
@@ -343,17 +460,24 @@ No pressure either way.</pre>
                             <h4 class="font-bold text-gray-900">Initial Text</h4>
                             <p class="text-xs text-gray-500">First contact via SMS</p>
                         </div>
+                        <button onclick="toggleEdit('sms1')" class="edit-btn p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Edit">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        </button>
                         <button onclick="copyTemplate('sms1')" class="copy-btn px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors">
                             Copy
                         </button>
                     </div>
                     <div class="bg-gray-50 rounded-lg p-4">
-                        <pre class="text-sm text-gray-700 font-sans" id="sms1-body">Hey! This is [YOUR_NAME]. We do a community postcard in [ZIP] and have the [CATEGORY] spot open. Interested? I can send details.</pre>
+                        <pre class="text-sm text-gray-700 font-sans template-body" id="sms1-body"></pre>
+                        <textarea class="template-edit" id="sms1-body-edit"></textarea>
+                    </div>
+                    <div class="edit-actions hidden mt-4 flex gap-2 justify-end">
+                        <button onclick="cancelEdit('sms1')" class="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                        <button onclick="saveTemplate('sms1')" class="px-3 py-1.5 bg-green-600 text-white rounded-lg font-semibold text-sm">Save</button>
                     </div>
                 </div>
 
-                <!-- Text Follow-up -->
-                <div class="template-card bg-white rounded-xl border-2 border-green-200 p-6 shadow-sm">
+                <div class="template-card bg-white rounded-xl border-2 border-green-200 p-6 shadow-sm" data-template="sms2">
                     <div class="flex items-center gap-3 mb-4">
                         <div class="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white text-xl">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
@@ -362,17 +486,24 @@ No pressure either way.</pre>
                             <h4 class="font-bold text-gray-900">Text Follow-up</h4>
                             <p class="text-xs text-gray-500">If no response</p>
                         </div>
+                        <button onclick="toggleEdit('sms2')" class="edit-btn p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Edit">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        </button>
                         <button onclick="copyTemplate('sms2')" class="copy-btn px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors">
                             Copy
                         </button>
                     </div>
                     <div class="bg-gray-50 rounded-lg p-4">
-                        <pre class="text-sm text-gray-700 font-sans" id="sms2-body">Hey just circling back on the postcard - still have the [CATEGORY] spot if you're interested. Let me know either way!</pre>
+                        <pre class="text-sm text-gray-700 font-sans template-body" id="sms2-body"></pre>
+                        <textarea class="template-edit" id="sms2-body-edit"></textarea>
+                    </div>
+                    <div class="edit-actions hidden mt-4 flex gap-2 justify-end">
+                        <button onclick="cancelEdit('sms2')" class="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                        <button onclick="saveTemplate('sms2')" class="px-3 py-1.5 bg-green-600 text-white rounded-lg font-semibold text-sm">Save</button>
                     </div>
                 </div>
 
-                <!-- After Email Sent -->
-                <div class="template-card bg-white rounded-xl border-2 border-green-200 p-6 shadow-sm">
+                <div class="template-card bg-white rounded-xl border-2 border-green-200 p-6 shadow-sm" data-template="sms3">
                     <div class="flex items-center gap-3 mb-4">
                         <div class="w-10 h-10 bg-green-400 rounded-full flex items-center justify-center text-white text-xl">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
@@ -381,29 +512,44 @@ No pressure either way.</pre>
                             <h4 class="font-bold text-gray-900">After Email</h4>
                             <p class="text-xs text-gray-500">Text after sending emails</p>
                         </div>
+                        <button onclick="toggleEdit('sms3')" class="edit-btn p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Edit">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        </button>
                         <button onclick="copyTemplate('sms3')" class="copy-btn px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors">
                             Copy
                         </button>
                     </div>
                     <div class="bg-gray-50 rounded-lg p-4">
-                        <pre class="text-sm text-gray-700 font-sans" id="sms3-body">Hey it's [YOUR_NAME] - sent you an email about the [ZIP] postcard. Just wanted to make sure it didn't go to spam!</pre>
+                        <pre class="text-sm text-gray-700 font-sans template-body" id="sms3-body"></pre>
+                        <textarea class="template-edit" id="sms3-body-edit"></textarea>
+                    </div>
+                    <div class="edit-actions hidden mt-4 flex gap-2 justify-end">
+                        <button onclick="cancelEdit('sms3')" class="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                        <button onclick="saveTemplate('sms3')" class="px-3 py-1.5 bg-green-600 text-white rounded-lg font-semibold text-sm">Save</button>
                     </div>
                 </div>
 
-                <!-- Deadline Text -->
-                <div class="template-card bg-white rounded-xl border-2 border-green-200 p-6 shadow-sm">
+                <div class="template-card bg-white rounded-xl border-2 border-green-200 p-6 shadow-sm" data-template="sms4">
                     <div class="flex items-center gap-3 mb-4">
                         <div class="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center text-white text-xl">!</div>
                         <div class="flex-1">
                             <h4 class="font-bold text-gray-900">Deadline Urgency</h4>
                             <p class="text-xs text-gray-500">When card is almost full</p>
                         </div>
+                        <button onclick="toggleEdit('sms4')" class="edit-btn p-2 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Edit">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        </button>
                         <button onclick="copyTemplate('sms4')" class="copy-btn px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors">
                             Copy
                         </button>
                     </div>
                     <div class="bg-gray-50 rounded-lg p-4">
-                        <pre class="text-sm text-gray-700 font-sans" id="sms4-body">Hey! Quick heads up - the [ZIP] postcard goes to print Friday. Still have the [CATEGORY] spot if you want it. Let me know!</pre>
+                        <pre class="text-sm text-gray-700 font-sans template-body" id="sms4-body"></pre>
+                        <textarea class="template-edit" id="sms4-body-edit"></textarea>
+                    </div>
+                    <div class="edit-actions hidden mt-4 flex gap-2 justify-end">
+                        <button onclick="cancelEdit('sms4')" class="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                        <button onclick="saveTemplate('sms4')" class="px-3 py-1.5 bg-green-600 text-white rounded-lg font-semibold text-sm">Save</button>
                     </div>
                 </div>
             </div>
@@ -416,97 +562,8 @@ No pressure either way.</pre>
                 <p class="text-gray-600 text-sm">Quick responses to common pushback. Copy and customize as needed.</p>
             </div>
 
-            <div class="space-y-4">
-                <!-- Objection 1 -->
-                <div class="template-card bg-white rounded-xl border-2 border-red-100 p-5 shadow-sm">
-                    <div class="flex items-start justify-between gap-4">
-                        <div class="flex-1">
-                            <p class="text-red-600 font-semibold text-sm mb-2">"I don't have the budget right now"</p>
-                            <p class="text-gray-700 text-sm" id="obj1">Totally understand - timing is everything. For what it's worth, this is a fraction of what solo mailers cost since we split it between businesses. But I'll keep you in mind for a future card when timing is better. Would that work?</p>
-                        </div>
-                        <button onclick="copyText('obj1')" class="copy-btn shrink-0 px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition-colors">
-                            Copy
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Objection 2 -->
-                <div class="template-card bg-white rounded-xl border-2 border-red-100 p-5 shadow-sm">
-                    <div class="flex items-start justify-between gap-4">
-                        <div class="flex-1">
-                            <p class="text-red-600 font-semibold text-sm mb-2">"Direct mail doesn't work"</p>
-                            <p class="text-gray-700 text-sm" id="obj2">I hear that a lot, and honestly some direct mail doesn't work. The difference here is saturation - we're hitting EVERY home in [ZIP], not a random list. And you're the only [CATEGORY] on the card, so there's no competition for attention. Most of our advertisers see the best results after 2-3 mailings when people start recognizing their name.</p>
-                        </div>
-                        <button onclick="copyText('obj2')" class="copy-btn shrink-0 px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition-colors">
-                            Copy
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Objection 3 -->
-                <div class="template-card bg-white rounded-xl border-2 border-red-100 p-5 shadow-sm">
-                    <div class="flex items-start justify-between gap-4">
-                        <div class="flex-1">
-                            <p class="text-red-600 font-semibold text-sm mb-2">"I just do word of mouth / referrals"</p>
-                            <p class="text-gray-700 text-sm" id="obj3">Word of mouth is the best! This actually helps with that - when your name is in front of [HOME_COUNT] households, people remember you when their neighbor asks for a recommendation. It's like priming the pump for referrals.</p>
-                        </div>
-                        <button onclick="copyText('obj3')" class="copy-btn shrink-0 px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition-colors">
-                            Copy
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Objection 4 -->
-                <div class="template-card bg-white rounded-xl border-2 border-red-100 p-5 shadow-sm">
-                    <div class="flex items-start justify-between gap-4">
-                        <div class="flex-1">
-                            <p class="text-red-600 font-semibold text-sm mb-2">"I already do Facebook/Google ads"</p>
-                            <p class="text-gray-700 text-sm" id="obj4">Those are great for people actively searching! This hits a different audience - the people who WOULD use a [CATEGORY] but aren't actively looking yet. Plus, direct mail has a 4.4% response rate vs about 0.6% for digital. Most successful businesses do both.</p>
-                        </div>
-                        <button onclick="copyText('obj4')" class="copy-btn shrink-0 px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition-colors">
-                            Copy
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Objection 5 -->
-                <div class="template-card bg-white rounded-xl border-2 border-red-100 p-5 shadow-sm">
-                    <div class="flex items-start justify-between gap-4">
-                        <div class="flex-1">
-                            <p class="text-red-600 font-semibold text-sm mb-2">"I'm too busy / have too much work already"</p>
-                            <p class="text-gray-700 text-sm" id="obj5">That's a great problem to have! A lot of our advertisers use these mailings to stay visible during their slow season, or to be picky about jobs. When you're in front of [HOME_COUNT] homes regularly, you can choose the jobs you want instead of taking everything that comes in.</p>
-                        </div>
-                        <button onclick="copyText('obj5')" class="copy-btn shrink-0 px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition-colors">
-                            Copy
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Objection 6 -->
-                <div class="template-card bg-white rounded-xl border-2 border-red-100 p-5 shadow-sm">
-                    <div class="flex items-start justify-between gap-4">
-                        <div class="flex-1">
-                            <p class="text-red-600 font-semibold text-sm mb-2">"Send me some info and I'll think about it"</p>
-                            <p class="text-gray-700 text-sm" id="obj6">Absolutely! What's the best email? [GET EMAIL] I'll send that right over. Just so I know how to follow up - are you looking at this for the upcoming mailing or more for down the road?</p>
-                        </div>
-                        <button onclick="copyText('obj6')" class="copy-btn shrink-0 px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition-colors">
-                            Copy
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Objection 7 -->
-                <div class="template-card bg-white rounded-xl border-2 border-red-100 p-5 shadow-sm">
-                    <div class="flex items-start justify-between gap-4">
-                        <div class="flex-1">
-                            <p class="text-red-600 font-semibold text-sm mb-2">"How do I know this actually works?"</p>
-                            <p class="text-gray-700 text-sm" id="obj7">Great question. We've had [X] businesses advertise with us so far, and many of them renew month after month because they see results. I can put you in touch with a current advertiser if you want to hear it directly from them. Or you could try one mailing and see for yourself - no long-term commitment required.</p>
-                        </div>
-                        <button onclick="copyText('obj7')" class="copy-btn shrink-0 px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition-colors">
-                            Copy
-                        </button>
-                    </div>
-                </div>
+            <div class="space-y-4" id="objections-container">
+                <!-- Objections will be rendered by JS -->
             </div>
         </div>
     </main>
@@ -517,30 +574,574 @@ No pressure either way.</pre>
     </div>
 
     <script>
-        // Tab switching
-        function showTab(tabName) {
-            // Hide all tabs
-            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
-            // Deactivate all buttons
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            // Show selected tab
-            document.getElementById('tab-' + tabName).classList.remove('hidden');
-            // Activate button
-            event.target.classList.add('active');
+        // Supabase client
+        let supabaseClient = null;
+        let campaigns = [];
+        let pricingData = {}; // Stores home counts by mailer_id
+
+        // Template version - increment to force reset old templates
+        const TEMPLATE_VERSION = 3;
+
+        // Initialize Supabase with retry
+        function initSupabase() {
+            console.log('🔧 initSupabase called');
+            console.log('  - window.supabase:', !!window.supabase);
+            console.log('  - window.APP_CONFIG:', !!window.APP_CONFIG);
+
+            if (window.supabase && window.APP_CONFIG) {
+                supabaseClient = window.supabase.createClient(
+                    window.APP_CONFIG.supabase.url,
+                    window.APP_CONFIG.supabase.anonKey
+                );
+                console.log('✅ Supabase client created');
+                return true;
+            }
+            return false;
         }
 
-        // Copy template
-        function copyTemplate(id) {
-            let text = '';
-            const subjectEl = document.getElementById(id + '-subject');
-            const bodyEl = document.getElementById(id + '-body');
+        // Wait for dependencies to load
+        async function waitForSupabase(maxAttempts = 20) {
+            for (let i = 0; i < maxAttempts; i++) {
+                if (initSupabase()) {
+                    return true;
+                }
+                console.log(`⏳ Waiting for Supabase... attempt ${i + 1}`);
+                await new Promise(resolve => setTimeout(resolve, 200));
+            }
+            console.error('❌ Supabase failed to initialize after max attempts');
+            return false;
+        }
 
-            if (subjectEl) {
-                text = 'Subject: ' + subjectEl.textContent.trim() + '\n\n';
+        // Default templates (raw, before variable replacement)
+        const DEFAULT_TEMPLATES = {
+            email1: {
+                subject: 'Quick question about [BUSINESS_NAME]',
+                body: `Hi,
+
+We send out a community postcard called "[POSTCARD_NAME]" that reaches [HOME_COUNT] homes in [AREA].
+
+We're filling spots for our next mailing and [BUSINESS_NAME] would be a great fit. You'd be the only [CATEGORY] on the card.
+
+Interested in the details?
+
+[YOUR_NAME]`
+            },
+            email2: {
+                subject: 'Re: Quick question about [BUSINESS_NAME]',
+                body: `Hi,
+
+Just following up on my note from a few days ago about [POSTCARD_NAME].
+
+I know you're busy - just wanted to make sure this didn't get buried.
+
+The [CATEGORY] spot is still open if you're interested.
+
+Worth a quick look?
+
+[YOUR_NAME]`
+            },
+            email3: {
+                subject: '[CATEGORY] spot update - [POSTCARD_NAME]',
+                body: `Hi,
+
+Wanted to give you a quick update - we're getting close to sending [POSTCARD_NAME] to print.
+
+A few things that might help:
+
+- Your ad reaches [HOME_COUNT] homes in [AREA]
+- You'd be the ONLY [CATEGORY] on the card
+- We handle all the design work
+- It's a fraction of the cost of solo mailers
+
+If timing isn't right, no worries at all. Just let me know either way?
+
+[YOUR_NAME]`
+            },
+            email4: {
+                subject: 'Closing the loop - [BUSINESS_NAME]',
+                body: `Hi,
+
+I've reached out a few times about [POSTCARD_NAME] and haven't heard back, so I'll assume the timing isn't right.
+
+No hard feelings at all - I'll take you off my list.
+
+If things change down the road, feel free to reach out. We do these mailings regularly and would love to have [BUSINESS_NAME] on a future card.
+
+All the best,
+[YOUR_NAME]`
+            },
+            fb: {
+                body: `Hey! We put out a community postcard called [POSTCARD_NAME] that reaches [HOME_COUNT] homes in [AREA].
+
+We're filling spots for the next one and thought [BUSINESS_NAME] would be a great fit. You'd be the only [CATEGORY] on it.
+
+Would you want to see what it looks like?
+
+- [YOUR_NAME]`
+            },
+            ig: {
+                body: `Hey! Love what you're doing with [BUSINESS_NAME]!
+
+We do a community postcard that reaches [HOME_COUNT] homes in [AREA] - thought you might be interested. You'd be the only [CATEGORY] featured.
+
+Want to see it?`
+            },
+            'fb-followup': {
+                body: `Hey just bumping this up - the [CATEGORY] spot is still open on [POSTCARD_NAME] if you're interested!
+
+No pressure either way.`
+            },
+            'ig-followup': {
+                body: `Hey! Just following up on my message about the postcard. Still have the [CATEGORY] spot open if you're interested!`
+            },
+            sms1: {
+                body: `Hey! This is [YOUR_NAME]. We do a community postcard that hits [HOME_COUNT] homes in [AREA] and have the [CATEGORY] spot open. Interested?`
+            },
+            sms2: {
+                body: `Hey just circling back on the postcard - still have the [CATEGORY] spot if you're interested. Let me know either way!`
+            },
+            sms3: {
+                body: `Hey it's [YOUR_NAME] - sent you an email about [POSTCARD_NAME]. Just wanted to make sure it didn't go to spam!`
+            },
+            sms4: {
+                body: `Hey! Quick heads up - [POSTCARD_NAME] goes to print Friday. Still have the [CATEGORY] spot if you want it. Let me know!`
             }
-            if (bodyEl) {
-                text += bodyEl.textContent.trim();
+        };
+
+        const DEFAULT_OBJECTIONS = [
+            { id: 'obj1', objection: "I don't have the budget right now", response: "Totally understand - timing is everything. For what it's worth, this is a fraction of what solo mailers cost since we split it between businesses. But I'll keep you in mind for a future card when timing is better. Would that work?" },
+            { id: 'obj2', objection: "Direct mail doesn't work", response: "I hear that a lot, and honestly some direct mail doesn't work. The difference here is saturation - we're hitting [HOME_COUNT] homes in [AREA], not a random list. And you're the only [CATEGORY] on the card, so there's no competition for attention. Most of our advertisers see the best results after 2-3 mailings when people start recognizing their name." },
+            { id: 'obj3', objection: "I just do word of mouth / referrals", response: "Word of mouth is the best! This actually helps with that - when your name is in front of [HOME_COUNT] households, people remember you when their neighbor asks for a recommendation. It's like priming the pump for referrals." },
+            { id: 'obj4', objection: "I already do Facebook/Google ads", response: "Those are great for people actively searching! This hits a different audience - the people who WOULD use a [CATEGORY] but aren't actively looking yet. Plus, direct mail has a 4.4% response rate vs about 0.6% for digital. Most successful businesses do both." },
+            { id: 'obj5', objection: "I'm too busy / have too much work already", response: "That's a great problem to have! A lot of our advertisers use these mailings to stay visible during their slow season, or to be picky about jobs. When you're in front of [HOME_COUNT] homes regularly, you can choose the jobs you want instead of taking everything that comes in." },
+            { id: 'obj6', objection: "Send me some info and I'll think about it", response: "Absolutely! What's the best email? [GET EMAIL] I'll send that right over. Just so I know how to follow up - are you looking at this for the upcoming mailing or more for down the road?" },
+            { id: 'obj7', objection: "How do I know this actually works?", response: "Great question. We've had [X] businesses advertise with us so far, and many of them renew month after month because they see results. I can put you in touch with a current advertiser if you want to hear it directly from them. Or you could try one mailing and see for yourself - no long-term commitment required." }
+        ];
+
+        // State
+        let settings = {
+            yourName: '',
+            yourCompany: '',
+            yourPhone: '',
+            spotPrice: '$400',
+            zipCode: '',      // Actual ZIP code like "14217"
+            areaName: '',     // Area/town name like "Kenmore"
+            homeCount: '5,000',
+            postcardName: ''
+        };
+        let templates = {};
+        let objections = [];
+
+        // Load on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('📄 Outreach Scripts page loaded');
+
+            loadSettings();
+            loadTemplates();
+            loadObjections();
+            renderAllTemplates();
+            renderObjections();
+
+            // Initialize Supabase with retry and load campaigns
+            const supabaseReady = await waitForSupabase();
+            if (supabaseReady) {
+                await checkAuthAndLoadCampaigns();
+            } else {
+                document.getElementById('campaignLoginMsg').classList.remove('hidden');
+                document.getElementById('campaignLoginMsg').innerHTML = 'Failed to connect to database. <a href="/app.html" class="underline font-medium">Return to app</a>';
             }
+        });
+
+        // Check authentication and load campaigns
+        async function checkAuthAndLoadCampaigns() {
+            console.log('🔐 Checking authentication...');
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                console.log('📋 Session result:', session ? 'Found' : 'Not found');
+
+                if (session && session.user && session.user.email) {
+                    console.log('✅ User logged in:', session.user.email);
+                    // User is logged in, load their campaigns and pricing data
+                    await loadPricingData(session.user.email);
+                    await loadCampaigns(session.user.email);
+                } else {
+                    console.log('❌ No session found');
+                    // Not logged in, show login message
+                    document.getElementById('campaignLoginMsg').classList.remove('hidden');
+                }
+            } catch (err) {
+                console.error('Auth check failed:', err);
+                document.getElementById('campaignLoginMsg').classList.remove('hidden');
+            }
+        }
+
+        // Load pricing data (contains home counts per campaign)
+        async function loadPricingData(userEmail) {
+            console.log('💰 Loading pricing data...');
+            try {
+                const { data, error } = await supabaseClient
+                    .from('app_data')
+                    .select('data')
+                    .eq('user_email', userEmail)
+                    .eq('data_type', 'pricing')
+                    .single();
+
+                if (error && error.code !== 'PGRST116') {
+                    console.error('Pricing load error:', error);
+                    return;
+                }
+
+                if (data && data.data) {
+                    pricingData = data.data;
+                    console.log('✅ Pricing data loaded:', Object.keys(pricingData).length, 'campaigns');
+                } else {
+                    console.log('⚠️ No pricing data found');
+                }
+            } catch (err) {
+                console.error('Failed to load pricing:', err);
+            }
+        }
+
+        // Load campaigns from Supabase
+        async function loadCampaigns(userEmail) {
+            console.log('📥 Loading campaigns for:', userEmail);
+            try {
+                // Select all columns - address_count may not exist yet
+                const { data, error } = await supabaseClient
+                    .from('postcards')
+                    .select('*')
+                    .eq('user_email', userEmail)
+                    .order('mail_date', { ascending: false });
+
+                console.log('📊 Query result - data:', data?.length || 0, 'items, error:', error);
+
+                if (error) throw error;
+
+                if (data && data.length > 0) {
+                    console.log('✅ Campaigns loaded:', data.length);
+                    console.log('📋 First campaign:', data[0]);
+                    campaigns = data;
+                    populateCampaignDropdown();
+                } else {
+                    console.log('⚠️ No campaigns found');
+                    // No campaigns found
+                    const dropdown = document.getElementById('campaignDropdown');
+                    dropdown.innerHTML = '<option value="">No campaigns found - create one in 9x12 Pro</option>';
+                }
+            } catch (err) {
+                console.error('❌ Failed to load campaigns:', err);
+                const dropdown = document.getElementById('campaignDropdown');
+                dropdown.innerHTML = '<option value="">Error loading campaigns</option>';
+            }
+        }
+
+        // Populate campaign dropdown
+        function populateCampaignDropdown() {
+            const dropdown = document.getElementById('campaignDropdown');
+            dropdown.innerHTML = '<option value="">-- Choose a campaign to auto-fill --</option>';
+
+            campaigns.forEach((campaign, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                const size = campaign.postcard_size || '9x12';
+                const date = campaign.mail_date ? ` (${campaign.mail_date})` : '';
+                option.textContent = `${campaign.town} ${size}${date}`;
+                dropdown.appendChild(option);
+            });
+        }
+
+        // Extract just the town/area name from full postcard name
+        function extractTownName(fullName) {
+            // Remove common suffixes to get just the geographic area
+            let town = fullName
+                .replace(/\s*Small Business Spotlight\s*/gi, '')
+                .replace(/\s*Business Spotlight\s*/gi, '')
+                .replace(/\s*Spotlight\s*/gi, '')
+                .replace(/\s*Postcard\s*/gi, '')
+                .replace(/\s*Mailer\s*/gi, '')
+                .trim();
+            return town || fullName; // Return original if nothing left
+        }
+
+        // Handle campaign selection
+        function onCampaignSelect() {
+            const dropdown = document.getElementById('campaignDropdown');
+            const infoDiv = document.getElementById('campaignInfo');
+            const infoText = document.getElementById('campaignInfoText');
+            const selectedIndex = dropdown.value;
+
+            if (selectedIndex === '' || selectedIndex === null) {
+                infoDiv.classList.add('hidden');
+                settings.postcardName = '';
+                settings.townName = '';
+                settings.defaultZip = '';
+            } else {
+                const campaign = campaigns[parseInt(selectedIndex)];
+                if (campaign) {
+                    // Extract just the town/area name
+                    const areaOnly = extractTownName(campaign.town);
+                    settings.areaName = areaOnly;
+
+                    // Use full name for postcard name, add "The" if needed
+                    const townLower = campaign.town.toLowerCase();
+                    if (townLower.includes('spotlight') || townLower.includes('postcard') || townLower.includes('savings') || townLower.includes('card')) {
+                        settings.postcardName = campaign.town.startsWith('The ') ? campaign.town : `The ${campaign.town}`;
+                    } else {
+                        settings.postcardName = `The ${campaign.town} Spotlight`;
+                    }
+
+                    // Get home count from pricing data (Set Ad Price section)
+                    const mailerId = campaign.mailer_id;
+                    const campaignPricing = pricingData[mailerId];
+                    console.log('💰 Looking up pricing for:', mailerId, campaignPricing);
+
+                    if (campaignPricing && campaignPricing.homeCount) {
+                        settings.homeCount = campaignPricing.homeCount.toLocaleString();
+                        document.getElementById('settingHomes').value = settings.homeCount;
+                        console.log('✅ Home count from pricing:', settings.homeCount);
+                    } else if (campaign.address_count) {
+                        // Fallback to postcards table if available
+                        settings.homeCount = campaign.address_count.toLocaleString();
+                        document.getElementById('settingHomes').value = settings.homeCount;
+                    }
+
+                    // Update the settings form
+                    document.getElementById('settingArea').value = areaOnly;
+
+                    // Show info
+                    const size = campaign.postcard_size || '9x12';
+                    const homeDisplay = campaign.address_count ? campaign.address_count.toLocaleString() : settings.homeCount;
+                    infoText.textContent = `📬 ${settings.postcardName} (${size}) - ${homeDisplay} homes`;
+                    infoDiv.classList.remove('hidden');
+
+                    showToast(`Campaign loaded: ${campaign.town}`);
+                }
+            }
+
+            // Re-render templates with updated settings
+            renderAllTemplates();
+            renderObjections();
+        }
+
+        // Settings functions
+        function toggleSettings() {
+            const panel = document.getElementById('settingsPanel');
+            panel.classList.toggle('hidden');
+        }
+
+        function loadSettings() {
+            // Try to load from main app's salesToolkitSettings first
+            const mainAppSettings = localStorage.getItem('salesToolkitSettings');
+            if (mainAppSettings) {
+                const parsed = JSON.parse(mainAppSettings);
+                settings.yourName = parsed.yourName || '';
+                settings.yourCompany = parsed.yourCompany || '';
+                settings.yourPhone = parsed.yourPhone || '';
+                settings.spotPrice = parsed.spotPrice || '$400';
+                settings.homeCount = parsed.homesReached || '5,000';
+            }
+
+            // Load outreach-specific settings (may override)
+            const saved = localStorage.getItem('outreach-scripts-settings');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                settings = { ...settings, ...parsed };
+            }
+
+            // Populate form
+            document.getElementById('settingName').value = settings.yourName;
+            document.getElementById('settingCompany').value = settings.yourCompany;
+            document.getElementById('settingPhone').value = settings.yourPhone;
+            document.getElementById('settingPrice').value = settings.spotPrice;
+            document.getElementById('settingArea').value = settings.areaName;
+            document.getElementById('settingHomes').value = settings.homeCount;
+        }
+
+        function saveSettings() {
+            settings = {
+                ...settings,  // Keep postcardName and other campaign values
+                yourName: document.getElementById('settingName').value,
+                yourCompany: document.getElementById('settingCompany').value,
+                yourPhone: document.getElementById('settingPhone').value,
+                spotPrice: document.getElementById('settingPrice').value,
+                areaName: document.getElementById('settingArea').value,
+                homeCount: document.getElementById('settingHomes').value
+            };
+            localStorage.setItem('outreach-scripts-settings', JSON.stringify(settings));
+
+            // Also update main app's settings
+            const mainAppSettings = {
+                yourName: settings.yourName,
+                yourCompany: settings.yourCompany,
+                yourPhone: settings.yourPhone,
+                spotPrice: settings.spotPrice,
+                homesReached: settings.homeCount
+            };
+            localStorage.setItem('salesToolkitSettings', JSON.stringify(mainAppSettings));
+
+            renderAllTemplates();
+            renderObjections();
+            showToast('Settings saved!');
+            toggleSettings();
+        }
+
+        // Template functions
+        function loadTemplates() {
+            const savedVersion = localStorage.getItem('outreach-scripts-version');
+            const saved = localStorage.getItem('outreach-scripts-templates');
+
+            // Check if templates need to be reset due to version update
+            if (!savedVersion || parseInt(savedVersion) < TEMPLATE_VERSION) {
+                console.log('📝 Template version updated, resetting to new defaults');
+                templates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
+                localStorage.setItem('outreach-scripts-version', TEMPLATE_VERSION.toString());
+                saveTemplates();
+            } else if (saved) {
+                templates = JSON.parse(saved);
+            } else {
+                templates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
+            }
+        }
+
+        function saveTemplates() {
+            localStorage.setItem('outreach-scripts-templates', JSON.stringify(templates));
+            localStorage.setItem('outreach-scripts-version', TEMPLATE_VERSION.toString());
+        }
+
+        function resetAllTemplates() {
+            if (confirm('Reset all templates to defaults? Your customizations will be lost.')) {
+                templates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
+                objections = JSON.parse(JSON.stringify(DEFAULT_OBJECTIONS));
+                saveTemplates();
+                localStorage.setItem('outreach-scripts-objections', JSON.stringify(objections));
+                renderAllTemplates();
+                renderObjections();
+                showToast('All templates reset to defaults');
+            }
+        }
+
+        function fillVariables(text) {
+            if (!text) return '';
+            return text
+                .replace(/\[YOUR_NAME\]/g, settings.yourName || '[YOUR_NAME]')
+                .replace(/\[YOUR_PHONE\]/g, settings.yourPhone || '[YOUR_PHONE]')
+                .replace(/\[YOUR_COMPANY\]/g, settings.yourCompany || '[YOUR_COMPANY]')
+                .replace(/\[ZIP\]/g, settings.zipCode || '[ZIP]')
+                .replace(/\[AREA\]/g, settings.areaName || '[AREA]')
+                .replace(/\[POSTCARD_NAME\]/g, settings.postcardName || '[POSTCARD_NAME]')
+                .replace(/\[HOME_COUNT\]/g, settings.homeCount || '[HOME_COUNT]')
+                .replace(/\[SPOT_PRICE\]/g, settings.spotPrice || '[SPOT_PRICE]');
+        }
+
+        function highlightPlaceholders(text) {
+            // Highlight remaining placeholders in yellow
+            return text.replace(/\[([A-Z_]+)\]/g, '<span class="placeholder">[$1]</span>');
+        }
+
+        function renderAllTemplates() {
+            Object.keys(templates).forEach(id => {
+                const template = templates[id];
+
+                // Subject (for emails)
+                const subjectEl = document.getElementById(id + '-subject');
+                if (subjectEl && template.subject !== undefined) {
+                    subjectEl.innerHTML = highlightPlaceholders(fillVariables(template.subject));
+                }
+
+                // Body
+                const bodyEl = document.getElementById(id + '-body');
+                if (bodyEl) {
+                    bodyEl.innerHTML = highlightPlaceholders(fillVariables(template.body));
+                }
+            });
+        }
+
+        function toggleEdit(id) {
+            const card = document.querySelector(`[data-template="${id}"]`);
+            const isEditing = card.classList.contains('editing');
+
+            if (isEditing) {
+                cancelEdit(id);
+            } else {
+                // Enter edit mode
+                card.classList.add('editing');
+
+                const template = templates[id];
+
+                // Show subject edit if exists
+                const subjectEdit = document.getElementById(id + '-subject-edit');
+                const subjectDisplay = document.getElementById(id + '-subject');
+                if (subjectEdit && template.subject !== undefined) {
+                    subjectEdit.value = template.subject;
+                    subjectEdit.classList.remove('hidden');
+                    if (subjectDisplay) subjectDisplay.classList.add('hidden');
+                }
+
+                // Show body edit
+                const bodyEdit = document.getElementById(id + '-body-edit');
+                const bodyDisplay = document.getElementById(id + '-body');
+                if (bodyEdit) {
+                    bodyEdit.value = template.body;
+                    bodyEdit.style.display = 'block';
+                    if (bodyDisplay) bodyDisplay.style.display = 'none';
+                }
+
+                // Show save/cancel buttons
+                const actions = card.querySelector('.edit-actions');
+                if (actions) actions.classList.remove('hidden');
+            }
+        }
+
+        function cancelEdit(id) {
+            const card = document.querySelector(`[data-template="${id}"]`);
+            card.classList.remove('editing');
+
+            // Hide subject edit
+            const subjectEdit = document.getElementById(id + '-subject-edit');
+            const subjectDisplay = document.getElementById(id + '-subject');
+            if (subjectEdit) {
+                subjectEdit.classList.add('hidden');
+                if (subjectDisplay) subjectDisplay.classList.remove('hidden');
+            }
+
+            // Hide body edit
+            const bodyEdit = document.getElementById(id + '-body-edit');
+            const bodyDisplay = document.getElementById(id + '-body');
+            if (bodyEdit) {
+                bodyEdit.style.display = 'none';
+                if (bodyDisplay) bodyDisplay.style.display = 'block';
+            }
+
+            // Hide save/cancel buttons
+            const actions = card.querySelector('.edit-actions');
+            if (actions) actions.classList.add('hidden');
+        }
+
+        function saveTemplate(id) {
+            const subjectEdit = document.getElementById(id + '-subject-edit');
+            const bodyEdit = document.getElementById(id + '-body-edit');
+
+            if (subjectEdit && templates[id].subject !== undefined) {
+                templates[id].subject = subjectEdit.value;
+            }
+            if (bodyEdit) {
+                templates[id].body = bodyEdit.value;
+            }
+
+            saveTemplates();
+            cancelEdit(id);
+            renderAllTemplates();
+            showToast('Template saved!');
+        }
+
+        function copyTemplate(id) {
+            const template = templates[id];
+            let text = '';
+
+            if (template.subject) {
+                text = 'Subject: ' + fillVariables(template.subject) + '\n\n';
+            }
+            text += fillVariables(template.body);
 
             navigator.clipboard.writeText(text).then(() => {
                 showToast('Copied to clipboard!');
@@ -549,16 +1150,97 @@ No pressure either way.</pre>
             });
         }
 
-        // Copy single text element
-        function copyText(id) {
-            const el = document.getElementById(id);
-            if (el) {
-                navigator.clipboard.writeText(el.textContent.trim()).then(() => {
+        // Objections
+        function loadObjections() {
+            const saved = localStorage.getItem('outreach-scripts-objections');
+            if (saved) {
+                objections = JSON.parse(saved);
+            } else {
+                objections = JSON.parse(JSON.stringify(DEFAULT_OBJECTIONS));
+            }
+        }
+
+        function renderObjections() {
+            const container = document.getElementById('objections-container');
+            container.innerHTML = objections.map(obj => `
+                <div class="template-card bg-white rounded-xl border-2 border-red-100 p-5 shadow-sm" data-objection="${obj.id}">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="flex-1">
+                            <p class="text-red-600 font-semibold text-sm mb-2">"${obj.objection}"</p>
+                            <p class="text-gray-700 text-sm objection-response" id="${obj.id}-response">${highlightPlaceholders(fillVariables(obj.response))}</p>
+                            <textarea class="template-edit hidden mt-2" id="${obj.id}-edit">${obj.response}</textarea>
+                        </div>
+                        <div class="flex flex-col gap-2 shrink-0">
+                            <button onclick="toggleObjEdit('${obj.id}')" class="edit-btn p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Edit">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                            </button>
+                            <button onclick="copyObjText('${obj.id}')" class="copy-btn px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition-colors">
+                                Copy
+                            </button>
+                        </div>
+                    </div>
+                    <div class="edit-actions hidden mt-4 flex gap-2 justify-end">
+                        <button onclick="cancelObjEdit('${obj.id}')" class="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                        <button onclick="saveObjEdit('${obj.id}')" class="px-3 py-1.5 bg-green-600 text-white rounded-lg font-semibold text-sm">Save</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleObjEdit(id) {
+            const card = document.querySelector(`[data-objection="${id}"]`);
+            const responseEl = document.getElementById(id + '-response');
+            const editEl = document.getElementById(id + '-edit');
+            const actions = card.querySelector('.edit-actions');
+
+            if (editEl.classList.contains('hidden')) {
+                editEl.classList.remove('hidden');
+                editEl.style.display = 'block';
+                responseEl.classList.add('hidden');
+                actions.classList.remove('hidden');
+            } else {
+                cancelObjEdit(id);
+            }
+        }
+
+        function cancelObjEdit(id) {
+            const card = document.querySelector(`[data-objection="${id}"]`);
+            const responseEl = document.getElementById(id + '-response');
+            const editEl = document.getElementById(id + '-edit');
+            const actions = card.querySelector('.edit-actions');
+
+            editEl.classList.add('hidden');
+            editEl.style.display = 'none';
+            responseEl.classList.remove('hidden');
+            actions.classList.add('hidden');
+        }
+
+        function saveObjEdit(id) {
+            const editEl = document.getElementById(id + '-edit');
+            const obj = objections.find(o => o.id === id);
+            if (obj) {
+                obj.response = editEl.value;
+                localStorage.setItem('outreach-scripts-objections', JSON.stringify(objections));
+                renderObjections();
+                showToast('Response saved!');
+            }
+        }
+
+        function copyObjText(id) {
+            const obj = objections.find(o => o.id === id);
+            if (obj) {
+                navigator.clipboard.writeText(fillVariables(obj.response)).then(() => {
                     showToast('Copied to clipboard!');
-                }).catch(() => {
-                    showToast('Failed to copy');
                 });
             }
+        }
+
+        // Tab switching
+        function showTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('tab-' + tabName).classList.remove('hidden');
+            event.target.classList.add('active');
         }
 
         // Toast notification

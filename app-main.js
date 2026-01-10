@@ -16928,6 +16928,7 @@ async function createDuplicatePostcard() {
           in_homes_date: newPostcard.In_Homes_Date,
           payment_status: newPostcard.Payment_Status,
           postcard_size: newPostcard.Postcard_Size || '9x12',
+          address_count: newPostcard.Address_Count || 0,
           postcard_bg: newPostcard.Postcard_BG,
           banner_bg: newPostcard.Banner_BG,
           spot_1: newPostcard.availability.Spot_1 || 'Available',
@@ -17220,6 +17221,22 @@ async function savePricingModal() {
 
   productionState.pricing[mailerId] = { singleAd, doubleAd, bannerAd, homeCount };
 
+  // Also update the postcard's address_count in Supabase
+  if (homeCount > 0) {
+    try {
+      await supabaseClient
+        .from('postcards')
+        .update({ address_count: homeCount })
+        .eq('user_email', ACTIVE_USER)
+        .eq('mailer_id', mailerId);
+
+      // Update local state too
+      state.current.Address_Count = homeCount;
+    } catch (err) {
+      console.warn('Failed to update address_count in postcards:', err);
+    }
+  }
+
   // Save revenue goal
   const singleCount = parseFloat(document.getElementById("goalSingleCount").value) || 0;
   const singlePrice = parseFloat(document.getElementById("goalSinglePrice").value) || 0;
@@ -17443,6 +17460,7 @@ async function createNewPostcard() {
       In_Homes_Date: inHomesDate,
       Payment_Status: "Active",  // Set to Active by default
       Postcard_Size: postcardSize,  // Store size (9x12)
+      Address_Count: 0,  // Set via Campaign Manager → Set Ad Price
       availability: {},
       Postcard_BG: "#000000",
       Banner_BG: "#000000"  // Black background (will display white text via useLightTextOn)
@@ -17595,6 +17613,7 @@ async function createNewPostcard() {
             in_homes_date: newPostcard.In_Homes_Date,
             payment_status: newPostcard.Payment_Status,
             postcard_size: newPostcard.Postcard_Size || '9x12',
+            address_count: newPostcard.Address_Count || 0,
             postcard_bg: newPostcard.Postcard_BG,
             banner_bg: newPostcard.Banner_BG,
             spot_1: newPostcard.availability.Spot_1 || 'Available',
@@ -18704,6 +18723,7 @@ async function loadCampaigns(restoreMailerId = null) {
       In_Homes_Date: postcard.in_homes_date,
       Payment_Status: postcard.payment_status,
       Postcard_Size: postcard.postcard_size || '9x12',
+      Address_Count: postcard.address_count || 0,
       Postcard_BG: postcard.postcard_bg,
       Banner_BG: postcard.banner_bg,
       Spot_1: postcard.spot_1,
