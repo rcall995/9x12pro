@@ -572,6 +572,114 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Customer Updates Section -->
+            <div class="mt-8 mb-4">
+                <h3 class="text-lg font-bold text-gray-800 mb-2">Customer Updates</h3>
+                <p class="text-gray-600 text-sm">Messages for existing advertisers - renewals and campaign status updates.</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-6">
+                <!-- Renewal Request -->
+                <div class="template-card bg-white rounded-xl border-2 border-blue-200 p-6 shadow-sm" data-template="sms5">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white text-xl">🔄</div>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-gray-900">Renewal Request</h4>
+                            <p class="text-xs text-gray-500">Ask current customers to continue</p>
+                        </div>
+                        <button onclick="toggleEdit('sms5')" class="edit-btn p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        </button>
+                        <button onclick="copyTemplate('sms5')" class="copy-btn px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors">
+                            Copy
+                        </button>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <pre class="text-sm text-gray-700 font-sans template-body" id="sms5-body"></pre>
+                        <textarea class="template-edit" id="sms5-body-edit"></textarea>
+                    </div>
+                    <div class="edit-actions hidden mt-4 flex gap-2 justify-end">
+                        <button onclick="cancelEdit('sms5')" class="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                        <button onclick="saveTemplate('sms5')" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg font-semibold text-sm">Save</button>
+                    </div>
+                </div>
+
+                <!-- Sent to Print -->
+                <div class="template-card bg-white rounded-xl border-2 border-purple-200 p-6 shadow-sm" data-template="sms6">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center text-white text-xl">🖨️</div>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-gray-900">Sent to Print</h4>
+                            <p class="text-xs text-gray-500">Update: card is at the printer</p>
+                        </div>
+                        <button onclick="toggleEdit('sms6')" class="edit-btn p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors" title="Edit">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        </button>
+                        <button onclick="copyTemplate('sms6')" class="copy-btn px-3 py-1.5 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 transition-colors">
+                            Copy
+                        </button>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <pre class="text-sm text-gray-700 font-sans template-body" id="sms6-body"></pre>
+                        <textarea class="template-edit" id="sms6-body-edit"></textarea>
+                    </div>
+                    <div class="edit-actions hidden mt-4 flex gap-2 justify-end">
+                        <button onclick="cancelEdit('sms6')" class="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                        <button onclick="saveTemplate('sms6')" class="px-3 py-1.5 bg-purple-600 text-white rounded-lg font-semibold text-sm">Save</button>
+                    </div>
+                </div>
+
+                <!-- Dropped at Post Office -->
+                <div class="template-card bg-white rounded-xl border-2 border-teal-200 p-6 shadow-sm" data-template="sms7">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 bg-teal-600 rounded-full flex items-center justify-center text-white text-xl">📬</div>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-gray-900">Dropped at Post Office</h4>
+                            <p class="text-xs text-gray-500">Update: hitting mailboxes tomorrow</p>
+                        </div>
+                        <button onclick="toggleEdit('sms7')" class="edit-btn p-2 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        </button>
+                        <button onclick="copyTemplate('sms7')" class="copy-btn px-3 py-1.5 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700 transition-colors">
+                            Copy
+                        </button>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <pre class="text-sm text-gray-700 font-sans template-body" id="sms7-body"></pre>
+                        <textarea class="template-edit" id="sms7-body-edit"></textarea>
+                    </div>
+                    <div class="edit-actions hidden mt-4 flex gap-2 justify-end">
+                        <button onclick="cancelEdit('sms7')" class="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                        <button onclick="saveTemplate('sms7')" class="px-3 py-1.5 bg-teal-600 text-white rounded-lg font-semibold text-sm">Save</button>
+                    </div>
+                </div>
+
+                <!-- Custom Message -->
+                <div class="template-card bg-white rounded-xl border-2 border-gray-300 p-6 shadow-sm" data-template="sms8">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 bg-gray-600 rounded-full flex items-center justify-center text-white text-xl">✏️</div>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-gray-900">Custom Message</h4>
+                            <p class="text-xs text-gray-500">Write your own message</p>
+                        </div>
+                        <button onclick="toggleEdit('sms8')" class="edit-btn p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors" title="Edit">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        </button>
+                        <button onclick="copyTemplate('sms8')" class="copy-btn px-3 py-1.5 bg-gray-600 text-white rounded-lg text-sm font-semibold hover:bg-gray-700 transition-colors">
+                            Copy
+                        </button>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <pre class="text-sm text-gray-700 font-sans template-body" id="sms8-body"></pre>
+                        <textarea class="template-edit" id="sms8-body-edit"></textarea>
+                    </div>
+                    <div class="edit-actions hidden mt-4 flex gap-2 justify-end">
+                        <button onclick="cancelEdit('sms8')" class="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                        <button onclick="saveTemplate('sms8')" class="px-3 py-1.5 bg-gray-600 text-white rounded-lg font-semibold text-sm">Save</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- OBJECTIONS TAB -->
@@ -599,7 +707,7 @@
         let pricingData = {}; // Stores home counts by mailer_id
 
         // Template version - increment to force reset old templates
-        const TEMPLATE_VERSION = 4;
+        const TEMPLATE_VERSION = 5;
 
         // Initialize Supabase with retry
         function initSupabase() {
@@ -724,6 +832,18 @@ No pressure either way.`
             },
             sms4: {
                 body: `Hey! Quick heads up - [POSTCARD_NAME] goes to print Friday. Still have the [CATEGORY] spot if you want it. Let me know!`
+            },
+            sms5: {
+                body: `Hey! Hope [POSTCARD_NAME] has been working well for you. We're putting together the next card now - want me to save your spot? Same price, same [CATEGORY] exclusivity.`
+            },
+            sms6: {
+                body: `Quick update - [POSTCARD_NAME] has been sent to print! Target delivery date is [TARGET_DATE]. I'll let you know when it drops. Thanks for being on the card!`
+            },
+            sms7: {
+                body: `Great news! [POSTCARD_NAME] was just dropped off at the post office and should hit mailboxes tomorrow. Keep an eye out for calls! Thanks again for advertising with us.`
+            },
+            sms8: {
+                body: `[CUSTOM_MESSAGE]`
             }
         };
 
