@@ -323,6 +323,130 @@
                 </div>
             </div>
 
+            <!-- Customer Update Emails -->
+            <div class="mt-8 mb-4">
+                <h3 class="text-lg font-bold text-gray-800 mb-2">Customer Update Emails</h3>
+                <p class="text-gray-600 text-sm">Emails for existing advertisers - renewals and campaign status updates.</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-6 mb-8">
+                <!-- Renewal Request Email -->
+                <div class="template-card bg-white rounded-xl border-2 border-blue-200 p-6 shadow-sm" data-template="email5">
+                    <div class="flex items-start gap-4 mb-4">
+                        <div class="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white text-2xl shrink-0">🔄</div>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-gray-900">Renewal Request</h4>
+                            <p class="text-sm text-gray-500">Ask customers to continue</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="toggleEdit('email5')" class="edit-btn p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                            </button>
+                            <button onclick="copyTemplate('email5')" class="copy-btn px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors">Copy</button>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <p class="text-xs text-blue-600 font-semibold mb-2">SUBJECT:</p>
+                        <p class="text-sm text-gray-700 mb-4 template-subject" id="email5-subject"></p>
+                        <input type="text" class="template-subject-edit hidden w-full px-3 py-2 border-2 border-blue-500 rounded-lg text-sm mb-4" id="email5-subject-edit">
+                        <p class="text-xs text-blue-600 font-semibold mb-2">BODY:</p>
+                        <pre class="text-sm text-gray-700 font-sans template-body" id="email5-body"></pre>
+                        <textarea class="template-edit" id="email5-body-edit"></textarea>
+                    </div>
+                    <div class="edit-actions hidden mt-4 flex gap-2 justify-end">
+                        <button onclick="cancelEdit('email5')" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                        <button onclick="saveTemplate('email5')" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm">Save</button>
+                    </div>
+                </div>
+
+                <!-- Sent to Print Email -->
+                <div class="template-card bg-white rounded-xl border-2 border-purple-200 p-6 shadow-sm" data-template="email6">
+                    <div class="flex items-start gap-4 mb-4">
+                        <div class="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center text-white text-2xl shrink-0">🖨️</div>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-gray-900">Sent to Print</h4>
+                            <p class="text-sm text-gray-500">Card is at the printer</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="toggleEdit('email6')" class="edit-btn p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors" title="Edit">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                            </button>
+                            <button onclick="copyTemplate('email6')" class="copy-btn px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-colors">Copy</button>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <p class="text-xs text-purple-600 font-semibold mb-2">SUBJECT:</p>
+                        <p class="text-sm text-gray-700 mb-4 template-subject" id="email6-subject"></p>
+                        <input type="text" class="template-subject-edit hidden w-full px-3 py-2 border-2 border-purple-500 rounded-lg text-sm mb-4" id="email6-subject-edit">
+                        <p class="text-xs text-purple-600 font-semibold mb-2">BODY:</p>
+                        <pre class="text-sm text-gray-700 font-sans template-body" id="email6-body"></pre>
+                        <textarea class="template-edit" id="email6-body-edit"></textarea>
+                    </div>
+                    <div class="edit-actions hidden mt-4 flex gap-2 justify-end">
+                        <button onclick="cancelEdit('email6')" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                        <button onclick="saveTemplate('email6')" class="px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold text-sm">Save</button>
+                    </div>
+                </div>
+
+                <!-- Dropped at Post Office Email -->
+                <div class="template-card bg-white rounded-xl border-2 border-teal-200 p-6 shadow-sm" data-template="email7">
+                    <div class="flex items-start gap-4 mb-4">
+                        <div class="w-12 h-12 bg-teal-600 rounded-full flex items-center justify-center text-white text-2xl shrink-0">📬</div>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-gray-900">Dropped at Post Office</h4>
+                            <p class="text-sm text-gray-500">Hitting mailboxes tomorrow</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="toggleEdit('email7')" class="edit-btn p-2 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Edit">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                            </button>
+                            <button onclick="copyTemplate('email7')" class="copy-btn px-4 py-2 bg-teal-600 text-white rounded-lg font-semibold hover:bg-teal-700 transition-colors">Copy</button>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <p class="text-xs text-teal-600 font-semibold mb-2">SUBJECT:</p>
+                        <p class="text-sm text-gray-700 mb-4 template-subject" id="email7-subject"></p>
+                        <input type="text" class="template-subject-edit hidden w-full px-3 py-2 border-2 border-teal-500 rounded-lg text-sm mb-4" id="email7-subject-edit">
+                        <p class="text-xs text-teal-600 font-semibold mb-2">BODY:</p>
+                        <pre class="text-sm text-gray-700 font-sans template-body" id="email7-body"></pre>
+                        <textarea class="template-edit" id="email7-body-edit"></textarea>
+                    </div>
+                    <div class="edit-actions hidden mt-4 flex gap-2 justify-end">
+                        <button onclick="cancelEdit('email7')" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                        <button onclick="saveTemplate('email7')" class="px-4 py-2 bg-teal-600 text-white rounded-lg font-semibold text-sm">Save</button>
+                    </div>
+                </div>
+
+                <!-- Custom Email -->
+                <div class="template-card bg-white rounded-xl border-2 border-gray-300 p-6 shadow-sm" data-template="email8">
+                    <div class="flex items-start gap-4 mb-4">
+                        <div class="w-12 h-12 bg-gray-600 rounded-full flex items-center justify-center text-white text-2xl shrink-0">✏️</div>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-gray-900">Custom Email</h4>
+                            <p class="text-sm text-gray-500">Write your own message</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="toggleEdit('email8')" class="edit-btn p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors" title="Edit">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                            </button>
+                            <button onclick="copyTemplate('email8')" class="copy-btn px-4 py-2 bg-gray-600 text-white rounded-lg font-semibold hover:bg-gray-700 transition-colors">Copy</button>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <p class="text-xs text-gray-600 font-semibold mb-2">SUBJECT:</p>
+                        <p class="text-sm text-gray-700 mb-4 template-subject" id="email8-subject"></p>
+                        <input type="text" class="template-subject-edit hidden w-full px-3 py-2 border-2 border-gray-500 rounded-lg text-sm mb-4" id="email8-subject-edit">
+                        <p class="text-xs text-gray-600 font-semibold mb-2">BODY:</p>
+                        <pre class="text-sm text-gray-700 font-sans template-body" id="email8-body"></pre>
+                        <textarea class="template-edit" id="email8-body-edit"></textarea>
+                    </div>
+                    <div class="edit-actions hidden mt-4 flex gap-2 justify-end">
+                        <button onclick="cancelEdit('email8')" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                        <button onclick="saveTemplate('email8')" class="px-4 py-2 bg-gray-600 text-white rounded-lg font-semibold text-sm">Save</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Pro Tips -->
             <div class="mt-8 bg-amber-50 border-2 border-amber-200 rounded-xl p-6">
                 <h4 class="font-bold text-amber-800 mb-3">Pro Tips from the Pros</h4>
@@ -796,6 +920,53 @@ If things change down the road, feel free to reach out. We do these mailings reg
 
 All the best,
 [YOUR_NAME]`
+            },
+            email5: {
+                subject: 'Ready for the next postcard?',
+                body: `Hi,
+
+Hope [POSTCARD_NAME] has been working well for you!
+
+We're putting together the next card now and wanted to reach out before offering your [CATEGORY] spot to someone else.
+
+Want me to save your spot? Same price, same category exclusivity.
+
+Just reply "yes" and I'll get you set up.
+
+Thanks,
+[YOUR_NAME]`
+            },
+            email6: {
+                subject: '[POSTCARD_NAME] - Sent to Print!',
+                body: `Hi,
+
+Quick update - [POSTCARD_NAME] has been sent to the printer!
+
+Target delivery date: [TARGET_DATE]
+
+I'll send you another update when it's been dropped at the post office. Keep an eye out for calls once it hits mailboxes!
+
+Thanks for advertising with us.
+
+[YOUR_NAME]`
+            },
+            email7: {
+                subject: '[POSTCARD_NAME] - Hitting Mailboxes Tomorrow!',
+                body: `Hi,
+
+Great news! [POSTCARD_NAME] was just dropped off at the post office and should hit mailboxes tomorrow.
+
+This is when you'll start seeing results - keep an eye on your phone for new calls!
+
+If you have any questions or want to get on the next card, just let me know.
+
+Thanks again for advertising with us!
+
+[YOUR_NAME]`
+            },
+            email8: {
+                subject: '[SUBJECT]',
+                body: `[CUSTOM_MESSAGE]`
             },
             fb: {
                 body: `Hey! We put out a community postcard called [POSTCARD_NAME] that reaches [HOME_COUNT] homes in [AREA].
