@@ -1572,7 +1572,11 @@ function renderClientList() {
               <!-- Contact Info Section -->
               <div class="space-y-1 mb-2">
                 ${client.contact.firstName ? `<div class="text-sm text-gray-700 font-medium">👤 ${esc(client.contact.firstName)}${client.contact.name && client.contact.name !== client.contact.firstName ? ` (${esc(client.contact.name)})` : ''}</div>` : (client.contact.name ? `<div class="text-sm text-gray-600">👤 ${esc(client.contact.name)}</div>` : '')}
-                ${hasPhone ? `<div class="text-xs text-gray-600">📞 ${esc(client.contact.phone)}</div>` : ''}
+                ${hasPhone ? `<div class="text-xs text-gray-600 flex items-center gap-2">
+                  <a href="tel:${esc(client.contact.phone)}" onclick="event.stopPropagation()" class="hover:scale-110 transition-transform" title="Call ${esc(client.contact.phone)}">📞</a>
+                  <button onclick="event.stopPropagation(); textClientViaGoogleVoice('${esc(client.contact.phone)}', '${esc(client.businessName)}')" class="hover:scale-110 transition-transform" title="Text via Google Voice">💬</button>
+                  <span>${esc(client.contact.phone)}</span>
+                </div>` : ''}
                 ${hasEmail ? `<div class="text-xs text-gray-600 truncate">✉️ ${esc(client.contact.email)}</div>` : ''}
               </div>
 
@@ -13613,6 +13617,28 @@ function quickAction(type) {
         window.open(ensureHttps(prospect.twitter), '_blank');
       }
       break;
+  }
+}
+
+// Text client via Google Voice (desktop opens GV, mobile opens native SMS)
+function textClientViaGoogleVoice(phone, businessName) {
+  if (!phone) return;
+
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  const cleanPhone = phone.replace(/\D/g, '');
+
+  if (isMobile) {
+    // Mobile: Use native SMS
+    window.location.href = `sms:${cleanPhone}`;
+  } else {
+    // Desktop: Open Google Voice and copy phone number
+    window.open('https://voice.google.com/u/0/messages', '_blank');
+
+    navigator.clipboard.writeText(phone).then(() => {
+      toast(`📋 Phone copied: ${phone}\n💬 Google Voice opened - paste to send text to ${businessName}`, true);
+    }).catch(() => {
+      toast(`💬 Google Voice opened. Text ${businessName} at: ${phone}`, true);
+    });
   }
 }
 

@@ -49,7 +49,9 @@
       "Bash(git push:*)",
       "WebFetch(domain:www.youtube.com)",
       "WebFetch(domain:youtubetranscript.com)",
-      "WebFetch(domain:www.youtube-transcript.io)"
+      "WebFetch(domain:www.youtube-transcript.io)",
+      "WebFetch(domain:get.joinblvd.com)",
+      "WebFetch(domain:www.joinblvd.com)"
     ],
     "deny": [],
     "ask": []
