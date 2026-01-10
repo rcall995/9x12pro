@@ -13620,7 +13620,7 @@ function quickAction(type) {
   }
 }
 
-// Text client via Google Voice (desktop opens GV, mobile opens native SMS)
+// Text client via Google Voice (desktop opens GV with phone pre-filled, mobile opens native SMS)
 function textClientViaGoogleVoice(phone, businessName) {
   if (!phone) return;
 
@@ -13631,14 +13631,11 @@ function textClientViaGoogleVoice(phone, businessName) {
     // Mobile: Use native SMS
     window.location.href = `sms:${cleanPhone}`;
   } else {
-    // Desktop: Open Google Voice and copy phone number
-    window.open('https://voice.google.com/u/0/messages', '_blank');
-
-    navigator.clipboard.writeText(phone).then(() => {
-      toast(`📋 Phone copied: ${phone}\n💬 Google Voice opened - paste to send text to ${businessName}`, true);
-    }).catch(() => {
-      toast(`💬 Google Voice opened. Text ${businessName} at: ${phone}`, true);
-    });
+    // Desktop: Open Google Voice with phone number pre-filled
+    const formattedPhone = cleanPhone.length === 10 ? `+1${cleanPhone}` : `+${cleanPhone}`;
+    const googleVoiceUrl = `https://voice.google.com/u/0/messages?phoneNumber=${encodeURIComponent(formattedPhone)}`;
+    window.open(googleVoiceUrl, '_blank');
+    toast(`💬 Google Voice opened for ${businessName}`, true);
   }
 }
 

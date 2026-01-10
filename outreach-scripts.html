@@ -1004,14 +1004,12 @@ No pressure either way.`
                 // Mobile: Use native SMS
                 window.location.href = `sms:${cleanPhone}`;
             } else {
-                // Desktop: Open Google Voice and copy phone number
-                window.open('https://voice.google.com/u/0/messages', '_blank');
-
-                navigator.clipboard.writeText(settings.businessPhone).then(() => {
-                    showToast(`📋 Phone copied: ${settings.businessPhone} - Google Voice opened`);
-                }).catch(() => {
-                    showToast(`💬 Google Voice opened. Text: ${settings.businessPhone}`);
-                });
+                // Desktop: Open Google Voice with phone number pre-filled
+                // Format: +1XXXXXXXXXX for US numbers
+                const formattedPhone = cleanPhone.length === 10 ? `+1${cleanPhone}` : `+${cleanPhone}`;
+                const googleVoiceUrl = `https://voice.google.com/u/0/messages?phoneNumber=${encodeURIComponent(formattedPhone)}`;
+                window.open(googleVoiceUrl, '_blank');
+                showToast(`💬 Google Voice opened for ${settings.businessName}`);
             }
         }
 
