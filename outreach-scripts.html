@@ -1004,36 +1004,30 @@ No pressure either way.`
                 // Mobile: Use native SMS
                 window.location.href = `sms:${cleanPhone}`;
             } else {
-                // Desktop: Copy phone to clipboard and open Google Voice
+                // Desktop: Copy phone to clipboard and open Google Voice in popup window
                 navigator.clipboard.writeText(settings.businessPhone).then(() => {
-                    window.open('https://voice.google.com/u/0/messages', '_blank');
-                    showPhoneBanner(settings.businessPhone, settings.businessName);
+                    openGoogleVoicePopup();
+                    showToast(`📋 Phone copied: ${settings.businessPhone}`);
                 }).catch(() => {
-                    window.open('https://voice.google.com/u/0/messages', '_blank');
-                    showPhoneBanner(settings.businessPhone, settings.businessName);
+                    openGoogleVoicePopup();
+                    showToast(`📱 Text: ${settings.businessPhone}`);
                 });
             }
         }
 
-        // Show a persistent banner with phone number
-        function showPhoneBanner(phone, businessName) {
-            // Remove existing banner if any
-            const existing = document.getElementById('phoneBanner');
-            if (existing) existing.remove();
+        // Open Google Voice in a separate popup window for side-by-side viewing
+        function openGoogleVoicePopup() {
+            // Calculate popup size (half screen width, full height)
+            const width = Math.floor(screen.width / 2);
+            const height = screen.height - 100;
+            const left = screen.width - width; // Position on right side
+            const top = 0;
 
-            const banner = document.createElement('div');
-            banner.id = 'phoneBanner';
-            banner.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-6 py-4 rounded-xl shadow-2xl z-[9999] text-center';
-            banner.innerHTML = `
-                <div class="text-sm opacity-90 mb-1">📋 Phone copied for ${businessName}</div>
-                <div class="text-2xl font-bold tracking-wide">${phone}</div>
-                <div class="text-xs opacity-75 mt-2">Paste in Google Voice → then copy your template</div>
-                <button onclick="this.parentElement.remove()" class="absolute top-2 right-3 text-white opacity-70 hover:opacity-100 text-lg">&times;</button>
-            `;
-            document.body.appendChild(banner);
-
-            // Auto-remove after 30 seconds
-            setTimeout(() => banner.remove(), 30000);
+            window.open(
+                'https://voice.google.com/u/0/messages',
+                'GoogleVoice',
+                `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+            );
         }
 
         // Populate campaign dropdown
