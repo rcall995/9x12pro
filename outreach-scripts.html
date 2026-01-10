@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Outreach Scripts - 9x12 Pro</title>
+    <link rel="icon" type="image/png" href="/images/favicon.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .copy-btn:active { transform: scale(0.95); }
+        .template-card { transition: all 0.2s ease; }
+        .template-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+        .sequence-step { position: relative; }
+        .sequence-step:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            left: 24px;
+            top: 48px;
+            bottom: -24px;
+            width: 2px;
+            background: linear-gradient(to bottom, #8b5cf6, #c4b5fd);
+        }
+        .tab-btn.active { background: #8b5cf6; color: white; }
+        pre { white-space: pre-wrap; word-wrap: break-word; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-purple-50 via-white to-indigo-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b border-purple-100 sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <a href="/app.html" class="text-purple-600 hover:text-purple-800 transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                    </svg>
+                </a>
+                <h1 class="text-2xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
+                    Outreach Scripts
+                </h1>
+            </div>
+            <span class="text-sm text-gray-500">Copy & Customize</span>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-6xl mx-auto px-4 py-8">
+        <!-- Intro -->
+        <div class="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-6 mb-8 text-white">
+            <h2 class="text-xl font-bold mb-2">4-Email Sequence + Social Templates</h2>
+            <p class="text-purple-100">Proven outreach scripts for prospecting. Replace [BRACKETS] with your info. Use alongside Spark AI for best results.</p>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex flex-wrap gap-2 mb-8">
+            <button onclick="showTab('email')" class="tab-btn active px-4 py-2 rounded-lg font-semibold transition-all bg-gray-100 text-gray-700 hover:bg-purple-100">
+                Email Sequence
+            </button>
+            <button onclick="showTab('social')" class="tab-btn px-4 py-2 rounded-lg font-semibold transition-all bg-gray-100 text-gray-700 hover:bg-purple-100">
+                Social DMs
+            </button>
+            <button onclick="showTab('sms')" class="tab-btn px-4 py-2 rounded-lg font-semibold transition-all bg-gray-100 text-gray-700 hover:bg-purple-100">
+                SMS/Text
+            </button>
+            <button onclick="showTab('objections')" class="tab-btn px-4 py-2 rounded-lg font-semibold transition-all bg-gray-100 text-gray-700 hover:bg-purple-100">
+                Objection Handlers
+            </button>
+        </div>
+
+        <!-- EMAIL SEQUENCE TAB -->
+        <div id="tab-email" class="tab-content">
+            <div class="mb-6">
+                <h3 class="text-lg font-bold text-gray-800 mb-2">The 4-Email Sequence</h3>
+                <p class="text-gray-600 text-sm">Send these over 2-3 weeks. Most responses come after emails 2-4. Don't give up after one email!</p>
+            </div>
+
+            <div class="space-y-6">
+                <!-- Email 1 -->
+                <div class="sequence-step">
+                    <div class="template-card bg-white rounded-xl border-2 border-purple-200 p-6 shadow-sm">
+                        <div class="flex items-start gap-4 mb-4">
+                            <div class="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center text-white font-bold text-lg shrink-0">1</div>
+                            <div class="flex-1">
+                                <h4 class="font-bold text-gray-900">Initial Outreach</h4>
+                                <p class="text-sm text-gray-500">Day 1 - First contact</p>
+                            </div>
+                            <button onclick="copyTemplate('email1')" class="copy-btn px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-colors">
+                                Copy
+                            </button>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <p class="text-xs text-purple-600 font-semibold mb-2">SUBJECT:</p>
+                            <p class="text-sm text-gray-700 mb-4" id="email1-subject">Quick question about [BUSINESS_NAME]</p>
+                            <p class="text-xs text-purple-600 font-semibold mb-2">BODY:</p>
+                            <pre class="text-sm text-gray-700 font-sans" id="email1-body">Hi,
+
+We send out a community postcard called "The [ZIP] Spotlight" that goes to every home in [ZIP] - about [HOME_COUNT] households.
+
+We're filling spots for our next mailing and [BUSINESS_NAME] would be a great fit. You'd be the only [CATEGORY] on the card.
+
+Interested in the details?
+
+[YOUR_NAME]
+[YOUR_PHONE]</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Email 2 -->
+                <div class="sequence-step">
+                    <div class="template-card bg-white rounded-xl border-2 border-purple-200 p-6 shadow-sm">
+                        <div class="flex items-start gap-4 mb-4">
+                            <div class="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold text-lg shrink-0">2</div>
+                            <div class="flex-1">
+                                <h4 class="font-bold text-gray-900">Follow-Up #1</h4>
+                                <p class="text-sm text-gray-500">Day 3-5 - Gentle bump</p>
+                            </div>
+                            <button onclick="copyTemplate('email2')" class="copy-btn px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-colors">
+                                Copy
+                            </button>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <p class="text-xs text-purple-600 font-semibold mb-2">SUBJECT:</p>
+                            <p class="text-sm text-gray-700 mb-4" id="email2-subject">Re: Quick question about [BUSINESS_NAME]</p>
+                            <p class="text-xs text-purple-600 font-semibold mb-2">BODY:</p>
+                            <pre class="text-sm text-gray-700 font-sans" id="email2-body">Hi,
+
+Just following up on my note from a few days ago about The [ZIP] Spotlight postcard.
+
+I know you're busy - just wanted to make sure this didn't get buried.
+
+The [CATEGORY] spot is still open if you're interested.
+
+Worth a quick look?
+
+[YOUR_NAME]
+[YOUR_PHONE]</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Email 3 -->
+                <div class="sequence-step">
+                    <div class="template-card bg-white rounded-xl border-2 border-purple-200 p-6 shadow-sm">
+                        <div class="flex items-start gap-4 mb-4">
+                            <div class="w-12 h-12 bg-purple-400 rounded-full flex items-center justify-center text-white font-bold text-lg shrink-0">3</div>
+                            <div class="flex-1">
+                                <h4 class="font-bold text-gray-900">Follow-Up #2</h4>
+                                <p class="text-sm text-gray-500">Day 7-10 - Add value</p>
+                            </div>
+                            <button onclick="copyTemplate('email3')" class="copy-btn px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-colors">
+                                Copy
+                            </button>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <p class="text-xs text-purple-600 font-semibold mb-2">SUBJECT:</p>
+                            <p class="text-sm text-gray-700 mb-4" id="email3-subject">[CATEGORY] spot update - [ZIP] Spotlight</p>
+                            <p class="text-xs text-purple-600 font-semibold mb-2">BODY:</p>
+                            <pre class="text-sm text-gray-700 font-sans" id="email3-body">Hi,
+
+Wanted to give you a quick update - we're getting close to sending The [ZIP] Spotlight to print.
+
+A few things that might help:
+
+- Your ad reaches [HOME_COUNT] homes in [ZIP]
+- You'd be the ONLY [CATEGORY] on the card
+- We handle all the design work
+- It's a fraction of the cost of solo mailers
+
+If timing isn't right, no worries at all. Just let me know either way?
+
+[YOUR_NAME]
+[YOUR_PHONE]</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Email 4 -->
+                <div class="sequence-step">
+                    <div class="template-card bg-white rounded-xl border-2 border-purple-200 p-6 shadow-sm">
+                        <div class="flex items-start gap-4 mb-4">
+                            <div class="w-12 h-12 bg-purple-300 rounded-full flex items-center justify-center text-white font-bold text-lg shrink-0">4</div>
+                            <div class="flex-1">
+                                <h4 class="font-bold text-gray-900">Final Attempt</h4>
+                                <p class="text-sm text-gray-500">Day 14+ - Last chance</p>
+                            </div>
+                            <button onclick="copyTemplate('email4')" class="copy-btn px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-colors">
+                                Copy
+                            </button>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <p class="text-xs text-purple-600 font-semibold mb-2">SUBJECT:</p>
+                            <p class="text-sm text-gray-700 mb-4" id="email4-subject">Closing the loop - [BUSINESS_NAME]</p>
+                            <p class="text-xs text-purple-600 font-semibold mb-2">BODY:</p>
+                            <pre class="text-sm text-gray-700 font-sans" id="email4-body">Hi,
+
+I've reached out a few times about The [ZIP] Spotlight postcard and haven't heard back, so I'll assume the timing isn't right.
+
+No hard feelings at all - I'll take you off my list.
+
+If things change down the road, feel free to reach out. We do these mailings regularly and would love to have [BUSINESS_NAME] on a future card.
+
+All the best,
+[YOUR_NAME]
+[YOUR_PHONE]</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pro Tips -->
+            <div class="mt-8 bg-amber-50 border-2 border-amber-200 rounded-xl p-6">
+                <h4 class="font-bold text-amber-800 mb-3">Pro Tips from the Pros</h4>
+                <ul class="text-sm text-amber-900 space-y-2">
+                    <li><strong>Don't give up after email 1.</strong> Most responses come from emails 2-4.</li>
+                    <li><strong>Reply to your own thread.</strong> Keep subject line as "Re: ..." to stay in their inbox.</li>
+                    <li><strong>Time your sends.</strong> Tuesday-Thursday mornings work best. Avoid Mondays and Fridays.</li>
+                    <li><strong>The "breakup email" works.</strong> Email 4 often gets the most responses!</li>
+                    <li><strong>Call after email 4.</strong> "Hey, I sent a few emails - wanted to make sure I'm a real person!"</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- SOCIAL DMs TAB -->
+        <div id="tab-social" class="tab-content hidden">
+            <div class="mb-6">
+                <h3 class="text-lg font-bold text-gray-800 mb-2">Social Media DM Templates</h3>
+                <p class="text-gray-600 text-sm">Facebook Messenger and Instagram. Keep it short and casual - these aren't emails!</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-6">
+                <!-- Facebook Messenger -->
+                <div class="template-card bg-white rounded-xl border-2 border-blue-200 p-6 shadow-sm">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white text-xl">f</div>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-gray-900">Facebook Messenger</h4>
+                            <p class="text-xs text-gray-500">Message business pages</p>
+                        </div>
+                        <button onclick="copyTemplate('fb')" class="copy-btn px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors">
+                            Copy
+                        </button>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <pre class="text-sm text-gray-700 font-sans" id="fb-body">Hey! We put out a community postcard in [ZIP] that goes to about [HOME_COUNT] homes.
+
+We're filling spots for the next one and thought [BUSINESS_NAME] would be a great fit. You'd be the only [CATEGORY] on it.
+
+Would you want to see what it looks like?
+
+- [YOUR_NAME]</pre>
+                    </div>
+                </div>
+
+                <!-- Instagram DM -->
+                <div class="template-card bg-white rounded-xl border-2 border-pink-200 p-6 shadow-sm">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400 rounded-full flex items-center justify-center text-white text-xl">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073z"/></svg>
+                        </div>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-gray-900">Instagram DM</h4>
+                            <p class="text-xs text-gray-500">No message limits!</p>
+                        </div>
+                        <button onclick="copyTemplate('ig')" class="copy-btn px-3 py-1.5 bg-gradient-to-r from-purple-600 to-pink-500 text-white rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity">
+                            Copy
+                        </button>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <pre class="text-sm text-gray-700 font-sans" id="ig-body">Hey! Love what you're doing with [BUSINESS_NAME]!
+
+We do a community postcard in [ZIP] - thought you might be interested. You'd be the only [CATEGORY] featured.
+
+Want to see it?</pre>
+                    </div>
+                </div>
+
+                <!-- Facebook Follow-up -->
+                <div class="template-card bg-white rounded-xl border-2 border-blue-200 p-6 shadow-sm">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white text-xl">f</div>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-gray-900">FB Follow-up</h4>
+                            <p class="text-xs text-gray-500">If no response after 3-5 days</p>
+                        </div>
+                        <button onclick="copyTemplate('fb-followup')" class="copy-btn px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors">
+                            Copy
+                        </button>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <pre class="text-sm text-gray-700 font-sans" id="fb-followup-body">Hey just bumping this up - the [CATEGORY] spot is still open on our [ZIP] postcard if you're interested!
+
+No pressure either way.</pre>
+                    </div>
+                </div>
+
+                <!-- Instagram Follow-up -->
+                <div class="template-card bg-white rounded-xl border-2 border-pink-200 p-6 shadow-sm">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 bg-gradient-to-br from-purple-500 via-pink-400 to-orange-300 rounded-full flex items-center justify-center text-white text-xl">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073z"/></svg>
+                        </div>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-gray-900">IG Follow-up</h4>
+                            <p class="text-xs text-gray-500">If no response after 3-5 days</p>
+                        </div>
+                        <button onclick="copyTemplate('ig-followup')" class="copy-btn px-3 py-1.5 bg-gradient-to-r from-purple-600 to-pink-500 text-white rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity">
+                            Copy
+                        </button>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <pre class="text-sm text-gray-700 font-sans" id="ig-followup-body">Hey! Just following up on my message about the postcard. Still have the [CATEGORY] spot open if you're interested!</pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Social Tips -->
+            <div class="mt-8 bg-blue-50 border-2 border-blue-200 rounded-xl p-6">
+                <h4 class="font-bold text-blue-800 mb-3">Social DM Tips</h4>
+                <ul class="text-sm text-blue-900 space-y-2">
+                    <li><strong>Message BUSINESS pages on Facebook</strong> - they go to Meta Business Suite, not "Message Requests"</li>
+                    <li><strong>Instagram has NO message limits</strong> - unlike Facebook jail, you can send many more</li>
+                    <li><strong>Keep it SHORT</strong> - DMs aren't emails. 2-4 sentences max.</li>
+                    <li><strong>Night time works great</strong> - business owners check social after hours</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- SMS TAB -->
+        <div id="tab-sms" class="tab-content hidden">
+            <div class="mb-6">
+                <h3 class="text-lg font-bold text-gray-800 mb-2">SMS / Text Templates</h3>
+                <p class="text-gray-600 text-sm">Ultra short - like texting a friend. Only use if you have their mobile number.</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-6">
+                <!-- Initial Text -->
+                <div class="template-card bg-white rounded-xl border-2 border-green-200 p-6 shadow-sm">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center text-white text-xl">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                        </div>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-gray-900">Initial Text</h4>
+                            <p class="text-xs text-gray-500">First contact via SMS</p>
+                        </div>
+                        <button onclick="copyTemplate('sms1')" class="copy-btn px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors">
+                            Copy
+                        </button>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <pre class="text-sm text-gray-700 font-sans" id="sms1-body">Hey! This is [YOUR_NAME]. We do a community postcard in [ZIP] and have the [CATEGORY] spot open. Interested? I can send details.</pre>
+                    </div>
+                </div>
+
+                <!-- Text Follow-up -->
+                <div class="template-card bg-white rounded-xl border-2 border-green-200 p-6 shadow-sm">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white text-xl">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                        </div>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-gray-900">Text Follow-up</h4>
+                            <p class="text-xs text-gray-500">If no response</p>
+                        </div>
+                        <button onclick="copyTemplate('sms2')" class="copy-btn px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors">
+                            Copy
+                        </button>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <pre class="text-sm text-gray-700 font-sans" id="sms2-body">Hey just circling back on the postcard - still have the [CATEGORY] spot if you're interested. Let me know either way!</pre>
+                    </div>
+                </div>
+
+                <!-- After Email Sent -->
+                <div class="template-card bg-white rounded-xl border-2 border-green-200 p-6 shadow-sm">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 bg-green-400 rounded-full flex items-center justify-center text-white text-xl">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                        </div>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-gray-900">After Email</h4>
+                            <p class="text-xs text-gray-500">Text after sending emails</p>
+                        </div>
+                        <button onclick="copyTemplate('sms3')" class="copy-btn px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors">
+                            Copy
+                        </button>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <pre class="text-sm text-gray-700 font-sans" id="sms3-body">Hey it's [YOUR_NAME] - sent you an email about the [ZIP] postcard. Just wanted to make sure it didn't go to spam!</pre>
+                    </div>
+                </div>
+
+                <!-- Deadline Text -->
+                <div class="template-card bg-white rounded-xl border-2 border-green-200 p-6 shadow-sm">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center text-white text-xl">!</div>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-gray-900">Deadline Urgency</h4>
+                            <p class="text-xs text-gray-500">When card is almost full</p>
+                        </div>
+                        <button onclick="copyTemplate('sms4')" class="copy-btn px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors">
+                            Copy
+                        </button>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <pre class="text-sm text-gray-700 font-sans" id="sms4-body">Hey! Quick heads up - the [ZIP] postcard goes to print Friday. Still have the [CATEGORY] spot if you want it. Let me know!</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- OBJECTIONS TAB -->
+        <div id="tab-objections" class="tab-content hidden">
+            <div class="mb-6">
+                <h3 class="text-lg font-bold text-gray-800 mb-2">Objection Handlers</h3>
+                <p class="text-gray-600 text-sm">Quick responses to common pushback. Copy and customize as needed.</p>
+            </div>
+
+            <div class="space-y-4">
+                <!-- Objection 1 -->
+                <div class="template-card bg-white rounded-xl border-2 border-red-100 p-5 shadow-sm">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="flex-1">
+                            <p class="text-red-600 font-semibold text-sm mb-2">"I don't have the budget right now"</p>
+                            <p class="text-gray-700 text-sm" id="obj1">Totally understand - timing is everything. For what it's worth, this is a fraction of what solo mailers cost since we split it between businesses. But I'll keep you in mind for a future card when timing is better. Would that work?</p>
+                        </div>
+                        <button onclick="copyText('obj1')" class="copy-btn shrink-0 px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition-colors">
+                            Copy
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Objection 2 -->
+                <div class="template-card bg-white rounded-xl border-2 border-red-100 p-5 shadow-sm">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="flex-1">
+                            <p class="text-red-600 font-semibold text-sm mb-2">"Direct mail doesn't work"</p>
+                            <p class="text-gray-700 text-sm" id="obj2">I hear that a lot, and honestly some direct mail doesn't work. The difference here is saturation - we're hitting EVERY home in [ZIP], not a random list. And you're the only [CATEGORY] on the card, so there's no competition for attention. Most of our advertisers see the best results after 2-3 mailings when people start recognizing their name.</p>
+                        </div>
+                        <button onclick="copyText('obj2')" class="copy-btn shrink-0 px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition-colors">
+                            Copy
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Objection 3 -->
+                <div class="template-card bg-white rounded-xl border-2 border-red-100 p-5 shadow-sm">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="flex-1">
+                            <p class="text-red-600 font-semibold text-sm mb-2">"I just do word of mouth / referrals"</p>
+                            <p class="text-gray-700 text-sm" id="obj3">Word of mouth is the best! This actually helps with that - when your name is in front of [HOME_COUNT] households, people remember you when their neighbor asks for a recommendation. It's like priming the pump for referrals.</p>
+                        </div>
+                        <button onclick="copyText('obj3')" class="copy-btn shrink-0 px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition-colors">
+                            Copy
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Objection 4 -->
+                <div class="template-card bg-white rounded-xl border-2 border-red-100 p-5 shadow-sm">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="flex-1">
+                            <p class="text-red-600 font-semibold text-sm mb-2">"I already do Facebook/Google ads"</p>
+                            <p class="text-gray-700 text-sm" id="obj4">Those are great for people actively searching! This hits a different audience - the people who WOULD use a [CATEGORY] but aren't actively looking yet. Plus, direct mail has a 4.4% response rate vs about 0.6% for digital. Most successful businesses do both.</p>
+                        </div>
+                        <button onclick="copyText('obj4')" class="copy-btn shrink-0 px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition-colors">
+                            Copy
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Objection 5 -->
+                <div class="template-card bg-white rounded-xl border-2 border-red-100 p-5 shadow-sm">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="flex-1">
+                            <p class="text-red-600 font-semibold text-sm mb-2">"I'm too busy / have too much work already"</p>
+                            <p class="text-gray-700 text-sm" id="obj5">That's a great problem to have! A lot of our advertisers use these mailings to stay visible during their slow season, or to be picky about jobs. When you're in front of [HOME_COUNT] homes regularly, you can choose the jobs you want instead of taking everything that comes in.</p>
+                        </div>
+                        <button onclick="copyText('obj5')" class="copy-btn shrink-0 px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition-colors">
+                            Copy
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Objection 6 -->
+                <div class="template-card bg-white rounded-xl border-2 border-red-100 p-5 shadow-sm">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="flex-1">
+                            <p class="text-red-600 font-semibold text-sm mb-2">"Send me some info and I'll think about it"</p>
+                            <p class="text-gray-700 text-sm" id="obj6">Absolutely! What's the best email? [GET EMAIL] I'll send that right over. Just so I know how to follow up - are you looking at this for the upcoming mailing or more for down the road?</p>
+                        </div>
+                        <button onclick="copyText('obj6')" class="copy-btn shrink-0 px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition-colors">
+                            Copy
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Objection 7 -->
+                <div class="template-card bg-white rounded-xl border-2 border-red-100 p-5 shadow-sm">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="flex-1">
+                            <p class="text-red-600 font-semibold text-sm mb-2">"How do I know this actually works?"</p>
+                            <p class="text-gray-700 text-sm" id="obj7">Great question. We've had [X] businesses advertise with us so far, and many of them renew month after month because they see results. I can put you in touch with a current advertiser if you want to hear it directly from them. Or you could try one mailing and see for yourself - no long-term commitment required.</p>
+                        </div>
+                        <button onclick="copyText('obj7')" class="copy-btn shrink-0 px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition-colors">
+                            Copy
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast -->
+    <div id="toast" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 px-6 py-3 bg-gray-900 text-white rounded-xl shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none z-50">
+        <span id="toast-message">Copied!</span>
+    </div>
+
+    <script>
+        // Tab switching
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
+            // Deactivate all buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            // Show selected tab
+            document.getElementById('tab-' + tabName).classList.remove('hidden');
+            // Activate button
+            event.target.classList.add('active');
+        }
+
+        // Copy template
+        function copyTemplate(id) {
+            let text = '';
+            const subjectEl = document.getElementById(id + '-subject');
+            const bodyEl = document.getElementById(id + '-body');
+
+            if (subjectEl) {
+                text = 'Subject: ' + subjectEl.textContent.trim() + '\n\n';
+            }
+            if (bodyEl) {
+                text += bodyEl.textContent.trim();
+            }
+
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('Copied to clipboard!');
+            }).catch(() => {
+                showToast('Failed to copy');
+            });
+        }
+
+        // Copy single text element
+        function copyText(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                navigator.clipboard.writeText(el.textContent.trim()).then(() => {
+                    showToast('Copied to clipboard!');
+                }).catch(() => {
+                    showToast('Failed to copy');
+                });
+            }
+        }
+
+        // Toast notification
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toast-message');
+            toastMessage.textContent = message;
+            toast.classList.remove('opacity-0');
+            toast.classList.add('opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0');
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
