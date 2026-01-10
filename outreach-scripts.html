@@ -134,14 +134,15 @@
             </button>
         </div>
 
-        <!-- Campaign Selector -->
-        <div id="campaignSelector" class="bg-white border-2 border-purple-200 rounded-xl p-4 mb-8">
+        <!-- Campaign & Business Selector -->
+        <div id="campaignSelector" class="bg-white border-2 border-purple-200 rounded-xl p-4 mb-8 space-y-3">
+            <!-- Campaign Row -->
             <div class="flex flex-wrap items-center gap-4">
                 <div class="flex items-center gap-2">
                     <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
                     </svg>
-                    <label class="font-semibold text-gray-700">Select Campaign:</label>
+                    <label class="font-semibold text-gray-700 w-28">Campaign:</label>
                 </div>
                 <select id="campaignDropdown" onchange="onCampaignSelect()" class="flex-1 min-w-[200px] px-4 py-2 border-2 border-gray-200 rounded-lg text-sm font-medium focus:border-purple-500 focus:outline-none">
                     <option value="">-- Choose a campaign to auto-fill --</option>
@@ -150,8 +151,23 @@
                     <span id="campaignInfoText"></span>
                 </div>
             </div>
+            <!-- Business Row -->
+            <div class="flex flex-wrap items-center gap-4">
+                <div class="flex items-center gap-2">
+                    <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                    </svg>
+                    <label class="font-semibold text-gray-700 w-28">Business:</label>
+                </div>
+                <select id="businessDropdown" onchange="onBusinessSelect()" class="flex-1 min-w-[200px] px-4 py-2 border-2 border-gray-200 rounded-lg text-sm font-medium focus:border-indigo-500 focus:outline-none">
+                    <option value="">-- Select a business from your pipeline --</option>
+                </select>
+                <div id="businessInfo" class="hidden text-sm text-gray-600 bg-indigo-50 px-3 py-2 rounded-lg">
+                    <span id="businessInfoText"></span>
+                </div>
+            </div>
             <p id="campaignLoginMsg" class="hidden text-sm text-amber-600 mt-2">
-                <a href="/app.html" class="underline font-medium">Sign in to 9x12 Pro</a> to load your campaigns
+                <a href="/app.html" class="underline font-medium">Sign in to 9x12 Pro</a> to load your campaigns and pipeline
             </p>
         </div>
 
@@ -727,10 +743,13 @@ No pressure either way.`
             zipCode: '',      // Actual ZIP code like "14217"
             areaName: '',     // Area/town name like "Kenmore"
             homeCount: '5,000',
-            postcardName: ''
+            postcardName: '',
+            businessName: '',  // Selected business name
+            category: ''       // Selected business category
         };
         let templates = {};
         let objections = [];
+        let pipelineBusinesses = []; // Businesses from kanban pipeline
 
         // Load on page load
         document.addEventListener('DOMContentLoaded', async () => {
@@ -761,9 +780,10 @@ No pressure either way.`
 
                 if (session && session.user && session.user.email) {
                     console.log('✅ User logged in:', session.user.email);
-                    // User is logged in, load their campaigns and pricing data
+                    // User is logged in, load their campaigns, pricing data, and pipeline
                     await loadPricingData(session.user.email);
                     await loadCampaigns(session.user.email);
+                    await loadPipelineBusinesses(session.user.email);
                 } else {
                     console.log('❌ No session found');
                     // Not logged in, show login message
@@ -832,6 +852,123 @@ No pressure either way.`
                 console.error('❌ Failed to load campaigns:', err);
                 const dropdown = document.getElementById('campaignDropdown');
                 dropdown.innerHTML = '<option value="">Error loading campaigns</option>';
+            }
+        }
+
+        // Load pipeline businesses from Supabase (kanban data)
+        async function loadPipelineBusinesses(userEmail) {
+            console.log('📥 Loading pipeline businesses for:', userEmail);
+            try {
+                const { data, error } = await supabaseClient
+                    .from('app_data')
+                    .select('data')
+                    .eq('user_email', userEmail)
+                    .eq('data_type', 'kanban')
+                    .single();
+
+                if (error && error.code !== 'PGRST116') {
+                    console.error('Pipeline load error:', error);
+                    return;
+                }
+
+                if (data && data.data && data.data.columns) {
+                    // Collect businesses from all pipeline columns
+                    const allBusinesses = [];
+                    const columns = data.data.columns;
+
+                    // Define column order for grouping
+                    const columnOrder = ['prospect-list', 'to-contact', 'in-progress', 'follow-up', 'closed'];
+                    const columnNames = {
+                        'prospect-list': 'Prospect List',
+                        'to-contact': 'To Contact',
+                        'in-progress': 'In Progress',
+                        'follow-up': 'Follow Up',
+                        'closed': 'Closed'
+                    };
+
+                    columnOrder.forEach(colId => {
+                        const items = columns[colId] || [];
+                        items.forEach(item => {
+                            allBusinesses.push({
+                                ...item,
+                                pipelineStage: columnNames[colId] || colId
+                            });
+                        });
+                    });
+
+                    pipelineBusinesses = allBusinesses;
+                    console.log('✅ Pipeline businesses loaded:', pipelineBusinesses.length);
+                    populateBusinessDropdown();
+                } else {
+                    console.log('⚠️ No pipeline data found');
+                    const dropdown = document.getElementById('businessDropdown');
+                    dropdown.innerHTML = '<option value="">No businesses in pipeline yet</option>';
+                }
+            } catch (err) {
+                console.error('❌ Failed to load pipeline:', err);
+            }
+        }
+
+        // Populate business dropdown
+        function populateBusinessDropdown() {
+            const dropdown = document.getElementById('businessDropdown');
+            dropdown.innerHTML = '<option value="">-- Select a business from your pipeline --</option>';
+
+            if (pipelineBusinesses.length === 0) {
+                dropdown.innerHTML = '<option value="">No businesses in pipeline</option>';
+                return;
+            }
+
+            // Group by pipeline stage
+            const grouped = {};
+            pipelineBusinesses.forEach((biz, index) => {
+                const stage = biz.pipelineStage || 'Other';
+                if (!grouped[stage]) grouped[stage] = [];
+                grouped[stage].push({ ...biz, originalIndex: index });
+            });
+
+            // Create optgroups for each stage
+            Object.keys(grouped).forEach(stage => {
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = `📌 ${stage}`;
+
+                grouped[stage].forEach(biz => {
+                    const option = document.createElement('option');
+                    option.value = biz.originalIndex;
+                    const category = biz.category ? ` (${biz.category})` : '';
+                    option.textContent = `${biz.businessName || biz.name || 'Unknown'}${category}`;
+                    optgroup.appendChild(option);
+                });
+
+                dropdown.appendChild(optgroup);
+            });
+        }
+
+        // Handle business selection
+        function onBusinessSelect() {
+            const dropdown = document.getElementById('businessDropdown');
+            const infoDiv = document.getElementById('businessInfo');
+            const infoText = document.getElementById('businessInfoText');
+            const selectedIndex = dropdown.value;
+
+            if (selectedIndex === '' || selectedIndex === null) {
+                infoDiv.classList.add('hidden');
+                settings.businessName = '';
+                settings.category = '';
+            } else {
+                const business = pipelineBusinesses[parseInt(selectedIndex)];
+                if (business) {
+                    settings.businessName = business.businessName || business.name || '';
+                    settings.category = business.category || '';
+
+                    // Show info
+                    const categoryText = settings.category ? ` • ${settings.category}` : '';
+                    infoText.textContent = `${settings.businessName}${categoryText}`;
+                    infoDiv.classList.remove('hidden');
+
+                    // Re-render templates with new business info
+                    renderAllTemplates();
+                }
             }
         }
 
@@ -1033,7 +1170,9 @@ No pressure either way.`
                 .replace(/\[AREA\]/g, settings.areaName || '[AREA]')
                 .replace(/\[POSTCARD_NAME\]/g, settings.postcardName || '[POSTCARD_NAME]')
                 .replace(/\[HOME_COUNT\]/g, settings.homeCount || '[HOME_COUNT]')
-                .replace(/\[SPOT_PRICE\]/g, settings.spotPrice || '[SPOT_PRICE]');
+                .replace(/\[SPOT_PRICE\]/g, settings.spotPrice || '[SPOT_PRICE]')
+                .replace(/\[BUSINESS_NAME\]/g, settings.businessName || '[BUSINESS_NAME]')
+                .replace(/\[CATEGORY\]/g, settings.category || '[CATEGORY]');
         }
 
         function highlightPlaceholders(text) {
