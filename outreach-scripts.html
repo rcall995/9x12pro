@@ -873,10 +873,11 @@ No pressure either way.`
                     return;
                 }
 
-                if (data && data.data && data.data.columns) {
+                // data.data IS the columns object directly (not data.data.columns)
+                if (data && data.data) {
                     // Collect businesses from all pipeline columns
                     const allBusinesses = [];
-                    const columns = data.data.columns;
+                    const columns = data.data;  // columns object is stored directly
                     console.log('📋 Pipeline columns found:', Object.keys(columns));
 
                     // Define column order for grouping (matching actual kanban column IDs)
@@ -902,10 +903,7 @@ No pressure either way.`
                     console.log('✅ Pipeline businesses loaded:', pipelineBusinesses.length);
                     populateBusinessDropdown();
                 } else {
-                    console.log('⚠️ No pipeline data found - data structure:', data);
-                    if (data && data.data) {
-                        console.log('⚠️ data.data keys:', Object.keys(data.data));
-                    }
+                    console.log('⚠️ No pipeline data found');
                     const dropdown = document.getElementById('businessDropdown');
                     dropdown.innerHTML = '<option value="">No businesses in pipeline yet</option>';
                 }
