@@ -206,7 +206,12 @@
                             </div>
                         </div>
                         <div class="bg-gray-50 rounded-lg p-4">
-                            <p class="text-xs text-purple-600 font-semibold mb-2">SUBJECT:</p>
+                            <div class="flex items-center gap-2 mb-2">
+                                <p class="text-xs text-purple-600 font-semibold">SUBJECT:</p>
+                                <select onchange="selectSubjectLine('email1', this.value)" class="subject-dropdown text-xs border border-purple-300 rounded px-2 py-1 bg-white text-gray-600 cursor-pointer hover:border-purple-500">
+                                    <option value="">-- Pick a subject --</option>
+                                </select>
+                            </div>
                             <p class="text-sm text-gray-700 mb-4 template-subject" id="email1-subject"></p>
                             <input type="text" class="template-subject-edit hidden w-full px-3 py-2 border-2 border-purple-500 rounded-lg text-sm mb-4" id="email1-subject-edit">
                             <p class="text-xs text-purple-600 font-semibold mb-2">BODY:</p>
@@ -244,7 +249,12 @@
                             </div>
                         </div>
                         <div class="bg-gray-50 rounded-lg p-4">
-                            <p class="text-xs text-purple-600 font-semibold mb-2">SUBJECT:</p>
+                            <div class="flex items-center gap-2 mb-2">
+                                <p class="text-xs text-purple-600 font-semibold">SUBJECT:</p>
+                                <select onchange="selectSubjectLine('email2', this.value)" class="subject-dropdown text-xs border border-purple-300 rounded px-2 py-1 bg-white text-gray-600 cursor-pointer hover:border-purple-500">
+                                    <option value="">-- Pick a subject --</option>
+                                </select>
+                            </div>
                             <p class="text-sm text-gray-700 mb-4 template-subject" id="email2-subject"></p>
                             <input type="text" class="template-subject-edit hidden w-full px-3 py-2 border-2 border-purple-500 rounded-lg text-sm mb-4" id="email2-subject-edit">
                             <p class="text-xs text-purple-600 font-semibold mb-2">BODY:</p>
@@ -282,7 +292,12 @@
                             </div>
                         </div>
                         <div class="bg-gray-50 rounded-lg p-4">
-                            <p class="text-xs text-purple-600 font-semibold mb-2">SUBJECT:</p>
+                            <div class="flex items-center gap-2 mb-2">
+                                <p class="text-xs text-purple-600 font-semibold">SUBJECT:</p>
+                                <select onchange="selectSubjectLine('email3', this.value)" class="subject-dropdown text-xs border border-purple-300 rounded px-2 py-1 bg-white text-gray-600 cursor-pointer hover:border-purple-500">
+                                    <option value="">-- Pick a subject --</option>
+                                </select>
+                            </div>
                             <p class="text-sm text-gray-700 mb-4 template-subject" id="email3-subject"></p>
                             <input type="text" class="template-subject-edit hidden w-full px-3 py-2 border-2 border-purple-500 rounded-lg text-sm mb-4" id="email3-subject-edit">
                             <p class="text-xs text-purple-600 font-semibold mb-2">BODY:</p>
@@ -320,7 +335,12 @@
                             </div>
                         </div>
                         <div class="bg-gray-50 rounded-lg p-4">
-                            <p class="text-xs text-purple-600 font-semibold mb-2">SUBJECT:</p>
+                            <div class="flex items-center gap-2 mb-2">
+                                <p class="text-xs text-purple-600 font-semibold">SUBJECT:</p>
+                                <select onchange="selectSubjectLine('email4', this.value)" class="subject-dropdown text-xs border border-purple-300 rounded px-2 py-1 bg-white text-gray-600 cursor-pointer hover:border-purple-500">
+                                    <option value="">-- Pick a subject --</option>
+                                </select>
+                            </div>
                             <p class="text-sm text-gray-700 mb-4 template-subject" id="email4-subject"></p>
                             <input type="text" class="template-subject-edit hidden w-full px-3 py-2 border-2 border-purple-500 rounded-lg text-sm mb-4" id="email4-subject-edit">
                             <p class="text-xs text-purple-600 font-semibold mb-2">BODY:</p>
@@ -1047,6 +1067,22 @@ No pressure either way.`
             { id: 'obj10', objection: "What if I don't get any calls?", response: "Direct mail is about consistent presence, not just one-time hits. Most advertisers see the best results after 2-3 mailings when people start recognizing their name. That said, your cost is low enough that even 1-2 new customers covers your investment. And there's no long-term contract - try one and see how it goes." }
         ];
 
+        // Subject line options for variety
+        const SUBJECT_LINE_OPTIONS = [
+            '[AREA] postcard - [CATEGORY] spot',
+            '[BUSINESS_NAME] + [HOME_COUNT] mailboxes',
+            'Idea for [BUSINESS_NAME]',
+            '[AREA] homeowners',
+            '[BUSINESS_NAME]',
+            'Postcard going out to [AREA]',
+            'Your [CATEGORY] spot in [AREA]',
+            '[HOME_COUNT] [AREA] homes',
+            'Quick question for [BUSINESS_NAME]',
+            '[CATEGORY] advertising in [AREA]',
+            'Local postcard opportunity',
+            'Re: [AREA] community card'
+        ];
+
         // State
         let settings = {
             yourName: '',
@@ -1567,6 +1603,53 @@ No pressure either way.`
                     bodyEl.innerHTML = highlightPlaceholders(fillVariables(template.body));
                 }
             });
+
+            // Refresh subject dropdowns with current variable values
+            refreshSubjectDropdowns();
+        }
+
+        // Refresh subject dropdown previews (without changing selection)
+        function refreshSubjectDropdowns() {
+            const dropdowns = document.querySelectorAll('.subject-dropdown');
+            dropdowns.forEach(dropdown => {
+                const currentValue = dropdown.value;
+                dropdown.innerHTML = '<option value="">-- Pick a subject --</option>';
+                SUBJECT_LINE_OPTIONS.forEach((subject, index) => {
+                    const option = document.createElement('option');
+                    option.value = index;
+                    option.textContent = fillVariables(subject);
+                    dropdown.appendChild(option);
+                });
+                dropdown.value = currentValue; // Restore selection
+            });
+        }
+
+        // Populate subject line dropdowns
+        function populateSubjectDropdowns() {
+            const dropdowns = document.querySelectorAll('.subject-dropdown');
+            dropdowns.forEach(dropdown => {
+                // Keep the first "-- Pick a subject --" option
+                dropdown.innerHTML = '<option value="">-- Pick a subject --</option>';
+                SUBJECT_LINE_OPTIONS.forEach((subject, index) => {
+                    const option = document.createElement('option');
+                    option.value = index;
+                    option.textContent = fillVariables(subject);
+                    dropdown.appendChild(option);
+                });
+            });
+        }
+
+        // Handle subject line selection
+        function selectSubjectLine(templateId, optionIndex) {
+            if (optionIndex === '' || optionIndex === null) return;
+
+            const selectedSubject = SUBJECT_LINE_OPTIONS[parseInt(optionIndex)];
+            if (selectedSubject && templates[templateId]) {
+                templates[templateId].subject = selectedSubject;
+                saveTemplates();
+                renderAllTemplates();
+                showToast('Subject updated!');
+            }
         }
 
         function toggleEdit(id) {
