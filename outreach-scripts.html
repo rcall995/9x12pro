@@ -852,10 +852,13 @@ No pressure either way.`
 
         // Extract just the town/area name from full postcard name
         function extractTownName(fullName) {
-            // Remove common suffixes to get just the geographic area
+            // Remove common prefixes and suffixes to get just the geographic area
             let town = fullName
+                .replace(/^The\s+/gi, '')  // Remove leading "The "
                 .replace(/\s*Small Business Spotlight\s*/gi, '')
                 .replace(/\s*Business Spotlight\s*/gi, '')
+                .replace(/\s*Community Savings Card\s*/gi, '')
+                .replace(/\s*Savings Card\s*/gi, '')
                 .replace(/\s*Spotlight\s*/gi, '')
                 .replace(/\s*Postcard\s*/gi, '')
                 .replace(/\s*Mailer\s*/gi, '')
