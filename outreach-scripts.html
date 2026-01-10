@@ -866,6 +866,8 @@ No pressure either way.`
                     .eq('data_type', 'kanban')
                     .single();
 
+                console.log('📊 Kanban query result - data:', data, 'error:', error);
+
                 if (error && error.code !== 'PGRST116') {
                     console.error('Pipeline load error:', error);
                     return;
@@ -875,15 +877,15 @@ No pressure either way.`
                     // Collect businesses from all pipeline columns
                     const allBusinesses = [];
                     const columns = data.data.columns;
+                    console.log('📋 Pipeline columns found:', Object.keys(columns));
 
-                    // Define column order for grouping
-                    const columnOrder = ['prospect-list', 'to-contact', 'in-progress', 'follow-up', 'closed'];
+                    // Define column order for grouping (matching actual kanban column IDs)
+                    const columnOrder = ['prospect-list', 'to-contact', 'in-progress', 'committed'];
                     const columnNames = {
                         'prospect-list': 'Prospect List',
                         'to-contact': 'To Contact',
                         'in-progress': 'In Progress',
-                        'follow-up': 'Follow Up',
-                        'closed': 'Closed'
+                        'committed': 'Committed'
                     };
 
                     columnOrder.forEach(colId => {
@@ -900,7 +902,10 @@ No pressure either way.`
                     console.log('✅ Pipeline businesses loaded:', pipelineBusinesses.length);
                     populateBusinessDropdown();
                 } else {
-                    console.log('⚠️ No pipeline data found');
+                    console.log('⚠️ No pipeline data found - data structure:', data);
+                    if (data && data.data) {
+                        console.log('⚠️ data.data keys:', Object.keys(data.data));
+                    }
                     const dropdown = document.getElementById('businessDropdown');
                     dropdown.innerHTML = '<option value="">No businesses in pipeline yet</option>';
                 }
