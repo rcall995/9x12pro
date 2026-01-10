@@ -1004,13 +1004,36 @@ No pressure either way.`
                 // Mobile: Use native SMS
                 window.location.href = `sms:${cleanPhone}`;
             } else {
-                // Desktop: Open Google Voice with phone number pre-filled
-                // Format: +1XXXXXXXXXX for US numbers
-                const formattedPhone = cleanPhone.length === 10 ? `+1${cleanPhone}` : `+${cleanPhone}`;
-                const googleVoiceUrl = `https://voice.google.com/u/0/messages?phoneNumber=${encodeURIComponent(formattedPhone)}`;
-                window.open(googleVoiceUrl, '_blank');
-                showToast(`💬 Google Voice opened for ${settings.businessName}`);
+                // Desktop: Copy phone to clipboard and open Google Voice
+                navigator.clipboard.writeText(settings.businessPhone).then(() => {
+                    window.open('https://voice.google.com/u/0/messages', '_blank');
+                    showPhoneBanner(settings.businessPhone, settings.businessName);
+                }).catch(() => {
+                    window.open('https://voice.google.com/u/0/messages', '_blank');
+                    showPhoneBanner(settings.businessPhone, settings.businessName);
+                });
             }
+        }
+
+        // Show a persistent banner with phone number
+        function showPhoneBanner(phone, businessName) {
+            // Remove existing banner if any
+            const existing = document.getElementById('phoneBanner');
+            if (existing) existing.remove();
+
+            const banner = document.createElement('div');
+            banner.id = 'phoneBanner';
+            banner.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-6 py-4 rounded-xl shadow-2xl z-[9999] text-center';
+            banner.innerHTML = `
+                <div class="text-sm opacity-90 mb-1">📋 Phone copied for ${businessName}</div>
+                <div class="text-2xl font-bold tracking-wide">${phone}</div>
+                <div class="text-xs opacity-75 mt-2">Paste in Google Voice → then copy your template</div>
+                <button onclick="this.parentElement.remove()" class="absolute top-2 right-3 text-white opacity-70 hover:opacity-100 text-lg">&times;</button>
+            `;
+            document.body.appendChild(banner);
+
+            // Auto-remove after 30 seconds
+            setTimeout(() => banner.remove(), 30000);
         }
 
         // Populate campaign dropdown
