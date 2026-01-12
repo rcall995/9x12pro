@@ -9517,7 +9517,8 @@ function moveProspectFromPool(prospectId) {
     actualZip: zipCode, // Also set actualZip for pool renderer
     address: prospect.address || prospect.vicinity || '',
     mailerId: prospect.mailerId || state.current?.Mailer_ID,
-    movedBackDate: new Date().toISOString()
+    movedBackDate: new Date().toISOString(),
+    doNotContact: prospect.doNotContact || false // Preserve Do Not Contact status
   };
 
   // Add to prospecting
@@ -16398,14 +16399,18 @@ async function moveProspectBackToPool(leadId, event) {
     return false;
   });
 
+  // Create the prospect object to add to pool (preserving doNotContact)
+  const poolProspect = {
+    ...prospect,
+    isEnriched: false, // Reset styling
+    enriched: false, // Reset so it can be re-enriched when added to kanban again
+    doNotContact: prospect.doNotContact || false // Explicitly preserve doNotContact
+  };
+
   if (!alreadyInPool) {
-    prospectPoolState.manualProspects.push({
-      ...prospect,
-      isEnriched: false, // Reset styling
-      enriched: false // Reset so it can be re-enriched when added to kanban again
-    });
+    prospectPoolState.manualProspects.push(poolProspect);
   } else {
-    // Update existing entry to reset enriched flag
+    // Update existing entry to reset enriched flag but preserve doNotContact
     const existingIndex = prospectPoolState.manualProspects.findIndex(p => {
       if (prospect.placeId && p.placeId) return p.placeId === prospect.placeId;
       if (prospect.businessName && p.businessName) return p.businessName.toLowerCase() === prospect.businessName.toLowerCase();
@@ -16414,12 +16419,27 @@ async function moveProspectBackToPool(leadId, event) {
     if (existingIndex !== -1) {
       prospectPoolState.manualProspects[existingIndex] = {
         ...prospectPoolState.manualProspects[existingIndex],
-        ...prospect,
-        isEnriched: false,
-        enriched: false // Reset so it can be re-enriched
+        ...poolProspect
       };
     }
     console.log(`🔄 Prospect "${prospectName}" already in pool - reset for re-enrichment`);
+  }
+
+  // Also update allBusinesses if it exists (for enriched prospects view)
+  if (prospectPoolState.allBusinesses) {
+    const allBizIndex = prospectPoolState.allBusinesses.findIndex(b =>
+      b && ((prospect.placeId && b.placeId === prospect.placeId) ||
+            (prospect.businessName && b.businessName?.toLowerCase() === prospect.businessName.toLowerCase()))
+    );
+    if (allBizIndex !== -1) {
+      prospectPoolState.allBusinesses[allBizIndex] = {
+        ...prospectPoolState.allBusinesses[allBizIndex],
+        doNotContact: prospect.doNotContact || false
+      };
+    } else {
+      // Add to allBusinesses if not found
+      prospectPoolState.allBusinesses.push(poolProspect);
+    }
   }
 
   // Clear from selection if it was selected
