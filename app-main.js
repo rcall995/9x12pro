@@ -16718,39 +16718,48 @@ window.toggleDoNotContact = toggleDoNotContact;
 
 // Toggle Do Not Contact for prospects in the pool
 async function togglePoolDoNotContact(prospectId) {
-  // Find in prospectPoolState
   let found = false;
+  let newValue = false;
+
+  // Helper to match prospect by ID
+  const matchesId = (b) => b && (String(b.placeId) === String(prospectId) || String(b.id) === String(prospectId));
 
   // Check allBusinesses (enriched prospects)
   if (prospectPoolState.allBusinesses) {
-    const biz = prospectPoolState.allBusinesses.find(b =>
-      b && (String(b.placeId) === String(prospectId) || String(b.id) === String(prospectId))
-    );
+    const biz = prospectPoolState.allBusinesses.find(matchesId);
     if (biz) {
       biz.doNotContact = !biz.doNotContact;
+      newValue = biz.doNotContact;
+      found = true;
+    }
+  }
+
+  // Check manualProspects (prospects moved back from kanban)
+  if (prospectPoolState.manualProspects) {
+    const manualBiz = prospectPoolState.manualProspects.find(matchesId);
+    if (manualBiz) {
+      manualBiz.doNotContact = found ? newValue : !manualBiz.doNotContact;
+      if (!found) newValue = manualBiz.doNotContact;
       found = true;
     }
   }
 
   // Check categories (raw prospects from search)
-  if (!found && prospectPoolState.categories) {
+  if (prospectPoolState.categories) {
     for (const categoryKey of Object.keys(prospectPoolState.categories)) {
       const businesses = prospectPoolState.categories[categoryKey].businesses || [];
-      const biz = businesses.find(b =>
-        b && (String(b.placeId) === String(prospectId) || String(b.id) === String(prospectId))
-      );
+      const biz = businesses.find(matchesId);
       if (biz) {
-        biz.doNotContact = !biz.doNotContact;
+        biz.doNotContact = found ? newValue : !biz.doNotContact;
+        if (!found) newValue = biz.doNotContact;
         found = true;
-        break;
       }
     }
   }
 
-  // Check renderedProspects
-  if (!found && prospectPoolState.renderedProspects && prospectPoolState.renderedProspects[prospectId]) {
-    prospectPoolState.renderedProspects[prospectId].doNotContact = !prospectPoolState.renderedProspects[prospectId].doNotContact;
-    found = true;
+  // Also update renderedProspects lookup (used during rendering)
+  if (prospectPoolState.renderedProspects && prospectPoolState.renderedProspects[prospectId]) {
+    prospectPoolState.renderedProspects[prospectId].doNotContact = newValue;
   }
 
   if (found) {
@@ -16758,15 +16767,21 @@ async function togglePoolDoNotContact(prospectId) {
     try {
       const poolData = {
         allBusinesses: prospectPoolState.allBusinesses || [],
-        categories: prospectPoolState.categories || {}
+        categories: prospectPoolState.categories || {},
+        manualProspects: prospectPoolState.manualProspects || []
       };
       await saveToCloud('prospectPool', poolData);
+      // Also save manualProspects separately
+      await saveManualProspects();
     } catch (err) {
       console.error('Failed to save pool do not contact:', err);
     }
 
     renderProspectPool();
-    toast('🚫 Do Not Contact toggled', true);
+    toast(newValue ? '🚫 Marked as Do Not Contact' : '✓ Removed Do Not Contact', true);
+  } else {
+    console.warn('togglePoolDoNotContact: Prospect not found', prospectId);
+    toast('Prospect not found', false);
   }
 }
 
