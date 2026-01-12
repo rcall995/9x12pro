@@ -7889,7 +7889,7 @@ async function addSelectedProspects() {
         facebook: '',
         instagram: '',
         category: business.category || 'other',
-        zipCode: business.zipCode || null, // Tag with ZIP code from search
+        zipCode: truncateZipTo5(business.zipCode) || null, // Tag with ZIP code from search (5 digits only)
         mailerId: state.current?.Mailer_ID || null, // Tag with current postcard
         addedDate: new Date().toISOString(),
         interactions: [] // Interaction history: [{date, type, notes, nextFollowUp}]
@@ -9278,9 +9278,9 @@ async function moveSelectedToPool() {
         address: lead.address || existing.address,
         notes: lead.notes || existing.notes,
         category: lead.category || existing.category,
-        // ZIP codes - preserve existing if lead has null/undefined
-        zipCode: lead.zipCode || lead.actualZip || lead.zip || existing.zipCode || existing.actualZip || existing.zip,
-        actualZip: lead.actualZip || lead.zipCode || lead.zip || existing.actualZip || existing.zipCode || existing.zip,
+        // ZIP codes - preserve existing if lead has null/undefined (truncate to 5 digits)
+        zipCode: truncateZipTo5(lead.zipCode || lead.actualZip || lead.zip || existing.zipCode || existing.actualZip || existing.zip),
+        actualZip: truncateZipTo5(lead.actualZip || lead.zipCode || lead.zip || existing.actualZip || existing.zipCode || existing.zip),
         zip: lead.zip || lead.zipCode || lead.actualZip || existing.zip || existing.zipCode || existing.actualZip,
         placeId: lead.placeId || existing.placeId,
         // Always update these
@@ -9494,7 +9494,7 @@ function moveProspectFromPool(prospectId) {
   // Build a proper lead object for the kanban
   // HERE API uses 'title', Google uses 'name', manual prospects use 'businessName'
   const businessName = prospect.businessName || prospect.name || prospect.title || 'Unknown Business';
-  const zipCode = prospect.zipCode || prospect.actualZip || prospect.zip || null;
+  const zipCode = truncateZipTo5(prospect.zipCode || prospect.actualZip || prospect.zip) || null;
   const newLead = {
     id: Date.now() + Math.random(),
     businessName: businessName,
@@ -13433,7 +13433,7 @@ async function lookupBusinessOnGoogle() {
 
             document.getElementById('manualBusinessAddress').value = address.trim() || details.formatted_address || '';
             document.getElementById('manualBusinessTown').value = city;
-            document.getElementById('manualBusinessZip').value = zip;
+            document.getElementById('manualBusinessZip').value = truncateZipTo5(zip) || '';
             document.getElementById('manualBusinessPhone').value = details.formatted_phone_number || '';
             document.getElementById('manualBusinessWebsite').value = details.website || '';
 
@@ -13491,7 +13491,7 @@ document.getElementById('addManualBusinessForm').addEventListener('submit', func
     category: document.getElementById('manualBusinessCategory').value.trim(),
     address: document.getElementById('manualBusinessAddress').value.trim(),
     town: document.getElementById('manualBusinessTown').value.trim(),
-    zipCode: document.getElementById('manualBusinessZip').value.trim(),
+    zipCode: truncateZipTo5(document.getElementById('manualBusinessZip').value.trim()) || '',
     phone: document.getElementById('manualBusinessPhone').value.trim(),
     email: document.getElementById('manualBusinessEmail').value.trim(),
     website: document.getElementById('manualBusinessWebsite').value.trim(),
