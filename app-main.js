@@ -14951,10 +14951,10 @@ function renderKanban() {
                 ` : '') + contactTrackingHTML;
               })() : ''}
               ${col.key === 'to-contact' ? `
-                <div class="mt-2 pt-2 border-t border-gray-200 space-y-2">
+                <div class="mt-2 pt-2 border-t border-gray-200 space-y-2 relative z-20">
                   <div class="flex gap-2">
-                    <button onclick="handleNotInterested('${leadId}', event)" class="flex-1 px-3 py-1.5 bg-red-600 text-white text-xs rounded hover:bg-red-700 font-medium">
-                      🚫 Not Interested
+                    <button onclick="toggleDoNotContact('${leadId}', 'to-contact', event)" class="flex-1 px-3 py-1.5 ${isDoNotContact ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'} text-white text-xs rounded font-medium">
+                      🚫 ${isDoNotContact ? 'Remove DNC' : 'Not Interested'}
                     </button>
                     ${(() => {
                       // Check if this prospect came from Client Database or is already a client
