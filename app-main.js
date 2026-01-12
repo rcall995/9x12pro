@@ -10540,11 +10540,18 @@ function renderProspectPool() {
 
               // Check if this enriched prospect is already in system
               const isEnrichedInSystem = prospect.inSystem;
+              const isPoolDoNotContact = prospect.doNotContact === true;
 
               return `
-                <div class="border-2 ${prospect.isExistingClient ? 'border-amber-400 bg-amber-50' : (hasContact ? 'border-green-400 bg-white' : 'border-gray-200 bg-white')} rounded-lg p-3 ${isEnrichedInSystem ? 'opacity-60' : 'hover:shadow-md'} transition cursor-pointer relative" onclick="openClientModalForProspect('${prospect.id}')">
+                <div class="border-2 ${isPoolDoNotContact ? 'border-red-400 bg-red-50' : (prospect.isExistingClient ? 'border-amber-400 bg-amber-50' : (hasContact ? 'border-green-400 bg-white' : 'border-gray-200 bg-white'))} rounded-lg p-3 ${isEnrichedInSystem || isPoolDoNotContact ? 'opacity-60' : 'hover:shadow-md'} transition cursor-pointer relative" onclick="openClientModalForProspect('${prospect.id}')">
+                  ${isPoolDoNotContact ? `
+                    <div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                      <span class="text-8xl text-red-500 font-bold opacity-40">✕</span>
+                    </div>
+                  ` : ''}
                   <!-- Badges (top-right) -->
-                  <div class="absolute top-2 right-2 flex gap-1">
+                  <div class="absolute top-2 right-2 flex gap-1 z-20">
+                    ${isPoolDoNotContact ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white">🚫 DNC</span>' : ''}
                     ${prospect.isExistingClient ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white">⭐ Client</span>' : ''}
                     ${isEnrichedInSystem ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-gray-200 text-gray-600">In System</span>' : ''}
                     <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">
@@ -10552,7 +10559,7 @@ function renderProspectPool() {
                     </span>
                   </div>
 
-                  <h5 class="font-semibold text-sm text-gray-900 mb-1 pr-24">${esc(prospect.businessName)}</h5>
+                  <h5 class="font-semibold text-sm ${isPoolDoNotContact ? 'line-through text-gray-500' : 'text-gray-900'} mb-1 pr-24 relative z-20">${esc(prospect.businessName)}</h5>
                   ${displayLocation ? `<p class="text-xs text-gray-600 mt-0.5 mb-2">${esc(displayLocation)}</p>` : ''}
                   ${displayAddress ? `<p class="text-xs text-gray-600 mb-2">📍 ${esc(displayAddress)}</p>` : ''}
                   ${ownerDisplay}
@@ -10585,7 +10592,7 @@ function renderProspectPool() {
                         Pipeline →
                       </button>
                     `}
-                    <button onclick="event.stopPropagation(); markProspectNotInterested('${prospect.placeId || prospect.id}', '${esc(prospect.businessName).replace(/'/g, "\\'")}')" class="px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 font-semibold text-xs" title="Not Interested">
+                    <button onclick="event.stopPropagation(); togglePoolDoNotContact('${prospect.placeId || prospect.id}')" class="${isPoolDoNotContact ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'} px-3 py-1.5 text-white rounded-md font-semibold text-xs" title="${isPoolDoNotContact ? 'Remove Do Not Contact' : 'Mark Do Not Contact'}">
                       🚫
                     </button>
                   </div>
@@ -10675,10 +10682,20 @@ function renderProspectPool() {
               borderColor = 'border-blue-400';
             }
 
+            const isRawDoNotContact = prospect.doNotContact === true;
+
             return `
-              <div class="prospect-card border-2 ${borderColor} rounded-lg p-3 ${isDisabled ? 'bg-gray-50 opacity-60' : bgColor + ' hover:shadow-md'} transition relative" data-place-id="${prospectId}">
-                ${prospect.isExistingClient ? '<span class="absolute top-2 right-2 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white">⭐ Client</span>' : ''}
-                <div class="flex items-start gap-2" onclick="openClientModalForProspect('${prospectId}')">
+              <div class="prospect-card border-2 ${isRawDoNotContact ? 'border-red-400' : borderColor} rounded-lg p-3 ${isRawDoNotContact ? 'bg-red-50 opacity-60' : (isDisabled ? 'bg-gray-50 opacity-60' : bgColor + ' hover:shadow-md')} transition relative" data-place-id="${prospectId}">
+                ${isRawDoNotContact ? `
+                  <div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                    <span class="text-8xl text-red-500 font-bold opacity-40">✕</span>
+                  </div>
+                ` : ''}
+                <div class="absolute top-2 right-2 flex gap-1 z-20">
+                  ${isRawDoNotContact ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white">🚫 DNC</span>' : ''}
+                  ${prospect.isExistingClient ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white">⭐ Client</span>' : ''}
+                </div>
+                <div class="flex items-start gap-2 relative z-20" onclick="openClientModalForProspect('${prospectId}')">
                   <input
                     type="checkbox"
                     ${isSelected ? 'checked' : ''}
@@ -10688,7 +10705,7 @@ function renderProspectPool() {
                     class="mt-1 w-4 h-4 text-indigo-600 rounded cursor-pointer flex-shrink-0"
                   />
                   <div class="flex-1 min-w-0 cursor-pointer ${prospect.isExistingClient ? 'pr-16' : ''}">
-                    <h5 class="font-semibold text-sm text-gray-900 truncate">${esc(displayName)}</h5>
+                    <h5 class="font-semibold text-sm ${isRawDoNotContact ? 'line-through text-gray-500' : 'text-gray-900'} truncate">${esc(displayName)}</h5>
                     ${rawDisplayLocation ? `<p class="text-xs text-gray-600 mt-0.5">${esc(rawDisplayLocation)}</p>` : ''}
                     ${addressToShow ? `<p class="text-xs text-gray-600 mt-0.5">📍 ${esc(addressToShow)}</p>` : ''}
                     ${rawMetadata.length > 0 ? `<p class="text-xs text-gray-500 mt-0.5">${rawMetadata.join(' • ')}</p>` : ''}
@@ -10726,7 +10743,7 @@ function renderProspectPool() {
                           📧 Email
                         </button>
                       ` : ''}
-                      <button onclick="event.stopPropagation(); markProspectNotInterested('${prospectId}', '${esc(displayName).replace(/'/g, "\\'")}')" class="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs font-semibold" title="Not Interested">
+                      <button onclick="event.stopPropagation(); togglePoolDoNotContact('${prospectId}')" class="${isRawDoNotContact ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'} px-2 py-1 text-white rounded text-xs font-semibold" title="${isRawDoNotContact ? 'Remove Do Not Contact' : 'Mark Do Not Contact'}">
                         🚫
                       </button>
                     </div>
@@ -14786,9 +14803,16 @@ function renderKanban() {
             if (item.linkedin) contactIcons.push(`<a href="${esc(ensureHttps(item.linkedin))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="💼 ${esc(item.linkedin)}">💼</a>`);
             if (item.twitter) contactIcons.push(`<a href="${esc(ensureHttps(item.twitter))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="🐦 ${esc(item.twitter)}">🐦</a>`);
 
+            const isDoNotContact = item.doNotContact === true;
+
             return `
-              <div class="kanban-item text-xs p-2 bg-white border rounded ${hasContact ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'}" data-item-id="${leadId}" data-column="${col.key}" ondblclick="openClientModalForProspect('${leadId}')">
-                <div class="flex justify-between items-start gap-2 mb-2">
+              <div class="kanban-item text-xs p-2 ${isDoNotContact ? 'bg-red-50' : 'bg-white'} border rounded ${hasContact ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'} relative ${isDoNotContact ? 'opacity-60' : ''}" data-item-id="${leadId}" data-column="${col.key}" ondblclick="openClientModalForProspect('${leadId}')">
+                ${isDoNotContact ? `
+                  <div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                    <span class="text-6xl text-red-500 font-bold opacity-40">✕</span>
+                  </div>
+                ` : ''}
+                <div class="flex justify-between items-start gap-2 mb-2 relative z-20">
                   ${cloudSyncSelection.showSyncUI ? `
                     <input
                       type="checkbox"
@@ -14807,10 +14831,11 @@ function renderKanban() {
                     />
                   `}
                   <div class="flex-1 drag-handle">
-                    <div class="font-medium text-xs break-words">${esc(leadName)}</div>
+                    <div class="font-medium text-xs break-words ${isDoNotContact ? 'line-through text-gray-500' : ''}">${esc(leadName)}</div>
                     ${item.zipCode ? `<div class="text-xs text-gray-500 font-medium mt-0.5">📍 ${esc(item.zipCode)}</div>` : ''}
                   </div>
                   <div class="flex gap-1 flex-shrink-0">
+                    <button onclick="event.stopPropagation(); toggleDoNotContact('${leadId}', 'prospect-list')" class="${isDoNotContact ? 'text-green-600 hover:text-green-800' : 'text-red-600 hover:text-red-800'} text-sm cursor-pointer" title="${isDoNotContact ? 'Remove Do Not Contact' : 'Mark Do Not Contact'}">🚫</button>
                     <button onclick="event.stopPropagation(); openPipelineOutreachFromKanban('${leadId}')" class="text-orange-600 hover:text-orange-800 text-sm cursor-pointer" title="Outreach Tools">💬</button>
                     <button onclick="event.stopPropagation(); openClientModalForProspect('${leadId}')" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View/Edit Business">👁</button>
                     <button onclick="openContactLaterModal('${leadId}', event)" class="text-purple-600 hover:text-purple-800 text-sm cursor-pointer" title="Contact Later">📅</button>
@@ -14821,7 +14846,7 @@ function renderKanban() {
                   </div>
                 </div>
                 ${contactIcons.length > 0 ? `
-                  <div class="flex gap-2 items-center justify-center py-1">
+                  <div class="flex gap-2 items-center justify-center py-1 relative z-20">
                     ${contactIcons.join('')}
                   </div>
                 ` : '<div class="text-gray-400 italic text-center py-1">No contact info</div>'}
@@ -14832,10 +14857,16 @@ function renderKanban() {
           // Standard display for other columns
           const isCloudSyncSelected = cloudSyncSelection.selectedIds.has(leadId);
           const isToContactSelected = toContactSelectionState.selectedIds.has(leadId);
+          const isDoNotContact = typeof item === 'object' && item.doNotContact === true;
 
           return `
-            <div class="kanban-item text-xs p-2 bg-white border rounded" data-item-id="${leadId}" data-column="${col.key}" ondblclick="${typeof item === 'object' ? `openClientModalForProspect('${leadId}')` : ''}">
-              <div class="flex justify-between items-start gap-2">
+            <div class="kanban-item text-xs p-2 ${isDoNotContact ? 'bg-red-50' : 'bg-white'} border rounded relative ${isDoNotContact ? 'opacity-60' : ''}" data-item-id="${leadId}" data-column="${col.key}" ondblclick="${typeof item === 'object' ? `openClientModalForProspect('${leadId}')` : ''}">
+              ${isDoNotContact ? `
+                <div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                  <span class="text-6xl text-red-500 font-bold opacity-40">✕</span>
+                </div>
+              ` : ''}
+              <div class="flex justify-between items-start gap-2 relative z-20">
                 ${cloudSyncSelection.showSyncUI && typeof item === 'object' ? `
                   <input
                     type="checkbox"
@@ -14856,10 +14887,11 @@ function renderKanban() {
                   <div class="drag-handle text-gray-400 hover:text-gray-600 cursor-grab flex-shrink-0 px-1" title="Drag to move">⋮⋮</div>
                 `}
                 <div class="flex-1 drag-handle">
-                  <div class="font-medium">${esc(leadName)}</div>
+                  <div class="font-medium ${isDoNotContact ? 'line-through text-gray-500' : ''}">${esc(leadName)}</div>
                   ${typeof item === 'object' && item.zipCode ? `<div class="text-xs text-gray-500 font-medium mt-0.5">📍 ${esc(item.zipCode)}</div>` : ''}
                 </div>
                 <div class="flex gap-1 flex-shrink-0">
+                  ${typeof item === 'object' ? `<button onclick="event.stopPropagation(); toggleDoNotContact('${leadId}', '${col.key}')" class="${isDoNotContact ? 'text-green-600 hover:text-green-800' : 'text-red-600 hover:text-red-800'} text-sm cursor-pointer" title="${isDoNotContact ? 'Remove Do Not Contact' : 'Mark Do Not Contact'}">🚫</button>` : ''}
                   ${typeof item === 'object' ? `<button onclick="event.stopPropagation(); openClientModalForProspect('${leadId}')" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View/Edit Business">👁</button>` : ''}
                   <button onclick="openContactLaterModal('${leadId}', event)" class="text-purple-600 hover:text-purple-800 text-sm cursor-pointer" title="Contact Later">📅</button>
                   <button onclick="editLead('${col.key}', '${leadId}', event)" class="text-blue-600 hover:text-blue-800 text-sm cursor-pointer" title="Edit">✎</button>
@@ -16592,6 +16624,133 @@ function toggleContactTracking(leadId, method, event) {
   const action = wasSet ? 'unmarked' : 'marked';
   toast(`${methodNames[method]} ${action} for ${foundItem.businessName || 'business'}`);
 }
+
+// Toggle Do Not Contact status on a lead (keeps card visible but marked)
+async function toggleDoNotContact(leadId, columnKey, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+
+  // Find lead in the specified column or any column
+  let foundItem = null;
+  let foundColumn = columnKey;
+  let foundIndex = -1;
+
+  // First check the specified column
+  if (columnKey && kanbanState.columns[columnKey]) {
+    const items = kanbanState.columns[columnKey] || [];
+    foundIndex = items.findIndex(i => i && typeof i === 'object' && String(i.id) === String(leadId));
+    if (foundIndex !== -1) {
+      foundItem = items[foundIndex];
+    }
+  }
+
+  // If not found, search all columns
+  if (!foundItem) {
+    for (const colKey of Object.keys(kanbanState.columns)) {
+      const items = kanbanState.columns[colKey] || [];
+      const idx = items.findIndex(i => i && typeof i === 'object' && String(i.id) === String(leadId));
+      if (idx !== -1) {
+        foundItem = items[idx];
+        foundColumn = colKey;
+        foundIndex = idx;
+        break;
+      }
+    }
+  }
+
+  if (!foundItem) {
+    // Check prospect pool
+    if (prospectPoolState.allBusinesses) {
+      const poolBiz = prospectPoolState.allBusinesses.find(b =>
+        b && (String(b.placeId) === String(leadId) || String(b.id) === String(leadId))
+      );
+      if (poolBiz) {
+        poolBiz.doNotContact = !poolBiz.doNotContact;
+        renderProspectPool();
+        toast(poolBiz.doNotContact ? '🚫 Marked as Do Not Contact' : '✓ Removed Do Not Contact', true);
+        return;
+      }
+    }
+    console.warn('toggleDoNotContact: Lead not found', leadId);
+    return;
+  }
+
+  // Toggle the doNotContact flag
+  foundItem.doNotContact = !foundItem.doNotContact;
+  const businessName = foundItem.businessName || foundItem.name || 'Business';
+
+  // Save to cloud
+  try {
+    await saveToCloud('kanban', kanbanState.columns);
+  } catch (err) {
+    console.error('Failed to save kanban after toggle:', err);
+  }
+
+  // Re-render
+  renderKanban();
+
+  toast(foundItem.doNotContact ? `🚫 "${businessName}" marked as Do Not Contact` : `✓ "${businessName}" removed from Do Not Contact`, true);
+}
+
+window.toggleDoNotContact = toggleDoNotContact;
+
+// Toggle Do Not Contact for prospects in the pool
+async function togglePoolDoNotContact(prospectId) {
+  // Find in prospectPoolState
+  let found = false;
+
+  // Check allBusinesses (enriched prospects)
+  if (prospectPoolState.allBusinesses) {
+    const biz = prospectPoolState.allBusinesses.find(b =>
+      b && (String(b.placeId) === String(prospectId) || String(b.id) === String(prospectId))
+    );
+    if (biz) {
+      biz.doNotContact = !biz.doNotContact;
+      found = true;
+    }
+  }
+
+  // Check categories (raw prospects from search)
+  if (!found && prospectPoolState.categories) {
+    for (const categoryKey of Object.keys(prospectPoolState.categories)) {
+      const businesses = prospectPoolState.categories[categoryKey].businesses || [];
+      const biz = businesses.find(b =>
+        b && (String(b.placeId) === String(prospectId) || String(b.id) === String(prospectId))
+      );
+      if (biz) {
+        biz.doNotContact = !biz.doNotContact;
+        found = true;
+        break;
+      }
+    }
+  }
+
+  // Check renderedProspects
+  if (!found && prospectPoolState.renderedProspects && prospectPoolState.renderedProspects[prospectId]) {
+    prospectPoolState.renderedProspects[prospectId].doNotContact = !prospectPoolState.renderedProspects[prospectId].doNotContact;
+    found = true;
+  }
+
+  if (found) {
+    // Save pool state
+    try {
+      const poolData = {
+        allBusinesses: prospectPoolState.allBusinesses || [],
+        categories: prospectPoolState.categories || {}
+      };
+      await saveToCloud('prospectPool', poolData);
+    } catch (err) {
+      console.error('Failed to save pool do not contact:', err);
+    }
+
+    renderProspectPool();
+    toast('🚫 Do Not Contact toggled', true);
+  }
+}
+
+window.togglePoolDoNotContact = togglePoolDoNotContact;
 
 // Handle "Not Interested" button click
 function handleNotInterested(leadId, event) {
