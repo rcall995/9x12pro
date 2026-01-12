@@ -16720,9 +16720,16 @@ window.toggleDoNotContact = toggleDoNotContact;
 async function togglePoolDoNotContact(prospectId) {
   let found = false;
   let newValue = false;
+  const idStr = String(prospectId);
 
-  // Helper to match prospect by ID
-  const matchesId = (b) => b && (String(b.placeId) === String(prospectId) || String(b.id) === String(prospectId));
+  // Helper to match prospect by ID (check multiple possible ID properties)
+  const matchesId = (b) => {
+    if (!b) return false;
+    return String(b.placeId) === idStr ||
+           String(b.id) === idStr ||
+           String(b.businessId) === idStr ||
+           String(b.yelpId) === idStr;
+  };
 
   // Check allBusinesses (enriched prospects)
   if (prospectPoolState.allBusinesses) {
@@ -16757,6 +16764,21 @@ async function togglePoolDoNotContact(prospectId) {
     }
   }
 
+  // Check placesCache.searches (where search results are stored)
+  if (placesCache && placesCache.searches) {
+    for (const cacheKey of Object.keys(placesCache.searches)) {
+      const cached = placesCache.searches[cacheKey];
+      if (cached && cached.cachedData) {
+        const biz = cached.cachedData.find(matchesId);
+        if (biz) {
+          biz.doNotContact = found ? newValue : !biz.doNotContact;
+          if (!found) newValue = biz.doNotContact;
+          found = true;
+        }
+      }
+    }
+  }
+
   // Also update renderedProspects lookup (used during rendering)
   if (prospectPoolState.renderedProspects && prospectPoolState.renderedProspects[prospectId]) {
     prospectPoolState.renderedProspects[prospectId].doNotContact = newValue;
@@ -16773,6 +16795,10 @@ async function togglePoolDoNotContact(prospectId) {
       await saveToCloud('prospectPool', poolData);
       // Also save manualProspects separately
       await saveManualProspects();
+      // Save places cache to persist the DNC status
+      if (typeof savePlacesCache === 'function') {
+        savePlacesCache();
+      }
     } catch (err) {
       console.error('Failed to save pool do not contact:', err);
     }
