@@ -562,6 +562,59 @@
                     <!-- Daily goal dynamically populated -->
                 </div>
 
+                <!-- FOLLOW-UP DASHBOARD -->
+                <div id="followUpDashboardWrapper" class="mb-6" style="display: none;">
+                    <div id="followUpDashboard" class="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl p-4 md:p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="flex items-center gap-3">
+                                <span class="text-3xl">📅</span>
+                                <div>
+                                    <h4 class="text-lg md:text-xl font-bold text-gray-900">Follow-Up Dashboard</h4>
+                                    <p class="text-xs md:text-sm text-gray-600">Who needs attention today</p>
+                                </div>
+                            </div>
+                            <button onclick="refreshFollowUpDashboard()" class="text-sm text-amber-600 hover:text-amber-800 font-medium">
+                                🔄 Refresh
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <!-- Overdue Section -->
+                            <div class="bg-white rounded-xl p-4 border border-red-200">
+                                <div class="flex items-center gap-2 mb-3">
+                                    <span class="text-red-600 font-bold text-sm">🚨 Overdue</span>
+                                    <span id="overdueCount" class="bg-red-600 text-white text-xs px-2 py-0.5 rounded-full font-bold">0</span>
+                                </div>
+                                <div id="overdueList" class="space-y-2 max-h-48 overflow-y-auto">
+                                    <p class="text-sm text-gray-500 italic">No overdue follow-ups</p>
+                                </div>
+                            </div>
+
+                            <!-- Due Today Section -->
+                            <div class="bg-white rounded-xl p-4 border border-amber-200">
+                                <div class="flex items-center gap-2 mb-3">
+                                    <span class="text-amber-600 font-bold text-sm">📌 Due Today</span>
+                                    <span id="dueTodayCount" class="bg-amber-600 text-white text-xs px-2 py-0.5 rounded-full font-bold">0</span>
+                                </div>
+                                <div id="dueTodayList" class="space-y-2 max-h-48 overflow-y-auto">
+                                    <p class="text-sm text-gray-500 italic">Nothing due today</p>
+                                </div>
+                            </div>
+
+                            <!-- Sequence Actions Section -->
+                            <div class="bg-white rounded-xl p-4 border border-purple-200">
+                                <div class="flex items-center gap-2 mb-3">
+                                    <span class="text-purple-600 font-bold text-sm">⏭️ Sequence Steps</span>
+                                    <span id="sequenceActionCount" class="bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full font-bold">0</span>
+                                </div>
+                                <div id="sequenceActionsList" class="space-y-2 max-h-48 overflow-y-auto">
+                                    <p class="text-sm text-gray-500 italic">No sequence actions due</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Collapsible Kanban Columns -->
                 <div id="salesActivityKanbanColumns" class="transition-all duration-300 ease-in-out overflow-hidden">
                     <!-- Kanban columns dynamically populated -->

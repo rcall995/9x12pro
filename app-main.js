@@ -843,6 +843,53 @@ const apiQuotaState = {
   criticalThreshold: 0.95  // 95% = 26,600 calls
 };
 
+// FOLLOW-UP DASHBOARD STATE
+const followUpDashboardState = {
+  overdueFollowUps: [],      // Prospects with followUpDate < today
+  dueToday: [],              // Prospects with followUpDate = today
+  upcomingWeek: [],          // Next 7 days
+  sequenceActionsDue: [],    // Prospects needing next sequence step
+  lastRefreshed: null
+};
+
+// OUTREACH SEQUENCES STATE
+const outreachSequencesState = {
+  sequences: {
+    'seq_standard_email': {
+      id: 'seq_standard_email',
+      name: 'Standard Email Sequence',
+      description: '4 emails over 2 weeks',
+      steps: [
+        { day: 1, channel: 'email', templateId: 'email1', description: 'Initial Outreach' },
+        { day: 4, channel: 'email', templateId: 'email2', description: 'Follow-up 1' },
+        { day: 8, channel: 'email', templateId: 'email3', description: 'Follow-up 2' },
+        { day: 14, channel: 'email', templateId: 'email4', description: 'Final email' }
+      ]
+    },
+    'seq_multi_channel': {
+      id: 'seq_multi_channel',
+      name: 'Multi-Channel Blitz',
+      description: 'Email, text, call combo',
+      steps: [
+        { day: 1, channel: 'email', templateId: 'email1', description: 'Initial email' },
+        { day: 3, channel: 'text', templateId: 'sms1', description: 'Follow-up text' },
+        { day: 7, channel: 'call', templateId: 'call1', description: 'Phone call' },
+        { day: 10, channel: 'email', templateId: 'email4', description: 'Final email' }
+      ]
+    },
+    'seq_social_first': {
+      id: 'seq_social_first',
+      name: 'Social First',
+      description: 'LinkedIn then Facebook then Email',
+      steps: [
+        { day: 1, channel: 'linkedin', templateId: 'linkedin1', description: 'LinkedIn connect' },
+        { day: 4, channel: 'facebook', templateId: 'facebook1', description: 'Facebook message' },
+        { day: 7, channel: 'email', templateId: 'email1', description: 'Email follow-up' }
+      ]
+    }
+  }
+};
+
 // PLACES CACHE STATE (30-day cache + permanent Place IDs)
 const placesCache = {
   searches: {}  // Format: { "zipCode-category": { placeIds: [], cachedData: [], cachedUntil: "date" } }
@@ -14385,6 +14432,7 @@ async function loadKanban() {
     console.error('Error loading kanban:', e);
   }
   renderKanban();
+  refreshFollowUpDashboard(); // Refresh follow-up dashboard after loading kanban
 }
 
 // Remove all duplicate prospects from kanban data (not just rendering)
@@ -14944,11 +14992,40 @@ function renderKanban() {
                   </div>
                 `;
 
+                // Sequence tracking UI
+                let sequenceHTML = '';
+                if (item.activeSequence) {
+                  const seq = outreachSequencesState.sequences[item.activeSequence.sequenceId];
+                  if (seq) {
+                    const currentStep = item.activeSequence.currentStep;
+                    const isComplete = currentStep > seq.steps.length;
+                    const progressDots = seq.steps.map((step, idx) => {
+                      const stepNum = idx + 1;
+                      const isCompleted = stepNum < currentStep;
+                      const isCurrent = stepNum === currentStep;
+                      const channelIcons = { email: '📧', text: '💬', call: '📞', linkedin: '💼', facebook: '📘' };
+                      const icon = channelIcons[step.channel] || '📌';
+                      const statusClass = isCompleted ? 'bg-green-500 text-white' : isCurrent ? 'bg-purple-600 text-white ring-2 ring-purple-300' : 'bg-gray-200 text-gray-400';
+                      return '<span class="w-5 h-5 rounded-full flex items-center justify-center text-xs ' + statusClass + '" title="' + esc(step.description) + '">' + icon + '</span>';
+                    }).join('');
+                    const actionBtn = isComplete
+                      ? '<span class="text-xs text-green-600 font-bold">✅</span>'
+                      : '<button onclick="event.stopPropagation(); advanceSequence(\'' + leadId + '\')" class="text-xs px-2 py-0.5 bg-purple-600 text-white rounded hover:bg-purple-700 font-medium">▶</button>';
+                    sequenceHTML = '<div class="flex items-center gap-2 py-2 mt-2 border-t border-purple-200 bg-purple-50 rounded px-2">' +
+                      '<span class="text-xs text-purple-700 font-medium">' + esc(seq.name.split(' ')[0]) + '</span>' +
+                      '<div class="flex gap-0.5 flex-1">' + progressDots + '</div>' +
+                      actionBtn +
+                      '</div>';
+                  }
+                } else {
+                  sequenceHTML = '<button onclick="event.stopPropagation(); assignSequence(\'' + leadId + '\')" class="w-full text-xs text-purple-500 hover:text-purple-700 py-1 mt-1 border-t border-gray-100 hover:bg-purple-50 rounded transition">+ Add to Sequence</button>';
+                }
+
                 return (contactIcons.length > 0 ? `
                   <div class="flex gap-2 items-center justify-center py-2 mt-2 border-t border-gray-200">
                     ${contactIcons.join('')}
                   </div>
-                ` : '') + contactTrackingHTML;
+                ` : '') + contactTrackingHTML + sequenceHTML;
               })() : ''}
               ${col.key === 'to-contact' ? `
                 <div class="mt-2 pt-2 border-t border-gray-200 space-y-2 relative z-20">
@@ -16640,9 +16717,434 @@ function toggleContactTracking(leadId, method, event) {
   saveKanban();
   renderKanban();
 
-  const methodNames = { emailed: 'Email', dmed: 'DM', texted: 'Text' };
+  const methodNames = { emailed: 'Email', dmed: 'DM', texted: 'Text', linkedinMessaged: 'LinkedIn', facebookMessaged: 'Facebook', called: 'Call', visitedInPerson: 'Visit' };
   const action = wasSet ? 'unmarked' : 'marked';
   toast(`${methodNames[method]} ${action} for ${foundItem.businessName || 'business'}`);
+}
+
+// ============================================
+// FOLLOW-UP DASHBOARD FUNCTIONS
+// ============================================
+
+// Refresh follow-up dashboard data
+function refreshFollowUpDashboard() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = today.toDateString();
+
+  followUpDashboardState.overdueFollowUps = [];
+  followUpDashboardState.dueToday = [];
+  followUpDashboardState.upcomingWeek = [];
+  followUpDashboardState.sequenceActionsDue = [];
+
+  // Scan all kanban columns for follow-ups
+  Object.keys(kanbanState.columns).forEach(columnKey => {
+    const items = kanbanState.columns[columnKey] || [];
+    items.forEach(prospect => {
+      if (!prospect || typeof prospect !== 'object') return;
+      if (prospect.doNotContact) return; // Skip DNC prospects
+
+      // Check follow-up dates
+      if (prospect.followUpDate) {
+        const followUp = new Date(prospect.followUpDate);
+        followUp.setHours(0, 0, 0, 0);
+
+        if (followUp.toDateString() === todayStr) {
+          followUpDashboardState.dueToday.push({ ...prospect, column: columnKey });
+        } else if (followUp < today) {
+          const daysOverdue = Math.floor((today - followUp) / (1000 * 60 * 60 * 24));
+          followUpDashboardState.overdueFollowUps.push({ ...prospect, column: columnKey, daysOverdue });
+        } else {
+          const daysUntil = Math.floor((followUp - today) / (1000 * 60 * 60 * 24));
+          if (daysUntil <= 7) {
+            followUpDashboardState.upcomingWeek.push({ ...prospect, column: columnKey, daysUntil });
+          }
+        }
+      }
+
+      // Check sequence actions due
+      if (prospect.activeSequence && !prospect.activeSequence.paused) {
+        const sequence = outreachSequencesState.sequences[prospect.activeSequence.sequenceId];
+        if (sequence && prospect.activeSequence.currentStep <= sequence.steps.length) {
+          const currentStepDef = sequence.steps[prospect.activeSequence.currentStep - 1];
+          const startDate = new Date(prospect.activeSequence.startedAt);
+          const dueDate = new Date(startDate);
+          dueDate.setDate(dueDate.getDate() + currentStepDef.day - 1);
+          dueDate.setHours(0, 0, 0, 0);
+
+          if (dueDate <= today) {
+            followUpDashboardState.sequenceActionsDue.push({
+              ...prospect,
+              column: columnKey,
+              sequence: sequence,
+              step: currentStepDef,
+              stepNumber: prospect.activeSequence.currentStep
+            });
+          }
+        }
+      }
+    });
+  });
+
+  // Sort overdue by most overdue first
+  followUpDashboardState.overdueFollowUps.sort((a, b) => b.daysOverdue - a.daysOverdue);
+  followUpDashboardState.upcomingWeek.sort((a, b) => a.daysUntil - b.daysUntil);
+
+  followUpDashboardState.lastRefreshed = new Date();
+  renderFollowUpDashboard();
+}
+
+// Render follow-up dashboard
+function renderFollowUpDashboard() {
+  const container = document.getElementById('followUpDashboard');
+  if (!container) return;
+
+  const overdueCount = followUpDashboardState.overdueFollowUps.length;
+  const todayCount = followUpDashboardState.dueToday.length;
+  const sequenceCount = followUpDashboardState.sequenceActionsDue.length;
+  const totalActions = overdueCount + todayCount + sequenceCount;
+
+  // Update counts
+  const overdueCountEl = document.getElementById('overdueCount');
+  const dueTodayCountEl = document.getElementById('dueTodayCount');
+  const sequenceActionCountEl = document.getElementById('sequenceActionCount');
+
+  if (overdueCountEl) overdueCountEl.textContent = overdueCount;
+  if (dueTodayCountEl) dueTodayCountEl.textContent = todayCount;
+  if (sequenceActionCountEl) sequenceActionCountEl.textContent = sequenceCount;
+
+  // Render overdue list
+  const overdueList = document.getElementById('overdueList');
+  if (overdueList) {
+    if (overdueCount === 0) {
+      overdueList.innerHTML = '<p class="text-sm text-gray-500 italic">No overdue follow-ups</p>';
+    } else {
+      overdueList.innerHTML = followUpDashboardState.overdueFollowUps.slice(0, 5).map(p => `
+        <div class="flex items-center justify-between bg-red-50 border border-red-200 rounded-lg p-2 cursor-pointer hover:bg-red-100" onclick="scrollToProspect('${p.id}', '${p.column}')">
+          <div class="flex items-center gap-2">
+            <span class="text-red-600 font-bold">${p.daysOverdue}d</span>
+            <span class="font-medium text-gray-900">${esc(p.businessName || 'Unknown')}</span>
+            <span class="text-xs text-gray-500">${p.category || ''}</span>
+          </div>
+          <div class="flex gap-1">
+            ${p.phone ? `<button onclick="event.stopPropagation(); quickCall('${esc(p.phone)}')" class="text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700">📞</button>` : ''}
+            ${p.email ? `<button onclick="event.stopPropagation(); quickEmail('${p.id}')" class="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">📧</button>` : ''}
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+
+  // Render due today list
+  const dueTodayList = document.getElementById('dueTodayList');
+  if (dueTodayList) {
+    if (todayCount === 0) {
+      dueTodayList.innerHTML = '<p class="text-sm text-gray-500 italic">Nothing due today</p>';
+    } else {
+      dueTodayList.innerHTML = followUpDashboardState.dueToday.slice(0, 5).map(p => `
+        <div class="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg p-2 cursor-pointer hover:bg-amber-100" onclick="scrollToProspect('${p.id}', '${p.column}')">
+          <div class="flex items-center gap-2">
+            <span class="font-medium text-gray-900">${esc(p.businessName || 'Unknown')}</span>
+            <span class="text-xs text-gray-500">${p.category || ''}</span>
+          </div>
+          <div class="flex gap-1">
+            ${p.phone ? `<button onclick="event.stopPropagation(); quickCall('${esc(p.phone)}')" class="text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700">📞</button>` : ''}
+            ${p.email ? `<button onclick="event.stopPropagation(); quickEmail('${p.id}')" class="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">📧</button>` : ''}
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+
+  // Render sequence actions list
+  const sequenceActionsList = document.getElementById('sequenceActionsList');
+  if (sequenceActionsList) {
+    if (sequenceCount === 0) {
+      sequenceActionsList.innerHTML = '<p class="text-sm text-gray-500 italic">No sequence actions due</p>';
+    } else {
+      sequenceActionsList.innerHTML = followUpDashboardState.sequenceActionsDue.slice(0, 5).map(p => `
+        <div class="flex items-center justify-between bg-purple-50 border border-purple-200 rounded-lg p-2 cursor-pointer hover:bg-purple-100" onclick="scrollToProspect('${p.id}', '${p.column}')">
+          <div class="flex items-center gap-2">
+            <span class="font-medium text-gray-900">${esc(p.businessName || 'Unknown')}</span>
+            <span class="text-xs bg-purple-600 text-white px-2 py-0.5 rounded">Step ${p.stepNumber}: ${p.step.channel}</span>
+          </div>
+          <button onclick="event.stopPropagation(); advanceSequence('${p.id}')" class="text-xs px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 font-medium">
+            Execute ▶
+          </button>
+        </div>
+      `).join('');
+    }
+  }
+
+  // Show/hide dashboard based on total actions
+  const dashboardWrapper = document.getElementById('followUpDashboardWrapper');
+  if (dashboardWrapper) {
+    dashboardWrapper.style.display = totalActions > 0 ? 'block' : 'none';
+  }
+}
+
+// Quick action: call a number
+function quickCall(phone) {
+  window.open(`tel:${phone}`, '_blank');
+}
+
+// Quick action: email a prospect
+function quickEmail(prospectId) {
+  // Find prospect in kanban
+  let prospect = null;
+  for (const colKey of Object.keys(kanbanState.columns)) {
+    const found = kanbanState.columns[colKey].find(p => p && String(p.id) === String(prospectId));
+    if (found) {
+      prospect = found;
+      break;
+    }
+  }
+  if (prospect && prospect.email) {
+    window.open(`mailto:${prospect.email}`, '_blank');
+  }
+}
+
+// Scroll to prospect in kanban
+function scrollToProspect(prospectId, columnKey) {
+  // Find the card element and scroll to it
+  const card = document.querySelector(`[data-lead-id="${prospectId}"]`);
+  if (card) {
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.classList.add('ring-4', 'ring-yellow-400');
+    setTimeout(() => card.classList.remove('ring-4', 'ring-yellow-400'), 2000);
+  }
+}
+
+// ============================================
+// OUTREACH SEQUENCE FUNCTIONS
+// ============================================
+
+// Assign a prospect to a sequence
+function assignSequence(prospectId, sequenceId = null) {
+  // Find prospect
+  let prospect = null;
+  let columnKey = null;
+  for (const colKey of Object.keys(kanbanState.columns)) {
+    const found = kanbanState.columns[colKey].find(p => p && String(p.id) === String(prospectId));
+    if (found) {
+      prospect = found;
+      columnKey = colKey;
+      break;
+    }
+  }
+  if (!prospect) {
+    toast('Prospect not found', false);
+    return;
+  }
+
+  // If no sequence specified, show selection modal
+  if (!sequenceId) {
+    showSequenceSelectionModal(prospectId);
+    return;
+  }
+
+  const sequence = outreachSequencesState.sequences[sequenceId];
+  if (!sequence) {
+    toast('Sequence not found', false);
+    return;
+  }
+
+  // Assign sequence to prospect
+  prospect.activeSequence = {
+    sequenceId: sequenceId,
+    currentStep: 1,
+    startedAt: new Date().toISOString(),
+    lastStepCompletedAt: null,
+    paused: false,
+    history: []
+  };
+
+  saveKanban();
+  renderKanban();
+  refreshFollowUpDashboard();
+  toast(`📋 Started "${sequence.name}" for ${prospect.businessName}`, true);
+}
+
+// Show sequence selection modal
+function showSequenceSelectionModal(prospectId) {
+  const sequences = Object.values(outreachSequencesState.sequences);
+
+  const modal = document.createElement('div');
+  modal.id = 'sequenceSelectionModal';
+  modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50';
+  modal.innerHTML = `
+    <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+      <h3 class="text-lg font-bold text-gray-900 mb-4">Select Outreach Sequence</h3>
+      <div class="space-y-3">
+        ${sequences.map(seq => `
+          <div onclick="selectSequenceAndClose('${prospectId}', '${seq.id}')"
+               class="p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-purple-500 hover:bg-purple-50 transition">
+            <div class="font-semibold text-gray-900">${esc(seq.name)}</div>
+            <div class="text-sm text-gray-600">${esc(seq.description)}</div>
+            <div class="text-xs text-purple-600 mt-2">${seq.steps.length} steps: ${seq.steps.map(s => s.channel).join(' → ')}</div>
+          </div>
+        `).join('')}
+      </div>
+      <button onclick="closeSequenceSelectionModal()" class="mt-4 w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
+        Cancel
+      </button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function selectSequenceAndClose(prospectId, sequenceId) {
+  closeSequenceSelectionModal();
+  assignSequence(prospectId, sequenceId);
+}
+
+function closeSequenceSelectionModal() {
+  const modal = document.getElementById('sequenceSelectionModal');
+  if (modal) modal.remove();
+}
+
+// Advance to next sequence step
+async function advanceSequence(prospectId) {
+  // Find prospect
+  let prospect = null;
+  let columnKey = null;
+  for (const colKey of Object.keys(kanbanState.columns)) {
+    const found = kanbanState.columns[colKey].find(p => p && String(p.id) === String(prospectId));
+    if (found) {
+      prospect = found;
+      columnKey = colKey;
+      break;
+    }
+  }
+  if (!prospect || !prospect.activeSequence) {
+    toast('Prospect not in a sequence', false);
+    return;
+  }
+
+  const sequence = outreachSequencesState.sequences[prospect.activeSequence.sequenceId];
+  if (!sequence) {
+    toast('Sequence not found', false);
+    return;
+  }
+
+  const currentStep = prospect.activeSequence.currentStep;
+  if (currentStep > sequence.steps.length) {
+    toast('Sequence already complete', false);
+    return;
+  }
+
+  const stepDef = sequence.steps[currentStep - 1];
+
+  // Execute the channel action
+  await executeSequenceStep(prospect, stepDef);
+
+  // Record completion
+  prospect.activeSequence.history.push({
+    step: currentStep,
+    completedAt: new Date().toISOString(),
+    channel: stepDef.channel
+  });
+  prospect.activeSequence.lastStepCompletedAt = new Date().toISOString();
+  prospect.activeSequence.currentStep++;
+
+  // Log interaction
+  if (!prospect.interactions) prospect.interactions = [];
+  prospect.interactions.push({
+    type: stepDef.channel,
+    date: new Date().toISOString(),
+    notes: `Sequence step ${currentStep}: ${stepDef.description}`
+  });
+
+  // Check if sequence is complete
+  if (prospect.activeSequence.currentStep > sequence.steps.length) {
+    toast(`✅ Completed "${sequence.name}" for ${prospect.businessName}!`, true);
+    prospect.activeSequence.completedAt = new Date().toISOString();
+  } else {
+    const nextStep = sequence.steps[prospect.activeSequence.currentStep - 1];
+    toast(`Step ${currentStep} done! Next: ${nextStep.channel} in ${nextStep.day - stepDef.day} days`, true);
+  }
+
+  saveKanban();
+  renderKanban();
+  refreshFollowUpDashboard();
+}
+
+// Execute a specific sequence step (open the appropriate channel)
+async function executeSequenceStep(prospect, stepDef) {
+  const businessName = prospect.businessName || 'Unknown';
+
+  switch (stepDef.channel) {
+    case 'email':
+      if (prospect.email) {
+        window.open(`mailto:${prospect.email}?subject=Quick question about ${encodeURIComponent(businessName)}`, '_blank');
+      } else {
+        toast('No email address available', false);
+      }
+      break;
+
+    case 'text':
+      if (prospect.phone) {
+        // Use Google Voice
+        const formattedPhone = prospect.phone.replace(/\D/g, '');
+        window.open(`https://voice.google.com/u/0/messages?itemId=t.+1${formattedPhone}`, '_blank');
+        toast('📋 Open Google Voice - paste your message', true);
+      } else {
+        toast('No phone number available', false);
+      }
+      break;
+
+    case 'call':
+      if (prospect.phone) {
+        window.open(`tel:${prospect.phone}`, '_blank');
+      } else {
+        toast('No phone number available', false);
+      }
+      break;
+
+    case 'linkedin':
+      if (prospect.linkedin) {
+        window.open(prospect.linkedin, '_blank');
+        toast('📋 LinkedIn opened - send your message', true);
+      } else {
+        toast('No LinkedIn profile available', false);
+      }
+      break;
+
+    case 'facebook':
+      if (prospect.facebook) {
+        // Try to open Messenger
+        const fbUrl = prospect.facebook.includes('messenger') ? prospect.facebook : prospect.facebook.replace('facebook.com', 'm.me').replace('www.', '');
+        window.open(fbUrl, '_blank');
+        toast('📋 Facebook opened - send your message', true);
+      } else {
+        toast('No Facebook profile available', false);
+      }
+      break;
+
+    default:
+      toast(`Channel "${stepDef.channel}" not implemented`, false);
+  }
+}
+
+// Render sequence progress indicator
+function renderSequenceProgress(activeSequence) {
+  if (!activeSequence) return '';
+
+  const sequence = outreachSequencesState.sequences[activeSequence.sequenceId];
+  if (!sequence) return '';
+
+  const currentStep = activeSequence.currentStep;
+  const totalSteps = sequence.steps.length;
+
+  return sequence.steps.map((step, idx) => {
+    const stepNum = idx + 1;
+    const isCompleted = stepNum < currentStep;
+    const isCurrent = stepNum === currentStep;
+    const channelIcons = { email: '📧', text: '💬', call: '📞', linkedin: '💼', facebook: '📘' };
+    const icon = channelIcons[step.channel] || '📌';
+
+    return `<span class="w-6 h-6 rounded-full flex items-center justify-center text-xs ${isCompleted ? 'bg-green-500 text-white' : isCurrent ? 'bg-purple-600 text-white ring-2 ring-purple-300' : 'bg-gray-200 text-gray-500'}" title="${step.description}">${icon}</span>`;
+  }).join('');
 }
 
 // Toggle Do Not Contact status on a lead (keeps card visible but marked)
