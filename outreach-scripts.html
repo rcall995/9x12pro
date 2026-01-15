@@ -1286,11 +1286,42 @@ No pressure either way.`
                 const optgroup = document.createElement('optgroup');
                 optgroup.label = `📌 ${stage}`;
 
-                grouped[stage].forEach(biz => {
+                // Sort businesses by category within each stage
+                const stageBusinesses = grouped[stage].sort((a, b) => {
+                    const catA = (a.category || 'zzz').toLowerCase();
+                    const catB = (b.category || 'zzz').toLowerCase();
+                    return catA.localeCompare(catB);
+                });
+
+                // Group by category within stage
+                let currentCategory = null;
+                stageBusinesses.forEach(biz => {
+                    const bizCategory = biz.category || 'Uncategorized';
+
+                    // Add category header if category changed
+                    if (bizCategory !== currentCategory) {
+                        currentCategory = bizCategory;
+                        const categoryHeader = document.createElement('option');
+                        categoryHeader.disabled = true;
+                        categoryHeader.textContent = `━━━ ${bizCategory.charAt(0).toUpperCase() + bizCategory.slice(1)} ━━━`;
+                        categoryHeader.style.fontWeight = 'bold';
+                        categoryHeader.style.backgroundColor = '#f3f4f6';
+                        optgroup.appendChild(categoryHeader);
+                    }
+
                     const option = document.createElement('option');
                     option.value = biz.originalIndex;
-                    const category = biz.category ? ` (${biz.category})` : '';
-                    option.textContent = `${biz.businessName || biz.name || 'Unknown'}${category}`;
+
+                    // Build contact icons
+                    const icons = [];
+                    if (biz.phone) icons.push('📞');
+                    if (biz.email) icons.push('📧');
+                    if (biz.facebook) icons.push('📘');
+                    if (biz.instagram) icons.push('📷');
+                    if (biz.website) icons.push('🌐');
+
+                    const iconStr = icons.length > 0 ? ` ${icons.join('')}` : '';
+                    option.textContent = `${biz.businessName || biz.name || 'Unknown'}${iconStr}`;
                     optgroup.appendChild(option);
                 });
 
