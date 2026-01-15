@@ -16765,11 +16765,22 @@ async function togglePoolDoNotContact(prospectId) {
   }
 
   // Check placesCache.searches (where search results are stored)
+  // Check both cachedData (new format) and businesses (old Yelp format)
   if (placesCache && placesCache.searches) {
     for (const cacheKey of Object.keys(placesCache.searches)) {
       const cached = placesCache.searches[cacheKey];
+      // Check cachedData (current format)
       if (cached && cached.cachedData) {
         const biz = cached.cachedData.find(matchesId);
+        if (biz) {
+          biz.doNotContact = found ? newValue : !biz.doNotContact;
+          if (!found) newValue = biz.doNotContact;
+          found = true;
+        }
+      }
+      // Also check businesses (old Yelp format)
+      if (cached && cached.businesses) {
+        const biz = cached.businesses.find(matchesId);
         if (biz) {
           biz.doNotContact = found ? newValue : !biz.doNotContact;
           if (!found) newValue = biz.doNotContact;
@@ -16779,8 +16790,16 @@ async function togglePoolDoNotContact(prospectId) {
     }
   }
 
-  // Also update renderedProspects lookup (used during rendering)
-  if (prospectPoolState.renderedProspects && prospectPoolState.renderedProspects[prospectId]) {
+  // Check renderedProspects - this is populated during rendering and contains
+  // references to the actual prospect objects being displayed
+  if (!found && prospectPoolState.renderedProspects && prospectPoolState.renderedProspects[prospectId]) {
+    const prospect = prospectPoolState.renderedProspects[prospectId];
+    prospect.doNotContact = !prospect.doNotContact;
+    newValue = prospect.doNotContact;
+    found = true;
+    console.log('togglePoolDoNotContact: Found prospect in renderedProspects', prospectId);
+  } else if (prospectPoolState.renderedProspects && prospectPoolState.renderedProspects[prospectId]) {
+    // Also update renderedProspects lookup (used during rendering)
     prospectPoolState.renderedProspects[prospectId].doNotContact = newValue;
   }
 
