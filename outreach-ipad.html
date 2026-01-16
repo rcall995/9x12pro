@@ -417,10 +417,13 @@
 
         async function loadTemplates() {
             try {
-                const stored = localStorage.getItem('outreach-templates');
+                // Load from same key as outreach-scripts.html
+                const stored = localStorage.getItem('outreach-scripts-templates');
                 if (stored) {
-                    const parsed = JSON.parse(stored);
-                    state.templates = parsed.templates || parsed;
+                    state.templates = JSON.parse(stored);
+                    console.log('✅ Loaded templates:', Object.keys(state.templates));
+                } else {
+                    console.log('⚠️ No templates found - using defaults');
                 }
             } catch (err) {
                 console.error('Failed to load templates:', err);
