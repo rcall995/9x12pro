@@ -1462,6 +1462,7 @@ Would you be interested in being on the next one?`
         let objections = [];
         let pipelineBusinesses = []; // Businesses from kanban pipeline
         let currentTab = 'email'; // Track current tab for filtering
+        let currentUserEmail = null; // For cloud sync
 
         // Load on page load
         document.addEventListener('DOMContentLoaded', async () => {
@@ -1492,10 +1493,12 @@ Would you be interested in being on the next one?`
 
                 if (session && session.user && session.user.email) {
                     console.log('✅ User logged in:', session.user.email);
-                    // User is logged in, load their campaigns, pricing data, and pipeline
+                    currentUserEmail = session.user.email;
+                    // User is logged in, load their campaigns, pricing data, pipeline, and templates
                     await loadPricingData(session.user.email);
                     await loadCampaigns(session.user.email);
                     await loadPipelineBusinesses(session.user.email);
+                    await loadTemplatesFromCloud(); // Load templates from cloud
                 } else {
                     console.log('❌ No session found');
                     // Not logged in, show login message
@@ -2097,6 +2100,67 @@ Would you be interested in being on the next one?`
         function saveTemplates() {
             localStorage.setItem('outreach-scripts-templates', JSON.stringify(templates));
             localStorage.setItem('outreach-scripts-version', TEMPLATE_VERSION.toString());
+            // Also save to cloud if logged in
+            saveTemplatesToCloud();
+        }
+
+        // Load templates from Supabase cloud
+        async function loadTemplatesFromCloud() {
+            if (!currentUserEmail || !supabaseClient) return;
+
+            console.log('☁️ Loading templates from cloud...');
+            try {
+                const { data, error } = await supabaseClient
+                    .from('app_data')
+                    .select('data')
+                    .eq('user_email', currentUserEmail)
+                    .eq('data_type', 'outreach-templates')
+                    .single();
+
+                if (error && error.code !== 'PGRST116') {
+                    console.error('Cloud template load error:', error);
+                    return;
+                }
+
+                if (data && data.data) {
+                    templates = data.data;
+                    // Also update localStorage
+                    localStorage.setItem('outreach-scripts-templates', JSON.stringify(templates));
+                    renderAllTemplates();
+                    console.log('✅ Templates loaded from cloud');
+                } else {
+                    // No cloud templates yet - upload current local ones
+                    console.log('⚠️ No cloud templates found, uploading local templates...');
+                    await saveTemplatesToCloud();
+                }
+            } catch (err) {
+                console.error('Failed to load templates from cloud:', err);
+            }
+        }
+
+        // Save templates to Supabase cloud
+        async function saveTemplatesToCloud() {
+            if (!currentUserEmail || !supabaseClient) return;
+
+            try {
+                const { error } = await supabaseClient
+                    .from('app_data')
+                    .upsert({
+                        user_email: currentUserEmail,
+                        data_type: 'outreach-templates',
+                        data: templates
+                    }, {
+                        onConflict: 'user_email,data_type'
+                    });
+
+                if (error) {
+                    console.error('Cloud template save error:', error);
+                } else {
+                    console.log('☁️ Templates saved to cloud');
+                }
+            } catch (err) {
+                console.error('Failed to save templates to cloud:', err);
+            }
         }
 
         function resetAllTemplates() {

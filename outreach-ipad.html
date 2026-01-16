@@ -288,14 +288,16 @@
                 );
             }
 
-            // Load data
+            // Check auth first (needed for cloud template loading)
+            await checkAuth();
+
+            // Load data (templates will try cloud first if logged in)
             await loadSettings();
             await loadTemplates();
             await loadProspects();
             loadTodayStats();
 
-            // Check auth and start location
-            await checkAuth();
+            // Start location tracking
             startLocationTracking();
 
             // Render initial view
@@ -417,11 +419,30 @@
 
         async function loadTemplates() {
             try {
-                // Load from same key as outreach-scripts.html
+                // Try cloud first if logged in
+                if (currentUserEmail && supabaseClient) {
+                    console.log('☁️ Loading templates from cloud...');
+                    const { data, error } = await supabaseClient
+                        .from('app_data')
+                        .select('data')
+                        .eq('user_email', currentUserEmail)
+                        .eq('data_type', 'outreach-templates')
+                        .single();
+
+                    if (!error && data?.data) {
+                        state.templates = data.data;
+                        console.log('✅ Loaded templates from cloud:', Object.keys(state.templates));
+                        return;
+                    } else if (error && error.code !== 'PGRST116') {
+                        console.error('Cloud template load error:', error);
+                    }
+                }
+
+                // Fallback to localStorage
                 const stored = localStorage.getItem('outreach-scripts-templates');
                 if (stored) {
                     state.templates = JSON.parse(stored);
-                    console.log('✅ Loaded templates:', Object.keys(state.templates));
+                    console.log('✅ Loaded templates from localStorage:', Object.keys(state.templates));
                 } else {
                     console.log('⚠️ No templates found - using defaults');
                 }
