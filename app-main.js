@@ -9209,6 +9209,8 @@ function updateBulkSendSection() {
   const btnSMS = document.getElementById('btnBulkSendSMS');
   const btnGoogleVoice = document.getElementById('btnBulkSendGoogleVoice');
   const btnEmail = document.getElementById('btnBulkSendEmail');
+  const btnLinkedIn = document.getElementById('btnBulkOpenLinkedIn');
+  const btnFacebook = document.getElementById('btnBulkOpenFacebook');
 
   if (!bulkSection || !bulkCount) return;
 
@@ -9220,11 +9222,15 @@ function updateBulkSendSection() {
     if (btnSMS) btnSMS.disabled = false;
     if (btnGoogleVoice) btnGoogleVoice.disabled = false;
     if (btnEmail) btnEmail.disabled = false;
+    if (btnLinkedIn) btnLinkedIn.disabled = false;
+    if (btnFacebook) btnFacebook.disabled = false;
   } else {
     bulkSection.classList.add('hidden');
     if (btnSMS) btnSMS.disabled = true;
     if (btnGoogleVoice) btnGoogleVoice.disabled = true;
     if (btnEmail) btnEmail.disabled = true;
+    if (btnLinkedIn) btnLinkedIn.disabled = true;
+    if (btnFacebook) btnFacebook.disabled = true;
   }
 }
 
@@ -14977,17 +14983,29 @@ function renderKanban() {
                 const emailedClass = ct.emailed ? 'bg-green-100 text-green-700 border-green-400' : 'bg-gray-100 text-gray-400 border-gray-300';
                 const dmedClass = ct.dmed ? 'bg-green-100 text-green-700 border-green-400' : 'bg-gray-100 text-gray-400 border-gray-300';
                 const textedClass = ct.texted ? 'bg-green-100 text-green-700 border-green-400' : 'bg-gray-100 text-gray-400 border-gray-300';
+                const linkedinClass = ct.linkedinMessaged ? 'bg-green-100 text-green-700 border-green-400' : 'bg-gray-100 text-gray-400 border-gray-300';
+                const facebookClass = ct.facebookMessaged ? 'bg-green-100 text-green-700 border-green-400' : 'bg-gray-100 text-gray-400 border-gray-300';
+                const calledClass = ct.called ? 'bg-green-100 text-green-700 border-green-400' : 'bg-gray-100 text-gray-400 border-gray-300';
 
                 const contactTrackingHTML = `
-                  <div class="flex gap-1 items-center justify-center py-2 mt-2 border-t border-gray-200">
+                  <div class="flex flex-wrap gap-1 items-center justify-center py-2 mt-2 border-t border-gray-200">
                     <button onclick="toggleContactTracking('${leadId}', 'emailed', event)" class="flex items-center gap-1 px-2 py-1 text-xs border rounded-full cursor-pointer hover:scale-105 transition-transform ${emailedClass}" title="${ct.emailed ? 'Emailed ' + (ct.emailedDate ? new Date(ct.emailedDate).toLocaleDateString() : '') : 'Click to mark as emailed'}">
                       ✉️ ${ct.emailed ? '✓' : ''}
                     </button>
-                    <button onclick="toggleContactTracking('${leadId}', 'dmed', event)" class="flex items-center gap-1 px-2 py-1 text-xs border rounded-full cursor-pointer hover:scale-105 transition-transform ${dmedClass}" title="${ct.dmed ? 'DM sent ' + (ct.dmedDate ? new Date(ct.dmedDate).toLocaleDateString() : '') : 'Click to mark as DM sent'}">
-                      💬 ${ct.dmed ? '✓' : ''}
-                    </button>
                     <button onclick="toggleContactTracking('${leadId}', 'texted', event)" class="flex items-center gap-1 px-2 py-1 text-xs border rounded-full cursor-pointer hover:scale-105 transition-transform ${textedClass}" title="${ct.texted ? 'Texted ' + (ct.textedDate ? new Date(ct.textedDate).toLocaleDateString() : '') : 'Click to mark as texted'}">
                       📱 ${ct.texted ? '✓' : ''}
+                    </button>
+                    <button onclick="toggleContactTracking('${leadId}', 'called', event)" class="flex items-center gap-1 px-2 py-1 text-xs border rounded-full cursor-pointer hover:scale-105 transition-transform ${calledClass}" title="${ct.called ? 'Called ' + (ct.calledDate ? new Date(ct.calledDate).toLocaleDateString() : '') : 'Click to mark as called'}">
+                      📞 ${ct.called ? '✓' : ''}
+                    </button>
+                    <button onclick="toggleContactTracking('${leadId}', 'linkedinMessaged', event)" class="flex items-center gap-1 px-2 py-1 text-xs border rounded-full cursor-pointer hover:scale-105 transition-transform ${linkedinClass}" title="${ct.linkedinMessaged ? 'LinkedIn ' + (ct.linkedinMessagedDate ? new Date(ct.linkedinMessagedDate).toLocaleDateString() : '') : 'Click to mark as LinkedIn messaged'}">
+                      💼 ${ct.linkedinMessaged ? '✓' : ''}
+                    </button>
+                    <button onclick="toggleContactTracking('${leadId}', 'facebookMessaged', event)" class="flex items-center gap-1 px-2 py-1 text-xs border rounded-full cursor-pointer hover:scale-105 transition-transform ${facebookClass}" title="${ct.facebookMessaged ? 'Facebook ' + (ct.facebookMessagedDate ? new Date(ct.facebookMessagedDate).toLocaleDateString() : '') : 'Click to mark as Facebook messaged'}">
+                      📘 ${ct.facebookMessaged ? '✓' : ''}
+                    </button>
+                    <button onclick="toggleContactTracking('${leadId}', 'dmed', event)" class="flex items-center gap-1 px-2 py-1 text-xs border rounded-full cursor-pointer hover:scale-105 transition-transform ${dmedClass}" title="${ct.dmed ? 'DM sent ' + (ct.dmedDate ? new Date(ct.dmedDate).toLocaleDateString() : '') : 'Click to mark as DM sent (IG)'}">
+                      📷 ${ct.dmed ? '✓' : ''}
                     </button>
                   </div>
                 `;
@@ -19462,6 +19480,180 @@ function bulkSendGoogleVoice() {
 
         // Start processing
         processNextGoogleVoice();
+    }
+}
+
+// Bulk open LinkedIn profiles and copy message to clipboard
+function bulkOpenLinkedIn() {
+    const templateSelector = document.getElementById('bulkSendTemplateSelector');
+    if (!templateSelector || !templateSelector.value) {
+        toast('⚠️ Please select a template first', false);
+        return;
+    }
+
+    const templateId = templateSelector.value;
+    const template = userTemplatesState.templates[templateId];
+
+    if (!template) {
+        toast('⚠️ Template not found', false);
+        return;
+    }
+
+    const selectedCount = toContactSelectionState.selectedIds.size;
+    const toContactColumn = kanbanState.columns['to-contact'] || [];
+    const selectedIds = Array.from(toContactSelectionState.selectedIds);
+
+    // Count how many have LinkedIn URLs
+    let linkedInCount = 0;
+    selectedIds.forEach(leadId => {
+        const prospect = toContactColumn.find(item => String(item.id || item) === String(leadId));
+        if (prospect && typeof prospect === 'object' && prospect.linkedin) {
+            linkedInCount++;
+        }
+    });
+
+    if (linkedInCount === 0) {
+        toast('⚠️ None of the selected prospects have LinkedIn URLs', false);
+        return;
+    }
+
+    if (confirm(`Open LinkedIn for ${linkedInCount} prospect${linkedInCount > 1 ? 's' : ''} (of ${selectedCount} selected)?\n\nThis will:\n1. Copy the message to your clipboard\n2. Open their LinkedIn profile\n3. You can paste the message to send`)) {
+        let successCount = 0;
+        let currentIndex = 0;
+
+        const processNextLinkedIn = () => {
+            if (currentIndex >= selectedIds.length) {
+                toast(`✅ Opened LinkedIn for ${successCount} prospect${successCount > 1 ? 's' : ''}`, true);
+
+                if (template) {
+                    template.lastUsed = new Date().toISOString();
+                    template.usageCount = (template.usageCount || 0) + successCount;
+                    saveUserTemplates();
+                }
+
+                toContactSelectionState.selectedIds.clear();
+                updateBulkSendSection();
+                renderKanban();
+                return;
+            }
+
+            const leadId = selectedIds[currentIndex];
+            const prospect = toContactColumn.find(item => String(item.id || item) === String(leadId));
+
+            if (prospect && typeof prospect === 'object' && prospect.linkedin) {
+                const filled = fillTemplateVariables(template, prospect);
+                const message = template.type === 'email' ? filled.body : (filled.body || template.body);
+
+                navigator.clipboard.writeText(message).then(() => {
+                    toast(`💼 Opening LinkedIn ${successCount + 1} of ${linkedInCount}: ${prospect.businessName} (message copied!)`, true);
+                }).catch(err => {
+                    console.warn('Could not copy to clipboard:', err);
+                    toast(`💼 Opening LinkedIn ${successCount + 1} of ${linkedInCount}: ${prospect.businessName}`, true);
+                });
+
+                window.open(prospect.linkedin, '_blank');
+                successCount++;
+
+                // Track the interaction
+                if (!prospect.contactTracking) {
+                    prospect.contactTracking = {};
+                }
+                prospect.contactTracking.linkedinMessaged = true;
+                prospect.contactTracking.linkedinMessagedDate = new Date().toISOString();
+            }
+
+            currentIndex++;
+            setTimeout(processNextLinkedIn, 3000);
+        };
+
+        processNextLinkedIn();
+    }
+}
+
+// Bulk open Facebook pages and copy message to clipboard
+function bulkOpenFacebook() {
+    const templateSelector = document.getElementById('bulkSendTemplateSelector');
+    if (!templateSelector || !templateSelector.value) {
+        toast('⚠️ Please select a template first', false);
+        return;
+    }
+
+    const templateId = templateSelector.value;
+    const template = userTemplatesState.templates[templateId];
+
+    if (!template) {
+        toast('⚠️ Template not found', false);
+        return;
+    }
+
+    const selectedCount = toContactSelectionState.selectedIds.size;
+    const toContactColumn = kanbanState.columns['to-contact'] || [];
+    const selectedIds = Array.from(toContactSelectionState.selectedIds);
+
+    // Count how many have Facebook URLs
+    let facebookCount = 0;
+    selectedIds.forEach(leadId => {
+        const prospect = toContactColumn.find(item => String(item.id || item) === String(leadId));
+        if (prospect && typeof prospect === 'object' && prospect.facebook) {
+            facebookCount++;
+        }
+    });
+
+    if (facebookCount === 0) {
+        toast('⚠️ None of the selected prospects have Facebook URLs', false);
+        return;
+    }
+
+    if (confirm(`Open Facebook for ${facebookCount} prospect${facebookCount > 1 ? 's' : ''} (of ${selectedCount} selected)?\n\nThis will:\n1. Copy the message to your clipboard\n2. Open their Facebook page\n3. You can paste the message to send`)) {
+        let successCount = 0;
+        let currentIndex = 0;
+
+        const processNextFacebook = () => {
+            if (currentIndex >= selectedIds.length) {
+                toast(`✅ Opened Facebook for ${successCount} prospect${successCount > 1 ? 's' : ''}`, true);
+
+                if (template) {
+                    template.lastUsed = new Date().toISOString();
+                    template.usageCount = (template.usageCount || 0) + successCount;
+                    saveUserTemplates();
+                }
+
+                toContactSelectionState.selectedIds.clear();
+                updateBulkSendSection();
+                renderKanban();
+                return;
+            }
+
+            const leadId = selectedIds[currentIndex];
+            const prospect = toContactColumn.find(item => String(item.id || item) === String(leadId));
+
+            if (prospect && typeof prospect === 'object' && prospect.facebook) {
+                const filled = fillTemplateVariables(template, prospect);
+                const message = template.type === 'email' ? filled.body : (filled.body || template.body);
+
+                navigator.clipboard.writeText(message).then(() => {
+                    toast(`📘 Opening Facebook ${successCount + 1} of ${facebookCount}: ${prospect.businessName} (message copied!)`, true);
+                }).catch(err => {
+                    console.warn('Could not copy to clipboard:', err);
+                    toast(`📘 Opening Facebook ${successCount + 1} of ${facebookCount}: ${prospect.businessName}`, true);
+                });
+
+                window.open(prospect.facebook, '_blank');
+                successCount++;
+
+                // Track the interaction
+                if (!prospect.contactTracking) {
+                    prospect.contactTracking = {};
+                }
+                prospect.contactTracking.facebookMessaged = true;
+                prospect.contactTracking.facebookMessagedDate = new Date().toISOString();
+            }
+
+            currentIndex++;
+            setTimeout(processNextFacebook, 3000);
+        };
+
+        processNextFacebook();
     }
 }
 

@@ -538,6 +538,10 @@
                     <span class="text-xl">📧</span>
                     <span class="font-semibold text-gray-700">Outreach Scripts</span>
                 </button>
+                <a href="/outreach-ipad.html" target="_blank" class="flex items-center gap-2 px-4 py-2 bg-white border-2 border-green-200 rounded-xl hover:border-green-400 hover:bg-green-50 transition-all shadow-sm">
+                    <span class="text-xl">📍</span>
+                    <span class="font-semibold text-gray-700">iPad Outreach Hub</span>
+                </a>
             </div>
 
             <!-- SALES PIPELINE KANBAN -->
@@ -644,15 +648,21 @@
                         <p id="bulkSendPreviewText" class="text-sm text-gray-700 whitespace-pre-wrap"></p>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <button id="btnBulkSendSMS" onclick="bulkSendSMS()" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-lg" disabled>
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+                        <button id="btnBulkSendSMS" onclick="bulkSendSMS()" class="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-lg" disabled>
                             📱 SMS
                         </button>
-                        <button id="btnBulkSendGoogleVoice" onclick="bulkSendGoogleVoice()" class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-lg" disabled>
-                            📞 Google Voice
+                        <button id="btnBulkSendGoogleVoice" onclick="bulkSendGoogleVoice()" class="px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-lg" disabled>
+                            📞 Voice
                         </button>
-                        <button id="btnBulkSendEmail" onclick="bulkSendEmail()" class="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-lg" disabled>
+                        <button id="btnBulkSendEmail" onclick="bulkSendEmail()" class="px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-lg" disabled>
                             📧 Email
+                        </button>
+                        <button id="btnBulkOpenLinkedIn" onclick="bulkOpenLinkedIn()" class="px-4 py-3 bg-sky-600 text-white rounded-lg hover:bg-sky-700 font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-lg" disabled>
+                            💼 LinkedIn
+                        </button>
+                        <button id="btnBulkOpenFacebook" onclick="bulkOpenFacebook()" class="px-4 py-3 bg-blue-800 text-white rounded-lg hover:bg-blue-900 font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-lg" disabled>
+                            📘 Facebook
                         </button>
                     </div>
                 </div>

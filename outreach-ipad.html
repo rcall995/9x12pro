@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Outreach Hub - 9x12 Pro</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { -webkit-tap-highlight-color: transparent; }
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            overscroll-behavior: none;
+        }
+        .channel-tab {
+            transition: all 0.15s ease;
+        }
+        .channel-tab.active {
+            transform: scale(1.05);
+        }
+        .prospect-item {
+            transition: background-color 0.15s ease;
+        }
+        .prospect-item.selected {
+            background-color: #dbeafe;
+            border-left: 4px solid #3b82f6;
+        }
+        .prospect-item.contacted {
+            opacity: 0.7;
+        }
+        .template-preview {
+            white-space: pre-wrap;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+        .action-btn {
+            min-height: 56px;
+            font-size: 18px;
+        }
+        .nearby-badge {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+        .toast {
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+        }
+        .toast.show {
+            transform: translateY(0);
+        }
+        /* Safe area for iPad */
+        @supports (padding: env(safe-area-inset-bottom)) {
+            .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 h-full flex flex-col">
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-4 py-3 flex items-center justify-between shadow-lg flex-shrink-0">
+        <div class="flex items-center gap-3">
+            <a href="/app.html" class="p-2 hover:bg-white/20 rounded-lg transition-colors">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                </svg>
+            </a>
+            <div>
+                <h1 class="text-xl font-bold">Outreach Hub</h1>
+                <p class="text-xs text-purple-200">Quick Contact + Nearby Walk-ins</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <span id="syncStatus" class="text-xs bg-white/20 px-2 py-1 rounded-full">Loading...</span>
+        </div>
+    </header>
+
+    <!-- Channel Tabs -->
+    <div class="bg-white border-b border-gray-200 px-2 py-2 flex gap-1 overflow-x-auto flex-shrink-0">
+        <button onclick="switchChannel('sms')" id="tab-sms" class="channel-tab active flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-green-500 text-white">
+            <span class="text-lg">📱</span> SMS
+        </button>
+        <button onclick="switchChannel('email')" id="tab-email" class="channel-tab flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">
+            <span class="text-lg">📧</span> Email
+        </button>
+        <button onclick="switchChannel('facebook')" id="tab-facebook" class="channel-tab flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">
+            <span class="text-lg">📘</span> Facebook
+        </button>
+        <button onclick="switchChannel('instagram')" id="tab-instagram" class="channel-tab flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">
+            <span class="text-lg">📷</span> Instagram
+        </button>
+        <button onclick="switchChannel('linkedin')" id="tab-linkedin" class="channel-tab flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">
+            <span class="text-lg">💼</span> LinkedIn
+        </button>
+        <button onclick="switchChannel('call')" id="tab-call" class="channel-tab flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">
+            <span class="text-lg">📞</span> Call
+        </button>
+        <button onclick="switchChannel('nearby')" id="tab-nearby" class="channel-tab flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">
+            <span class="text-lg">📍</span> Nearby
+            <span id="nearbyCount" class="hidden bg-green-600 text-white text-xs px-2 py-0.5 rounded-full">0</span>
+        </button>
+    </div>
+
+    <!-- Main Content - Split View -->
+    <div class="flex-1 flex overflow-hidden">
+        <!-- Left Panel - Prospect List -->
+        <div class="w-2/5 border-r border-gray-200 bg-white flex flex-col">
+            <div class="p-3 border-b border-gray-100 flex items-center justify-between">
+                <span id="listTitle" class="font-semibold text-gray-700">SMS Prospects</span>
+                <span id="listCount" class="text-sm text-gray-500">0 available</span>
+            </div>
+            <div id="prospectList" class="flex-1 overflow-y-auto">
+                <!-- Prospects will be rendered here -->
+                <div class="p-8 text-center text-gray-400">
+                    <div class="text-4xl mb-2">📋</div>
+                    <p>Loading prospects...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel - Selected Prospect Details -->
+        <div class="w-3/5 bg-gray-50 flex flex-col">
+            <div id="detailsPanel" class="flex-1 overflow-y-auto p-6">
+                <!-- Empty State -->
+                <div id="emptyState" class="h-full flex flex-col items-center justify-center text-gray-400">
+                    <div class="text-6xl mb-4">👈</div>
+                    <p class="text-lg">Select a prospect to get started</p>
+                </div>
+
+                <!-- Prospect Details (hidden by default) -->
+                <div id="prospectDetails" class="hidden">
+                    <div class="mb-6">
+                        <h2 id="detailName" class="text-2xl font-bold text-gray-900">Business Name</h2>
+                        <p id="detailCategory" class="text-gray-500">Category</p>
+                        <div id="detailAddress" class="text-sm text-gray-400 mt-1"></div>
+                    </div>
+
+                    <!-- Contact Info -->
+                    <div id="contactInfo" class="grid grid-cols-2 gap-3 mb-6">
+                        <!-- Filled dynamically -->
+                    </div>
+
+                    <!-- Contact Status -->
+                    <div id="contactStatus" class="mb-6 p-3 bg-white rounded-xl border border-gray-200">
+                        <div class="text-sm font-semibold text-gray-700 mb-2">Contact Status</div>
+                        <div id="statusIcons" class="flex flex-wrap gap-2">
+                            <!-- Status icons rendered here -->
+                        </div>
+                    </div>
+
+                    <!-- Template Preview -->
+                    <div class="mb-6">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-semibold text-gray-700">Message Template</span>
+                            <a href="/outreach-scripts.html" target="_blank" class="text-xs text-purple-600 hover:underline">Edit Templates</a>
+                        </div>
+                        <div class="bg-white rounded-xl border border-gray-200 p-4">
+                            <pre id="templatePreview" class="template-preview text-gray-700 text-sm">Select a prospect to see the template...</pre>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="space-y-3">
+                        <button id="btnCopyOpen" onclick="copyAndOpen()" class="action-btn w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2">
+                            <span id="btnCopyOpenIcon">📱</span>
+                            <span id="btnCopyOpenText">Copy & Open SMS</span>
+                        </button>
+                        <button id="btnMarkContacted" onclick="markContacted()" class="action-btn w-full bg-white border-2 border-gray-300 text-gray-700 rounded-xl font-bold hover:bg-gray-50 transition-all flex items-center justify-center gap-2">
+                            <span>✓</span>
+                            <span>Mark as Contacted</span>
+                        </button>
+                    </div>
+
+                    <!-- Nearby-specific buttons (hidden by default) -->
+                    <div id="nearbyActions" class="hidden space-y-3 mt-3">
+                        <button onclick="getDirections()" class="action-btn w-full bg-blue-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2">
+                            <span>🗺️</span>
+                            <span>Get Directions</span>
+                        </button>
+                        <button onclick="showVisitModal()" class="action-btn w-full bg-orange-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2">
+                            <span>🚶</span>
+                            <span>Mark as Visited</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer Stats -->
+    <div class="bg-white border-t border-gray-200 px-4 py-3 flex items-center justify-between text-sm safe-bottom flex-shrink-0">
+        <div class="flex items-center gap-6">
+            <div>
+                <span class="text-gray-500">Today:</span>
+                <span id="statToday" class="font-bold text-purple-600">0</span>
+                <span class="text-gray-400">contacted</span>
+            </div>
+            <div>
+                <span class="text-gray-500">Session:</span>
+                <span id="statSession" class="font-bold text-green-600">0</span>
+            </div>
+            <div>
+                <span class="text-gray-500">Remaining:</span>
+                <span id="statRemaining" class="font-bold text-gray-700">0</span>
+            </div>
+        </div>
+        <div id="locationStatus" class="text-xs text-gray-400">
+            📍 Location: --
+        </div>
+    </div>
+
+    <!-- Visit Modal -->
+    <div id="visitModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-2xl p-6 mx-4 max-w-md w-full shadow-2xl">
+            <h3 class="text-xl font-bold mb-4">Mark Visit</h3>
+            <p id="visitModalBusiness" class="text-gray-600 mb-4">Business Name</p>
+
+            <div class="space-y-2 mb-4">
+                <p class="text-sm font-semibold text-gray-700">Outcome:</p>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="selectOutcome('spoke')" class="outcome-btn p-3 rounded-xl border-2 border-gray-200 text-sm font-medium hover:border-green-500 hover:bg-green-50 transition-all" data-outcome="spoke">
+                        🗣️ Spoke to owner
+                    </button>
+                    <button onclick="selectOutcome('card')" class="outcome-btn p-3 rounded-xl border-2 border-gray-200 text-sm font-medium hover:border-blue-500 hover:bg-blue-50 transition-all" data-outcome="card">
+                        💳 Left card
+                    </button>
+                    <button onclick="selectOutcome('unavailable')" class="outcome-btn p-3 rounded-xl border-2 border-gray-200 text-sm font-medium hover:border-orange-500 hover:bg-orange-50 transition-all" data-outcome="unavailable">
+                        🚫 Not available
+                    </button>
+                    <button onclick="selectOutcome('closed')" class="outcome-btn p-3 rounded-xl border-2 border-gray-200 text-sm font-medium hover:border-red-500 hover:bg-red-50 transition-all" data-outcome="closed">
+                        🔒 Closed
+                    </button>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="text-sm font-semibold text-gray-700">Notes (optional):</label>
+                <textarea id="visitNotes" rows="2" class="w-full mt-1 p-3 border border-gray-300 rounded-xl text-sm" placeholder="Any notes about the visit..."></textarea>
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="closeVisitModal()" class="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold">Cancel</button>
+                <button onclick="saveVisit()" class="flex-1 py-3 bg-green-500 text-white rounded-xl font-semibold">Save Visit</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast fixed bottom-20 left-1/2 -translate-x-1/2 px-6 py-3 bg-gray-900 text-white rounded-xl shadow-lg z-50">
+        <span id="toastMessage">Message</span>
+    </div>
+
+    <script>
+        // ============ STATE ============
+        const state = {
+            currentChannel: 'sms',
+            prospects: [],
+            filteredProspects: [],
+            selectedProspect: null,
+            currentPosition: null,
+            watchId: null,
+            templates: {},
+            settings: {},
+            sessionStats: {
+                contacted: 0,
+                startTime: Date.now()
+            },
+            todayStats: {
+                contacted: 0,
+                date: new Date().toDateString()
+            },
+            visitOutcome: null
+        };
+
+        let supabaseClient = null;
+        let currentUserEmail = null;
+
+        // ============ INITIALIZATION ============
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('🚀 Outreach Hub loaded');
+
+            // Initialize Supabase
+            if (window.supabase && window.APP_CONFIG) {
+                supabaseClient = window.supabase.createClient(
+                    window.APP_CONFIG.supabase.url,
+                    window.APP_CONFIG.supabase.anonKey
+                );
+            }
+
+            // Load data
+            await loadSettings();
+            await loadTemplates();
+            await loadProspects();
+            loadTodayStats();
+
+            // Check auth and start location
+            await checkAuth();
+            startLocationTracking();
+
+            // Render initial view
+            renderProspectList();
+            updateStats();
+        });
+
+        // ============ AUTH ============
+        async function checkAuth() {
+            if (!supabaseClient) return;
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (session?.user) {
+                    currentUserEmail = session.user.email;
+                    document.getElementById('syncStatus').textContent = '✓ Synced';
+                    document.getElementById('syncStatus').classList.add('bg-green-500/30');
+                } else {
+                    document.getElementById('syncStatus').textContent = 'Offline';
+                }
+            } catch (err) {
+                console.error('Auth check failed:', err);
+            }
+        }
+
+        // ============ DATA LOADING ============
+        async function loadProspects() {
+            console.log('📥 Loading prospects...');
+            try {
+                // Try IndexedDB first
+                const dbRequest = indexedDB.open('mailslot-db', 1);
+
+                dbRequest.onsuccess = (event) => {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains('appData')) {
+                        loadFromLocalStorage();
+                        return;
+                    }
+
+                    const tx = db.transaction('appData', 'readonly');
+                    const store = tx.objectStore('appData');
+                    const getRequest = store.get('mailslot-kanban');
+
+                    getRequest.onsuccess = () => {
+                        if (getRequest.result?.data) {
+                            processKanbanData(getRequest.result.data);
+                        } else {
+                            loadFromLocalStorage();
+                        }
+                    };
+
+                    getRequest.onerror = () => loadFromLocalStorage();
+                };
+
+                dbRequest.onerror = () => loadFromLocalStorage();
+            } catch (err) {
+                console.error('Failed to load prospects:', err);
+                loadFromLocalStorage();
+            }
+        }
+
+        function loadFromLocalStorage() {
+            try {
+                const stored = localStorage.getItem('mailslot-kanban');
+                if (stored) {
+                    processKanbanData(JSON.parse(stored));
+                }
+            } catch (err) {
+                console.error('localStorage load failed:', err);
+            }
+        }
+
+        function processKanbanData(data) {
+            const allProspects = [];
+            const columns = ['to-contact', 'in-progress'];
+
+            columns.forEach(col => {
+                const items = data.columns?.[col] || [];
+                items.forEach(item => {
+                    if (item && typeof item === 'object' && item.businessName) {
+                        allProspects.push({
+                            ...item,
+                            pipelineStage: col === 'to-contact' ? 'To Contact' : 'In Progress'
+                        });
+                    }
+                });
+            });
+
+            state.prospects = allProspects;
+            console.log('✅ Loaded', allProspects.length, 'prospects');
+            renderProspectList();
+            updateStats();
+        }
+
+        async function loadSettings() {
+            try {
+                const stored = localStorage.getItem('outreach-settings');
+                if (stored) {
+                    state.settings = JSON.parse(stored);
+                }
+            } catch (err) {
+                console.error('Failed to load settings:', err);
+            }
+        }
+
+        async function loadTemplates() {
+            try {
+                const stored = localStorage.getItem('outreach-templates');
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    state.templates = parsed.templates || parsed;
+                }
+            } catch (err) {
+                console.error('Failed to load templates:', err);
+            }
+        }
+
+        function loadTodayStats() {
+            try {
+                const stored = localStorage.getItem('outreach-today-stats');
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    if (parsed.date === new Date().toDateString()) {
+                        state.todayStats = parsed;
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to load today stats:', err);
+            }
+        }
+
+        function saveTodayStats() {
+            state.todayStats.date = new Date().toDateString();
+            localStorage.setItem('outreach-today-stats', JSON.stringify(state.todayStats));
+        }
+
+        // ============ CHANNEL SWITCHING ============
+        function switchChannel(channel) {
+            state.currentChannel = channel;
+            state.selectedProspect = null;
+
+            // Update tab styles
+            document.querySelectorAll('.channel-tab').forEach(tab => {
+                tab.classList.remove('active', 'bg-green-500', 'bg-blue-500', 'bg-sky-500', 'bg-pink-500', 'bg-orange-500', 'text-white');
+                tab.classList.add('bg-gray-100', 'text-gray-700');
+            });
+
+            const activeTab = document.getElementById('tab-' + channel);
+            activeTab.classList.add('active', 'text-white');
+            activeTab.classList.remove('bg-gray-100', 'text-gray-700');
+
+            // Set tab color
+            const colors = {
+                sms: 'bg-green-500',
+                email: 'bg-blue-500',
+                facebook: 'bg-blue-600',
+                instagram: 'bg-pink-500',
+                linkedin: 'bg-sky-600',
+                call: 'bg-orange-500',
+                nearby: 'bg-emerald-500'
+            };
+            activeTab.classList.add(colors[channel] || 'bg-purple-500');
+
+            // Update list title
+            const titles = {
+                sms: 'SMS Prospects',
+                email: 'Email Prospects',
+                facebook: 'Facebook Prospects',
+                instagram: 'Instagram Prospects',
+                linkedin: 'LinkedIn Prospects',
+                call: 'Call Prospects',
+                nearby: 'Nearby Businesses'
+            };
+            document.getElementById('listTitle').textContent = titles[channel];
+
+            renderProspectList();
+            showEmptyState();
+        }
+
+        // ============ FILTERING ============
+        function filterProspects() {
+            const channel = state.currentChannel;
+
+            if (channel === 'nearby') {
+                return filterNearby();
+            }
+
+            return state.prospects.filter(p => {
+                switch (channel) {
+                    case 'sms':
+                    case 'call':
+                        return !!p.phone;
+                    case 'email':
+                        return !!p.email;
+                    case 'facebook':
+                        return !!p.facebook;
+                    case 'instagram':
+                        return !!p.instagram;
+                    case 'linkedin':
+                        return !!p.linkedin;
+                    default:
+                        return true;
+                }
+            });
+        }
+
+        function filterNearby() {
+            if (!state.currentPosition) return [];
+
+            return state.prospects
+                .filter(p => p.lat && p.lng)
+                .map(p => ({
+                    ...p,
+                    distance: calculateDistance(
+                        state.currentPosition.lat,
+                        state.currentPosition.lng,
+                        p.lat,
+                        p.lng
+                    )
+                }))
+                .filter(p => p.distance <= 1) // Within 1 mile
+                .sort((a, b) => a.distance - b.distance);
+        }
+
+        // ============ RENDERING ============
+        function renderProspectList() {
+            const container = document.getElementById('prospectList');
+            const filtered = filterProspects();
+            state.filteredProspects = filtered;
+
+            document.getElementById('listCount').textContent = `${filtered.length} available`;
+
+            if (filtered.length === 0) {
+                const emptyMessages = {
+                    sms: 'No prospects with phone numbers',
+                    email: 'No prospects with email addresses',
+                    facebook: 'No prospects with Facebook URLs',
+                    instagram: 'No prospects with Instagram URLs',
+                    linkedin: 'No prospects with LinkedIn URLs',
+                    call: 'No prospects with phone numbers',
+                    nearby: state.currentPosition ? 'No businesses within 1 mile' : 'Enable location to see nearby businesses'
+                };
+
+                container.innerHTML = `
+                    <div class="p-8 text-center text-gray-400">
+                        <div class="text-4xl mb-2">${state.currentChannel === 'nearby' ? '📍' : '📋'}</div>
+                        <p>${emptyMessages[state.currentChannel]}</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filtered.map((p, idx) => {
+                const ct = p.contactTracking || {};
+                const isContacted = getContactedStatus(p);
+                const distanceText = p.distance !== undefined ? `<span class="text-xs text-emerald-600 font-medium">📍 ${p.distance.toFixed(1)} mi</span>` : '';
+
+                // Build contact icons
+                const icons = [];
+                if (p.phone) icons.push(ct.texted ? '📱✓' : '📱');
+                if (p.email) icons.push(ct.emailed ? '📧✓' : '📧');
+                if (p.facebook) icons.push(ct.facebookMessaged ? '📘✓' : '📘');
+                if (p.instagram) icons.push(ct.dmed ? '📷✓' : '📷');
+                if (p.linkedin) icons.push(ct.linkedinMessaged ? '💼✓' : '💼');
+
+                return `
+                    <div class="prospect-item p-3 border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${isContacted ? 'contacted' : ''}"
+                         onclick="selectProspect(${idx})">
+                        <div class="flex items-center justify-between">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2">
+                                    ${isContacted ? '<span class="text-green-500">✓</span>' : ''}
+                                    <span class="font-medium text-gray-900 truncate">${p.businessName}</span>
+                                </div>
+                                <div class="text-xs text-gray-500 truncate">${p.category || 'No category'}</div>
+                                ${distanceText}
+                            </div>
+                            <div class="text-xs text-gray-400 ml-2 flex-shrink-0">${icons.join(' ')}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function selectProspect(index) {
+            const prospect = state.filteredProspects[index];
+            state.selectedProspect = prospect;
+
+            // Update list selection
+            document.querySelectorAll('.prospect-item').forEach((el, i) => {
+                el.classList.toggle('selected', i === index);
+            });
+
+            // Show details
+            document.getElementById('emptyState').classList.add('hidden');
+            document.getElementById('prospectDetails').classList.remove('hidden');
+
+            // Fill details
+            document.getElementById('detailName').textContent = prospect.businessName;
+            document.getElementById('detailCategory').textContent = prospect.category || 'No category';
+
+            const address = prospect.address || prospect.fullAddress || '';
+            document.getElementById('detailAddress').textContent = address;
+
+            // Contact info
+            const contactHtml = [];
+            if (prospect.phone) contactHtml.push(`<div class="bg-white rounded-lg p-2 border"><span class="text-gray-500 text-xs">Phone:</span><br><span class="font-medium">${prospect.phone}</span></div>`);
+            if (prospect.email) contactHtml.push(`<div class="bg-white rounded-lg p-2 border"><span class="text-gray-500 text-xs">Email:</span><br><span class="font-medium text-sm truncate">${prospect.email}</span></div>`);
+            document.getElementById('contactInfo').innerHTML = contactHtml.join('');
+
+            // Contact status icons
+            const ct = prospect.contactTracking || {};
+            const statusHtml = [
+                { key: 'emailed', icon: '📧', label: 'Email' },
+                { key: 'texted', icon: '📱', label: 'Text' },
+                { key: 'called', icon: '📞', label: 'Call' },
+                { key: 'facebookMessaged', icon: '📘', label: 'FB' },
+                { key: 'dmed', icon: '📷', label: 'IG' },
+                { key: 'linkedinMessaged', icon: '💼', label: 'LI' },
+                { key: 'visitedInPerson', icon: '🚶', label: 'Visit' }
+            ].map(s => `
+                <span class="px-2 py-1 rounded-full text-xs ${ct[s.key] ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}">
+                    ${s.icon} ${s.label} ${ct[s.key] ? '✓' : ''}
+                </span>
+            `).join('');
+            document.getElementById('statusIcons').innerHTML = statusHtml;
+
+            // Template preview
+            updateTemplatePreview();
+
+            // Update action button
+            updateActionButton();
+
+            // Show/hide nearby actions
+            const isNearby = state.currentChannel === 'nearby';
+            document.getElementById('nearbyActions').classList.toggle('hidden', !isNearby);
+            document.getElementById('btnCopyOpen').classList.toggle('hidden', isNearby);
+            document.getElementById('btnMarkContacted').classList.toggle('hidden', isNearby);
+        }
+
+        function showEmptyState() {
+            document.getElementById('emptyState').classList.remove('hidden');
+            document.getElementById('prospectDetails').classList.add('hidden');
+        }
+
+        function updateTemplatePreview() {
+            const prospect = state.selectedProspect;
+            if (!prospect) return;
+
+            let template = '';
+            const channel = state.currentChannel;
+
+            // Get appropriate template
+            if (channel === 'nearby') {
+                template = state.templates.walkin1?.body || 'Hi! I\'m [YOUR_NAME]. I do a community postcard that goes out to [HOME_COUNT] homes in [AREA].';
+            } else if (channel === 'sms') {
+                template = state.templates.sms1?.body || 'Hey! This is [YOUR_NAME]. We do a community postcard that hits [HOME_COUNT] homes in [AREA] and have the [CATEGORY] spot open. Interested?';
+            } else if (channel === 'email') {
+                const subject = state.templates.email1?.subject || 'Quick question about [BUSINESS_NAME]';
+                const body = state.templates.email1?.body || 'Hi, we send out a community postcard...';
+                template = `Subject: ${subject}\n\n${body}`;
+            } else if (channel === 'facebook') {
+                template = state.templates.fb?.body || 'Hey! I came across [BUSINESS_NAME] and love what you\'re doing...';
+            } else if (channel === 'instagram') {
+                template = state.templates.ig?.body || 'Hey! Love your page. I help local businesses reach more customers...';
+            } else if (channel === 'linkedin') {
+                template = state.templates.linkedin2?.body || 'Thanks for connecting! I run a community postcard...';
+            } else if (channel === 'call') {
+                template = state.templates.call1?.body || '=== OPENER ===\nHi, is this [BUSINESS_NAME]?...';
+            }
+
+            // Fill variables
+            const filled = fillVariables(template, prospect);
+            document.getElementById('templatePreview').textContent = filled;
+        }
+
+        function fillVariables(text, prospect) {
+            if (!text) return '';
+
+            const replacements = {
+                '[BUSINESS_NAME]': prospect?.businessName || 'the business',
+                '[CATEGORY]': prospect?.category || 'business',
+                '[YOUR_NAME]': state.settings.yourName || 'Your Name',
+                '[YOUR_COMPANY]': state.settings.yourCompany || '',
+                '[YOUR_PHONE]': state.settings.yourPhone || '',
+                '[AREA]': state.settings.areaName || 'your area',
+                '[HOME_COUNT]': state.settings.homeCount || '5,000',
+                '[POSTCARD_NAME]': state.settings.postcardName || 'our community postcard',
+                '[SPOT_PRICE]': state.settings.spotPrice || '$400'
+            };
+
+            let result = text;
+            Object.entries(replacements).forEach(([key, value]) => {
+                result = result.replace(new RegExp(key.replace(/[[\]]/g, '\\$&'), 'g'), value);
+            });
+
+            return result;
+        }
+
+        function updateActionButton() {
+            const channel = state.currentChannel;
+            const btn = document.getElementById('btnCopyOpen');
+            const icon = document.getElementById('btnCopyOpenIcon');
+            const text = document.getElementById('btnCopyOpenText');
+
+            const config = {
+                sms: { icon: '📱', text: 'Copy & Open SMS', color: 'from-green-500 to-emerald-600' },
+                email: { icon: '📧', text: 'Copy & Open Email', color: 'from-blue-500 to-blue-600' },
+                facebook: { icon: '📘', text: 'Copy & Open Facebook', color: 'from-blue-600 to-blue-700' },
+                instagram: { icon: '📷', text: 'Copy & Open Instagram', color: 'from-pink-500 to-purple-600' },
+                linkedin: { icon: '💼', text: 'Copy & Open LinkedIn', color: 'from-sky-500 to-sky-600' },
+                call: { icon: '📞', text: 'Copy Script & Call', color: 'from-orange-500 to-orange-600' }
+            };
+
+            const c = config[channel] || config.sms;
+            icon.textContent = c.icon;
+            text.textContent = c.text;
+            btn.className = `action-btn w-full bg-gradient-to-r ${c.color} text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2`;
+        }
+
+        // ============ ACTIONS ============
+        async function copyAndOpen() {
+            const prospect = state.selectedProspect;
+            if (!prospect) return;
+
+            const channel = state.currentChannel;
+            const template = document.getElementById('templatePreview').textContent;
+
+            // Copy to clipboard
+            try {
+                await navigator.clipboard.writeText(template);
+            } catch (err) {
+                console.error('Clipboard failed:', err);
+            }
+
+            // Open appropriate app/URL
+            let url = '';
+            switch (channel) {
+                case 'sms':
+                    url = `sms:${prospect.phone}`;
+                    break;
+                case 'email':
+                    const emailTemplate = state.templates.email1 || {};
+                    const subject = encodeURIComponent(fillVariables(emailTemplate.subject || '', prospect));
+                    const body = encodeURIComponent(fillVariables(emailTemplate.body || '', prospect));
+                    url = `mailto:${prospect.email}?subject=${subject}&body=${body}`;
+                    break;
+                case 'facebook':
+                    url = prospect.facebook;
+                    break;
+                case 'instagram':
+                    url = prospect.instagram;
+                    break;
+                case 'linkedin':
+                    url = prospect.linkedin;
+                    break;
+                case 'call':
+                    url = `tel:${prospect.phone}`;
+                    break;
+            }
+
+            if (url) {
+                if (!url.startsWith('http') && !url.startsWith('sms:') && !url.startsWith('tel:') && !url.startsWith('mailto:')) {
+                    url = 'https://' + url;
+                }
+                window.open(url, '_blank');
+            }
+
+            showToast('📋 Copied! Opening...');
+        }
+
+        async function markContacted() {
+            const prospect = state.selectedProspect;
+            if (!prospect) return;
+
+            const channel = state.currentChannel;
+            const trackingKey = {
+                sms: 'texted',
+                email: 'emailed',
+                facebook: 'facebookMessaged',
+                instagram: 'dmed',
+                linkedin: 'linkedinMessaged',
+                call: 'called'
+            }[channel];
+
+            if (!trackingKey) return;
+
+            // Update local state
+            if (!prospect.contactTracking) prospect.contactTracking = {};
+            prospect.contactTracking[trackingKey] = true;
+            prospect.contactTracking[trackingKey + 'Date'] = new Date().toISOString();
+
+            // Update stats
+            state.sessionStats.contacted++;
+            state.todayStats.contacted++;
+            saveTodayStats();
+
+            // Sync to cloud
+            await syncToCloud();
+
+            // Update UI
+            renderProspectList();
+            selectProspect(state.filteredProspects.indexOf(prospect));
+            updateStats();
+
+            showToast('✓ Marked as contacted!');
+        }
+
+        // ============ LOCATION ============
+        function startLocationTracking() {
+            if (!navigator.geolocation) {
+                document.getElementById('locationStatus').textContent = '📍 Location: Not available';
+                return;
+            }
+
+            state.watchId = navigator.geolocation.watchPosition(
+                (position) => {
+                    state.currentPosition = {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude
+                    };
+                    document.getElementById('locationStatus').textContent =
+                        `📍 Location: ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`;
+
+                    // Update nearby count
+                    const nearby = filterNearby();
+                    const countEl = document.getElementById('nearbyCount');
+                    if (nearby.length > 0) {
+                        countEl.textContent = nearby.length;
+                        countEl.classList.remove('hidden');
+                    } else {
+                        countEl.classList.add('hidden');
+                    }
+
+                    // Re-render if on nearby tab
+                    if (state.currentChannel === 'nearby') {
+                        renderProspectList();
+                    }
+                },
+                (error) => {
+                    console.error('Geolocation error:', error);
+                    document.getElementById('locationStatus').textContent = '📍 Location: Error';
+                },
+                { enableHighAccuracy: true, maximumAge: 30000, timeout: 10000 }
+            );
+        }
+
+        function calculateDistance(lat1, lng1, lat2, lng2) {
+            // Haversine formula
+            const R = 3959; // Earth's radius in miles
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLng/2) * Math.sin(dLng/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        function getDirections() {
+            const prospect = state.selectedProspect;
+            if (!prospect) return;
+
+            const address = prospect.address || prospect.fullAddress || '';
+            if (prospect.lat && prospect.lng) {
+                // Use coordinates
+                window.open(`https://maps.apple.com/?daddr=${prospect.lat},${prospect.lng}`, '_blank');
+            } else if (address) {
+                // Use address
+                window.open(`https://maps.apple.com/?daddr=${encodeURIComponent(address)}`, '_blank');
+            } else {
+                showToast('No address available');
+            }
+        }
+
+        // ============ VISIT MODAL ============
+        function showVisitModal() {
+            const prospect = state.selectedProspect;
+            if (!prospect) return;
+
+            document.getElementById('visitModalBusiness').textContent = prospect.businessName;
+            document.getElementById('visitNotes').value = '';
+            state.visitOutcome = null;
+
+            document.querySelectorAll('.outcome-btn').forEach(btn => {
+                btn.classList.remove('border-green-500', 'bg-green-50', 'border-blue-500', 'bg-blue-50',
+                                    'border-orange-500', 'bg-orange-50', 'border-red-500', 'bg-red-50');
+                btn.classList.add('border-gray-200');
+            });
+
+            document.getElementById('visitModal').classList.remove('hidden');
+            document.getElementById('visitModal').classList.add('flex');
+        }
+
+        function closeVisitModal() {
+            document.getElementById('visitModal').classList.add('hidden');
+            document.getElementById('visitModal').classList.remove('flex');
+        }
+
+        function selectOutcome(outcome) {
+            state.visitOutcome = outcome;
+
+            const colors = {
+                spoke: ['border-green-500', 'bg-green-50'],
+                card: ['border-blue-500', 'bg-blue-50'],
+                unavailable: ['border-orange-500', 'bg-orange-50'],
+                closed: ['border-red-500', 'bg-red-50']
+            };
+
+            document.querySelectorAll('.outcome-btn').forEach(btn => {
+                btn.classList.remove('border-green-500', 'bg-green-50', 'border-blue-500', 'bg-blue-50',
+                                    'border-orange-500', 'bg-orange-50', 'border-red-500', 'bg-red-50');
+                btn.classList.add('border-gray-200');
+
+                if (btn.dataset.outcome === outcome) {
+                    btn.classList.remove('border-gray-200');
+                    btn.classList.add(...colors[outcome]);
+                }
+            });
+        }
+
+        async function saveVisit() {
+            const prospect = state.selectedProspect;
+            if (!prospect || !state.visitOutcome) {
+                showToast('Please select an outcome');
+                return;
+            }
+
+            // Update tracking
+            if (!prospect.contactTracking) prospect.contactTracking = {};
+            prospect.contactTracking.visitedInPerson = true;
+            prospect.contactTracking.visitedInPersonDate = new Date().toISOString();
+            prospect.contactTracking.visitOutcome = state.visitOutcome;
+            prospect.contactTracking.visitNotes = document.getElementById('visitNotes').value;
+
+            // Update stats
+            state.sessionStats.contacted++;
+            state.todayStats.contacted++;
+            saveTodayStats();
+
+            // Sync
+            await syncToCloud();
+
+            // Update UI
+            closeVisitModal();
+            renderProspectList();
+            updateStats();
+
+            showToast('✓ Visit recorded!');
+        }
+
+        // ============ SYNC ============
+        async function syncToCloud() {
+            if (!supabaseClient || !currentUserEmail) return;
+
+            try {
+                // Get current kanban data
+                const stored = localStorage.getItem('mailslot-kanban');
+                if (!stored) return;
+
+                const data = JSON.parse(stored);
+
+                // Update the prospect in the kanban columns
+                const prospect = state.selectedProspect;
+                if (prospect) {
+                    ['to-contact', 'in-progress'].forEach(col => {
+                        const items = data.columns?.[col] || [];
+                        const idx = items.findIndex(item => item.id === prospect.id);
+                        if (idx !== -1) {
+                            items[idx] = { ...items[idx], contactTracking: prospect.contactTracking };
+                        }
+                    });
+                }
+
+                // Save locally
+                localStorage.setItem('mailslot-kanban', JSON.stringify(data));
+
+                // Save to IndexedDB
+                try {
+                    const dbRequest = indexedDB.open('mailslot-db', 1);
+                    dbRequest.onsuccess = (event) => {
+                        const db = event.target.result;
+                        if (db.objectStoreNames.contains('appData')) {
+                            const tx = db.transaction('appData', 'readwrite');
+                            const store = tx.objectStore('appData');
+                            store.put({ key: 'mailslot-kanban', data: data });
+                        }
+                    };
+                } catch (err) {
+                    console.error('IndexedDB save failed:', err);
+                }
+
+                // Save to Supabase
+                await supabaseClient.from('app_data').upsert({
+                    user_email: currentUserEmail,
+                    data_type: 'kanban',
+                    data: data,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'user_email,data_type' });
+
+                console.log('✅ Synced to cloud');
+            } catch (err) {
+                console.error('Sync failed:', err);
+            }
+        }
+
+        // ============ UTILITIES ============
+        function getContactedStatus(prospect) {
+            const ct = prospect.contactTracking || {};
+            const channel = state.currentChannel;
+
+            switch (channel) {
+                case 'sms': return ct.texted;
+                case 'email': return ct.emailed;
+                case 'facebook': return ct.facebookMessaged;
+                case 'instagram': return ct.dmed;
+                case 'linkedin': return ct.linkedinMessaged;
+                case 'call': return ct.called;
+                case 'nearby': return ct.visitedInPerson;
+                default: return false;
+            }
+        }
+
+        function updateStats() {
+            const total = state.prospects.length;
+            const contacted = state.prospects.filter(p => {
+                const ct = p.contactTracking || {};
+                return ct.emailed || ct.texted || ct.called || ct.facebookMessaged || ct.dmed || ct.linkedinMessaged || ct.visitedInPerson;
+            }).length;
+
+            document.getElementById('statToday').textContent = state.todayStats.contacted;
+            document.getElementById('statSession').textContent = state.sessionStats.contacted;
+            document.getElementById('statRemaining').textContent = total - contacted;
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMessage').textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2500);
+        }
+    </script>
+</body>
+</html>

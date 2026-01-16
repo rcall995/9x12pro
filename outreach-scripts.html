@@ -114,8 +114,8 @@
     <main class="max-w-6xl mx-auto px-4 py-8">
         <!-- Intro -->
         <div class="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-6 mb-8 text-white">
-            <h2 class="text-xl font-bold mb-2">4-Email Sequence + Social Templates</h2>
-            <p class="text-purple-100">Click the pencil icon to edit any template. Your info auto-fills from settings. Yellow highlights = placeholders to customize per prospect.</p>
+            <h2 class="text-xl font-bold mb-2">Complete Outreach Templates</h2>
+            <p class="text-purple-100">Email, SMS, LinkedIn, Cold Calls, Walk-ins & more. Click the pencil to edit. Yellow = placeholders to customize.</p>
         </div>
 
         <!-- Tabs -->
@@ -128,6 +128,15 @@
             </button>
             <button onclick="showTab('sms')" class="tab-btn px-4 py-2 rounded-lg font-semibold transition-all bg-gray-100 text-gray-700 hover:bg-purple-100">
                 SMS/Text
+            </button>
+            <button onclick="showTab('linkedin')" class="tab-btn px-4 py-2 rounded-lg font-semibold transition-all bg-gray-100 text-gray-700 hover:bg-purple-100">
+                LinkedIn
+            </button>
+            <button onclick="showTab('calls')" class="tab-btn px-4 py-2 rounded-lg font-semibold transition-all bg-gray-100 text-gray-700 hover:bg-purple-100">
+                Cold Calls
+            </button>
+            <button onclick="showTab('walkin')" class="tab-btn px-4 py-2 rounded-lg font-semibold transition-all bg-gray-100 text-gray-700 hover:bg-purple-100">
+                Walk-ins
             </button>
             <button onclick="showTab('objections')" class="tab-btn px-4 py-2 rounded-lg font-semibold transition-all bg-gray-100 text-gray-700 hover:bg-purple-100">
                 Objection Handlers
@@ -518,6 +527,9 @@
                         <button onclick="copyTemplate('fb')" class="copy-btn px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors">
                             Copy
                         </button>
+                        <button id="openFacebookBtn" onclick="openFacebookPage()" class="hidden px-3 py-1.5 bg-blue-700 text-white rounded-lg text-sm font-semibold hover:bg-blue-800 transition-colors" title="Copy message & open their Facebook page">
+                            Open FB
+                        </button>
                     </div>
                     <div class="bg-gray-50 rounded-lg p-4">
                         <pre class="text-sm text-gray-700 font-sans template-body" id="fb-body"></pre>
@@ -544,6 +556,9 @@
                         </button>
                         <button onclick="copyTemplate('ig')" class="copy-btn px-3 py-1.5 bg-gradient-to-r from-purple-600 to-pink-500 text-white rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity">
                             Copy
+                        </button>
+                        <button id="openInstagramBtn" onclick="openInstagramPage()" class="hidden px-3 py-1.5 bg-gradient-to-r from-purple-700 to-pink-600 text-white rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity" title="Copy message & open their Instagram page">
+                            Open IG
                         </button>
                     </div>
                     <div class="bg-gray-50 rounded-lg p-4">
@@ -842,7 +857,261 @@
             </div>
         </div>
 
-        <!-- OBJECTIONS TAB -->
+        <!-- LinkedIn Tab -->
+        <div id="tab-linkedin" class="tab-content hidden">
+            <div class="mb-6">
+                <h3 class="text-lg font-bold text-gray-800 mb-2">LinkedIn Outreach</h3>
+                <p class="text-gray-600 text-sm">Professional networking messages for business owners. Connect first, then send a message.</p>
+            </div>
+
+            <div class="space-y-6">
+                <!-- Connection Request -->
+                <div class="template-card bg-white border-2 border-sky-200 rounded-xl p-5" data-template="linkedin1">
+                    <div class="flex items-start justify-between mb-3">
+                        <div>
+                            <span class="inline-flex items-center gap-2 px-3 py-1 bg-sky-100 text-sky-700 rounded-full text-sm font-semibold mb-2">
+                                Step 1: Connection Request
+                            </span>
+                            <h4 class="font-bold text-gray-800">Connection Note (300 char limit)</h4>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="toggleEdit('linkedin1')" class="edit-btn p-2 bg-sky-100 text-sky-600 rounded-lg hover:bg-sky-200 transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                                </svg>
+                            </button>
+                            <button onclick="copyTemplate('linkedin1')" class="copy-btn px-3 py-2 bg-sky-600 text-white rounded-lg font-semibold text-sm hover:bg-sky-700 transition-colors">
+                                Copy
+                            </button>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <pre id="linkedin1-body" class="text-sm text-gray-700 font-sans template-body whitespace-pre-wrap"></pre>
+                        <textarea id="linkedin1-body-edit" class="template-edit"></textarea>
+                    </div>
+                </div>
+
+                <!-- First Message -->
+                <div class="template-card bg-white border-2 border-sky-200 rounded-xl p-5" data-template="linkedin2">
+                    <div class="flex items-start justify-between mb-3">
+                        <div>
+                            <span class="inline-flex items-center gap-2 px-3 py-1 bg-sky-100 text-sky-700 rounded-full text-sm font-semibold mb-2">
+                                Step 2: After Connection
+                            </span>
+                            <h4 class="font-bold text-gray-800">Introduction Message</h4>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="toggleEdit('linkedin2')" class="edit-btn p-2 bg-sky-100 text-sky-600 rounded-lg hover:bg-sky-200 transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                                </svg>
+                            </button>
+                            <button onclick="copyTemplate('linkedin2')" class="copy-btn px-3 py-2 bg-sky-600 text-white rounded-lg font-semibold text-sm hover:bg-sky-700 transition-colors">
+                                Copy
+                            </button>
+                            <button id="openLinkedInBtn" onclick="openLinkedInPage()" class="hidden px-3 py-2 bg-sky-700 text-white rounded-lg font-semibold text-sm hover:bg-sky-800 transition-colors" title="Copy message & open their LinkedIn profile">
+                                Open LI
+                            </button>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <pre id="linkedin2-body" class="text-sm text-gray-700 font-sans template-body whitespace-pre-wrap"></pre>
+                        <textarea id="linkedin2-body-edit" class="template-edit"></textarea>
+                    </div>
+                </div>
+
+                <!-- Follow-up -->
+                <div class="template-card bg-white border-2 border-sky-200 rounded-xl p-5" data-template="linkedin3">
+                    <div class="flex items-start justify-between mb-3">
+                        <div>
+                            <span class="inline-flex items-center gap-2 px-3 py-1 bg-sky-100 text-sky-700 rounded-full text-sm font-semibold mb-2">
+                                Step 3: Follow-up
+                            </span>
+                            <h4 class="font-bold text-gray-800">Follow-up Message</h4>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="toggleEdit('linkedin3')" class="edit-btn p-2 bg-sky-100 text-sky-600 rounded-lg hover:bg-sky-200 transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                                </svg>
+                            </button>
+                            <button onclick="copyTemplate('linkedin3')" class="copy-btn px-3 py-2 bg-sky-600 text-white rounded-lg font-semibold text-sm hover:bg-sky-700 transition-colors">
+                                Copy
+                            </button>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <pre id="linkedin3-body" class="text-sm text-gray-700 font-sans template-body whitespace-pre-wrap"></pre>
+                        <textarea id="linkedin3-body-edit" class="template-edit"></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cold Calls Tab -->
+        <div id="tab-calls" class="tab-content hidden">
+            <div class="mb-6">
+                <h3 class="text-lg font-bold text-gray-800 mb-2">Cold Call Scripts</h3>
+                <p class="text-gray-600 text-sm">Structured scripts with clear sections. Practice the opener until it's natural!</p>
+            </div>
+
+            <div class="space-y-6">
+                <!-- Main Cold Call Script -->
+                <div class="template-card bg-white border-2 border-green-200 rounded-xl p-5" data-template="call1">
+                    <div class="flex items-start justify-between mb-3">
+                        <div>
+                            <h4 class="font-bold text-gray-800">Main Cold Call Script</h4>
+                            <p class="text-sm text-gray-500">Full conversation flow with objection handling</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="toggleEdit('call1')" class="edit-btn p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                                </svg>
+                            </button>
+                            <button onclick="copyTemplate('call1')" class="copy-btn px-3 py-2 bg-green-600 text-white rounded-lg font-semibold text-sm hover:bg-green-700 transition-colors">
+                                Copy
+                            </button>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <pre id="call1-body" class="text-sm text-gray-700 font-sans template-body whitespace-pre-wrap"></pre>
+                        <textarea id="call1-body-edit" class="template-edit"></textarea>
+                    </div>
+                </div>
+
+                <!-- Voicemail Script -->
+                <div class="template-card bg-white border-2 border-green-200 rounded-xl p-5" data-template="voicemail1">
+                    <div class="flex items-start justify-between mb-3">
+                        <div>
+                            <h4 class="font-bold text-gray-800">Voicemail Script</h4>
+                            <p class="text-sm text-gray-500">Short, curiosity-inducing voicemail (under 30 seconds)</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="toggleEdit('voicemail1')" class="edit-btn p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                                </svg>
+                            </button>
+                            <button onclick="copyTemplate('voicemail1')" class="copy-btn px-3 py-2 bg-green-600 text-white rounded-lg font-semibold text-sm hover:bg-green-700 transition-colors">
+                                Copy
+                            </button>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <pre id="voicemail1-body" class="text-sm text-gray-700 font-sans template-body whitespace-pre-wrap"></pre>
+                        <textarea id="voicemail1-body-edit" class="template-edit"></textarea>
+                    </div>
+                </div>
+
+                <!-- Gatekeeper Script -->
+                <div class="template-card bg-white border-2 border-green-200 rounded-xl p-5" data-template="gatekeeper1">
+                    <div class="flex items-start justify-between mb-3">
+                        <div>
+                            <h4 class="font-bold text-gray-800">Gatekeeper Script</h4>
+                            <p class="text-sm text-gray-500">When someone else answers the phone</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="toggleEdit('gatekeeper1')" class="edit-btn p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                                </svg>
+                            </button>
+                            <button onclick="copyTemplate('gatekeeper1')" class="copy-btn px-3 py-2 bg-green-600 text-white rounded-lg font-semibold text-sm hover:bg-green-700 transition-colors">
+                                Copy
+                            </button>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <pre id="gatekeeper1-body" class="text-sm text-gray-700 font-sans template-body whitespace-pre-wrap"></pre>
+                        <textarea id="gatekeeper1-body-edit" class="template-edit"></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Walk-ins Tab -->
+        <div id="tab-walkin" class="tab-content hidden">
+            <div class="mb-6">
+                <h3 class="text-lg font-bold text-gray-800 mb-2">Walk-in Scripts</h3>
+                <p class="text-gray-600 text-sm">Face-to-face pitches for stopping by businesses. Bring a sample postcard!</p>
+            </div>
+
+            <div class="space-y-6">
+                <!-- Main Walk-in Script -->
+                <div class="template-card bg-white border-2 border-orange-200 rounded-xl p-5" data-template="walkin1">
+                    <div class="flex items-start justify-between mb-3">
+                        <div>
+                            <h4 class="font-bold text-gray-800">Quick Intro</h4>
+                            <p class="text-sm text-gray-500">30-second pitch when they're busy</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="toggleEdit('walkin1')" class="edit-btn p-2 bg-orange-100 text-orange-600 rounded-lg hover:bg-orange-200 transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                                </svg>
+                            </button>
+                            <button onclick="copyTemplate('walkin1')" class="copy-btn px-3 py-2 bg-orange-600 text-white rounded-lg font-semibold text-sm hover:bg-orange-700 transition-colors">
+                                Copy
+                            </button>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <pre id="walkin1-body" class="text-sm text-gray-700 font-sans template-body whitespace-pre-wrap"></pre>
+                        <textarea id="walkin1-body-edit" class="template-edit"></textarea>
+                    </div>
+                </div>
+
+                <!-- Full Walk-in Pitch -->
+                <div class="template-card bg-white border-2 border-orange-200 rounded-xl p-5" data-template="walkin2">
+                    <div class="flex items-start justify-between mb-3">
+                        <div>
+                            <h4 class="font-bold text-gray-800">Full Pitch</h4>
+                            <p class="text-sm text-gray-500">When they have time to talk</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="toggleEdit('walkin2')" class="edit-btn p-2 bg-orange-100 text-orange-600 rounded-lg hover:bg-orange-200 transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                                </svg>
+                            </button>
+                            <button onclick="copyTemplate('walkin2')" class="copy-btn px-3 py-2 bg-orange-600 text-white rounded-lg font-semibold text-sm hover:bg-orange-700 transition-colors">
+                                Copy
+                            </button>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <pre id="walkin2-body" class="text-sm text-gray-700 font-sans template-body whitespace-pre-wrap"></pre>
+                        <textarea id="walkin2-body-edit" class="template-edit"></textarea>
+                    </div>
+                </div>
+
+                <!-- Leave Behind Info -->
+                <div class="template-card bg-white border-2 border-orange-200 rounded-xl p-5" data-template="leavebehind1">
+                    <div class="flex items-start justify-between mb-3">
+                        <div>
+                            <h4 class="font-bold text-gray-800">Leave Behind Note</h4>
+                            <p class="text-sm text-gray-500">Handwrite on back of your business card</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="toggleEdit('leavebehind1')" class="edit-btn p-2 bg-orange-100 text-orange-600 rounded-lg hover:bg-orange-200 transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                                </svg>
+                            </button>
+                            <button onclick="copyTemplate('leavebehind1')" class="copy-btn px-3 py-2 bg-orange-600 text-white rounded-lg font-semibold text-sm hover:bg-orange-700 transition-colors">
+                                Copy
+                            </button>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <pre id="leavebehind1-body" class="text-sm text-gray-700 font-sans template-body whitespace-pre-wrap"></pre>
+                        <textarea id="leavebehind1-body-edit" class="template-edit"></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div id="tab-objections" class="tab-content hidden">
             <div class="mb-6">
                 <h3 class="text-lg font-bold text-gray-800 mb-2">Objection Handlers</h3>
@@ -867,7 +1136,7 @@
         let pricingData = {}; // Stores home counts by mailer_id
 
         // Template version - increment to force reset old templates
-        const TEMPLATE_VERSION = 6;
+        const TEMPLATE_VERSION = 7;
 
         // Initialize Supabase with retry
         function initSupabase() {
@@ -1051,6 +1320,94 @@ No pressure either way.`
             },
             sms8: {
                 body: `[CUSTOM_MESSAGE]`
+            },
+            // LinkedIn templates
+            linkedin1: {
+                body: `Hi! Fellow local business owner here. I do community postcards that reach [HOME_COUNT] homes in [AREA]. Would love to connect!`
+            },
+            linkedin2: {
+                body: `Thanks for connecting!
+
+I run a community postcard called [POSTCARD_NAME] that reaches [HOME_COUNT] homes in [AREA]. We're filling spots for the next mailing and I thought [BUSINESS_NAME] would be a great fit.
+
+You'd be the only [CATEGORY] on the card - no competing ads.
+
+Would you be interested in seeing what it looks like?
+
+[YOUR_NAME]`
+            },
+            linkedin3: {
+                body: `Hey! Just wanted to bump this - still have the [CATEGORY] spot open on [POSTCARD_NAME] if you're interested.
+
+Happy to answer any questions. No pressure either way!`
+            },
+            // Cold call templates
+            call1: {
+                body: `=== OPENER ===
+Hi, is this [BUSINESS_NAME]? Great! This is [YOUR_NAME]. I do a community postcard that goes out to [HOME_COUNT] homes in [AREA] - got a quick second?
+
+=== PITCH (if they say yes) ===
+Perfect. So basically, we put together a 9x12 postcard with local businesses like yours and mail it to every home in [AREA]. You'd be the only [CATEGORY] on it, so no competition.
+
+The spot is [SPOT_PRICE] and we handle all the design work. Sound like something you'd be interested in?
+
+=== IF INTERESTED ===
+Great! I can email you some info and a sample. What's the best email for you?
+
+=== IF NOT INTERESTED ===
+No worries at all. Mind if I ask - is it the timing or just not a fit for your business right now?
+
+=== COMMON OBJECTIONS ===
+"Too expensive" → Actually it's way cheaper than doing your own mailer. You're sharing the cost with other businesses but getting exclusive [CATEGORY] placement.
+
+"Doesn't work" → A lot of businesses say that about solo mailers. This is different - it's a trusted community card people actually keep.
+
+"Too busy" → Totally get it. Can I send you info to look at when you have a minute?`
+            },
+            voicemail1: {
+                body: `Hi, this is [YOUR_NAME] calling about a local advertising opportunity. We do a community postcard that reaches [HOME_COUNT] homes in [AREA] and have the [CATEGORY] spot open. Give me a call back at [YOUR_PHONE] when you get a chance. Thanks!`
+            },
+            gatekeeper1: {
+                body: `Hi! I'm [YOUR_NAME] with [YOUR_COMPANY]. I'm reaching out about a local advertising opportunity - is the owner available?
+
+IF "What's this regarding?":
+We do a community postcard that goes to [HOME_COUNT] homes in [AREA]. I wanted to see if they'd be interested in the [CATEGORY] spot.
+
+IF "They're not available":
+No problem! When would be a better time to call back? Or could I leave my number?`
+            },
+            // Walk-in templates
+            walkin1: {
+                body: `Hi! I'm [YOUR_NAME]. I do a community postcard called [POSTCARD_NAME] that goes out to [HOME_COUNT] homes in [AREA].
+
+(Show sample postcard)
+
+I've got the [CATEGORY] spot open - you'd be the only one on the card.
+
+Got a business card? I'll send you the details!`
+            },
+            walkin2: {
+                body: `Hi there! Is the owner around?
+
+(If yes) Great! I'm [YOUR_NAME] and I put together this community postcard called [POSTCARD_NAME].
+
+(Show sample postcard)
+
+It goes out to [HOME_COUNT] homes right here in [AREA]. Each business gets their own section and you'd be the only [CATEGORY] on it.
+
+The spot is [SPOT_PRICE] and I handle all the design work - you just tell me what you want it to say.
+
+A lot of local businesses have seen great results - people actually keep these cards and refer back to them.
+
+Would you be interested in being on the next one?`
+            },
+            leavebehind1: {
+                body: `Stopped by to chat about [POSTCARD_NAME] - a community postcard hitting [HOME_COUNT] [AREA] homes.
+
+[CATEGORY] spot is open!
+
+[YOUR_NAME]
+[YOUR_PHONE]`
             }
         };
 
@@ -1096,11 +1453,15 @@ No pressure either way.`
             businessName: '',  // Selected business name
             category: '',      // Selected business category
             businessPhone: '', // Selected business phone number
-            businessEmail: ''  // Selected business email
+            businessEmail: '', // Selected business email
+            businessFacebook: '', // Selected business Facebook URL
+            businessInstagram: '', // Selected business Instagram URL
+            businessLinkedIn: '' // Selected business LinkedIn URL
         };
         let templates = {};
         let objections = [];
         let pipelineBusinesses = []; // Businesses from kanban pipeline
+        let currentTab = 'email'; // Track current tab for filtering
 
         // Load on page load
         document.addEventListener('DOMContentLoaded', async () => {
@@ -1263,22 +1624,62 @@ No pressure either way.`
             }
         }
 
-        // Populate business dropdown
+        // Populate business dropdown (filtered by current tab)
         function populateBusinessDropdown() {
             const dropdown = document.getElementById('businessDropdown');
-            dropdown.innerHTML = '<option value="">-- Select a business from your pipeline --</option>';
+
+            // Filter function based on current tab
+            const filterByTab = (biz) => {
+                switch (currentTab) {
+                    case 'email':
+                        return !!biz.email;
+                    case 'social':
+                        return !!biz.facebook || !!biz.instagram;
+                    case 'sms':
+                    case 'calls':
+                        return !!biz.phone;
+                    case 'linkedin':
+                        return !!biz.linkedin;
+                    case 'walkin':
+                    case 'objections':
+                    default:
+                        return true; // Show all for walk-ins, objections, and unknown tabs
+                }
+            };
+
+            // Filter tab descriptions for empty state
+            const tabDescriptions = {
+                'email': 'email addresses',
+                'social': 'Facebook or Instagram',
+                'sms': 'phone numbers',
+                'calls': 'phone numbers',
+                'linkedin': 'LinkedIn profiles'
+            };
 
             if (pipelineBusinesses.length === 0) {
                 dropdown.innerHTML = '<option value="">No businesses in pipeline</option>';
                 return;
             }
 
+            // Filter businesses for current tab
+            const filteredBusinesses = pipelineBusinesses
+                .map((biz, index) => ({ ...biz, originalIndex: index }))
+                .filter(filterByTab);
+
+            if (filteredBusinesses.length === 0) {
+                const desc = tabDescriptions[currentTab] || 'contact info';
+                dropdown.innerHTML = `<option value="">No businesses with ${desc}</option>`;
+                return;
+            }
+
+            dropdown.innerHTML = '<option value="">-- Select a business --</option>';
+
             // Group by pipeline stage
             const grouped = {};
-            pipelineBusinesses.forEach((biz, index) => {
+            filteredBusinesses.forEach(biz => {
                 const stage = biz.pipelineStage || 'Other';
                 if (!grouped[stage]) grouped[stage] = [];
-                grouped[stage].push({ ...biz, originalIndex: index });
+                grouped[stage].push(biz);
             });
 
             // Create optgroups for each stage
@@ -1318,6 +1719,7 @@ No pressure either way.`
                     if (biz.email) icons.push('📧');
                     if (biz.facebook) icons.push('📘');
                     if (biz.instagram) icons.push('📷');
+                    if (biz.linkedin) icons.push('💼');
                     if (biz.website) icons.push('🌐');
 
                     const iconStr = icons.length > 0 ? ` ${icons.join('')}` : '';
@@ -1335,15 +1737,24 @@ No pressure either way.`
             const infoDiv = document.getElementById('businessInfo');
             const infoText = document.getElementById('businessInfoText');
             const textBtn = document.getElementById('textBusinessBtn');
+            const openFbBtn = document.getElementById('openFacebookBtn');
+            const openIgBtn = document.getElementById('openInstagramBtn');
+            const openLiBtn = document.getElementById('openLinkedInBtn');
             const selectedIndex = dropdown.value;
 
             if (selectedIndex === '' || selectedIndex === null) {
                 infoDiv.classList.add('hidden');
                 textBtn.classList.add('hidden');
+                if (openFbBtn) openFbBtn.classList.add('hidden');
+                if (openIgBtn) openIgBtn.classList.add('hidden');
+                if (openLiBtn) openLiBtn.classList.add('hidden');
                 settings.businessName = '';
                 settings.category = '';
                 settings.businessPhone = '';
                 settings.businessEmail = '';
+                settings.businessFacebook = '';
+                settings.businessInstagram = '';
+                settings.businessLinkedIn = '';
             } else {
                 const business = pipelineBusinesses[parseInt(selectedIndex)];
                 if (business) {
@@ -1351,6 +1762,9 @@ No pressure either way.`
                     settings.category = business.category || '';
                     settings.businessPhone = business.phone || '';
                     settings.businessEmail = business.email || '';
+                    settings.businessFacebook = business.facebook || '';
+                    settings.businessInstagram = business.instagram || '';
+                    settings.businessLinkedIn = business.linkedin || '';
 
                     // Show info
                     const categoryText = settings.category ? ` • ${settings.category}` : '';
@@ -1362,6 +1776,29 @@ No pressure either way.`
                         textBtn.classList.remove('hidden');
                     } else {
                         textBtn.classList.add('hidden');
+                    }
+
+                    // Show/hide social buttons based on URL availability
+                    if (openFbBtn) {
+                        if (settings.businessFacebook) {
+                            openFbBtn.classList.remove('hidden');
+                        } else {
+                            openFbBtn.classList.add('hidden');
+                        }
+                    }
+                    if (openIgBtn) {
+                        if (settings.businessInstagram) {
+                            openIgBtn.classList.remove('hidden');
+                        } else {
+                            openIgBtn.classList.add('hidden');
+                        }
+                    }
+                    if (openLiBtn) {
+                        if (settings.businessLinkedIn) {
+                            openLiBtn.classList.remove('hidden');
+                        } else {
+                            openLiBtn.classList.add('hidden');
+                        }
                     }
 
                     // Re-render templates with new business info
@@ -1412,6 +1849,78 @@ No pressure either way.`
                 'GoogleVoice',
                 `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
             );
+        }
+
+        // Open Facebook page for selected business
+        function openFacebookPage() {
+            if (!settings.businessFacebook) {
+                showToast('No Facebook URL for this business');
+                return;
+            }
+            // Copy the FB template to clipboard first
+            const fbTemplate = templates['fb'];
+            if (fbTemplate && fbTemplate.body) {
+                const filledBody = fillVariables(fbTemplate.body);
+                navigator.clipboard.writeText(filledBody).then(() => {
+                    showToast('📋 Message copied! Opening Facebook...');
+                }).catch(() => {
+                    showToast('📘 Opening Facebook...');
+                });
+            }
+            // Ensure URL has protocol
+            let url = settings.businessFacebook;
+            if (!url.startsWith('http')) {
+                url = 'https://' + url;
+            }
+            window.open(url, '_blank');
+        }
+
+        // Open Instagram page for selected business
+        function openInstagramPage() {
+            if (!settings.businessInstagram) {
+                showToast('No Instagram URL for this business');
+                return;
+            }
+            // Copy the IG template to clipboard first
+            const igTemplate = templates['ig'];
+            if (igTemplate && igTemplate.body) {
+                const filledBody = fillVariables(igTemplate.body);
+                navigator.clipboard.writeText(filledBody).then(() => {
+                    showToast('📋 Message copied! Opening Instagram...');
+                }).catch(() => {
+                    showToast('📷 Opening Instagram...');
+                });
+            }
+            // Ensure URL has protocol
+            let url = settings.businessInstagram;
+            if (!url.startsWith('http')) {
+                url = 'https://' + url;
+            }
+            window.open(url, '_blank');
+        }
+
+        // Open LinkedIn page for selected business
+        function openLinkedInPage() {
+            if (!settings.businessLinkedIn) {
+                showToast('No LinkedIn URL for this business');
+                return;
+            }
+            // Copy the LinkedIn template to clipboard first
+            const liTemplate = templates['linkedin2'];
+            if (liTemplate && liTemplate.body) {
+                const filledBody = fillVariables(liTemplate.body);
+                navigator.clipboard.writeText(filledBody).then(() => {
+                    showToast('📋 Message copied! Opening LinkedIn...');
+                }).catch(() => {
+                    showToast('💼 Opening LinkedIn...');
+                });
+            }
+            // Ensure URL has protocol
+            let url = settings.businessLinkedIn;
+            if (!url.startsWith('http')) {
+                url = 'https://' + url;
+            }
+            window.open(url, '_blank');
         }
 
         // Populate campaign dropdown
@@ -1889,6 +2398,10 @@ No pressure either way.`
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
             document.getElementById('tab-' + tabName).classList.remove('hidden');
             event.target.classList.add('active');
+
+            // Track current tab and refresh business dropdown with filter
+            currentTab = tabName;
+            populateBusinessDropdown();
         }
 
         // Toast notification
