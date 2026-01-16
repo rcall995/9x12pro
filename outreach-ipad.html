@@ -324,12 +324,13 @@
         async function loadProspects() {
             console.log('📥 Loading prospects...');
             try {
-                // Try IndexedDB first
-                const dbRequest = indexedDB.open('mailslot-db', 1);
+                // Try IndexedDB first (same DB as main app)
+                const dbRequest = indexedDB.open('9x12pro-db', 1);
 
                 dbRequest.onsuccess = (event) => {
                     const db = event.target.result;
                     if (!db.objectStoreNames.contains('appData')) {
+                        console.log('⚠️ No appData store, trying localStorage...');
                         loadFromLocalStorage();
                         return;
                     }
@@ -339,9 +340,16 @@
                     const getRequest = store.get('mailslot-kanban');
 
                     getRequest.onsuccess = () => {
-                        if (getRequest.result?.data) {
-                            processKanbanData(getRequest.result.data);
+                        const record = getRequest.result;
+                        console.log('📦 Raw kanban record:', record);
+
+                        // Handle both wrapped ({ key, value }) and unwrapped formats
+                        const kanbanData = record?.value || record;
+
+                        if (kanbanData) {
+                            processKanbanData(kanbanData);
                         } else {
+                            console.log('⚠️ No kanban data in IndexedDB, trying localStorage...');
                             loadFromLocalStorage();
                         }
                     };
@@ -360,7 +368,12 @@
             try {
                 const stored = localStorage.getItem('mailslot-kanban');
                 if (stored) {
-                    processKanbanData(JSON.parse(stored));
+                    const parsed = JSON.parse(stored);
+                    console.log('📦 localStorage kanban data:', parsed);
+                    processKanbanData(parsed);
+                } else {
+                    console.log('❌ No kanban data in localStorage either');
+                    document.getElementById('syncStatus').textContent = 'No data';
                 }
             } catch (err) {
                 console.error('localStorage load failed:', err);
@@ -372,7 +385,9 @@
             const columns = ['to-contact', 'in-progress'];
 
             columns.forEach(col => {
-                const items = data.columns?.[col] || [];
+                // Data structure is data['to-contact'], not data.columns['to-contact']
+                const items = data?.[col] || [];
+                console.log(`📋 Column ${col}:`, items.length, 'items');
                 items.forEach(item => {
                     if (item && typeof item === 'object' && item.businessName) {
                         allProspects.push({
