@@ -72,7 +72,9 @@
             </div>
         </div>
         <div class="flex items-center gap-2">
+            <button onclick="reloadFromCloud()" class="text-xs bg-white/30 hover:bg-white/40 px-2 py-1 rounded-full">🔄 Reload</button>
             <span id="syncStatus" class="text-xs bg-white/20 px-2 py-1 rounded-full">Loading...</span>
+            <span id="userStatus" class="text-xs bg-white/20 px-2 py-1 rounded-full hidden"></span>
         </div>
     </header>
 
@@ -328,18 +330,43 @@
 
         // ============ AUTH ============
         async function checkAuth() {
-            if (!supabaseClient) return;
+            if (!supabaseClient) {
+                document.getElementById('syncStatus').textContent = 'No DB';
+                return;
+            }
             try {
                 const { data: { session } } = await supabaseClient.auth.getSession();
                 if (session?.user) {
                     currentUserEmail = session.user.email;
-                    document.getElementById('syncStatus').textContent = '✓ Synced';
+                    document.getElementById('syncStatus').textContent = '✓ Online';
                     document.getElementById('syncStatus').classList.add('bg-green-500/30');
+                    // Show abbreviated email
+                    const userEl = document.getElementById('userStatus');
+                    userEl.textContent = currentUserEmail.split('@')[0];
+                    userEl.classList.remove('hidden');
+                    console.log('✅ Logged in as:', currentUserEmail);
                 } else {
-                    document.getElementById('syncStatus').textContent = 'Offline';
+                    document.getElementById('syncStatus').textContent = 'Not logged in';
+                    document.getElementById('syncStatus').classList.add('bg-red-500/30');
+                    console.warn('⚠️ No active session');
                 }
             } catch (err) {
                 console.error('Auth check failed:', err);
+                document.getElementById('syncStatus').textContent = 'Auth error';
+            }
+        }
+
+        // Manual reload from cloud
+        async function reloadFromCloud() {
+            document.getElementById('syncStatus').textContent = 'Reloading...';
+            try {
+                await loadProspects();
+                document.getElementById('syncStatus').textContent = '✓ Reloaded';
+                showToast('Reloaded from cloud');
+            } catch (err) {
+                console.error('Reload failed:', err);
+                document.getElementById('syncStatus').textContent = 'Reload failed';
+                showToast('Reload failed');
             }
         }
 
@@ -1067,6 +1094,9 @@
 
             if (!trackingKey) return;
 
+            // Show syncing status
+            document.getElementById('syncStatus').textContent = 'Saving...';
+
             // Update local state
             if (!prospect.contactTracking) prospect.contactTracking = {};
             prospect.contactTracking[trackingKey] = true;
@@ -1077,15 +1107,21 @@
             state.todayStats.contacted++;
             saveTodayStats();
 
-            // Sync to cloud
-            await syncToCloud();
-
-            // Update UI
+            // Update UI immediately
             renderProspectList();
             selectProspect(state.filteredProspects.indexOf(prospect));
             updateStats();
 
-            showToast('✓ Marked as contacted!');
+            // Sync to cloud and wait for completion
+            try {
+                await syncToCloud();
+                document.getElementById('syncStatus').textContent = '✓ Saved';
+                showToast('✓ Marked & synced!');
+            } catch (err) {
+                document.getElementById('syncStatus').textContent = '⚠️ Sync failed';
+                showToast('⚠️ Marked but sync failed');
+                console.error('Sync error:', err);
+            }
         }
 
         // ============ LOCATION ============
@@ -1283,13 +1319,13 @@
 
                 if (error) {
                     console.error('❌ Supabase sync error:', error);
-                    showToast('Sync failed - changes saved locally only');
+                    throw new Error('Supabase error: ' + error.message);
                 } else {
                     console.log('✅ Synced to Supabase cloud');
                 }
             } catch (err) {
                 console.error('❌ Sync failed:', err);
-                showToast('Sync error - changes saved locally only');
+                throw err;
             }
         }
 
