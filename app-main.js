@@ -18082,6 +18082,9 @@ function openEditDetailsModal() {
   const householdsReached = state.current.Address_Count || pricing.homeCount || '';
   document.getElementById("editHouseholdsReached").value = householdsReached;
 
+  // Load ZIP code
+  document.getElementById("editZipCode").value = state.current.Zip_Code || '';
+
   modal.style.display = "flex";
   modal.setAttribute('aria-hidden', 'false');
   trapModalFocus(modal);
@@ -18099,6 +18102,7 @@ async function saveEditDetailsModal() {
 
   const inHomesDateValue = document.getElementById("editInHomesDate").value;
   const householdsReachedValue = parseInt(document.getElementById("editHouseholdsReached").value) || 0;
+  const zipCodeValue = document.getElementById("editZipCode").value.trim();
   const mailerId = state.current.Mailer_ID;
 
   // Build update object
@@ -18116,6 +18120,10 @@ async function saveEditDetailsModal() {
       productionState.pricing[mailerId] = { singleAd: 0, doubleAd: 0, bannerAd: 0, homeCount: 0 };
     }
     productionState.pricing[mailerId].homeCount = householdsReachedValue;
+  }
+  if (zipCodeValue !== (state.current.Zip_Code || '')) {
+    updates.zip_code = zipCodeValue;
+    state.current.Zip_Code = zipCodeValue;
   }
 
   if (Object.keys(updates).length === 0) {
@@ -19720,6 +19728,7 @@ async function loadCampaigns(restoreMailerId = null) {
       Payment_Status: postcard.payment_status,
       Postcard_Size: postcard.postcard_size || '9x12',
       Address_Count: postcard.address_count || 0,
+      Zip_Code: postcard.zip_code || '',
       Postcard_BG: postcard.postcard_bg,
       Banner_BG: postcard.banner_bg,
       Spot_1: postcard.spot_1,

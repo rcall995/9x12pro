@@ -2035,13 +2035,22 @@ Would you be interested in being on the next one?`
                         showToast('💡 Set "Households Reached" in Edit Details (main app) to use your actual home count.');
                     }
 
+                    // Get ZIP code from campaign
+                    if (campaign.zip_code) {
+                        settings.zipCode = campaign.zip_code;
+                        console.log('✅ ZIP code from campaign:', settings.zipCode);
+                    } else {
+                        console.log('⚠️ No ZIP code set for this campaign');
+                    }
+
                     // Update the settings form
                     document.getElementById('settingArea').value = areaOnly;
 
                     // Show info
                     const size = campaign.postcard_size || '9x12';
                     const homeDisplay = campaign.address_count ? campaign.address_count.toLocaleString() : settings.homeCount;
-                    infoText.textContent = `📬 ${settings.postcardName} (${size}) - ${homeDisplay} homes`;
+                    const zipDisplay = campaign.zip_code ? ` - ZIP ${campaign.zip_code}` : '';
+                    infoText.textContent = `📬 ${settings.postcardName} (${size}) - ${homeDisplay} homes${zipDisplay}`;
                     infoDiv.classList.remove('hidden');
 
                     showToast(`Campaign loaded: ${campaign.town}`);
@@ -2050,7 +2059,8 @@ Would you be interested in being on the next one?`
                     console.log('📋 Campaign settings set:', {
                         postcardName: settings.postcardName,
                         areaName: settings.areaName,
-                        homeCount: settings.homeCount
+                        homeCount: settings.homeCount,
+                        zipCode: settings.zipCode
                     });
                 }
             }

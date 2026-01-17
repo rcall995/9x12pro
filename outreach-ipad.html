@@ -487,10 +487,17 @@
                 console.log('⚠️ Using default home count (set in Edit Details):', state.settings.homeCount);
             }
 
+            // Get ZIP code from campaign
+            if (campaign.zip_code) {
+                state.settings.zipCode = campaign.zip_code;
+                console.log('✅ ZIP code from campaign:', state.settings.zipCode);
+            }
+
             // Show info
             const size = campaign.postcard_size || '9x12';
             const homeDisplay = state.settings.homeCount || '5,000';
-            infoText.textContent = `📬 ${state.settings.postcardName} (${size}) - ${homeDisplay} homes`;
+            const zipDisplay = campaign.zip_code ? ` - ZIP ${campaign.zip_code}` : '';
+            infoText.textContent = `📬 ${state.settings.postcardName} (${size}) - ${homeDisplay} homes${zipDisplay}`;
             infoDiv.classList.remove('hidden');
 
             // Save settings to cloud
@@ -966,7 +973,8 @@
                 '[AREA]': state.settings.areaName || '[AREA]',
                 '[HOME_COUNT]': state.settings.homeCount || '[HOME_COUNT]',
                 '[POSTCARD_NAME]': state.settings.postcardName || '[POSTCARD_NAME]',
-                '[SPOT_PRICE]': priceValue
+                '[SPOT_PRICE]': priceValue,
+                '[ZIP]': state.settings.zipCode || '[ZIP]'
             };
 
             let result = text;
