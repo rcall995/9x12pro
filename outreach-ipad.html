@@ -629,20 +629,27 @@
                         // Also update localStorage
                         localStorage.setItem('outreach-scripts-settings', JSON.stringify(state.settings));
                         console.log('✅ Loaded settings from cloud:', state.settings);
-                        return;
                     } else if (error && error.code !== 'PGRST116') {
                         console.error('Cloud settings load error:', error);
                     }
                 }
 
-                // Fallback to localStorage
-                const stored = localStorage.getItem('outreach-scripts-settings');
-                if (stored) {
-                    state.settings = JSON.parse(stored);
-                    console.log('✅ Loaded settings from localStorage:', state.settings);
-                } else {
-                    console.log('⚠️ No settings found');
+                // Fallback to localStorage if no cloud settings
+                if (!state.settings.yourName && !state.settings.postcardName) {
+                    const stored = localStorage.getItem('outreach-scripts-settings');
+                    if (stored) {
+                        state.settings = JSON.parse(stored);
+                        console.log('✅ Loaded settings from localStorage:', state.settings);
+                    } else {
+                        console.log('⚠️ No settings found');
+                    }
                 }
+
+                // Ensure critical values have defaults (cloud/localStorage may have stored empty strings)
+                if (!state.settings.homeCount) state.settings.homeCount = '5,000';
+                if (!state.settings.spotPrice) state.settings.spotPrice = '$400';
+                console.log('📋 Settings after defaults:', { homeCount: state.settings.homeCount, spotPrice: state.settings.spotPrice });
+
             } catch (err) {
                 console.error('Failed to load settings:', err);
             }

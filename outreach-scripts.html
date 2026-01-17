@@ -2084,12 +2084,23 @@ Would you be interested in being on the next one?`
                 settings = { ...settings, ...parsed };
             }
 
+            // Ensure critical values have defaults (in case localStorage had empty values)
+            if (!settings.homeCount) settings.homeCount = '5,000';
+            if (!settings.spotPrice) settings.spotPrice = '$400';
+
+            console.log('📋 Settings loaded:', {
+                homeCount: settings.homeCount,
+                spotPrice: settings.spotPrice,
+                areaName: settings.areaName,
+                postcardName: settings.postcardName
+            });
+
             // Populate form
-            document.getElementById('settingName').value = settings.yourName;
-            document.getElementById('settingCompany').value = settings.yourCompany;
-            document.getElementById('settingPhone').value = settings.yourPhone;
+            document.getElementById('settingName').value = settings.yourName || '';
+            document.getElementById('settingCompany').value = settings.yourCompany || '';
+            document.getElementById('settingPhone').value = settings.yourPhone || '';
             document.getElementById('settingPrice').value = settings.spotPrice;
-            document.getElementById('settingArea').value = settings.areaName;
+            document.getElementById('settingArea').value = settings.areaName || '';
             document.getElementById('settingHomes').value = settings.homeCount;
         }
 
@@ -2145,15 +2156,20 @@ Would you be interested in being on the next one?`
                 if (data && data.data) {
                     // Merge cloud settings with current (cloud takes precedence for campaign values)
                     settings = { ...settings, ...data.data };
+
+                    // Ensure critical values have defaults (cloud may have stored empty strings)
+                    if (!settings.homeCount) settings.homeCount = '5,000';
+                    if (!settings.spotPrice) settings.spotPrice = '$400';
+
                     // Update localStorage
                     localStorage.setItem('outreach-scripts-settings', JSON.stringify(settings));
                     // Update form fields
                     document.getElementById('settingName').value = settings.yourName || '';
                     document.getElementById('settingCompany').value = settings.yourCompany || '';
                     document.getElementById('settingPhone').value = settings.yourPhone || '';
-                    document.getElementById('settingPrice').value = settings.spotPrice || '$400';
+                    document.getElementById('settingPrice').value = settings.spotPrice;
                     document.getElementById('settingArea').value = settings.areaName || '';
-                    document.getElementById('settingHomes').value = settings.homeCount || '5,000';
+                    document.getElementById('settingHomes').value = settings.homeCount;
                     renderAllTemplates();
                     console.log('✅ Settings loaded from cloud:', settings);
                 } else {
@@ -2477,10 +2493,13 @@ Would you be interested in being on the next one?`
                 postcardName: settings.postcardName,
                 areaName: settings.areaName,
                 homeCount: settings.homeCount,
+                homeCountType: typeof settings.homeCount,
+                homeCountLength: settings.homeCount ? settings.homeCount.length : 'null/undefined',
                 spotPrice: settings.spotPrice,
                 businessName: settings.businessName,
                 category: settings.category
             });
+            console.log('📧 Full settings object:', JSON.stringify(settings, null, 2));
 
             const subject = encodeURIComponent(fillVariables(template.subject));
             const body = encodeURIComponent(fillVariables(template.body));
