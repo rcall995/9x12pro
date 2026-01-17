@@ -1104,6 +1104,13 @@
             prospect.contactTracking[trackingKey] = true;
             prospect.contactTracking[trackingKey + 'Date'] = new Date().toISOString();
 
+            // Auto-move from 'to-contact' to 'in-progress' when contacted
+            const oldColumn = prospect._column;
+            if (oldColumn === 'to-contact') {
+                prospect._column = 'in-progress';
+                prospect.pipelineStage = 'In Progress';
+            }
+
             // Update stats
             state.sessionStats.contacted++;
             state.todayStats.contacted++;
@@ -1116,9 +1123,10 @@
 
             // Sync to cloud and wait for completion
             try {
-                await syncToCloud();
+                await syncToCloud(oldColumn);
                 document.getElementById('syncStatus').textContent = '✓ Saved';
-                showToast('✓ Marked & synced!');
+                const movedMsg = oldColumn === 'to-contact' ? ' → In Progress' : '';
+                showToast('✓ Marked & synced!' + movedMsg);
             } catch (err) {
                 document.getElementById('syncStatus').textContent = '⚠️ Sync failed';
                 showToast('⚠️ Sync failed: ' + (err?.message || 'Unknown error').substring(0, 40));
@@ -1270,7 +1278,7 @@
         }
 
         // ============ SYNC ============
-        async function syncToCloud() {
+        async function syncToCloud(oldColumn = null) {
             if (!supabaseClient || !currentUserEmail) {
                 console.warn('⚠️ Cannot sync: no supabase client or user email');
                 return;
@@ -1286,26 +1294,47 @@
                 const data = state.kanbanData;
                 const prospect = state.selectedProspect;
 
-                // Update the prospect in the kanban columns
-                if (prospect && prospect._column) {
-                    const items = data[prospect._column] || [];
-                    console.log(`🔍 Looking for prospect ID ${prospect.id} (type: ${typeof prospect.id}) in ${prospect._column} (${items.length} items)`);
+                if (!prospect) {
+                    console.warn('⚠️ No prospect selected');
+                    return;
+                }
 
-                    // Use String comparison to handle type mismatches
+                const newColumn = prospect._column;
+
+                // Handle column move if oldColumn provided and different from new
+                if (oldColumn && oldColumn !== newColumn) {
+                    console.log(`🔄 Moving prospect from ${oldColumn} to ${newColumn}`);
+
+                    // Remove from old column
+                    const oldItems = data[oldColumn] || [];
+                    const oldIdx = oldItems.findIndex(item => String(item.id) === String(prospect.id));
+                    if (oldIdx !== -1) {
+                        oldItems.splice(oldIdx, 1);
+                        console.log(`✅ Removed from ${oldColumn}`);
+                    }
+
+                    // Add to new column
+                    if (!data[newColumn]) data[newColumn] = [];
+                    // Create clean copy without internal _column property
+                    const prospectCopy = { ...prospect };
+                    delete prospectCopy._column;
+                    delete prospectCopy.pipelineStage;
+                    data[newColumn].push(prospectCopy);
+                    console.log(`✅ Added to ${newColumn}`);
+                } else {
+                    // Just update in current column
+                    const items = data[newColumn] || [];
+                    console.log(`🔍 Looking for prospect ID ${prospect.id} in ${newColumn} (${items.length} items)`);
+
                     const idx = items.findIndex(item => String(item.id) === String(prospect.id));
 
                     if (idx !== -1) {
-                        // Update contactTracking in the kanban data
                         items[idx].contactTracking = { ...prospect.contactTracking };
                         items[idx].lastContacted = new Date().toISOString();
-                        console.log(`✅ Updated contact tracking for ${prospect.businessName} at index ${idx}`);
-                        console.log('📋 New contactTracking:', items[idx].contactTracking);
+                        console.log(`✅ Updated contact tracking for ${prospect.businessName}`);
                     } else {
-                        console.warn(`⚠️ Prospect ${prospect.businessName} (ID: ${prospect.id}) not found in ${prospect._column}`);
-                        console.log('📋 Available IDs:', items.map(i => i.id));
+                        console.warn(`⚠️ Prospect not found in ${newColumn}`);
                     }
-                } else {
-                    console.warn('⚠️ No prospect selected or no _column');
                 }
 
                 // Save to Supabase FIRST (this is the important one)
