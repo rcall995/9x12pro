@@ -1946,6 +1946,11 @@ Would you be interested in being on the next one?`
             // Remove common prefixes and suffixes to get just the geographic area
             let town = fullName
                 .replace(/^The\s+/gi, '')  // Remove leading "The "
+                .replace(/^Where\s+/gi, '')  // Remove "Where " prefix
+                .replace(/^Taste\s+of\s+/gi, '')  // Remove "Taste of " prefix
+                .replace(/^Dining\s+Out\s+In\s+/gi, '')  // Remove "Dining Out In " prefix
+                .replace(/\s+Eats$/gi, '')  // Remove " Eats" suffix
+                .replace(/\s+Food\s+Guide$/gi, '')  // Remove " Food Guide" suffix
                 .replace(/\s*Small Business Spotlight\s*/gi, '')
                 .replace(/\s*Business Spotlight\s*/gi, '')
                 .replace(/\s*Community Savings Card\s*/gi, '')
@@ -1976,11 +1981,25 @@ Would you be interested in being on the next one?`
                     const areaOnly = extractTownName(campaign.town);
                     settings.areaName = areaOnly;
 
-                    // Use full name for postcard name, add "The" if needed
+                    // Use campaign name as postcard name
+                    // Only add "The" prefix for generic names that need it
                     const townLower = campaign.town.toLowerCase();
-                    if (townLower.includes('spotlight') || townLower.includes('postcard') || townLower.includes('savings') || townLower.includes('card')) {
-                        settings.postcardName = campaign.town.startsWith('The ') ? campaign.town : `The ${campaign.town}`;
+                    const isCompleteName = townLower.startsWith('the ') ||
+                                           townLower.startsWith('where ') ||
+                                           townLower.startsWith('taste of ') ||
+                                           townLower.startsWith('dining out') ||
+                                           townLower.includes('spotlight') ||
+                                           townLower.includes('postcard') ||
+                                           townLower.includes('savings') ||
+                                           townLower.includes('card') ||
+                                           townLower.includes('eats') ||
+                                           townLower.includes('guide');
+
+                    if (isCompleteName) {
+                        // Already a complete name, use as-is
+                        settings.postcardName = campaign.town;
                     } else {
+                        // Generic town name, add "The X Spotlight"
                         settings.postcardName = `The ${campaign.town} Spotlight`;
                     }
 
