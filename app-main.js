@@ -9391,6 +9391,59 @@ async function moveSelectedToPool() {
   console.log('🔵 moveSelectedToPool - COMPLETE');
 }
 
+// Move all selected prospects from Prospect List (column 1) to To Contact (column 2)
+async function moveSelectedToContact() {
+  console.log('🔵 moveSelectedToContact CALLED - Starting');
+  const selectedCount = prospectingSelectionState.selectedIds.size;
+
+  if (selectedCount === 0) {
+    toast('No prospects selected', false);
+    return;
+  }
+
+  const fromColumn = 'prospect-list';
+  const toColumn = 'to-contact';
+  const fromItems = kanbanState.columns[fromColumn] || [];
+  const movedItems = [];
+
+  // Collect all selected items
+  prospectingSelectionState.selectedIds.forEach(leadId => {
+    const leadIdStr = String(leadId);
+    const leadIndex = fromItems.findIndex(item => typeof item === 'object' && String(item.id) === leadIdStr);
+    if (leadIndex !== -1) {
+      movedItems.push({
+        item: fromItems[leadIndex],
+        index: leadIndex
+      });
+    }
+  });
+
+  // Sort by index descending to safely remove from array
+  movedItems.sort((a, b) => b.index - a.index);
+
+  // Initialize target column if needed
+  kanbanState.columns[toColumn] = kanbanState.columns[toColumn] || [];
+
+  // Move each item
+  movedItems.forEach(({ item, index }) => {
+    // Remove from source column
+    kanbanState.columns[fromColumn].splice(index, 1);
+    // Add to target column
+    kanbanState.columns[toColumn].push(item);
+    console.log(`✅ Moved ${item.businessName} to To Contact`);
+  });
+
+  // Clear selection
+  prospectingSelectionState.selectedIds.clear();
+
+  // Save and re-render
+  await saveKanban();
+  renderKanban();
+
+  toast(`✅ Moved ${selectedCount} prospect${selectedCount === 1 ? '' : 's'} to To Contact`, true);
+  console.log('🔵 moveSelectedToContact - COMPLETE');
+}
+
 // Legacy function - kept for backwards compatibility but now uses bulk selection
 async function moveProspectToPool(leadId, event) {
   if (event) {
@@ -14780,6 +14833,9 @@ function renderKanban() {
         ${hasSelections ? `
           <button onclick="clearProspectingSelection()" class="text-xs px-2 py-1 bg-gray-400 text-white rounded hover:bg-gray-500" title="Clear Selection">
             ✕ Clear
+          </button>
+          <button onclick="moveSelectedToContact()" class="text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600" title="Move selected to To Contact">
+            ${prospectingSelectionState.selectedIds.size} ➡ Contact
           </button>
           <button id="btnMoveSelectedToPool" onclick="moveSelectedToPool()" class="text-xs px-2 py-1 bg-orange-500 text-white rounded hover:bg-orange-600" title="Move selected to Pool">
             ⬅ ${prospectingSelectionState.selectedIds.size} to Pool
