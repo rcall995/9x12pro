@@ -76,6 +76,19 @@
         </div>
     </header>
 
+    <!-- Campaign Selector -->
+    <div class="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-4 flex-shrink-0">
+        <div class="flex items-center gap-2 flex-1">
+            <label class="text-sm font-semibold text-gray-600 whitespace-nowrap">Campaign:</label>
+            <select id="campaignDropdown" onchange="onCampaignSelect()" class="flex-1 px-3 py-2 border-2 border-purple-200 rounded-lg text-sm font-medium focus:border-purple-500 focus:outline-none bg-white">
+                <option value="">-- Select Campaign --</option>
+            </select>
+        </div>
+        <div id="campaignInfo" class="hidden text-sm text-purple-600 bg-purple-50 px-3 py-2 rounded-lg font-medium">
+            <span id="campaignInfoText"></span>
+        </div>
+    </div>
+
     <!-- Channel Tabs -->
     <div class="bg-white border-b border-gray-200 px-2 py-2 flex gap-1 overflow-x-auto flex-shrink-0">
         <button onclick="switchChannel('sms')" id="tab-sms" class="channel-tab active flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-green-500 text-white">
@@ -262,6 +275,8 @@
             watchId: null,
             templates: {},
             settings: {},
+            campaigns: [],
+            pricingData: {},
             sessionStats: {
                 contacted: 0,
                 startTime: Date.now()
@@ -288,14 +303,19 @@
                 );
             }
 
-            // Check auth first (needed for cloud template loading)
+            // Check auth first (needed for cloud loading)
             await checkAuth();
 
-            // Load data (templates will try cloud first if logged in)
+            // Load data from cloud
+            await loadCampaigns();
+            await loadPricingData();
             await loadSettings();
             await loadTemplates();
             await loadProspects();
             loadTodayStats();
+
+            // Populate campaign dropdown
+            populateCampaignDropdown();
 
             // Start location tracking
             startLocationTracking();
@@ -319,6 +339,184 @@
                 }
             } catch (err) {
                 console.error('Auth check failed:', err);
+            }
+        }
+
+        // ============ CAMPAIGNS ============
+        async function loadCampaigns() {
+            if (!currentUserEmail || !supabaseClient) return;
+            console.log('📥 Loading campaigns...');
+            try {
+                const { data, error } = await supabaseClient
+                    .from('postcards')
+                    .select('*')
+                    .eq('user_email', currentUserEmail)
+                    .order('mail_date', { ascending: false });
+
+                if (error) {
+                    console.error('Failed to load campaigns:', error);
+                    return;
+                }
+
+                state.campaigns = data || [];
+                console.log('✅ Loaded', state.campaigns.length, 'campaigns');
+            } catch (err) {
+                console.error('Failed to load campaigns:', err);
+            }
+        }
+
+        async function loadPricingData() {
+            if (!currentUserEmail || !supabaseClient) return;
+            console.log('💰 Loading pricing data...');
+            try {
+                const { data, error } = await supabaseClient
+                    .from('app_data')
+                    .select('data')
+                    .eq('user_email', currentUserEmail)
+                    .eq('data_type', 'pricing')
+                    .single();
+
+                if (error && error.code !== 'PGRST116') {
+                    console.error('Pricing load error:', error);
+                    return;
+                }
+
+                if (data?.data) {
+                    state.pricingData = data.data;
+                    console.log('✅ Pricing data loaded');
+                }
+            } catch (err) {
+                console.error('Failed to load pricing:', err);
+            }
+        }
+
+        function populateCampaignDropdown() {
+            const dropdown = document.getElementById('campaignDropdown');
+            dropdown.innerHTML = '<option value="">-- Select Campaign --</option>';
+
+            state.campaigns.forEach((campaign, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                const size = campaign.postcard_size || '9x12';
+                const date = campaign.mail_date ? ` (${campaign.mail_date})` : '';
+                option.textContent = `${campaign.town} ${size}${date}`;
+                dropdown.appendChild(option);
+            });
+
+            // Auto-select if settings have a matching campaign
+            if (state.settings.postcardName) {
+                const matchIndex = state.campaigns.findIndex(c =>
+                    c.town && state.settings.postcardName.includes(c.town)
+                );
+                if (matchIndex >= 0) {
+                    dropdown.value = matchIndex;
+                }
+            }
+        }
+
+        function extractTownName(fullName) {
+            // Remove common prefixes and suffixes to get just the geographic area
+            let town = fullName
+                .replace(/^The\s+/gi, '')
+                .replace(/^Where\s+/gi, '')
+                .replace(/^Taste\s+of\s+/gi, '')
+                .replace(/^Dining\s+Out\s+In\s+/gi, '')
+                .replace(/\s+Eats$/gi, '')
+                .replace(/\s+Food\s+Guide$/gi, '')
+                .replace(/\s*Small Business Spotlight\s*/gi, '')
+                .replace(/\s*Business Spotlight\s*/gi, '')
+                .replace(/\s*Community Savings Card\s*/gi, '')
+                .replace(/\s*Savings Card\s*/gi, '')
+                .replace(/\s*Spotlight\s*/gi, '')
+                .replace(/\s*Postcard\s*/gi, '')
+                .replace(/\s*Mailer\s*/gi, '')
+                .trim();
+            return town || fullName;
+        }
+
+        function onCampaignSelect() {
+            const dropdown = document.getElementById('campaignDropdown');
+            const infoDiv = document.getElementById('campaignInfo');
+            const infoText = document.getElementById('campaignInfoText');
+            const selectedIndex = dropdown.value;
+
+            if (selectedIndex === '' || selectedIndex === null) {
+                infoDiv.classList.add('hidden');
+                return;
+            }
+
+            const campaign = state.campaigns[parseInt(selectedIndex)];
+            if (!campaign) return;
+
+            // Extract area name
+            const areaOnly = extractTownName(campaign.town);
+            state.settings.areaName = areaOnly;
+
+            // Set postcard name
+            const townLower = campaign.town.toLowerCase();
+            const isCompleteName = townLower.startsWith('the ') ||
+                                   townLower.startsWith('where ') ||
+                                   townLower.startsWith('taste of ') ||
+                                   townLower.startsWith('dining out') ||
+                                   townLower.includes('spotlight') ||
+                                   townLower.includes('postcard') ||
+                                   townLower.includes('savings') ||
+                                   townLower.includes('card') ||
+                                   townLower.includes('eats') ||
+                                   townLower.includes('guide');
+
+            state.settings.postcardName = isCompleteName ? campaign.town : `The ${campaign.town} Spotlight`;
+
+            // Get home count from pricing data
+            const mailerId = campaign.mailer_id;
+            const campaignPricing = state.pricingData[mailerId];
+            if (campaignPricing?.addressCount) {
+                state.settings.homeCount = campaignPricing.addressCount.toLocaleString();
+            } else if (campaign.address_count) {
+                state.settings.homeCount = campaign.address_count.toLocaleString();
+            }
+
+            // Show info
+            const size = campaign.postcard_size || '9x12';
+            const homeDisplay = state.settings.homeCount || '5,000';
+            infoText.textContent = `📬 ${state.settings.postcardName} (${size}) - ${homeDisplay} homes`;
+            infoDiv.classList.remove('hidden');
+
+            // Save settings to cloud
+            saveSettingsToCloud();
+
+            // Re-render template preview if a prospect is selected
+            if (state.selectedProspect) {
+                updateTemplatePreview();
+            }
+
+            showToast(`Campaign loaded: ${campaign.town}`);
+        }
+
+        async function saveSettingsToCloud() {
+            if (!currentUserEmail || !supabaseClient) return;
+            try {
+                // Save to localStorage
+                localStorage.setItem('outreach-scripts-settings', JSON.stringify(state.settings));
+
+                // Save to cloud
+                const { error } = await supabaseClient
+                    .from('app_data')
+                    .upsert({
+                        user_email: currentUserEmail,
+                        data_type: 'outreach-settings',
+                        data: state.settings
+                    }, {
+                        onConflict: 'user_email,data_type'
+                    });
+
+                if (error) {
+                    console.error('Cloud settings save error:', error);
+                } else {
+                    console.log('☁️ Settings saved to cloud');
+                }
+            } catch (err) {
+                console.error('Failed to save settings to cloud:', err);
             }
         }
 
@@ -408,13 +606,34 @@
 
         async function loadSettings() {
             try {
-                // Load from same key as outreach-scripts.html
+                // Try cloud first if logged in
+                if (currentUserEmail && supabaseClient) {
+                    console.log('☁️ Loading settings from cloud...');
+                    const { data, error } = await supabaseClient
+                        .from('app_data')
+                        .select('data')
+                        .eq('user_email', currentUserEmail)
+                        .eq('data_type', 'outreach-settings')
+                        .single();
+
+                    if (!error && data?.data) {
+                        state.settings = data.data;
+                        // Also update localStorage
+                        localStorage.setItem('outreach-scripts-settings', JSON.stringify(state.settings));
+                        console.log('✅ Loaded settings from cloud:', state.settings);
+                        return;
+                    } else if (error && error.code !== 'PGRST116') {
+                        console.error('Cloud settings load error:', error);
+                    }
+                }
+
+                // Fallback to localStorage
                 const stored = localStorage.getItem('outreach-scripts-settings');
                 if (stored) {
                     state.settings = JSON.parse(stored);
-                    console.log('✅ Loaded settings:', state.settings);
+                    console.log('✅ Loaded settings from localStorage:', state.settings);
                 } else {
-                    console.log('⚠️ No settings found in localStorage');
+                    console.log('⚠️ No settings found');
                 }
             } catch (err) {
                 console.error('Failed to load settings:', err);

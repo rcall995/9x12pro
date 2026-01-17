@@ -1494,11 +1494,12 @@ Would you be interested in being on the next one?`
                 if (session && session.user && session.user.email) {
                     console.log('✅ User logged in:', session.user.email);
                     currentUserEmail = session.user.email;
-                    // User is logged in, load their campaigns, pricing data, pipeline, and templates
+                    // User is logged in, load their campaigns, pricing data, pipeline, templates, and settings
                     await loadPricingData(session.user.email);
                     await loadCampaigns(session.user.email);
                     await loadPipelineBusinesses(session.user.email);
-                    await loadTemplatesFromCloud(); // Load templates from cloud
+                    await loadTemplatesFromCloud();
+                    await loadSettingsFromCloud();
                 } else {
                     console.log('❌ No session found');
                     // Not logged in, show login message
@@ -2038,9 +2039,10 @@ Would you be interested in being on the next one?`
                 }
             }
 
-            // Persist settings to localStorage so they're used when opening emails
+            // Persist settings to localStorage and cloud
             localStorage.setItem('outreach-scripts-settings', JSON.stringify(settings));
-            console.log('💾 Settings saved to localStorage');
+            saveSettingsToCloud();
+            console.log('💾 Settings saved to localStorage and cloud');
 
             // Re-render templates with updated settings
             renderAllTemplates();
@@ -2103,10 +2105,80 @@ Would you be interested in being on the next one?`
             };
             localStorage.setItem('salesToolkitSettings', JSON.stringify(mainAppSettings));
 
+            // Save to cloud
+            saveSettingsToCloud();
+
             renderAllTemplates();
             renderObjections();
             showToast('Settings saved!');
             toggleSettings();
+        }
+
+        // Load settings from Supabase cloud
+        async function loadSettingsFromCloud() {
+            if (!currentUserEmail || !supabaseClient) return;
+
+            console.log('☁️ Loading settings from cloud...');
+            try {
+                const { data, error } = await supabaseClient
+                    .from('app_data')
+                    .select('data')
+                    .eq('user_email', currentUserEmail)
+                    .eq('data_type', 'outreach-settings')
+                    .single();
+
+                if (error && error.code !== 'PGRST116') {
+                    console.error('Cloud settings load error:', error);
+                    return;
+                }
+
+                if (data && data.data) {
+                    // Merge cloud settings with current (cloud takes precedence for campaign values)
+                    settings = { ...settings, ...data.data };
+                    // Update localStorage
+                    localStorage.setItem('outreach-scripts-settings', JSON.stringify(settings));
+                    // Update form fields
+                    document.getElementById('settingName').value = settings.yourName || '';
+                    document.getElementById('settingCompany').value = settings.yourCompany || '';
+                    document.getElementById('settingPhone').value = settings.yourPhone || '';
+                    document.getElementById('settingPrice').value = settings.spotPrice || '$400';
+                    document.getElementById('settingArea').value = settings.areaName || '';
+                    document.getElementById('settingHomes').value = settings.homeCount || '5,000';
+                    renderAllTemplates();
+                    console.log('✅ Settings loaded from cloud:', settings);
+                } else {
+                    // No cloud settings yet - upload current local ones
+                    console.log('⚠️ No cloud settings found, uploading local settings...');
+                    await saveSettingsToCloud();
+                }
+            } catch (err) {
+                console.error('Failed to load settings from cloud:', err);
+            }
+        }
+
+        // Save settings to Supabase cloud
+        async function saveSettingsToCloud() {
+            if (!currentUserEmail || !supabaseClient) return;
+
+            try {
+                const { error } = await supabaseClient
+                    .from('app_data')
+                    .upsert({
+                        user_email: currentUserEmail,
+                        data_type: 'outreach-settings',
+                        data: settings
+                    }, {
+                        onConflict: 'user_email,data_type'
+                    });
+
+                if (error) {
+                    console.error('Cloud settings save error:', error);
+                } else {
+                    console.log('☁️ Settings saved to cloud');
+                }
+            } catch (err) {
+                console.error('Failed to save settings to cloud:', err);
+            }
         }
 
         // Template functions
