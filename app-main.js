@@ -14906,13 +14906,12 @@ function renderKanban() {
 
             // Build compact icon display with actual contact info in tooltips
             const contactIcons = [];
-            if (item.phone) contactIcons.push(`<a href="tel:${esc(item.phone)}" onclick="event.stopPropagation()" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="📞 ${esc(item.phone)}">📞</a>`);
-            if (item.website) contactIcons.push(`<a href="${esc(ensureHttps(item.website))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="🌐 ${esc(item.website)}">🌐</a>`);
-            if (item.email) contactIcons.push(`<a href="mailto:${esc(item.email)}" onclick="event.stopPropagation()" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="✉️ ${esc(item.email)}">✉️</a>`);
-            if (item.facebook) contactIcons.push(`<a href="${esc(ensureHttps(item.facebook))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="📘 ${esc(item.facebook)}">📘</a>`);
-            if (item.instagram) contactIcons.push(`<a href="${esc(ensureHttps(item.instagram))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="📷 ${esc(item.instagram)}">📷</a>`);
-            if (item.linkedin) contactIcons.push(`<a href="${esc(ensureHttps(item.linkedin))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="💼 ${esc(item.linkedin)}">💼</a>`);
-            if (item.twitter) contactIcons.push(`<a href="${esc(ensureHttps(item.twitter))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="🐦 ${esc(item.twitter)}">🐦</a>`);
+            if (item.phone) contactIcons.push(`<a href="tel:${esc(item.phone)}" onclick="event.stopPropagation()" class="text-sm hover:text-blue-600" title="${esc(item.phone)}">📞</a>`);
+            if (item.website) contactIcons.push(`<a href="${esc(ensureHttps(item.website))}" onclick="event.stopPropagation()" target="_blank" class="text-sm hover:text-blue-600" title="${esc(item.website)}">🌐</a>`);
+            if (item.email) contactIcons.push(`<a href="mailto:${esc(item.email)}" onclick="event.stopPropagation()" class="text-sm hover:text-blue-600" title="${esc(item.email)}">✉️</a>`);
+            if (item.facebook) contactIcons.push(`<a href="${esc(ensureHttps(item.facebook))}" onclick="event.stopPropagation()" target="_blank" class="text-sm hover:text-blue-600" title="Facebook">📘</a>`);
+            if (item.instagram) contactIcons.push(`<a href="${esc(ensureHttps(item.instagram))}" onclick="event.stopPropagation()" target="_blank" class="text-sm hover:text-blue-600" title="Instagram">📷</a>`);
+            if (item.linkedin) contactIcons.push(`<a href="${esc(ensureHttps(item.linkedin))}" onclick="event.stopPropagation()" target="_blank" class="text-sm hover:text-blue-600" title="LinkedIn">💼</a>`);
 
             const isDoNotContact = item.doNotContact === true;
 
@@ -14947,20 +14946,18 @@ function renderKanban() {
                   </div>
                   <div class="flex gap-1 flex-shrink-0">
                     <button onclick="event.stopPropagation(); toggleDoNotContact('${leadId}', 'prospect-list')" class="${isDoNotContact ? 'text-green-600 hover:text-green-800' : 'text-red-600 hover:text-red-800'} text-sm cursor-pointer" title="${isDoNotContact ? 'Remove Do Not Contact' : 'Mark Do Not Contact'}">🚫</button>
-                    <button onclick="event.stopPropagation(); openPipelineOutreachFromKanban('${leadId}')" class="text-orange-600 hover:text-orange-800 text-sm cursor-pointer" title="Outreach Tools">💬</button>
-                    <button onclick="event.stopPropagation(); openClientModalForProspect('${leadId}')" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View/Edit Business">👁</button>
-                    <button onclick="openContactLaterModal('${leadId}', event)" class="text-purple-600 hover:text-purple-800 text-sm cursor-pointer" title="Contact Later">📅</button>
+                    <button onclick="event.stopPropagation(); openClientModalForProspect('${leadId}')" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View/Edit">👁</button>
                     ${isClient
-                      ? `<button onclick="event.stopPropagation(); completeAndRemoveFromKanban('${leadId}', 'prospect-list');" class="text-orange-600 hover:text-orange-800 text-sm cursor-pointer" title="Remove from Kanban (returns to Client Database)">🗑</button>`
-                      : `<button onclick="moveProspectBackToPool('${leadId}', event)" class="text-orange-600 hover:text-orange-800 text-sm cursor-pointer" title="Send back to Pool">🗑</button>`
+                      ? `<button onclick="event.stopPropagation(); completeAndRemoveFromKanban('${leadId}', 'prospect-list');" class="text-orange-600 hover:text-orange-800 text-sm cursor-pointer" title="Remove">🗑</button>`
+                      : `<button onclick="moveProspectBackToPool('${leadId}', event)" class="text-orange-600 hover:text-orange-800 text-sm cursor-pointer" title="Remove">🗑</button>`
                     }
                   </div>
                 </div>
                 ${contactIcons.length > 0 ? `
-                  <div class="flex gap-2 items-center justify-center py-1 relative z-20">
+                  <div class="flex gap-1 items-center justify-center py-1 relative z-20">
                     ${contactIcons.join('')}
                   </div>
-                ` : '<div class="text-gray-400 italic text-center py-1">No contact info</div>'}
+                ` : ''}
               </div>
             `;
           }
@@ -15002,104 +14999,50 @@ function renderKanban() {
                   ${typeof item === 'object' && item.zipCode ? `<div class="text-xs text-gray-500 font-medium mt-0.5">📍 ${esc(item.zipCode)}</div>` : ''}
                 </div>
                 <div class="flex gap-1 flex-shrink-0">
-                  ${typeof item === 'object' ? `<button onclick="event.stopPropagation(); toggleDoNotContact('${leadId}', '${col.key}')" class="${isDoNotContact ? 'text-green-600 hover:text-green-800' : 'text-red-600 hover:text-red-800'} text-sm cursor-pointer" title="${isDoNotContact ? 'Remove Do Not Contact' : 'Mark Do Not Contact'}">🚫</button>` : ''}
-                  ${typeof item === 'object' ? `<button onclick="event.stopPropagation(); openClientModalForProspect('${leadId}')" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View/Edit Business">👁</button>` : ''}
-                  <button onclick="openContactLaterModal('${leadId}', event)" class="text-purple-600 hover:text-purple-800 text-sm cursor-pointer" title="Contact Later">📅</button>
-                  <button onclick="editLead('${col.key}', '${leadId}', event)" class="text-blue-600 hover:text-blue-800 text-sm cursor-pointer" title="Edit">✎</button>
-                  ${(() => {
-                    // Check if this is a client - if so, send back to client list instead of deleting
-                    const isClient = typeof item === 'object' && (
-                      item.source === 'client' ||
-                      item.originalClientId ||
-                      (item.businessName && Object.values(crmState.clients || {}).some(c =>
-                        c.businessName.toLowerCase() === item.businessName.toLowerCase()
-                      ))
-                    );
-                    if (isClient) {
-                      return `<button onclick="event.stopPropagation(); completeAndRemoveFromKanban('${leadId}', '${col.key}');" class="text-orange-600 hover:text-orange-800 text-sm cursor-pointer" title="Remove from Kanban (returns to Client Database)">🗑</button>`;
-                    } else {
-                      return `<button onclick="deleteLead('${col.key}', '${leadId}', event)" class="text-red-600 hover:text-red-800 text-sm cursor-pointer" title="Delete">🗑</button>`;
-                    }
-                  })()}
+                  ${col.key === 'to-contact' ? `
+                    ${typeof item === 'object' ? `<button onclick="event.stopPropagation(); openClientModalForProspect('${leadId}')" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View/Edit">👁</button>` : ''}
+                  ` : `
+                    ${typeof item === 'object' ? `<button onclick="event.stopPropagation(); toggleDoNotContact('${leadId}', '${col.key}')" class="${isDoNotContact ? 'text-green-600 hover:text-green-800' : 'text-red-600 hover:text-red-800'} text-sm cursor-pointer" title="${isDoNotContact ? 'Remove Do Not Contact' : 'Mark Do Not Contact'}">🚫</button>` : ''}
+                    ${typeof item === 'object' ? `<button onclick="event.stopPropagation(); openClientModalForProspect('${leadId}')" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View/Edit Business">👁</button>` : ''}
+                    <button onclick="openContactLaterModal('${leadId}', event)" class="text-purple-600 hover:text-purple-800 text-sm cursor-pointer" title="Contact Later">📅</button>
+                    <button onclick="editLead('${col.key}', '${leadId}', event)" class="text-blue-600 hover:text-blue-800 text-sm cursor-pointer" title="Edit">✎</button>
+                    ${(() => {
+                      // Check if this is a client - if so, send back to client list instead of deleting
+                      const isClient = typeof item === 'object' && (
+                        item.source === 'client' ||
+                        item.originalClientId ||
+                        (item.businessName && Object.values(crmState.clients || {}).some(c =>
+                          c.businessName.toLowerCase() === item.businessName.toLowerCase()
+                        ))
+                      );
+                      if (isClient) {
+                        return `<button onclick="event.stopPropagation(); completeAndRemoveFromKanban('${leadId}', '${col.key}');" class="text-orange-600 hover:text-orange-800 text-sm cursor-pointer" title="Remove from Kanban (returns to Client Database)">🗑</button>`;
+                      } else {
+                        return `<button onclick="deleteLead('${col.key}', '${leadId}', event)" class="text-red-600 hover:text-red-800 text-sm cursor-pointer" title="Delete">🗑</button>`;
+                      }
+                    })()}
+                  `}
                 </div>
               </div>
               ${col.key === 'to-contact' && typeof item === 'object' ? (() => {
-                // Build contact icons for to-contact column with actual contact info in tooltips
-                const contactIcons = [];
-                if (item.phone) contactIcons.push(`<a href="tel:${esc(item.phone)}" onclick="event.stopPropagation()" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="📞 ${esc(item.phone)}">📞</a>`);
-                if (item.website) contactIcons.push(`<a href="${esc(ensureHttps(item.website))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="🌐 ${esc(item.website)}">🌐</a>`);
-                if (item.email) contactIcons.push(`<a href="mailto:${esc(item.email)}" onclick="event.stopPropagation()" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="✉️ ${esc(item.email)}">✉️</a>`);
-                if (item.facebook) contactIcons.push(`<a href="${esc(ensureHttps(item.facebook))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="📘 ${esc(item.facebook)}">📘</a>`);
-                if (item.instagram) contactIcons.push(`<a href="${esc(ensureHttps(item.instagram))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="📷 ${esc(item.instagram)}">📷</a>`);
-                if (item.linkedin) contactIcons.push(`<a href="${esc(ensureHttps(item.linkedin))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="💼 ${esc(item.linkedin)}">💼</a>`);
-                if (item.twitter) contactIcons.push(`<a href="${esc(ensureHttps(item.twitter))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:text-blue-600 hover:scale-125 transition-transform" title="🐦 ${esc(item.twitter)}">🐦</a>`);
-
-                // Contact tracking status
+                // Simplified contact tracking - just show compact status pills
                 const ct = item.contactTracking || {};
-                const emailedClass = ct.emailed ? 'bg-green-100 text-green-700 border-green-400' : 'bg-gray-100 text-gray-400 border-gray-300';
-                const dmedClass = ct.dmed ? 'bg-green-100 text-green-700 border-green-400' : 'bg-gray-100 text-gray-400 border-gray-300';
-                const textedClass = ct.texted ? 'bg-green-100 text-green-700 border-green-400' : 'bg-gray-100 text-gray-400 border-gray-300';
-                const linkedinClass = ct.linkedinMessaged ? 'bg-green-100 text-green-700 border-green-400' : 'bg-gray-100 text-gray-400 border-gray-300';
-                const facebookClass = ct.facebookMessaged ? 'bg-green-100 text-green-700 border-green-400' : 'bg-gray-100 text-gray-400 border-gray-300';
-                const calledClass = ct.called ? 'bg-green-100 text-green-700 border-green-400' : 'bg-gray-100 text-gray-400 border-gray-300';
+                const contacted = ct.emailed || ct.texted || ct.called || ct.linkedinMessaged || ct.facebookMessaged || ct.dmed;
 
-                const contactTrackingHTML = `
-                  <div class="flex flex-wrap gap-1 items-center justify-center py-2 mt-2 border-t border-gray-200">
-                    <button onclick="toggleContactTracking('${leadId}', 'emailed', event)" class="flex items-center gap-1 px-2 py-1 text-xs border rounded-full cursor-pointer hover:scale-105 transition-transform ${emailedClass}" title="${ct.emailed ? 'Emailed ' + (ct.emailedDate ? new Date(ct.emailedDate).toLocaleDateString() : '') : 'Click to mark as emailed'}">
-                      ✉️ ${ct.emailed ? '✓' : ''}
-                    </button>
-                    <button onclick="toggleContactTracking('${leadId}', 'texted', event)" class="flex items-center gap-1 px-2 py-1 text-xs border rounded-full cursor-pointer hover:scale-105 transition-transform ${textedClass}" title="${ct.texted ? 'Texted ' + (ct.textedDate ? new Date(ct.textedDate).toLocaleDateString() : '') : 'Click to mark as texted'}">
-                      📱 ${ct.texted ? '✓' : ''}
-                    </button>
-                    <button onclick="toggleContactTracking('${leadId}', 'called', event)" class="flex items-center gap-1 px-2 py-1 text-xs border rounded-full cursor-pointer hover:scale-105 transition-transform ${calledClass}" title="${ct.called ? 'Called ' + (ct.calledDate ? new Date(ct.calledDate).toLocaleDateString() : '') : 'Click to mark as called'}">
-                      📞 ${ct.called ? '✓' : ''}
-                    </button>
-                    <button onclick="toggleContactTracking('${leadId}', 'linkedinMessaged', event)" class="flex items-center gap-1 px-2 py-1 text-xs border rounded-full cursor-pointer hover:scale-105 transition-transform ${linkedinClass}" title="${ct.linkedinMessaged ? 'LinkedIn ' + (ct.linkedinMessagedDate ? new Date(ct.linkedinMessagedDate).toLocaleDateString() : '') : 'Click to mark as LinkedIn messaged'}">
-                      💼 ${ct.linkedinMessaged ? '✓' : ''}
-                    </button>
-                    <button onclick="toggleContactTracking('${leadId}', 'facebookMessaged', event)" class="flex items-center gap-1 px-2 py-1 text-xs border rounded-full cursor-pointer hover:scale-105 transition-transform ${facebookClass}" title="${ct.facebookMessaged ? 'Facebook ' + (ct.facebookMessagedDate ? new Date(ct.facebookMessagedDate).toLocaleDateString() : '') : 'Click to mark as Facebook messaged'}">
-                      📘 ${ct.facebookMessaged ? '✓' : ''}
-                    </button>
-                    <button onclick="toggleContactTracking('${leadId}', 'dmed', event)" class="flex items-center gap-1 px-2 py-1 text-xs border rounded-full cursor-pointer hover:scale-105 transition-transform ${dmedClass}" title="${ct.dmed ? 'DM sent ' + (ct.dmedDate ? new Date(ct.dmedDate).toLocaleDateString() : '') : 'Click to mark as DM sent (IG)'}">
-                      📷 ${ct.dmed ? '✓' : ''}
-                    </button>
+                // Build compact contact status showing which methods were used
+                const statusPills = [];
+                if (item.email) statusPills.push(`<a href="mailto:${esc(item.email)}" onclick="event.stopPropagation(); toggleContactTracking('${leadId}', 'emailed', event)" class="px-1.5 py-0.5 text-xs rounded ${ct.emailed ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}" title="${ct.emailed ? '✓ Emailed' : 'Click to email & mark'}">✉️</a>`);
+                if (item.phone) statusPills.push(`<a href="tel:${esc(item.phone)}" onclick="event.stopPropagation(); toggleContactTracking('${leadId}', 'called', event)" class="px-1.5 py-0.5 text-xs rounded ${ct.called ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}" title="${ct.called ? '✓ Called' : 'Click to call & mark'}">📞</a>`);
+                if (item.phone) statusPills.push(`<a href="sms:${esc(item.phone)}" onclick="event.stopPropagation(); toggleContactTracking('${leadId}', 'texted', event)" class="px-1.5 py-0.5 text-xs rounded ${ct.texted ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}" title="${ct.texted ? '✓ Texted' : 'Click to text & mark'}">📱</a>`);
+                if (item.facebook) statusPills.push(`<a href="${esc(ensureHttps(item.facebook))}" target="_blank" onclick="event.stopPropagation(); toggleContactTracking('${leadId}', 'facebookMessaged', event)" class="px-1.5 py-0.5 text-xs rounded ${ct.facebookMessaged ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}" title="${ct.facebookMessaged ? '✓ FB messaged' : 'Click to message on FB'}">📘</a>`);
+                if (item.instagram) statusPills.push(`<a href="${esc(ensureHttps(item.instagram))}" target="_blank" onclick="event.stopPropagation(); toggleContactTracking('${leadId}', 'dmed', event)" class="px-1.5 py-0.5 text-xs rounded ${ct.dmed ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}" title="${ct.dmed ? '✓ IG DMed' : 'Click to DM on IG'}">📷</a>`);
+                if (item.linkedin) statusPills.push(`<a href="${esc(ensureHttps(item.linkedin))}" target="_blank" onclick="event.stopPropagation(); toggleContactTracking('${leadId}', 'linkedinMessaged', event)" class="px-1.5 py-0.5 text-xs rounded ${ct.linkedinMessaged ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}" title="${ct.linkedinMessaged ? '✓ LinkedIn' : 'Click to message on LinkedIn'}">💼</a>`);
+
+                return statusPills.length > 0 ? `
+                  <div class="flex flex-wrap gap-1 items-center justify-center py-1.5 mt-1">
+                    ${statusPills.join('')}
                   </div>
-                `;
-
-                // Sequence tracking UI
-                let sequenceHTML = '';
-                if (item.activeSequence) {
-                  const seq = outreachSequencesState.sequences[item.activeSequence.sequenceId];
-                  if (seq) {
-                    const currentStep = item.activeSequence.currentStep;
-                    const isComplete = currentStep > seq.steps.length;
-                    const progressDots = seq.steps.map((step, idx) => {
-                      const stepNum = idx + 1;
-                      const isCompleted = stepNum < currentStep;
-                      const isCurrent = stepNum === currentStep;
-                      const channelIcons = { email: '📧', text: '💬', call: '📞', linkedin: '💼', facebook: '📘' };
-                      const icon = channelIcons[step.channel] || '📌';
-                      const statusClass = isCompleted ? 'bg-green-500 text-white' : isCurrent ? 'bg-purple-600 text-white ring-2 ring-purple-300' : 'bg-gray-200 text-gray-400';
-                      return '<span class="w-5 h-5 rounded-full flex items-center justify-center text-xs ' + statusClass + '" title="' + esc(step.description) + '">' + icon + '</span>';
-                    }).join('');
-                    const actionBtn = isComplete
-                      ? '<span class="text-xs text-green-600 font-bold">✅</span>'
-                      : '<button onclick="event.stopPropagation(); advanceSequence(\'' + leadId + '\')" class="text-xs px-2 py-0.5 bg-purple-600 text-white rounded hover:bg-purple-700 font-medium">▶</button>';
-                    sequenceHTML = '<div class="flex items-center gap-2 py-2 mt-2 border-t border-purple-200 bg-purple-50 rounded px-2">' +
-                      '<span class="text-xs text-purple-700 font-medium">' + esc(seq.name.split(' ')[0]) + '</span>' +
-                      '<div class="flex gap-0.5 flex-1">' + progressDots + '</div>' +
-                      actionBtn +
-                      '</div>';
-                  }
-                } else {
-                  sequenceHTML = '<button onclick="event.stopPropagation(); assignSequence(\'' + leadId + '\')" class="w-full text-xs text-purple-500 hover:text-purple-700 py-1 mt-1 border-t border-gray-100 hover:bg-purple-50 rounded transition">+ Add to Sequence</button>';
-                }
-
-                return (contactIcons.length > 0 ? `
-                  <div class="flex gap-2 items-center justify-center py-2 mt-2 border-t border-gray-200">
-                    ${contactIcons.join('')}
-                  </div>
-                ` : '') + contactTrackingHTML + sequenceHTML;
+                ` : '<div class="text-xs text-gray-400 text-center py-1 italic">No contact info</div>';
               })() : ''}
               ${col.key === 'to-contact' ? `
                 <div class="mt-2 pt-2 border-t border-gray-200 space-y-2 relative z-20">
