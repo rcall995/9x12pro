@@ -277,6 +277,7 @@
             settings: {},
             campaigns: [],
             pricingData: {},
+            kanbanData: null,  // Raw kanban data for syncing
             sessionStats: {
                 contacted: 0,
                 startTime: Date.now()
@@ -599,6 +600,9 @@
         }
 
         function processKanbanData(data) {
+            // Store raw kanban data for syncing later
+            state.kanbanData = data;
+
             const allProspects = [];
             const columns = ['to-contact', 'in-progress'];
 
@@ -610,6 +614,7 @@
                     if (item && typeof item === 'object' && item.businessName) {
                         allProspects.push({
                             ...item,
+                            _column: col,  // Track which column this prospect is in
                             pipelineStage: col === 'to-contact' ? 'To Contact' : 'In Progress'
                         });
                     }
@@ -1242,24 +1247,26 @@
             if (!supabaseClient || !currentUserEmail) return;
 
             try {
-                // Get current kanban data
-                const stored = localStorage.getItem('mailslot-kanban');
-                if (!stored) return;
+                // Use kanban data from state (loaded from IndexedDB or localStorage)
+                if (!state.kanbanData) {
+                    console.warn('⚠️ No kanban data to sync');
+                    return;
+                }
 
-                const data = JSON.parse(stored);
+                const data = state.kanbanData;
+                const prospect = state.selectedProspect;
 
                 // Update the prospect in the kanban columns
-                // Data structure is data['to-contact'], not data.columns['to-contact']
-                const prospect = state.selectedProspect;
-                if (prospect) {
-                    ['to-contact', 'in-progress'].forEach(col => {
-                        const items = data[col] || [];
-                        const idx = items.findIndex(item => item.id === prospect.id);
-                        if (idx !== -1) {
-                            items[idx] = { ...items[idx], contactTracking: prospect.contactTracking };
-                            console.log(`✅ Updated contact tracking for ${prospect.businessName} in ${col}`);
-                        }
-                    });
+                if (prospect && prospect._column) {
+                    const items = data[prospect._column] || [];
+                    const idx = items.findIndex(item => item.id === prospect.id);
+                    if (idx !== -1) {
+                        // Update contactTracking in the kanban data
+                        items[idx].contactTracking = prospect.contactTracking;
+                        console.log(`✅ Updated contact tracking for ${prospect.businessName} in ${prospect._column}`);
+                    } else {
+                        console.warn(`⚠️ Prospect ${prospect.businessName} not found in ${prospect._column}`);
+                    }
                 }
 
                 // Save locally
@@ -1282,14 +1289,18 @@
                 }
 
                 // Save to Supabase
-                await supabaseClient.from('app_data').upsert({
+                const { error } = await supabaseClient.from('app_data').upsert({
                     user_email: currentUserEmail,
                     data_type: 'kanban',
                     data: data,
                     updated_at: new Date().toISOString()
                 }, { onConflict: 'user_email,data_type' });
 
-                console.log('✅ Synced to cloud');
+                if (error) {
+                    console.error('Supabase sync error:', error);
+                } else {
+                    console.log('✅ Synced to cloud');
+                }
             } catch (err) {
                 console.error('Sync failed:', err);
             }
