@@ -1055,10 +1055,12 @@
                     url = `mailto:${prospect.email}?subject=${subject}&body=${body}`;
                     break;
                 case 'facebook':
-                    url = prospect.facebook;
+                    // Convert Facebook page URL to Messenger URL
+                    url = convertToMessengerUrl(prospect.facebook);
                     break;
                 case 'instagram':
-                    url = prospect.instagram;
+                    // Convert Instagram URL to DM URL if possible
+                    url = convertToInstagramDM(prospect.instagram);
                     break;
                 case 'linkedin':
                     url = prospect.linkedin;
@@ -1333,6 +1335,64 @@
         }
 
         // ============ UTILITIES ============
+
+        // Convert Facebook page URL to Messenger URL (m.me)
+        function convertToMessengerUrl(fbUrl) {
+            if (!fbUrl) return null;
+            try {
+                // Extract page name/ID from various Facebook URL formats
+                // Examples: facebook.com/pagename, facebook.com/profile.php?id=123, fb.com/pagename
+                let pageName = fbUrl;
+
+                // Remove protocol and www
+                pageName = pageName.replace(/^https?:\/\/(www\.)?/i, '');
+
+                // Remove facebook.com or fb.com prefix
+                pageName = pageName.replace(/^(facebook\.com|fb\.com)\//i, '');
+
+                // Remove trailing slashes and query params for simple names
+                pageName = pageName.split('?')[0].split('/')[0].replace(/\/$/, '');
+
+                // If it's a profile.php URL, we can't easily convert it
+                if (pageName.includes('profile.php') || !pageName) {
+                    return fbUrl; // Return original URL as fallback
+                }
+
+                // Return Messenger URL
+                return `https://m.me/${pageName}`;
+            } catch (e) {
+                console.warn('Could not convert FB URL to Messenger:', e);
+                return fbUrl;
+            }
+        }
+
+        // Convert Instagram URL to DM-friendly URL
+        function convertToInstagramDM(igUrl) {
+            if (!igUrl) return null;
+            try {
+                // Extract username from Instagram URL
+                let username = igUrl;
+
+                // Remove protocol and www
+                username = username.replace(/^https?:\/\/(www\.)?/i, '');
+
+                // Remove instagram.com prefix
+                username = username.replace(/^instagram\.com\//i, '');
+
+                // Remove trailing slashes and clean up
+                username = username.split('?')[0].split('/')[0].replace(/\/$/, '').replace('@', '');
+
+                if (!username) return igUrl;
+
+                // Instagram DM deep link (works on mobile)
+                // Note: instagram://user?username=X opens profile, user can tap Message from there
+                return `https://instagram.com/${username}`;
+            } catch (e) {
+                console.warn('Could not convert IG URL:', e);
+                return igUrl;
+            }
+        }
+
         function getContactedStatus(prospect) {
             const ct = prospect.contactTracking || {};
             const channel = state.currentChannel;
