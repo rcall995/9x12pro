@@ -2028,11 +2028,19 @@ Would you be interested in being on the next one?`
                     infoDiv.classList.remove('hidden');
 
                     showToast(`Campaign loaded: ${campaign.town}`);
+
+                    // Debug: log what was set
+                    console.log('📋 Campaign settings set:', {
+                        postcardName: settings.postcardName,
+                        areaName: settings.areaName,
+                        homeCount: settings.homeCount
+                    });
                 }
             }
 
             // Persist settings to localStorage so they're used when opening emails
             localStorage.setItem('outreach-scripts-settings', JSON.stringify(settings));
+            console.log('💾 Settings saved to localStorage');
 
             // Re-render templates with updated settings
             renderAllTemplates();
@@ -2381,6 +2389,16 @@ Would you be interested in being on the next one?`
         function openEmailTemplate(id) {
             const template = templates[id];
             if (!template || !template.subject) return;
+
+            // Debug: log settings to see what values are being used
+            console.log('📧 Opening email with settings:', {
+                postcardName: settings.postcardName,
+                areaName: settings.areaName,
+                homeCount: settings.homeCount,
+                spotPrice: settings.spotPrice,
+                businessName: settings.businessName,
+                category: settings.category
+            });
 
             const subject = encodeURIComponent(fillVariables(template.subject));
             const body = encodeURIComponent(fillVariables(template.body));
