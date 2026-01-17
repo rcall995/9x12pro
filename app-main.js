@@ -16625,24 +16625,53 @@ function saveDailyGoalState() {
   try {
     localStorage.setItem('dailyGoalState', JSON.stringify(dailyGoalState));
   } catch (e) {
-    console.error('Failed to save daily goal state:', e);
+    console.error('Failed to save daily goal state to localStorage:', e);
   }
+  // Also sync to cloud for cross-device consistency
+  saveToCloud('dailyGoal', dailyGoalState).catch(e => {
+    console.warn('Failed to sync daily goal to cloud:', e);
+  });
 }
 
-// Load daily goal state from localStorage
-function loadDailyGoalState() {
+// Load daily goal state - cloud first, then localStorage
+async function loadDailyGoalState() {
   try {
-    const saved = localStorage.getItem('dailyGoalState');
-    if (saved) {
-      const loaded = JSON.parse(saved);
-      dailyGoalState.dailyGoal = loaded.dailyGoal || 10;
-      dailyGoalState.todayCount = loaded.todayCount || 0;
-      dailyGoalState.lastResetDate = loaded.lastResetDate || new Date().toDateString();
-      dailyGoalState.history = loaded.history || [];
+    // Try cloud first for cross-device sync
+    const cloudData = await loadFromCloud('dailyGoal');
+    if (cloudData && typeof cloudData === 'object') {
+      dailyGoalState.dailyGoal = cloudData.dailyGoal || 10;
+      dailyGoalState.todayCount = cloudData.todayCount || 0;
+      dailyGoalState.lastResetDate = cloudData.lastResetDate || new Date().toDateString();
+      dailyGoalState.history = cloudData.history || [];
+      console.log('✅ Loaded daily goal from cloud:', dailyGoalState.todayCount);
+    } else {
+      // Fallback to localStorage
+      const saved = localStorage.getItem('dailyGoalState');
+      if (saved) {
+        const loaded = JSON.parse(saved);
+        dailyGoalState.dailyGoal = loaded.dailyGoal || 10;
+        dailyGoalState.todayCount = loaded.todayCount || 0;
+        dailyGoalState.lastResetDate = loaded.lastResetDate || new Date().toDateString();
+        dailyGoalState.history = loaded.history || [];
+      }
     }
     checkAndResetDailyGoal(); // Check if we need to reset for new day
   } catch (e) {
     console.error('Failed to load daily goal state:', e);
+    // Fallback to localStorage on error
+    try {
+      const saved = localStorage.getItem('dailyGoalState');
+      if (saved) {
+        const loaded = JSON.parse(saved);
+        dailyGoalState.dailyGoal = loaded.dailyGoal || 10;
+        dailyGoalState.todayCount = loaded.todayCount || 0;
+        dailyGoalState.lastResetDate = loaded.lastResetDate || new Date().toDateString();
+        dailyGoalState.history = loaded.history || [];
+      }
+      checkAndResetDailyGoal();
+    } catch (e2) {
+      console.error('localStorage fallback also failed:', e2);
+    }
   }
 }
 
@@ -18731,8 +18760,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById('pickerBanner').value = stagedColors.Banner_BG;
   applyStagedColors();
 
-  // Load daily goal state from localStorage
-  loadDailyGoalState();
+  // Daily goal state will be loaded in loadAllData() after auth is ready
 
   // Wait for auth to complete before loading user data
   console.log('⏳ Waiting for authentication before loading data...');
@@ -18762,7 +18790,8 @@ async function loadAllData() {
     loadNotInterestedList(),
     loadManualProspects(),
     loadBusinessCategories(),
-    loadUserTemplates()
+    loadUserTemplates(),
+    loadDailyGoalState()
   ]).then(results => {
     const succeeded = results.filter(r => r.status === 'fulfilled').length;
     const failed = results.filter(r => r.status === 'rejected').length;
@@ -18770,7 +18799,7 @@ async function loadAllData() {
     if (failed > 0) {
       console.warn(`⚠️ ${succeeded} data types loaded, ${failed} failed (using localStorage cache)`);
       const failedTypes = results
-        .map((r, i) => r.status === 'rejected' ? ['expenses', 'pricing', 'revenueGoals', 'spotPricing', 'clients', 'kanban', 'tasks', 'notInterested', 'manualProspects', 'businessCategories', 'userTemplates'][i] : null)
+        .map((r, i) => r.status === 'rejected' ? ['expenses', 'pricing', 'revenueGoals', 'spotPricing', 'clients', 'kanban', 'tasks', 'notInterested', 'manualProspects', 'businessCategories', 'userTemplates', 'dailyGoal'][i] : null)
         .filter(t => t !== null);
       console.warn('Failed types:', failedTypes.join(', '));
 

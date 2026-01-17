@@ -1124,6 +1124,12 @@
             // Sync to cloud and wait for completion
             try {
                 await syncToCloud(oldColumn);
+
+                // Also increment the daily goal counter if moving from to-contact
+                if (oldColumn === 'to-contact') {
+                    await incrementDailyGoalInCloud(prospect.businessName);
+                }
+
                 document.getElementById('syncStatus').textContent = '✓ Saved';
                 const movedMsg = oldColumn === 'to-contact' ? ' → In Progress' : '';
                 showToast('✓ Marked & synced!' + movedMsg);
@@ -1131,6 +1137,65 @@
                 document.getElementById('syncStatus').textContent = '⚠️ Sync failed';
                 showToast('⚠️ Sync failed: ' + (err?.message || 'Unknown error').substring(0, 40));
                 console.error('Sync error:', err);
+            }
+        }
+
+        // Increment daily goal counter in cloud
+        async function incrementDailyGoalInCloud(businessName = '') {
+            if (!supabaseClient || !currentUserEmail) return;
+
+            try {
+                // Load current daily goal state from cloud
+                const { data, error } = await supabaseClient
+                    .from('app_data')
+                    .select('data')
+                    .eq('user_email', currentUserEmail)
+                    .eq('data_type', 'dailyGoal')
+                    .single();
+
+                let goalState = {
+                    dailyGoal: 10,
+                    todayCount: 0,
+                    lastResetDate: new Date().toDateString(),
+                    history: []
+                };
+
+                if (!error && data?.data) {
+                    goalState = data.data;
+                }
+
+                // Check if we need to reset for new day
+                const today = new Date().toDateString();
+                if (goalState.lastResetDate !== today) {
+                    goalState.todayCount = 0;
+                    goalState.lastResetDate = today;
+                }
+
+                // Increment count
+                goalState.todayCount++;
+
+                // Update history
+                let todayRecord = goalState.history?.find(h => h.date === today);
+                if (!todayRecord) {
+                    todayRecord = { date: today, goal: goalState.dailyGoal, actual: 0, businesses: [] };
+                    if (!goalState.history) goalState.history = [];
+                    goalState.history.push(todayRecord);
+                }
+                todayRecord.actual = goalState.todayCount;
+                if (businessName) {
+                    todayRecord.businesses.push({ name: businessName, timestamp: new Date().toISOString() });
+                }
+
+                // Save back to cloud
+                await supabaseClient.from('app_data').upsert({
+                    user_email: currentUserEmail,
+                    data_type: 'dailyGoal',
+                    data: goalState
+                }, { onConflict: 'user_email,data_type' });
+
+                console.log('✅ Daily goal incremented to', goalState.todayCount);
+            } catch (err) {
+                console.error('Failed to increment daily goal:', err);
             }
         }
 
