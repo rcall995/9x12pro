@@ -470,10 +470,18 @@
             // Get home count from pricing data
             const mailerId = campaign.mailer_id;
             const campaignPricing = state.pricingData[mailerId];
-            if (campaignPricing?.addressCount) {
-                state.settings.homeCount = campaignPricing.addressCount.toLocaleString();
+            if (campaignPricing?.homeCount) {
+                state.settings.homeCount = typeof campaignPricing.homeCount === 'number'
+                    ? campaignPricing.homeCount.toLocaleString()
+                    : campaignPricing.homeCount;
+                console.log('✅ Home count from pricing:', state.settings.homeCount);
             } else if (campaign.address_count) {
                 state.settings.homeCount = campaign.address_count.toLocaleString();
+                console.log('✅ Home count from campaign:', state.settings.homeCount);
+            } else if (!state.settings.homeCount) {
+                // Use default if nothing else available
+                state.settings.homeCount = '5,000';
+                console.log('⚠️ Using default home count:', state.settings.homeCount);
             }
 
             // Show info

@@ -2010,13 +2010,23 @@ Would you be interested in being on the next one?`
                     console.log('💰 Looking up pricing for:', mailerId, campaignPricing);
 
                     if (campaignPricing && campaignPricing.homeCount) {
-                        settings.homeCount = campaignPricing.homeCount.toLocaleString();
+                        settings.homeCount = typeof campaignPricing.homeCount === 'number'
+                            ? campaignPricing.homeCount.toLocaleString()
+                            : campaignPricing.homeCount;
                         document.getElementById('settingHomes').value = settings.homeCount;
                         console.log('✅ Home count from pricing:', settings.homeCount);
                     } else if (campaign.address_count) {
                         // Fallback to postcards table if available
                         settings.homeCount = campaign.address_count.toLocaleString();
                         document.getElementById('settingHomes').value = settings.homeCount;
+                        console.log('✅ Home count from campaign:', settings.homeCount);
+                    } else {
+                        // Keep existing or use default
+                        if (!settings.homeCount) {
+                            settings.homeCount = '5,000';
+                        }
+                        document.getElementById('settingHomes').value = settings.homeCount;
+                        console.log('⚠️ Using default/existing home count:', settings.homeCount);
                     }
 
                     // Update the settings form
