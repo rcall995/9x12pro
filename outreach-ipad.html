@@ -1119,8 +1119,11 @@
                 showToast('✓ Marked & synced!');
             } catch (err) {
                 document.getElementById('syncStatus').textContent = '⚠️ Sync failed';
-                showToast('⚠️ Marked but sync failed');
+                // Show actual error for debugging
+                const errMsg = err?.message || String(err);
+                showToast('⚠️ Error: ' + errMsg.substring(0, 50));
                 console.error('Sync error:', err);
+                alert('Sync Error Details:\n\n' + errMsg + '\n\nUser: ' + currentUserEmail + '\nHas kanbanData: ' + !!state.kanbanData);
             }
         }
 
