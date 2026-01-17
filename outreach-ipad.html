@@ -542,45 +542,34 @@
         // ============ DATA LOADING ============
         async function loadProspects() {
             console.log('📥 Loading prospects...');
-            try {
-                // Try IndexedDB first (same DB as main app)
-                const dbRequest = indexedDB.open('9x12pro-db', 1);
 
-                dbRequest.onsuccess = (event) => {
-                    const db = event.target.result;
-                    if (!db.objectStoreNames.contains('appData')) {
-                        console.log('⚠️ No appData store, trying localStorage...');
-                        loadFromLocalStorage();
+            // ALWAYS load from Supabase first if logged in (for cross-device sync)
+            if (supabaseClient && currentUserEmail) {
+                try {
+                    console.log('☁️ Loading kanban from Supabase...');
+                    const { data, error } = await supabaseClient
+                        .from('app_data')
+                        .select('data')
+                        .eq('user_email', currentUserEmail)
+                        .eq('data_type', 'kanban')
+                        .single();
+
+                    if (!error && data?.data) {
+                        console.log('✅ Loaded kanban from cloud');
+                        processKanbanData(data.data);
+                        // Also cache locally
+                        localStorage.setItem('mailslot-kanban', JSON.stringify(data.data));
                         return;
+                    } else {
+                        console.log('⚠️ No cloud data or error:', error?.message);
                     }
-
-                    const tx = db.transaction('appData', 'readonly');
-                    const store = tx.objectStore('appData');
-                    const getRequest = store.get('mailslot-kanban');
-
-                    getRequest.onsuccess = () => {
-                        const record = getRequest.result;
-                        console.log('📦 Raw kanban record:', record);
-
-                        // Handle both wrapped ({ key, value }) and unwrapped formats
-                        const kanbanData = record?.value || record;
-
-                        if (kanbanData) {
-                            processKanbanData(kanbanData);
-                        } else {
-                            console.log('⚠️ No kanban data in IndexedDB, trying localStorage...');
-                            loadFromLocalStorage();
-                        }
-                    };
-
-                    getRequest.onerror = () => loadFromLocalStorage();
-                };
-
-                dbRequest.onerror = () => loadFromLocalStorage();
-            } catch (err) {
-                console.error('Failed to load prospects:', err);
-                loadFromLocalStorage();
+                } catch (err) {
+                    console.error('Cloud load failed:', err);
+                }
             }
+
+            // Fall back to local data if cloud fails
+            loadFromLocalStorage();
         }
 
         function loadFromLocalStorage() {
