@@ -1233,10 +1233,13 @@
 
         // ============ SYNC ============
         async function syncToCloud() {
-            if (!supabaseClient || !currentUserEmail) return;
+            if (!supabaseClient || !currentUserEmail) {
+                console.warn('⚠️ Cannot sync: no supabase client or user email');
+                return;
+            }
 
             try {
-                // Use kanban data from state (loaded from IndexedDB or localStorage)
+                // Use kanban data from state (loaded from cloud)
                 if (!state.kanbanData) {
                     console.warn('⚠️ No kanban data to sync');
                     return;
@@ -1248,50 +1251,45 @@
                 // Update the prospect in the kanban columns
                 if (prospect && prospect._column) {
                     const items = data[prospect._column] || [];
-                    const idx = items.findIndex(item => item.id === prospect.id);
+                    console.log(`🔍 Looking for prospect ID ${prospect.id} (type: ${typeof prospect.id}) in ${prospect._column} (${items.length} items)`);
+
+                    // Use String comparison to handle type mismatches
+                    const idx = items.findIndex(item => String(item.id) === String(prospect.id));
+
                     if (idx !== -1) {
                         // Update contactTracking in the kanban data
-                        items[idx].contactTracking = prospect.contactTracking;
-                        console.log(`✅ Updated contact tracking for ${prospect.businessName} in ${prospect._column}`);
+                        items[idx].contactTracking = { ...prospect.contactTracking };
+                        items[idx].lastContacted = new Date().toISOString();
+                        console.log(`✅ Updated contact tracking for ${prospect.businessName} at index ${idx}`);
+                        console.log('📋 New contactTracking:', items[idx].contactTracking);
                     } else {
-                        console.warn(`⚠️ Prospect ${prospect.businessName} not found in ${prospect._column}`);
+                        console.warn(`⚠️ Prospect ${prospect.businessName} (ID: ${prospect.id}) not found in ${prospect._column}`);
+                        console.log('📋 Available IDs:', items.map(i => i.id));
                     }
+                } else {
+                    console.warn('⚠️ No prospect selected or no _column');
                 }
 
-                // Save locally
+                // Save locally first
                 localStorage.setItem('mailslot-kanban', JSON.stringify(data));
-
-                // Save to IndexedDB (same DB as main app)
-                try {
-                    const dbRequest = indexedDB.open('9x12pro-db', 1);
-                    dbRequest.onsuccess = (event) => {
-                        const db = event.target.result;
-                        if (db.objectStoreNames.contains('appData')) {
-                            const tx = db.transaction('appData', 'readwrite');
-                            const store = tx.objectStore('appData');
-                            store.put({ key: 'mailslot-kanban', value: data });
-                            console.log('💾 Saved to IndexedDB');
-                        }
-                    };
-                } catch (err) {
-                    console.error('IndexedDB save failed:', err);
-                }
+                console.log('💾 Saved to localStorage');
 
                 // Save to Supabase
                 const { error } = await supabaseClient.from('app_data').upsert({
                     user_email: currentUserEmail,
                     data_type: 'kanban',
-                    data: data,
-                    updated_at: new Date().toISOString()
+                    data: data
                 }, { onConflict: 'user_email,data_type' });
 
                 if (error) {
-                    console.error('Supabase sync error:', error);
+                    console.error('❌ Supabase sync error:', error);
+                    showToast('Sync failed - changes saved locally only');
                 } else {
-                    console.log('✅ Synced to cloud');
+                    console.log('✅ Synced to Supabase cloud');
                 }
             } catch (err) {
-                console.error('Sync failed:', err);
+                console.error('❌ Sync failed:', err);
+                showToast('Sync error - changes saved locally only');
             }
         }
 
