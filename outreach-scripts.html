@@ -2004,34 +2004,35 @@ Would you be interested in being on the next one?`
                         settings.postcardName = `The ${campaign.town} Spotlight`;
                     }
 
-                    // Get home count from pricing data (Set Ad Price section)
+                    // Get home count - check postcards.address_count FIRST (most likely to be set),
+                    // then fall back to pricing data, then use default
                     const mailerId = campaign.mailer_id;
                     const campaignPricing = pricingData[mailerId];
-                    console.log('💰 Looking up pricing for:', mailerId);
-                    console.log('💰 Campaign pricing data:', campaignPricing);
+                    console.log('💰 Looking up home count for:', mailerId);
                     console.log('💰 Campaign address_count:', campaign.address_count);
-                    console.log('💰 All pricingData keys:', Object.keys(pricingData));
+                    console.log('💰 Campaign pricing data:', campaignPricing);
 
-                    if (campaignPricing && campaignPricing.homeCount) {
+                    if (campaign.address_count && campaign.address_count > 0) {
+                        // Primary source: postcards.address_count (set via Edit Details or Set Ad Price)
+                        settings.homeCount = campaign.address_count.toLocaleString();
+                        document.getElementById('settingHomes').value = settings.homeCount;
+                        console.log('✅ Home count from campaign:', settings.homeCount);
+                    } else if (campaignPricing && campaignPricing.homeCount && campaignPricing.homeCount > 0) {
+                        // Fallback: pricing data (legacy - may exist from Set Ad Price)
                         settings.homeCount = typeof campaignPricing.homeCount === 'number'
                             ? campaignPricing.homeCount.toLocaleString()
                             : campaignPricing.homeCount;
                         document.getElementById('settingHomes').value = settings.homeCount;
                         console.log('✅ Home count from pricing:', settings.homeCount);
-                    } else if (campaign.address_count) {
-                        // Fallback to postcards table if available
-                        settings.homeCount = campaign.address_count.toLocaleString();
-                        document.getElementById('settingHomes').value = settings.homeCount;
-                        console.log('✅ Home count from campaign:', settings.homeCount);
                     } else {
-                        // Keep existing or use default
+                        // No value set - use default and show helpful message
                         if (!settings.homeCount) {
                             settings.homeCount = '5,000';
                         }
                         document.getElementById('settingHomes').value = settings.homeCount;
-                        console.log('⚠️ Using default/existing home count:', settings.homeCount);
-                        console.log('⚠️ To fix: Set pricing for this campaign in Set Ad Price section of main app');
-                        showToast('⚠️ Home count not set for this campaign - using default. Set it in "Set Ad Price" in main app.');
+                        console.log('⚠️ Using default home count:', settings.homeCount);
+                        console.log('💡 To set: In main app, select this postcard → Edit Details → Households Reached');
+                        showToast('💡 Set "Households Reached" in Edit Details (main app) to use your actual home count.');
                     }
 
                     // Update the settings form

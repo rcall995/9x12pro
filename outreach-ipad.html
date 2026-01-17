@@ -467,21 +467,24 @@
 
             state.settings.postcardName = isCompleteName ? campaign.town : `The ${campaign.town} Spotlight`;
 
-            // Get home count from pricing data
+            // Get home count - check postcards.address_count FIRST (most likely to be set),
+            // then fall back to pricing data, then use default
             const mailerId = campaign.mailer_id;
             const campaignPricing = state.pricingData[mailerId];
-            if (campaignPricing?.homeCount) {
+            if (campaign.address_count && campaign.address_count > 0) {
+                // Primary source: postcards.address_count (set via Edit Details or Set Ad Price)
+                state.settings.homeCount = campaign.address_count.toLocaleString();
+                console.log('✅ Home count from campaign:', state.settings.homeCount);
+            } else if (campaignPricing?.homeCount && campaignPricing.homeCount > 0) {
+                // Fallback: pricing data (legacy)
                 state.settings.homeCount = typeof campaignPricing.homeCount === 'number'
                     ? campaignPricing.homeCount.toLocaleString()
                     : campaignPricing.homeCount;
                 console.log('✅ Home count from pricing:', state.settings.homeCount);
-            } else if (campaign.address_count) {
-                state.settings.homeCount = campaign.address_count.toLocaleString();
-                console.log('✅ Home count from campaign:', state.settings.homeCount);
             } else if (!state.settings.homeCount) {
                 // Use default if nothing else available
                 state.settings.homeCount = '5,000';
-                console.log('⚠️ Using default home count:', state.settings.homeCount);
+                console.log('⚠️ Using default home count (set in Edit Details):', state.settings.homeCount);
             }
 
             // Show info

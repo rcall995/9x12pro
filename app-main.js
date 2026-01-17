@@ -18076,6 +18076,12 @@ function openEditDetailsModal() {
     document.getElementById("editInHomesDate").value = '';
   }
 
+  // Load households reached - check both Address_Count and pricing data
+  const mailerId = state.current.Mailer_ID;
+  const pricing = productionState.pricing[mailerId] || {};
+  const householdsReached = state.current.Address_Count || pricing.homeCount || '';
+  document.getElementById("editHouseholdsReached").value = householdsReached;
+
   modal.style.display = "flex";
   modal.setAttribute('aria-hidden', 'false');
   trapModalFocus(modal);
@@ -18092,25 +18098,55 @@ async function saveEditDetailsModal() {
   if (!state.current) return;
 
   const inHomesDateValue = document.getElementById("editInHomesDate").value;
+  const householdsReachedValue = parseInt(document.getElementById("editHouseholdsReached").value) || 0;
+  const mailerId = state.current.Mailer_ID;
 
+  // Build update object
+  const updates = {};
   if (inHomesDateValue) {
+    updates.in_homes_date = inHomesDateValue;
     state.current.In_Homes_Date = inHomesDateValue;
+  }
+  if (householdsReachedValue > 0) {
+    updates.address_count = householdsReachedValue;
+    state.current.Address_Count = householdsReachedValue;
 
-    try {
-      const { error } = await supabaseClient
-        .from('postcards')
-        .update({ in_homes_date: inHomesDateValue })
-        .eq('user_email', ACTIVE_USER)
-        .eq('mailer_id', state.current.Mailer_ID);
-
-      if (error) throw error;
-
-      toast('✅ In homes date updated successfully');
-      closeEditDetailsModal();
-    } catch (err) {
-      console.error('Error updating in homes date:', err);
-      toast('❌ Failed to update in homes date', false);
+    // Also update productionState.pricing so it syncs to cloud
+    if (!productionState.pricing[mailerId]) {
+      productionState.pricing[mailerId] = { singleAd: 0, doubleAd: 0, bannerAd: 0, homeCount: 0 };
     }
+    productionState.pricing[mailerId].homeCount = householdsReachedValue;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    toast('No changes to save');
+    closeEditDetailsModal();
+    return;
+  }
+
+  try {
+    // Update postcards table
+    const { error } = await supabaseClient
+      .from('postcards')
+      .update(updates)
+      .eq('user_email', ACTIVE_USER)
+      .eq('mailer_id', mailerId);
+
+    if (error) throw error;
+
+    // If households was updated, also save pricing data to cloud
+    if (householdsReachedValue > 0) {
+      await savePricing();
+    }
+
+    toast('✅ Postcard details updated successfully');
+    closeEditDetailsModal();
+
+    // Refresh display
+    renderCardsInProgress();
+  } catch (err) {
+    console.error('Error updating postcard details:', err);
+    toast('❌ Failed to update postcard details', false);
   }
 }
 
