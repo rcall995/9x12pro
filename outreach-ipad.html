@@ -1119,11 +1119,8 @@
                 showToast('✓ Marked & synced!');
             } catch (err) {
                 document.getElementById('syncStatus').textContent = '⚠️ Sync failed';
-                // Show actual error for debugging
-                const errMsg = err?.message || String(err);
-                showToast('⚠️ Error: ' + errMsg.substring(0, 50));
+                showToast('⚠️ Sync failed: ' + (err?.message || 'Unknown error').substring(0, 40));
                 console.error('Sync error:', err);
-                alert('Sync Error Details:\n\n' + errMsg + '\n\nUser: ' + currentUserEmail + '\nHas kanbanData: ' + !!state.kanbanData);
             }
         }
 
@@ -1309,11 +1306,7 @@
                     console.warn('⚠️ No prospect selected or no _column');
                 }
 
-                // Save locally first
-                localStorage.setItem('mailslot-kanban', JSON.stringify(data));
-                console.log('💾 Saved to localStorage');
-
-                // Save to Supabase
+                // Save to Supabase FIRST (this is the important one)
                 const { error } = await supabaseClient.from('app_data').upsert({
                     user_email: currentUserEmail,
                     data_type: 'kanban',
@@ -1323,8 +1316,15 @@
                 if (error) {
                     console.error('❌ Supabase sync error:', error);
                     throw new Error('Supabase error: ' + error.message);
-                } else {
-                    console.log('✅ Synced to Supabase cloud');
+                }
+                console.log('✅ Synced to Supabase cloud');
+
+                // Try localStorage as backup (may fail on iPad due to quota)
+                try {
+                    localStorage.setItem('mailslot-kanban', JSON.stringify(data));
+                    console.log('💾 Saved to localStorage');
+                } catch (lsErr) {
+                    console.warn('⚠️ localStorage save failed (quota exceeded), using cloud only');
                 }
             } catch (err) {
                 console.error('❌ Sync failed:', err);
