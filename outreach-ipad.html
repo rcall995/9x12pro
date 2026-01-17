@@ -1249,13 +1249,15 @@
                 const data = JSON.parse(stored);
 
                 // Update the prospect in the kanban columns
+                // Data structure is data['to-contact'], not data.columns['to-contact']
                 const prospect = state.selectedProspect;
                 if (prospect) {
                     ['to-contact', 'in-progress'].forEach(col => {
-                        const items = data.columns?.[col] || [];
+                        const items = data[col] || [];
                         const idx = items.findIndex(item => item.id === prospect.id);
                         if (idx !== -1) {
                             items[idx] = { ...items[idx], contactTracking: prospect.contactTracking };
+                            console.log(`✅ Updated contact tracking for ${prospect.businessName} in ${col}`);
                         }
                     });
                 }
@@ -1263,15 +1265,16 @@
                 // Save locally
                 localStorage.setItem('mailslot-kanban', JSON.stringify(data));
 
-                // Save to IndexedDB
+                // Save to IndexedDB (same DB as main app)
                 try {
-                    const dbRequest = indexedDB.open('mailslot-db', 1);
+                    const dbRequest = indexedDB.open('9x12pro-db', 1);
                     dbRequest.onsuccess = (event) => {
                         const db = event.target.result;
                         if (db.objectStoreNames.contains('appData')) {
                             const tx = db.transaction('appData', 'readwrite');
                             const store = tx.objectStore('appData');
-                            store.put({ key: 'mailslot-kanban', data: data });
+                            store.put({ key: 'mailslot-kanban', value: data });
+                            console.log('💾 Saved to IndexedDB');
                         }
                     };
                 } catch (err) {
