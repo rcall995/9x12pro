@@ -2500,9 +2500,15 @@ Would you be interested in being on the next one?`
                 category: settings.category
             });
             console.log('📧 Full settings object:', JSON.stringify(settings, null, 2));
+            console.log('📧 Template body BEFORE fill:', template.body);
+            console.log('📧 Template body contains [HOME_COUNT]?', template.body.includes('[HOME_COUNT]'));
+
+            const filledBody = fillVariables(template.body);
+            console.log('📧 Template body AFTER fill:', filledBody);
+            console.log('📧 Still contains [HOME_COUNT]?', filledBody.includes('[HOME_COUNT]'));
 
             const subject = encodeURIComponent(fillVariables(template.subject));
-            const body = encodeURIComponent(fillVariables(template.body));
+            const body = encodeURIComponent(filledBody);
 
             // Get recipient email if a business is selected
             let recipient = '';
