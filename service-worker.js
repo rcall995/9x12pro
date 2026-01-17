@@ -5,7 +5,7 @@
  */
 
 // Update this version when you want to force a cache refresh
-const CACHE_VERSION = 'v168';
+const CACHE_VERSION = 'v169';
 const CACHE_NAME = `9x12-pro-${CACHE_VERSION}`;
 
 // Core app files to cache on install
@@ -16,7 +16,6 @@ const urlsToCache = [
   '/login.html',
   '/auth-root.js',
   '/config.js',
-  '/spark-mobile.html',
   '/facing-slip.html',
   '/outreach-scripts.html',
   '/outreach-ipad.html'

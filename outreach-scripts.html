@@ -2007,7 +2007,10 @@ Would you be interested in being on the next one?`
                     // Get home count from pricing data (Set Ad Price section)
                     const mailerId = campaign.mailer_id;
                     const campaignPricing = pricingData[mailerId];
-                    console.log('💰 Looking up pricing for:', mailerId, campaignPricing);
+                    console.log('💰 Looking up pricing for:', mailerId);
+                    console.log('💰 Campaign pricing data:', campaignPricing);
+                    console.log('💰 Campaign address_count:', campaign.address_count);
+                    console.log('💰 All pricingData keys:', Object.keys(pricingData));
 
                     if (campaignPricing && campaignPricing.homeCount) {
                         settings.homeCount = typeof campaignPricing.homeCount === 'number'
@@ -2027,6 +2030,8 @@ Would you be interested in being on the next one?`
                         }
                         document.getElementById('settingHomes').value = settings.homeCount;
                         console.log('⚠️ Using default/existing home count:', settings.homeCount);
+                        console.log('⚠️ To fix: Set pricing for this campaign in Set Ad Price section of main app');
+                        showToast('⚠️ Home count not set for this campaign - using default. Set it in "Set Ad Price" in main app.');
                     }
 
                     // Update the settings form
