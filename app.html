@@ -3198,21 +3198,32 @@
     // Register service worker for PWA functionality
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        // updateViaCache: 'none' forces browser to always check for SW updates
-        navigator.serviceWorker.register('/service-worker.js', { updateViaCache: 'none' })
+        navigator.serviceWorker.register('/service-worker.js')
           .then((registration) => {
             console.log('✅ Service Worker registered:', registration.scope);
 
-            // Force check for updates on every page load
-            registration.update();
+            // Check for updates periodically (not on every load to avoid reload loops)
+            // Only check if we haven't checked in the last 5 minutes
+            const lastCheck = sessionStorage.getItem('sw-last-check');
+            const now = Date.now();
+            if (!lastCheck || (now - parseInt(lastCheck)) > 300000) {
+              sessionStorage.setItem('sw-last-check', now.toString());
+              registration.update();
+            }
 
-            // Auto-activate new service worker when found
+            // When a new service worker is found, let user know (don't auto-reload)
             registration.addEventListener('updatefound', () => {
               const newWorker = registration.installing;
               newWorker.addEventListener('statechange', () => {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  // Auto-update without asking - just reload
-                  console.log('🔄 New version found - auto-updating...');
+                  // Check if we already reloaded recently (prevent loops)
+                  const lastReload = sessionStorage.getItem('sw-last-reload');
+                  if (lastReload && (Date.now() - parseInt(lastReload)) < 60000) {
+                    console.log('⏭️ Skipping reload - already reloaded recently');
+                    return;
+                  }
+                  console.log('🔄 New version available - activating...');
+                  sessionStorage.setItem('sw-last-reload', Date.now().toString());
                   newWorker.postMessage({ type: 'SKIP_WAITING' });
                 }
               });
@@ -3223,14 +3234,22 @@
           });
       });
 
-      // Handle service worker updates - auto-reload when new SW takes control
+      // Handle service worker updates - reload only once per session
       let refreshing = false;
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!refreshing) {
-          refreshing = true;
-          console.log('🔄 New service worker active - reloading...');
-          window.location.reload();
+        if (refreshing) return;
+
+        // Check if we already reloaded this session
+        const lastReload = sessionStorage.getItem('sw-last-reload');
+        if (lastReload && (Date.now() - parseInt(lastReload)) < 60000) {
+          console.log('⏭️ Skipping auto-reload - already reloaded recently');
+          return;
         }
+
+        refreshing = true;
+        console.log('🔄 New service worker active - reloading...');
+        sessionStorage.setItem('sw-last-reload', Date.now().toString());
+        window.location.reload();
       });
     }
   </script>
