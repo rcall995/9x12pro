@@ -16683,7 +16683,7 @@ function handleCommunicating(leadId, event) {
 }
 
 // Toggle contact tracking status (emailed, dmed, texted)
-function toggleContactTracking(leadId, method, event) {
+async function toggleContactTracking(leadId, method, event) {
   if (event) {
     event.stopPropagation();
     event.preventDefault();
@@ -16730,13 +16730,21 @@ function toggleContactTracking(leadId, method, event) {
     foundItem.lastContacted = new Date().toISOString();
   }
 
-  // Save and re-render
-  saveKanban();
+  // Re-render immediately for UI feedback
   renderKanban();
 
   const methodNames = { emailed: 'Email', dmed: 'DM', texted: 'Text', linkedinMessaged: 'LinkedIn', facebookMessaged: 'Facebook', called: 'Call', visitedInPerson: 'Visit' };
   const action = wasSet ? 'unmarked' : 'marked';
   toast(`${methodNames[method]} ${action} for ${foundItem.businessName || 'business'}`);
+
+  // Save to cloud (await to ensure it completes)
+  try {
+    await saveKanban();
+    console.log('✅ Contact tracking saved to cloud');
+  } catch (err) {
+    console.error('❌ Failed to save contact tracking:', err);
+    toast('Warning: Changes may not have synced to cloud', false);
+  }
 }
 
 // ============================================
