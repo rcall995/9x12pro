@@ -2031,6 +2031,9 @@ Would you be interested in being on the next one?`
                 }
             }
 
+            // Persist settings to localStorage so they're used when opening emails
+            localStorage.setItem('outreach-scripts-settings', JSON.stringify(settings));
+
             // Re-render templates with updated settings
             renderAllTemplates();
             renderObjections();
@@ -2196,6 +2199,8 @@ Would you be interested in being on the next one?`
 
         function fillVariables(text) {
             if (!text) return '';
+            // Strip "$" from spotPrice so templates can use "$[SPOT_PRICE]" without getting "$$"
+            const priceValue = (settings.spotPrice || '[SPOT_PRICE]').replace(/^\$/, '');
             return text
                 .replace(/\[YOUR_NAME\]/g, settings.yourName || '[YOUR_NAME]')
                 .replace(/\[YOUR_PHONE\]/g, settings.yourPhone || '[YOUR_PHONE]')
@@ -2204,7 +2209,7 @@ Would you be interested in being on the next one?`
                 .replace(/\[AREA\]/g, settings.areaName || '[AREA]')
                 .replace(/\[POSTCARD_NAME\]/g, settings.postcardName || '[POSTCARD_NAME]')
                 .replace(/\[HOME_COUNT\]/g, settings.homeCount || '[HOME_COUNT]')
-                .replace(/\[SPOT_PRICE\]/g, settings.spotPrice || '[SPOT_PRICE]')
+                .replace(/\[SPOT_PRICE\]/g, priceValue)
                 .replace(/\[BUSINESS_NAME\]/g, settings.businessName || '[BUSINESS_NAME]')
                 .replace(/\[CATEGORY\]/g, settings.category || '[CATEGORY]');
         }

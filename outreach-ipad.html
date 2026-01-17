@@ -408,9 +408,13 @@
 
         async function loadSettings() {
             try {
-                const stored = localStorage.getItem('outreach-settings');
+                // Load from same key as outreach-scripts.html
+                const stored = localStorage.getItem('outreach-scripts-settings');
                 if (stored) {
                     state.settings = JSON.parse(stored);
+                    console.log('✅ Loaded settings:', state.settings);
+                } else {
+                    console.log('⚠️ No settings found in localStorage');
                 }
             } catch (err) {
                 console.error('Failed to load settings:', err);
@@ -713,16 +717,19 @@
         function fillVariables(text, prospect) {
             if (!text) return '';
 
+            // Strip "$" from spotPrice so templates can use "$[SPOT_PRICE]" without getting "$$"
+            const priceValue = (state.settings.spotPrice || '400').replace(/^\$/, '');
+
             const replacements = {
-                '[BUSINESS_NAME]': prospect?.businessName || 'the business',
-                '[CATEGORY]': prospect?.category || 'business',
-                '[YOUR_NAME]': state.settings.yourName || 'Your Name',
-                '[YOUR_COMPANY]': state.settings.yourCompany || '',
-                '[YOUR_PHONE]': state.settings.yourPhone || '',
-                '[AREA]': state.settings.areaName || 'your area',
-                '[HOME_COUNT]': state.settings.homeCount || '5,000',
-                '[POSTCARD_NAME]': state.settings.postcardName || 'our community postcard',
-                '[SPOT_PRICE]': state.settings.spotPrice || '$400'
+                '[BUSINESS_NAME]': prospect?.businessName || '[BUSINESS_NAME]',
+                '[CATEGORY]': prospect?.category || '[CATEGORY]',
+                '[YOUR_NAME]': state.settings.yourName || '[YOUR_NAME]',
+                '[YOUR_COMPANY]': state.settings.yourCompany || '[YOUR_COMPANY]',
+                '[YOUR_PHONE]': state.settings.yourPhone || '[YOUR_PHONE]',
+                '[AREA]': state.settings.areaName || '[AREA]',
+                '[HOME_COUNT]': state.settings.homeCount || '[HOME_COUNT]',
+                '[POSTCARD_NAME]': state.settings.postcardName || '[POSTCARD_NAME]',
+                '[SPOT_PRICE]': priceValue
             };
 
             let result = text;
