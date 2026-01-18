@@ -886,11 +886,12 @@ const outreachSequencesState = {
     'seq_social_first': {
       id: 'seq_social_first',
       name: 'Social First',
-      description: 'LinkedIn then Facebook then Email',
+      description: 'FB, IG, Email, Text over 10 days',
       steps: [
-        { day: 1, channel: 'linkedin', templateId: 'linkedin1', description: 'LinkedIn connect' },
-        { day: 4, channel: 'facebook', templateId: 'facebook1', description: 'Facebook message' },
-        { day: 7, channel: 'email', templateId: 'email1', description: 'Email follow-up' }
+        { day: 1, channel: 'facebook', templateId: 'facebook1', description: 'Facebook message' },
+        { day: 4, channel: 'instagram', templateId: 'instagram1', description: 'Instagram DM' },
+        { day: 7, channel: 'email', templateId: 'email1', description: 'Email follow-up' },
+        { day: 10, channel: 'text', templateId: 'sms1', description: 'Text message' }
       ]
     }
   }
