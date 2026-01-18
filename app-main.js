@@ -810,7 +810,13 @@ const kanbanState = {
     'in-progress': [],         // Renamed from 'in-progress'
     'committed': []            // Renamed from 'committed'
   },
-  column1ZipFilter: ''  // ZIP filter for column 1 (empty = show all)
+  column1ZipFilter: '',  // ZIP filter for column 1 (empty = show all) - legacy, kept for compatibility
+  zipFilters: {  // ZIP filters for all columns
+    'prospect-list': '',
+    'to-contact': '',
+    'in-progress': '',
+    'committed': ''
+  }
 };
 
 // DAILY OUTREACH GOAL STATE
@@ -2333,12 +2339,66 @@ function openQuickActionPopup(leadId, columnKey) {
             if (trackingItems.length > 0) {
               return `
                 <div class="text-xs text-gray-600 mb-2 font-medium">Contact History</div>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex flex-wrap gap-2 mb-4">
                   ${trackingItems.map(t => `<span class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded">${t}</span>`).join('')}
                 </div>
               `;
             }
             return '';
+          })()}
+
+          <!-- Outreach Sequence Section -->
+          <div class="text-xs text-gray-600 mb-2 font-medium">Outreach Sequence</div>
+          ${(() => {
+            const activeSeq = prospect.activeSequence;
+            if (activeSeq && !activeSeq.completedAt) {
+              const seq = outreachSequencesState.sequences[activeSeq.sequenceId];
+              if (seq) {
+                const currentStep = activeSeq.currentStep || 1;
+                const totalSteps = seq.steps.length;
+                const stepDef = seq.steps[currentStep - 1];
+                const isPaused = activeSeq.paused === true;
+                return `
+                  <div class="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-2">
+                    <div class="flex justify-between items-center mb-2">
+                      <span class="font-medium text-purple-700">${esc(seq.name)}</span>
+                      <span class="text-xs ${isPaused ? 'text-orange-600' : 'text-purple-600'}">
+                        ${isPaused ? '⏸ Paused' : `Step ${currentStep}/${totalSteps}`}
+                      </span>
+                    </div>
+                    <div class="text-xs text-gray-600 mb-2">Next: ${stepDef ? esc(stepDef.description) : 'N/A'}</div>
+                    <div class="flex gap-2">
+                      ${isPaused ? `
+                        <button onclick="resumeSequence('${leadId}'); closeQuickActionPopup();" class="flex-1 px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">
+                          ▶️ Resume
+                        </button>
+                      ` : `
+                        <button onclick="advanceSequence('${leadId}'); closeQuickActionPopup();" class="flex-1 px-2 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700">
+                          ✓ Mark Step Done
+                        </button>
+                        <button onclick="pauseSequence('${leadId}'); closeQuickActionPopup();" class="px-2 py-1 bg-gray-400 text-white text-xs rounded hover:bg-gray-500">
+                          ⏸ Pause
+                        </button>
+                      `}
+                      <button onclick="cancelSequence('${leadId}'); closeQuickActionPopup();" class="px-2 py-1 bg-red-400 text-white text-xs rounded hover:bg-red-500">
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                `;
+              }
+            }
+            // No active sequence - show assignment options
+            const sequences = Object.values(outreachSequencesState.sequences);
+            return `
+              <div class="flex flex-wrap gap-2">
+                ${sequences.map(seq => `
+                  <button onclick="assignSequence('${leadId}', '${seq.id}'); closeQuickActionPopup();" class="px-3 py-1.5 bg-purple-100 text-purple-700 text-xs rounded-lg hover:bg-purple-200 font-medium">
+                    📋 ${esc(seq.name)}
+                  </button>
+                `).join('')}
+              </div>
+            `;
           })()}
         </div>
 
@@ -15094,25 +15154,7 @@ function renderKanban() {
       return true;
     });
 
-    // Apply ZIP filter for column 1 only
-    if (col.key === 'prospect-list' && kanbanState.column1ZipFilter) {
-      items = items.filter(item => {
-        if (typeof item !== 'object') return true;
-        const itemZip = item.actualZip || item.zipCode || '';
-        return itemZip === kanbanState.column1ZipFilter;
-      });
-    }
-
-    // Sort Prospecting column: items with phone/website/email first
-    if (col.key === 'prospect-list') {
-      items = items.sort((a, b) => {
-        const aHasContact = (a.phone || a.website || a.email) ? 1 : 0;
-        const bHasContact = (b.phone || b.website || b.email) ? 1 : 0;
-        return bHasContact - aHasContact; // Sort descending (with contact first)
-      });
-    }
-
-    // Collect unique ZIPs for THIS column for sort dropdown
+    // Collect unique ZIPs for THIS column BEFORE filtering (for dropdown options)
     const columnZips = new Set();
     items.forEach(item => {
       if (item && typeof item === 'object') {
@@ -15121,6 +15163,26 @@ function renderKanban() {
       }
     });
     const columnSortedZips = Array.from(columnZips).sort();
+    const unfilteredCount = items.length;
+
+    // Apply ZIP filter for ALL columns
+    const currentZipFilter = kanbanState.zipFilters[col.key] || '';
+    if (currentZipFilter) {
+      items = items.filter(item => {
+        if (typeof item !== 'object') return true;
+        const itemZip = item.actualZip || item.zipCode || item.zip || '';
+        return String(itemZip) === currentZipFilter;
+      });
+    }
+
+    // Sort Prospecting column: items with contact info first
+    if (col.key === 'prospect-list') {
+      items = items.sort((a, b) => {
+        const aHasContact = (a.phone || a.website || a.email) ? 1 : 0;
+        const bHasContact = (b.phone || b.website || b.email) ? 1 : 0;
+        return bHasContact - aHasContact; // Sort descending (with contact first)
+      });
+    }
 
     // Get selection state for this column
     const selectionStates = {
@@ -15166,16 +15228,17 @@ function renderKanban() {
       'in-progress': 'moveSelectedInProgressRight'
     };
 
-    // Sort by ZIP dropdown for ALL columns (if they have ZIPs)
-    const zipSortHTML = columnSortedZips.length > 0 ? `
-      <button onclick="sortKanbanColumnByZip('${col.key}')" class="text-xs px-1.5 py-0.5 bg-gray-200 text-gray-700 rounded hover:bg-gray-300" title="Sort by ZIP">
-        📍
-      </button>
+    // ZIP filter dropdown for ALL columns (if they have ZIPs)
+    const zipFilterHTML = columnSortedZips.length > 0 ? `
+      <select onchange="setKanbanZipFilter('${col.key}', this.value)" class="text-xs px-1 py-0.5 border rounded bg-white" title="Filter by ZIP">
+        <option value="">📍 All (${unfilteredCount})</option>
+        ${columnSortedZips.map(zip => `<option value="${zip}" ${currentZipFilter === zip ? 'selected' : ''}>${zip}</option>`).join('')}
+      </select>
     ` : '';
 
     // Unified header buttons for ALL columns
     const buttons = `
-      ${zipSortHTML}
+      ${zipFilterHTML}
       <button onclick="${selectAllFunctions[col.key]}()" class="text-xs px-1.5 py-0.5 bg-gray-500 text-white rounded hover:bg-gray-600" title="Select All">
         ☑
       </button>
@@ -15218,7 +15281,10 @@ function renderKanban() {
           const leadName = typeof item === 'string' ? item : (item.businessName || item.name || item.title || 'Unnamed Business');
           const leadId = typeof item === 'string' ? String(idx) : String(item.id || idx);
           const isDoNotContact = typeof item === 'object' && item.doNotContact === true;
-          const hasContact = typeof item === 'object' && (item.phone || item.website || item.email);
+
+          // Green strip shows if they've been CONTACTED (not just having contact info)
+          const ct = typeof item === 'object' ? (item.contactTracking || {}) : {};
+          const hasBeenContacted = ct.emailed || ct.texted || ct.called || ct.linkedinMessaged || ct.facebookMessaged || ct.dmed;
 
           // Get selection state for this column
           const toggleFunctions = {
@@ -15242,7 +15308,7 @@ function renderKanban() {
 
           // UNIFORM CARD LAYOUT FOR ALL 4 COLUMNS
           return `
-            <div class="kanban-item text-xs p-2 ${isDoNotContact ? 'bg-red-50' : 'bg-white'} border rounded ${hasContact ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'} relative ${isDoNotContact ? 'opacity-60' : ''}" data-item-id="${leadId}" data-column="${col.key}" ondblclick="openQuickActionPopup('${leadId}', '${col.key}')">
+            <div class="kanban-item text-xs p-2 ${isDoNotContact ? 'bg-red-50' : 'bg-white'} border rounded ${hasBeenContacted ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'} relative ${isDoNotContact ? 'opacity-60' : ''}" data-item-id="${leadId}" data-column="${col.key}" ondblclick="openQuickActionPopup('${leadId}', '${col.key}')">
               ${isDoNotContact ? `
                 <div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
                   <span class="text-6xl text-red-500 font-bold opacity-40">✕</span>
@@ -15281,6 +15347,24 @@ function renderKanban() {
                   ${socialIcons.join('')}
                 </div>
               ` : ''}
+
+              <!-- Sequence Badge (if active) -->
+              ${(() => {
+                if (typeof item !== 'object' || !item.activeSequence || item.activeSequence.completedAt) return '';
+                const seq = outreachSequencesState.sequences[item.activeSequence.sequenceId];
+                if (!seq) return '';
+                const step = item.activeSequence.currentStep || 1;
+                const isPaused = item.activeSequence.paused === true;
+                return `
+                  <div class="mt-1.5 pt-1.5 border-t border-gray-100 relative z-20">
+                    <div class="flex items-center justify-center">
+                      <span class="px-2 py-0.5 ${isPaused ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'} text-xs rounded-full font-medium">
+                        📋 ${isPaused ? '⏸' : `${step}/${seq.steps.length}`} ${esc(seq.name.split(' ')[0])}
+                      </span>
+                    </div>
+                  </div>
+                `;
+              })()}
             </div>
           `;
         }).join('')}
@@ -16464,6 +16548,21 @@ function setKanbanColumn1ZipFilter(zip) {
 }
 window.setKanbanColumn1ZipFilter = setKanbanColumn1ZipFilter;
 
+// Set ZIP filter for any kanban column
+function setKanbanZipFilter(columnKey, zip) {
+  if (!kanbanState.zipFilters) {
+    kanbanState.zipFilters = {};
+  }
+  kanbanState.zipFilters[columnKey] = zip || '';
+  renderKanban();
+  if (zip) {
+    toast(`📍 Filtering by ZIP: ${zip}`, true);
+  } else {
+    toast('📍 Showing all ZIPs', true);
+  }
+}
+window.setKanbanZipFilter = setKanbanZipFilter;
+
 // Sort any kanban column by ZIP code
 async function sortKanbanColumnByZip(columnKey) {
   const items = kanbanState.columns[columnKey] || [];
@@ -17447,6 +17546,89 @@ async function advanceSequence(prospectId) {
   }
 
   saveKanban();
+  renderKanban();
+  refreshFollowUpDashboard();
+}
+
+// Pause an active sequence
+async function pauseSequence(prospectId) {
+  // Find prospect
+  let prospect = null;
+  for (const colKey of Object.keys(kanbanState.columns)) {
+    const found = kanbanState.columns[colKey].find(p => p && String(p.id) === String(prospectId));
+    if (found) {
+      prospect = found;
+      break;
+    }
+  }
+  if (!prospect || !prospect.activeSequence) {
+    toast('Prospect not in a sequence', false);
+    return;
+  }
+
+  prospect.activeSequence.paused = true;
+  prospect.activeSequence.pausedAt = new Date().toISOString();
+
+  const sequence = outreachSequencesState.sequences[prospect.activeSequence.sequenceId];
+  toast(`⏸ Paused "${sequence?.name || 'sequence'}" for ${prospect.businessName}`, true);
+
+  await saveKanban();
+  renderKanban();
+  refreshFollowUpDashboard();
+}
+
+// Resume a paused sequence
+async function resumeSequence(prospectId) {
+  // Find prospect
+  let prospect = null;
+  for (const colKey of Object.keys(kanbanState.columns)) {
+    const found = kanbanState.columns[colKey].find(p => p && String(p.id) === String(prospectId));
+    if (found) {
+      prospect = found;
+      break;
+    }
+  }
+  if (!prospect || !prospect.activeSequence) {
+    toast('Prospect not in a sequence', false);
+    return;
+  }
+
+  prospect.activeSequence.paused = false;
+  delete prospect.activeSequence.pausedAt;
+
+  const sequence = outreachSequencesState.sequences[prospect.activeSequence.sequenceId];
+  toast(`▶️ Resumed "${sequence?.name || 'sequence'}" for ${prospect.businessName}`, true);
+
+  await saveKanban();
+  renderKanban();
+  refreshFollowUpDashboard();
+}
+
+// Cancel/remove a sequence from a prospect
+async function cancelSequence(prospectId) {
+  // Find prospect
+  let prospect = null;
+  for (const colKey of Object.keys(kanbanState.columns)) {
+    const found = kanbanState.columns[colKey].find(p => p && String(p.id) === String(prospectId));
+    if (found) {
+      prospect = found;
+      break;
+    }
+  }
+  if (!prospect || !prospect.activeSequence) {
+    toast('Prospect not in a sequence', false);
+    return;
+  }
+
+  const sequence = outreachSequencesState.sequences[prospect.activeSequence.sequenceId];
+  const seqName = sequence?.name || 'sequence';
+
+  // Remove the active sequence
+  delete prospect.activeSequence;
+
+  toast(`✕ Removed "${seqName}" from ${prospect.businessName}`, true);
+
+  await saveKanban();
   renderKanban();
   refreshFollowUpDashboard();
 }
