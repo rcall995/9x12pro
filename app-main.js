@@ -2239,6 +2239,132 @@ function calculateContractTotal() {
   document.getElementById('contractTotalValue').textContent = formatCurrency(total);
 }
 
+// Quick action popup for kanban cards - shows Not Interested and Convert to Client at top
+function openQuickActionPopup(leadId, columnKey) {
+  // Find the prospect in the specified column
+  const items = kanbanState.columns[columnKey] || [];
+  const prospect = items.find(item => typeof item === 'object' && String(item.id) === String(leadId));
+
+  if (!prospect) {
+    toast('Prospect not found', false);
+    return;
+  }
+
+  const businessName = prospect.businessName || prospect.name || 'Unknown Business';
+  const isDoNotContact = prospect.doNotContact === true;
+
+  // Check if this is already a client
+  const isClient = prospect.source === 'client' ||
+    prospect.originalClientId ||
+    (prospect.businessName && Object.values(crmState.clients || {}).some(c =>
+      c.businessName && c.businessName.toLowerCase() === prospect.businessName.toLowerCase()
+    ));
+
+  // Build contact info HTML
+  const contactInfo = [];
+  if (prospect.phone) contactInfo.push(`<div class="flex items-center gap-2"><span class="text-gray-500">📞</span><a href="tel:${esc(prospect.phone)}" class="text-blue-600 hover:underline">${esc(prospect.phone)}</a></div>`);
+  if (prospect.email) contactInfo.push(`<div class="flex items-center gap-2"><span class="text-gray-500">✉️</span><a href="mailto:${esc(prospect.email)}" class="text-blue-600 hover:underline">${esc(prospect.email)}</a></div>`);
+  if (prospect.website) contactInfo.push(`<div class="flex items-center gap-2"><span class="text-gray-500">🌐</span><a href="${esc(ensureHttps(prospect.website))}" target="_blank" class="text-blue-600 hover:underline">${esc(prospect.website)}</a></div>`);
+  if (prospect.address) contactInfo.push(`<div class="flex items-center gap-2"><span class="text-gray-500">📍</span><span>${esc(prospect.address)}</span></div>`);
+  if (prospect.zipCode) contactInfo.push(`<div class="flex items-center gap-2"><span class="text-gray-500">🏷️</span><span>ZIP: ${esc(prospect.zipCode)}</span></div>`);
+  if (prospect.category) contactInfo.push(`<div class="flex items-center gap-2"><span class="text-gray-500">📁</span><span>${esc(prospect.category)}</span></div>`);
+
+  // Build social links HTML
+  const socialLinks = [];
+  if (prospect.facebook) socialLinks.push(`<a href="${esc(ensureHttps(prospect.facebook))}" target="_blank" class="p-2 bg-blue-100 rounded-lg hover:bg-blue-200" title="Facebook">📘</a>`);
+  if (prospect.instagram) socialLinks.push(`<a href="${esc(ensureHttps(prospect.instagram))}" target="_blank" class="p-2 bg-pink-100 rounded-lg hover:bg-pink-200" title="Instagram">📷</a>`);
+  if (prospect.linkedin) socialLinks.push(`<a href="${esc(ensureHttps(prospect.linkedin))}" target="_blank" class="p-2 bg-blue-100 rounded-lg hover:bg-blue-200" title="LinkedIn">💼</a>`);
+
+  // Create modal HTML
+  const modalHTML = `
+    <div id="quickActionPopup" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target === this) closeQuickActionPopup()">
+      <div class="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+        <!-- Header with close button -->
+        <div class="flex justify-between items-center p-4 border-b bg-gray-50 rounded-t-xl">
+          <h3 class="font-bold text-lg">${esc(businessName)}</h3>
+          <button onclick="closeQuickActionPopup()" class="text-gray-500 hover:text-gray-700 text-2xl leading-none">&times;</button>
+        </div>
+
+        <!-- Quick Action Buttons at TOP -->
+        <div class="p-4 bg-gradient-to-r from-purple-50 to-blue-50 border-b">
+          <div class="text-xs text-gray-600 mb-2 font-medium">Quick Actions</div>
+          <div class="flex gap-2">
+            <button onclick="toggleDoNotContact('${leadId}', '${columnKey}'); closeQuickActionPopup();" class="flex-1 px-3 py-2 ${isDoNotContact ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'} text-white text-sm rounded-lg font-medium">
+              🚫 ${isDoNotContact ? 'Remove DNC' : 'Not Interested'}
+            </button>
+            ${isClient
+              ? `<button onclick="completeAndRemoveFromKanban('${leadId}', '${columnKey}'); closeQuickActionPopup();" class="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 font-medium">
+                  ✅ Current Client
+                </button>`
+              : `<button onclick="convertProspectToClient('${leadId}', '${columnKey}'); closeQuickActionPopup();" class="flex-1 px-3 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 font-medium">
+                  👤 Convert to Client
+                </button>`
+            }
+          </div>
+        </div>
+
+        <!-- Contact Information -->
+        <div class="p-4">
+          ${contactInfo.length > 0 ? `
+            <div class="text-xs text-gray-600 mb-2 font-medium">Contact Information</div>
+            <div class="space-y-2 text-sm mb-4">
+              ${contactInfo.join('')}
+            </div>
+          ` : ''}
+
+          ${socialLinks.length > 0 ? `
+            <div class="text-xs text-gray-600 mb-2 font-medium">Social Media</div>
+            <div class="flex gap-2 mb-4">
+              ${socialLinks.join('')}
+            </div>
+          ` : ''}
+
+          <!-- Contact Tracking Status -->
+          ${(() => {
+            const ct = prospect.contactTracking || {};
+            const trackingItems = [];
+            if (ct.emailed) trackingItems.push('✉️ Emailed');
+            if (ct.called) trackingItems.push('📞 Called');
+            if (ct.texted) trackingItems.push('📱 Texted');
+            if (ct.facebookMessaged) trackingItems.push('📘 FB Messaged');
+            if (ct.dmed) trackingItems.push('📷 IG DMed');
+            if (ct.linkedinMessaged) trackingItems.push('💼 LinkedIn');
+
+            if (trackingItems.length > 0) {
+              return `
+                <div class="text-xs text-gray-600 mb-2 font-medium">Contact History</div>
+                <div class="flex flex-wrap gap-2">
+                  ${trackingItems.map(t => `<span class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded">${t}</span>`).join('')}
+                </div>
+              `;
+            }
+            return '';
+          })()}
+        </div>
+
+        <!-- Footer with Edit Button -->
+        <div class="p-4 border-t bg-gray-50 rounded-b-xl">
+          <button onclick="closeQuickActionPopup(); openClientModalForProspect('${leadId}');" class="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
+            ✏️ Edit Full Details
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Remove existing popup if any
+  const existingPopup = document.getElementById('quickActionPopup');
+  if (existingPopup) existingPopup.remove();
+
+  // Add to DOM
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+function closeQuickActionPopup() {
+  const popup = document.getElementById('quickActionPopup');
+  if (popup) popup.remove();
+}
+
 // Helper function to open client modal for a prospect (converts prospect data to client format)
 function openClientModalForProspect(prospectDataOrId) {
   let prospectData;
@@ -8080,6 +8206,16 @@ let toContactSelectionState = {
   selectedIds: new Set()
 };
 
+// In Progress selection state for bulk operations
+let inProgressSelectionState = {
+  selectedIds: new Set()
+};
+
+// Committed selection state for bulk operations
+let committedSelectionState = {
+  selectedIds: new Set()
+};
+
 // Business Categories State
 let businessCategories = [
   // AUTOMOTIVE
@@ -9125,6 +9261,166 @@ function clearToContactSelection() {
   if (previousCount > 0) {
     toast(`Cleared ${previousCount} selection${previousCount === 1 ? '' : 's'}`, true);
   }
+}
+
+// Toggle selection of a prospect in In Progress column
+function toggleInProgressSelection(leadId) {
+  const id = String(leadId);
+  if (inProgressSelectionState.selectedIds.has(id)) {
+    inProgressSelectionState.selectedIds.delete(id);
+  } else {
+    inProgressSelectionState.selectedIds.add(id);
+  }
+  renderKanban();
+}
+
+// Select all items in In Progress column
+function selectAllInProgress() {
+  const items = kanbanState.columns['in-progress'] || [];
+  if (items.length === 0) {
+    toast('No items in In Progress column', false);
+    return;
+  }
+  items.forEach(item => {
+    if (typeof item === 'object' && item.id) {
+      inProgressSelectionState.selectedIds.add(String(item.id));
+    }
+  });
+  renderKanban();
+  toast(`Selected ${items.length} item${items.length === 1 ? '' : 's'}`, true);
+}
+
+// Clear In Progress column selection
+function clearInProgressSelection() {
+  const previousCount = inProgressSelectionState.selectedIds.size;
+  inProgressSelectionState.selectedIds.clear();
+  renderKanban();
+  if (previousCount > 0) {
+    toast(`Cleared ${previousCount} selection${previousCount === 1 ? '' : 's'}`, true);
+  }
+}
+
+// Toggle selection of a prospect in Committed column
+function toggleCommittedSelection(leadId) {
+  const id = String(leadId);
+  if (committedSelectionState.selectedIds.has(id)) {
+    committedSelectionState.selectedIds.delete(id);
+  } else {
+    committedSelectionState.selectedIds.add(id);
+  }
+  renderKanban();
+}
+
+// Select all items in Committed column
+function selectAllCommitted() {
+  const items = kanbanState.columns['committed'] || [];
+  if (items.length === 0) {
+    toast('No items in Committed column', false);
+    return;
+  }
+  items.forEach(item => {
+    if (typeof item === 'object' && item.id) {
+      committedSelectionState.selectedIds.add(String(item.id));
+    }
+  });
+  renderKanban();
+  toast(`Selected ${items.length} item${items.length === 1 ? '' : 's'}`, true);
+}
+
+// Clear Committed column selection
+function clearCommittedSelection() {
+  const previousCount = committedSelectionState.selectedIds.size;
+  committedSelectionState.selectedIds.clear();
+  renderKanban();
+  if (previousCount > 0) {
+    toast(`Cleared ${previousCount} selection${previousCount === 1 ? '' : 's'}`, true);
+  }
+}
+
+// Generic function to move selected items between adjacent columns
+async function moveSelectedBetweenColumns(fromColumn, toColumn, selectionState) {
+  const selectedCount = selectionState.selectedIds.size;
+  if (selectedCount === 0) {
+    toast('No items selected', false);
+    return;
+  }
+
+  const columnTitles = {
+    'prospect-list': 'Prospect List',
+    'to-contact': 'To Contact',
+    'in-progress': 'In Progress',
+    'committed': 'Committed'
+  };
+
+  if (!confirm(`Move ${selectedCount} item${selectedCount === 1 ? '' : 's'} to ${columnTitles[toColumn]}?`)) {
+    return;
+  }
+
+  const fromItems = kanbanState.columns[fromColumn] || [];
+  if (!kanbanState.columns[toColumn]) {
+    kanbanState.columns[toColumn] = [];
+  }
+
+  const movedItems = [];
+
+  // Collect all selected items
+  selectionState.selectedIds.forEach(leadId => {
+    const leadIdStr = String(leadId);
+    const leadIndex = fromItems.findIndex(item => typeof item === 'object' && String(item.id) === leadIdStr);
+    if (leadIndex !== -1) {
+      movedItems.push({
+        item: fromItems[leadIndex],
+        index: leadIndex
+      });
+    }
+  });
+
+  // Sort by index descending to safely remove from array
+  movedItems.sort((a, b) => b.index - a.index);
+
+  // Move each item
+  movedItems.forEach(({ item, index }) => {
+    // Add to target column at the beginning
+    kanbanState.columns[toColumn].unshift({
+      ...item,
+      movedDate: new Date().toISOString()
+    });
+    // Remove from source column
+    kanbanState.columns[fromColumn].splice(index, 1);
+  });
+
+  // Clear selections
+  selectionState.selectedIds.clear();
+
+  await saveKanban();
+  renderKanban();
+
+  toast(`✅ Moved ${selectedCount} item${selectedCount === 1 ? '' : 's'} to ${columnTitles[toColumn]}`, true);
+}
+
+// Move selected in-progress items left (to to-contact)
+async function moveSelectedInProgressLeft() {
+  await moveSelectedBetweenColumns('in-progress', 'to-contact', inProgressSelectionState);
+}
+
+// Move selected in-progress items right (to committed)
+async function moveSelectedInProgressRight() {
+  await moveSelectedBetweenColumns('in-progress', 'committed', inProgressSelectionState);
+}
+
+// Move selected committed items left (to in-progress)
+async function moveSelectedCommittedLeft() {
+  await moveSelectedBetweenColumns('committed', 'in-progress', committedSelectionState);
+}
+
+// Move selected to-contact items right (to in-progress)
+async function moveSelectedToContactRight() {
+  await moveSelectedBetweenColumns('to-contact', 'in-progress', toContactSelectionState);
+}
+
+// Move selected prospect-list items right (to to-contact) - updated version of moveSelectedToContact
+async function moveSelectedProspectListRight() {
+  await moveSelectedBetweenColumns('prospect-list', 'to-contact', prospectingSelectionState);
 }
 
 // Move selected items from To Contact back to Prospect List (column 2 -> column 1)
@@ -14816,57 +15112,89 @@ function renderKanban() {
       });
     }
 
-    // ZIP filter dropdown for column 1 (show if any items have ZIPs)
-    const zipFilterHTML = col.key === 'prospect-list' && sortedZips.length >= 1 ? `
-      <select id="kanbanColumn1ZipFilter" onchange="setKanbanColumn1ZipFilter(this.value)" class="text-xs px-1 py-0.5 border rounded bg-white">
-        <option value="">All ZIPs (${rawItems.length})</option>
-        ${sortedZips.map(zip => `<option value="${zip}" ${kanbanState.column1ZipFilter === zip ? 'selected' : ''}>${zip}</option>`).join('')}
-      </select>
+    // Collect unique ZIPs for THIS column for sort dropdown
+    const columnZips = new Set();
+    items.forEach(item => {
+      if (item && typeof item === 'object') {
+        const zip = item.actualZip || item.zipCode || item.zip;
+        if (zip) columnZips.add(String(zip));
+      }
+    });
+    const columnSortedZips = Array.from(columnZips).sort();
+
+    // Get selection state for this column
+    const selectionStates = {
+      'prospect-list': prospectingSelectionState,
+      'to-contact': toContactSelectionState,
+      'in-progress': inProgressSelectionState,
+      'committed': committedSelectionState
+    };
+    const selectionState = selectionStates[col.key];
+    const hasSelections = selectionState.selectedIds.size > 0;
+
+    // Define column adjacency for move buttons
+    const columnOrder = ['prospect-list', 'to-contact', 'in-progress', 'committed'];
+    const colIndex = columnOrder.indexOf(col.key);
+    const canMoveLeft = colIndex > 0;
+    const canMoveRight = colIndex < columnOrder.length - 1;
+    const leftColumn = canMoveLeft ? columnOrder[colIndex - 1] : null;
+    const rightColumn = canMoveRight ? columnOrder[colIndex + 1] : null;
+
+    // Selection functions for each column
+    const selectAllFunctions = {
+      'prospect-list': 'selectAllProspects',
+      'to-contact': 'selectAllToContact',
+      'in-progress': 'selectAllInProgress',
+      'committed': 'selectAllCommitted'
+    };
+    const clearFunctions = {
+      'prospect-list': 'clearProspectingSelection',
+      'to-contact': 'clearToContactSelection',
+      'in-progress': 'clearInProgressSelection',
+      'committed': 'clearCommittedSelection'
+    };
+
+    // Move functions for each column
+    const moveLeftFunctions = {
+      'to-contact': 'moveSelectedToProspectList',
+      'in-progress': 'moveSelectedInProgressLeft',
+      'committed': 'moveSelectedCommittedLeft'
+    };
+    const moveRightFunctions = {
+      'prospect-list': 'moveSelectedProspectListRight',
+      'to-contact': 'moveSelectedToContactRight',
+      'in-progress': 'moveSelectedInProgressRight'
+    };
+
+    // Sort by ZIP dropdown for ALL columns (if they have ZIPs)
+    const zipSortHTML = columnSortedZips.length > 0 ? `
+      <button onclick="sortKanbanColumnByZip('${col.key}')" class="text-xs px-1.5 py-0.5 bg-gray-200 text-gray-700 rounded hover:bg-gray-300" title="Sort by ZIP">
+        📍
+      </button>
     ` : '';
 
-    // Add buttons for columns
-    const hasSelections = prospectingSelectionState.selectedIds.size > 0;
-    const prospectListButtons = col.key === 'prospect-list' ? `
-        <button onclick="selectAllProspects()" class="text-xs px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600" title="Select All">
-          ☑ All
-        </button>
-        ${hasSelections ? `
-          <button onclick="clearProspectingSelection()" class="text-xs px-2 py-1 bg-gray-400 text-white rounded hover:bg-gray-500" title="Clear Selection">
-            ✕ Clear
-          </button>
-          <button onclick="moveSelectedToContact()" class="text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600" title="Move selected to To Contact">
-            ${prospectingSelectionState.selectedIds.size} ➡ Contact
-          </button>
-          <button id="btnMoveSelectedToPool" onclick="moveSelectedToPool()" class="text-xs px-2 py-1 bg-orange-500 text-white rounded hover:bg-orange-600" title="Move selected to Pool">
-            ⬅ ${prospectingSelectionState.selectedIds.size} to Pool
-          </button>
-        ` : ''}
-      ` : '';
-
-    // Add buttons for To Contact column (column 2)
-    const hasToContactSelections = toContactSelectionState.selectedIds.size > 0;
-    const toContactButtons = col.key === 'to-contact' ? `
-        <button onclick="selectAllToContact()" class="text-xs px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600" title="Select All">
-          ☑ All
-        </button>
-        ${hasToContactSelections ? `
-          <button onclick="clearToContactSelection()" class="text-xs px-2 py-1 bg-gray-400 text-white rounded hover:bg-gray-500" title="Clear Selection">
-            ✕ Clear
-          </button>
-          <button onclick="moveSelectedToProspectList()" class="text-xs px-2 py-1 bg-purple-500 text-white rounded hover:bg-purple-600" title="Move selected back to Prospect List">
-            ⬅ ${toContactSelectionState.selectedIds.size} to List
-          </button>
-        ` : ''}
-      ` : '';
-
+    // Unified header buttons for ALL columns
     const buttons = `
-        ${zipFilterHTML}
-        ${prospectListButtons}
-        ${toContactButtons}
-        <button onclick="openLeadModal('${col.key}')" class="text-xs px-2 py-1 bg-${col.color}-600 text-white rounded hover:bg-${col.color}-700" title="Add lead manually">
-          +
+      ${zipSortHTML}
+      <button onclick="${selectAllFunctions[col.key]}()" class="text-xs px-1.5 py-0.5 bg-gray-500 text-white rounded hover:bg-gray-600" title="Select All">
+        ☑
+      </button>
+      ${hasSelections ? `
+        <button onclick="${clearFunctions[col.key]}()" class="text-xs px-1.5 py-0.5 bg-gray-400 text-white rounded hover:bg-gray-500" title="Clear Selection">
+          ✕
         </button>
-      `;
+        ${canMoveLeft && moveLeftFunctions[col.key] ? `
+          <button onclick="${moveLeftFunctions[col.key]}()" class="text-xs px-1.5 py-0.5 bg-purple-500 text-white rounded hover:bg-purple-600" title="Move Left">
+            ⬅ ${selectionState.selectedIds.size}
+          </button>
+        ` : ''}
+        ${canMoveRight && moveRightFunctions[col.key] ? `
+          <button onclick="${moveRightFunctions[col.key]}()" class="text-xs px-1.5 py-0.5 bg-blue-500 text-white rounded hover:bg-blue-600" title="Move Right">
+            ${selectionState.selectedIds.size} ➡
+          </button>
+        ` : ''}
+      ` : ''}
+    `;
 
     // Empty state messages for each column
     const emptyStates = {
@@ -14885,191 +15213,72 @@ function renderKanban() {
         ${items.length === 0 ? emptyStates[col.key] || '' : ''}
         ${items.map((item, idx) => {
           // Support both string (legacy) and object format
-          // Add safety check for null/undefined items
           if (!item) return '';
 
           const leadName = typeof item === 'string' ? item : (item.businessName || item.name || item.title || 'Unnamed Business');
           const leadId = typeof item === 'string' ? String(idx) : String(item.id || idx);
+          const isDoNotContact = typeof item === 'object' && item.doNotContact === true;
+          const hasContact = typeof item === 'object' && (item.phone || item.website || item.email);
 
-          // Enhanced display for Prospecting column
-          if (col.key === 'prospect-list' && typeof item === 'object') {
-            const hasContact = item.phone || item.website || item.email;
-            const isProspectingSelected = prospectingSelectionState.selectedIds.has(leadId);
-            const isCloudSyncSelected = cloudSyncSelection.selectedIds.has(leadId);
+          // Get selection state for this column
+          const toggleFunctions = {
+            'prospect-list': 'toggleProspectingSelection',
+            'to-contact': 'toggleToContactSelection',
+            'in-progress': 'toggleInProgressSelection',
+            'committed': 'toggleCommittedSelection'
+          };
+          const isSelected = selectionState.selectedIds.has(leadId);
 
-            // Check if this is a client from the Client Database
-            const isClient = item.source === 'client' ||
-              item.originalClientId ||
-              (item.businessName && Object.values(crmState.clients || {}).some(c =>
-                c.businessName.toLowerCase() === item.businessName.toLowerCase()
-              ));
-
-            // Build compact icon display with actual contact info in tooltips
-            const contactIcons = [];
-            if (item.phone) contactIcons.push(`<a href="tel:${esc(item.phone)}" onclick="event.stopPropagation()" class="text-sm hover:text-blue-600" title="${esc(item.phone)}">📞</a>`);
-            if (item.website) contactIcons.push(`<a href="${esc(ensureHttps(item.website))}" onclick="event.stopPropagation()" target="_blank" class="text-sm hover:text-blue-600" title="${esc(item.website)}">🌐</a>`);
-            if (item.email) contactIcons.push(`<a href="mailto:${esc(item.email)}" onclick="event.stopPropagation()" class="text-sm hover:text-blue-600" title="${esc(item.email)}">✉️</a>`);
-            if (item.facebook) contactIcons.push(`<a href="${esc(ensureHttps(item.facebook))}" onclick="event.stopPropagation()" target="_blank" class="text-sm hover:text-blue-600" title="Facebook">📘</a>`);
-            if (item.instagram) contactIcons.push(`<a href="${esc(ensureHttps(item.instagram))}" onclick="event.stopPropagation()" target="_blank" class="text-sm hover:text-blue-600" title="Instagram">📷</a>`);
-            if (item.linkedin) contactIcons.push(`<a href="${esc(ensureHttps(item.linkedin))}" onclick="event.stopPropagation()" target="_blank" class="text-sm hover:text-blue-600" title="LinkedIn">💼</a>`);
-
-            const isDoNotContact = item.doNotContact === true;
-
-            return `
-              <div class="kanban-item text-xs p-2 ${isDoNotContact ? 'bg-red-50' : 'bg-white'} border rounded ${hasContact ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'} relative ${isDoNotContact ? 'opacity-60' : ''}" data-item-id="${leadId}" data-column="${col.key}" ondblclick="openClientModalForProspect('${leadId}')">
-                ${isDoNotContact ? `
-                  <div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-                    <span class="text-6xl text-red-500 font-bold opacity-40">✕</span>
-                  </div>
-                ` : ''}
-                <div class="flex justify-between items-start gap-2 mb-2 relative z-20">
-                  ${cloudSyncSelection.showSyncUI ? `
-                    <input
-                      type="checkbox"
-                      ${isCloudSyncSelected ? 'checked' : ''}
-                      onchange="toggleProspectForSync('${leadId}')"
-                      onclick="event.stopPropagation()"
-                      class="mt-1 w-4 h-4 text-blue-600 rounded cursor-pointer flex-shrink-0"
-                    />
-                  ` : `
-                    <input
-                      type="checkbox"
-                      ${isProspectingSelected ? 'checked' : ''}
-                      onchange="toggleProspectingSelection('${leadId}')"
-                      onclick="event.stopPropagation()"
-                      class="mt-1 w-4 h-4 text-purple-600 rounded cursor-pointer flex-shrink-0"
-                    />
-                  `}
-                  <div class="flex-1 drag-handle">
-                    <div class="font-medium text-xs break-words ${isDoNotContact ? 'line-through text-gray-500' : ''}">${esc(leadName)}</div>
-                    ${item.zipCode ? `<div class="text-xs text-gray-500 font-medium mt-0.5">📍 ${esc(item.zipCode)}</div>` : ''}
-                  </div>
-                  <div class="flex gap-1 flex-shrink-0">
-                    <button onclick="event.stopPropagation(); toggleDoNotContact('${leadId}', 'prospect-list')" class="${isDoNotContact ? 'text-green-600 hover:text-green-800' : 'text-red-600 hover:text-red-800'} text-sm cursor-pointer" title="${isDoNotContact ? 'Remove Do Not Contact' : 'Mark Do Not Contact'}">🚫</button>
-                    <button onclick="event.stopPropagation(); openClientModalForProspect('${leadId}')" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View/Edit">👁</button>
-                    ${isClient
-                      ? `<button onclick="event.stopPropagation(); completeAndRemoveFromKanban('${leadId}', 'prospect-list');" class="text-orange-600 hover:text-orange-800 text-sm cursor-pointer" title="Remove">🗑</button>`
-                      : `<button onclick="moveProspectBackToPool('${leadId}', event)" class="text-orange-600 hover:text-orange-800 text-sm cursor-pointer" title="Remove">🗑</button>`
-                    }
-                  </div>
-                </div>
-                ${contactIcons.length > 0 ? `
-                  <div class="flex gap-1 items-center justify-center py-1 relative z-20">
-                    ${contactIcons.join('')}
-                  </div>
-                ` : ''}
-              </div>
-            `;
+          // Build social icons for Row 3 (only show if available)
+          const socialIcons = [];
+          if (typeof item === 'object') {
+            if (item.phone) socialIcons.push(`<a href="tel:${esc(item.phone)}" onclick="event.stopPropagation()" class="px-1.5 py-0.5 bg-gray-100 rounded hover:bg-gray-200 text-sm" title="Call: ${esc(item.phone)}">📞</a>`);
+            if (item.website) socialIcons.push(`<a href="${esc(ensureHttps(item.website))}" onclick="event.stopPropagation()" target="_blank" class="px-1.5 py-0.5 bg-gray-100 rounded hover:bg-gray-200 text-sm" title="Website">🌐</a>`);
+            if (item.email) socialIcons.push(`<a href="mailto:${esc(item.email)}" onclick="event.stopPropagation()" class="px-1.5 py-0.5 bg-gray-100 rounded hover:bg-gray-200 text-sm" title="Email: ${esc(item.email)}">✉️</a>`);
+            if (item.facebook) socialIcons.push(`<a href="${esc(ensureHttps(item.facebook))}" onclick="event.stopPropagation()" target="_blank" class="px-1.5 py-0.5 bg-blue-50 rounded hover:bg-blue-100 text-sm" title="Facebook">📘</a>`);
+            if (item.instagram) socialIcons.push(`<a href="${esc(ensureHttps(item.instagram))}" onclick="event.stopPropagation()" target="_blank" class="px-1.5 py-0.5 bg-pink-50 rounded hover:bg-pink-100 text-sm" title="Instagram">📷</a>`);
+            if (item.linkedin) socialIcons.push(`<a href="${esc(ensureHttps(item.linkedin))}" onclick="event.stopPropagation()" target="_blank" class="px-1.5 py-0.5 bg-blue-50 rounded hover:bg-blue-100 text-sm" title="LinkedIn">💼</a>`);
           }
 
-          // Standard display for other columns
-          const isCloudSyncSelected = cloudSyncSelection.selectedIds.has(leadId);
-          const isToContactSelected = toContactSelectionState.selectedIds.has(leadId);
-          const isDoNotContact = typeof item === 'object' && item.doNotContact === true;
-
+          // UNIFORM CARD LAYOUT FOR ALL 4 COLUMNS
           return `
-            <div class="kanban-item text-xs p-2 ${isDoNotContact ? 'bg-red-50' : 'bg-white'} border rounded relative ${isDoNotContact ? 'opacity-60' : ''}" data-item-id="${leadId}" data-column="${col.key}" ondblclick="${typeof item === 'object' ? `openClientModalForProspect('${leadId}')` : ''}">
+            <div class="kanban-item text-xs p-2 ${isDoNotContact ? 'bg-red-50' : 'bg-white'} border rounded ${hasContact ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'} relative ${isDoNotContact ? 'opacity-60' : ''}" data-item-id="${leadId}" data-column="${col.key}" ondblclick="openQuickActionPopup('${leadId}', '${col.key}')">
               ${isDoNotContact ? `
                 <div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
                   <span class="text-6xl text-red-500 font-bold opacity-40">✕</span>
                 </div>
               ` : ''}
-              <div class="flex justify-between items-start gap-2 relative z-20">
-                ${cloudSyncSelection.showSyncUI && typeof item === 'object' ? `
-                  <input
-                    type="checkbox"
-                    ${isCloudSyncSelected ? 'checked' : ''}
-                    onchange="toggleProspectForSync('${leadId}')"
-                    onclick="event.stopPropagation()"
-                    class="mt-0.5 w-4 h-4 text-blue-600 rounded cursor-pointer flex-shrink-0"
-                  />
-                ` : col.key === 'to-contact' && typeof item === 'object' ? `
-                  <input
-                    type="checkbox"
-                    ${isToContactSelected ? 'checked' : ''}
-                    onchange="toggleToContactSelection('${leadId}')"
-                    onclick="event.stopPropagation()"
-                    class="mt-0.5 w-4 h-4 text-purple-600 rounded cursor-pointer flex-shrink-0"
-                  />
-                ` : `
-                  <div class="drag-handle text-gray-400 hover:text-gray-600 cursor-grab flex-shrink-0 px-1" title="Drag to move">⋮⋮</div>
-                `}
-                <div class="flex-1 drag-handle">
-                  <div class="font-medium ${isDoNotContact ? 'line-through text-gray-500' : ''}">${esc(leadName)}</div>
-                  ${typeof item === 'object' && item.zipCode ? `<div class="text-xs text-gray-500 font-medium mt-0.5">📍 ${esc(item.zipCode)}</div>` : ''}
-                </div>
-                <div class="flex gap-1 flex-shrink-0">
-                  ${col.key === 'to-contact' ? `
-                    ${typeof item === 'object' ? `<button onclick="event.stopPropagation(); openClientModalForProspect('${leadId}')" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View/Edit">👁</button>` : ''}
-                  ` : `
-                    ${typeof item === 'object' ? `<button onclick="event.stopPropagation(); toggleDoNotContact('${leadId}', '${col.key}')" class="${isDoNotContact ? 'text-green-600 hover:text-green-800' : 'text-red-600 hover:text-red-800'} text-sm cursor-pointer" title="${isDoNotContact ? 'Remove Do Not Contact' : 'Mark Do Not Contact'}">🚫</button>` : ''}
-                    ${typeof item === 'object' ? `<button onclick="event.stopPropagation(); openClientModalForProspect('${leadId}')" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View/Edit Business">👁</button>` : ''}
-                    <button onclick="openContactLaterModal('${leadId}', event)" class="text-purple-600 hover:text-purple-800 text-sm cursor-pointer" title="Contact Later">📅</button>
-                    <button onclick="editLead('${col.key}', '${leadId}', event)" class="text-blue-600 hover:text-blue-800 text-sm cursor-pointer" title="Edit">✎</button>
-                    ${(() => {
-                      // Check if this is a client - if so, send back to client list instead of deleting
-                      const isClient = typeof item === 'object' && (
-                        item.source === 'client' ||
-                        item.originalClientId ||
-                        (item.businessName && Object.values(crmState.clients || {}).some(c =>
-                          c.businessName.toLowerCase() === item.businessName.toLowerCase()
-                        ))
-                      );
-                      if (isClient) {
-                        return `<button onclick="event.stopPropagation(); completeAndRemoveFromKanban('${leadId}', '${col.key}');" class="text-orange-600 hover:text-orange-800 text-sm cursor-pointer" title="Remove from Kanban (returns to Client Database)">🗑</button>`;
-                      } else {
-                        return `<button onclick="deleteLead('${col.key}', '${leadId}', event)" class="text-red-600 hover:text-red-800 text-sm cursor-pointer" title="Delete">🗑</button>`;
-                      }
-                    })()}
-                  `}
+
+              <!-- Row 1: Checkbox + Business Name -->
+              <div class="flex items-start gap-2 relative z-20">
+                <input
+                  type="checkbox"
+                  ${isSelected ? 'checked' : ''}
+                  onchange="${toggleFunctions[col.key]}('${leadId}')"
+                  onclick="event.stopPropagation()"
+                  class="mt-0.5 w-4 h-4 text-purple-600 rounded cursor-pointer flex-shrink-0"
+                />
+                <div class="flex-1 drag-handle min-w-0">
+                  <div class="font-medium text-xs break-words ${isDoNotContact ? 'line-through text-gray-500' : ''}">${esc(leadName)}</div>
                 </div>
               </div>
-              ${col.key === 'to-contact' && typeof item === 'object' ? (() => {
-                // Simplified contact tracking - just show compact status pills
-                const ct = item.contactTracking || {};
-                const contacted = ct.emailed || ct.texted || ct.called || ct.linkedinMessaged || ct.facebookMessaged || ct.dmed;
 
-                // Build compact contact status showing which methods were used
-                const statusPills = [];
-                if (item.email) statusPills.push(`<a href="mailto:${esc(item.email)}" onclick="event.stopPropagation(); toggleContactTracking('${leadId}', 'emailed', event)" class="px-1.5 py-0.5 text-xs rounded ${ct.emailed ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}" title="${ct.emailed ? '✓ Emailed' : 'Click to email & mark'}">✉️</a>`);
-                if (item.phone) statusPills.push(`<a href="tel:${esc(item.phone)}" onclick="event.stopPropagation(); toggleContactTracking('${leadId}', 'called', event)" class="px-1.5 py-0.5 text-xs rounded ${ct.called ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}" title="${ct.called ? '✓ Called' : 'Click to call & mark'}">📞</a>`);
-                if (item.phone) statusPills.push(`<a href="sms:${esc(item.phone)}" onclick="event.stopPropagation(); toggleContactTracking('${leadId}', 'texted', event)" class="px-1.5 py-0.5 text-xs rounded ${ct.texted ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}" title="${ct.texted ? '✓ Texted' : 'Click to text & mark'}">📱</a>`);
-                if (item.facebook) statusPills.push(`<a href="${esc(ensureHttps(item.facebook))}" target="_blank" onclick="event.stopPropagation(); toggleContactTracking('${leadId}', 'facebookMessaged', event)" class="px-1.5 py-0.5 text-xs rounded ${ct.facebookMessaged ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}" title="${ct.facebookMessaged ? '✓ FB messaged' : 'Click to message on FB'}">📘</a>`);
-                if (item.instagram) statusPills.push(`<a href="${esc(ensureHttps(item.instagram))}" target="_blank" onclick="event.stopPropagation(); toggleContactTracking('${leadId}', 'dmed', event)" class="px-1.5 py-0.5 text-xs rounded ${ct.dmed ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}" title="${ct.dmed ? '✓ IG DMed' : 'Click to DM on IG'}">📷</a>`);
-                if (item.linkedin) statusPills.push(`<a href="${esc(ensureHttps(item.linkedin))}" target="_blank" onclick="event.stopPropagation(); toggleContactTracking('${leadId}', 'linkedinMessaged', event)" class="px-1.5 py-0.5 text-xs rounded ${ct.linkedinMessaged ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}" title="${ct.linkedinMessaged ? '✓ LinkedIn' : 'Click to message on LinkedIn'}">💼</a>`);
+              <!-- Row 2: ZIP, Do Not Contact, View, Delete -->
+              <div class="flex items-center justify-between gap-1 mt-1.5 relative z-20">
+                <div class="text-xs text-gray-500 font-medium">
+                  ${typeof item === 'object' && (item.zipCode || item.actualZip) ? `📍 ${esc(item.zipCode || item.actualZip)}` : ''}
+                </div>
+                <div class="flex gap-1 flex-shrink-0">
+                  ${typeof item === 'object' ? `<button onclick="event.stopPropagation(); toggleDoNotContact('${leadId}', '${col.key}')" class="${isDoNotContact ? 'text-green-600 hover:text-green-800' : 'text-red-600 hover:text-red-800'} text-sm cursor-pointer" title="${isDoNotContact ? 'Remove Do Not Contact' : 'Mark Do Not Contact'}">🚫</button>` : ''}
+                  ${typeof item === 'object' ? `<button onclick="event.stopPropagation(); openQuickActionPopup('${leadId}', '${col.key}')" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View Details">👁</button>` : ''}
+                  <button onclick="event.stopPropagation(); deleteLeadPermanently('${col.key}', '${leadId}', event)" class="text-red-600 hover:text-red-800 text-sm cursor-pointer" title="Delete from Kanban & Pool">🗑</button>
+                </div>
+              </div>
 
-                return statusPills.length > 0 ? `
-                  <div class="flex flex-wrap gap-1 items-center justify-center py-1.5 mt-1">
-                    ${statusPills.join('')}
-                  </div>
-                ` : '<div class="text-xs text-gray-400 text-center py-1 italic">No contact info</div>';
-              })() : ''}
-              ${col.key === 'to-contact' ? `
-                <div class="mt-2 pt-2 border-t border-gray-200 space-y-2 relative z-20">
-                  <div class="flex gap-2">
-                    <button onclick="toggleDoNotContact('${leadId}', 'to-contact', event)" class="flex-1 px-3 py-1.5 ${isDoNotContact ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'} text-white text-xs rounded font-medium">
-                      🚫 ${isDoNotContact ? 'Remove DNC' : 'Not Interested'}
-                    </button>
-                    ${(() => {
-                      // Check if this prospect came from Client Database or is already a client
-                      const isClient = typeof item === 'object' && (
-                        item.source === 'client' ||
-                        item.originalClientId ||
-                        (item.businessName && Object.values(crmState.clients || {}).some(c =>
-                          c.businessName.toLowerCase() === item.businessName.toLowerCase()
-                        ))
-                      );
-                      if (isClient) {
-                        return `<button onclick="event.stopPropagation(); completeAndRemoveFromKanban('${leadId}', 'to-contact');" class="flex-1 px-3 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 font-medium" title="Mark as current client and remove from Kanban (keeps in Client Database)">
-                          ✅ Current Client
-                        </button>`;
-                      } else {
-                        return `<button onclick="convertProspectToClient('${leadId}', 'to-contact'); event.stopPropagation();" class="flex-1 px-3 py-1.5 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 font-medium" title="Add to Client Database">
-                          👤 Convert to Client
-                        </button>`;
-                      }
-                    })()}
-                  </div>
+              <!-- Row 3: Social Icons (only if available) -->
+              ${socialIcons.length > 0 ? `
+                <div class="flex flex-wrap gap-1 items-center justify-center pt-1.5 mt-1.5 border-t border-gray-100 relative z-20">
+                  ${socialIcons.join('')}
                 </div>
               ` : ''}
             </div>
@@ -16255,6 +16464,27 @@ function setKanbanColumn1ZipFilter(zip) {
 }
 window.setKanbanColumn1ZipFilter = setKanbanColumn1ZipFilter;
 
+// Sort any kanban column by ZIP code
+async function sortKanbanColumnByZip(columnKey) {
+  const items = kanbanState.columns[columnKey] || [];
+  if (items.length === 0) {
+    toast('No items to sort', false);
+    return;
+  }
+
+  // Sort items by ZIP code (ascending)
+  items.sort((a, b) => {
+    const zipA = (a.actualZip || a.zipCode || a.zip || '99999').toString();
+    const zipB = (b.actualZip || b.zipCode || b.zip || '99999').toString();
+    return zipA.localeCompare(zipB);
+  });
+
+  await saveKanban();
+  renderKanban();
+  toast(`📍 Sorted by ZIP code`, true);
+}
+window.sortKanbanColumnByZip = sortKanbanColumnByZip;
+
 function openLeadModal(column = null, leadId = null) {
   const modal = document.getElementById("leadModal");
   const title = document.getElementById("leadModalTitle");
@@ -16456,6 +16686,72 @@ async function deleteLead(column, leadId, event) {
     renderKanban();
     toast("Lead deleted successfully");
   }
+}
+
+// Delete lead from BOTH kanban AND pool permanently
+async function deleteLeadPermanently(column, leadId, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+
+  // Find the lead in kanban
+  const items = kanbanState.columns[column] || [];
+  const index = items.findIndex((item, idx) => {
+    if (typeof item === 'string') return false;
+    if (!item) return false;
+    const leadIdStr = String(leadId);
+    const itemIdStr = String(item.id);
+    if (item.id !== undefined && itemIdStr === leadIdStr) return true;
+    return idx === leadId || String(idx) === leadIdStr;
+  });
+
+  if (index === -1) {
+    toast("Lead not found", false);
+    return;
+  }
+
+  const lead = items[index];
+  const leadName = typeof lead === 'string' ? lead : (lead.businessName || 'Unnamed Lead');
+
+  if (!confirm(`Are you sure you want to permanently delete "${leadName}"?\n\nThis will remove it from the kanban AND the prospect pool.\n\nThis action cannot be undone.`)) {
+    return;
+  }
+
+  // Remove from kanban
+  items.splice(index, 1);
+
+  // Clear from all selection states
+  prospectingSelectionState.selectedIds.delete(String(leadId));
+  toContactSelectionState.selectedIds.delete(String(leadId));
+  inProgressSelectionState.selectedIds.delete(String(leadId));
+  committedSelectionState.selectedIds.delete(String(leadId));
+
+  // Also remove from prospect pool if it exists there
+  if (lead && typeof lead === 'object') {
+    // Remove from manualProspects by placeId or id
+    if (prospectPoolState.manualProspects) {
+      const poolIndex = prospectPoolState.manualProspects.findIndex(p =>
+        (p.placeId && lead.placeId && p.placeId === lead.placeId) ||
+        (p.id && String(p.id) === String(lead.id)) ||
+        (p.businessName && lead.businessName && p.businessName.toLowerCase() === lead.businessName.toLowerCase())
+      );
+      if (poolIndex > -1) {
+        prospectPoolState.manualProspects.splice(poolIndex, 1);
+        console.log('🗑️ Also removed from prospect pool manualProspects');
+      }
+    }
+
+    // Remove from rendered prospects lookup
+    if (prospectPoolState.renderedProspects && lead.id) {
+      delete prospectPoolState.renderedProspects[String(lead.id)];
+    }
+  }
+
+  await saveKanban();
+  await saveProspectPool(); // Also save prospect pool changes
+  renderKanban();
+  toast("Lead permanently deleted from kanban and pool");
 }
 
 async function moveProspectBackToPool(leadId, event) {
