@@ -17301,15 +17301,19 @@ function renderFollowUpDashboard() {
       overdueList.innerHTML = '<p class="text-sm text-gray-500 italic">No overdue follow-ups</p>';
     } else {
       overdueList.innerHTML = followUpDashboardState.overdueFollowUps.slice(0, 5).map(p => `
-        <div class="flex items-center justify-between bg-red-50 border border-red-200 rounded-lg p-2 cursor-pointer hover:bg-red-100" onclick="scrollToProspect('${p.id}', '${p.column}')">
-          <div class="flex items-center gap-2">
-            <span class="text-red-600 font-bold">${p.daysOverdue}d</span>
-            <span class="font-medium text-gray-900">${esc(p.businessName || 'Unknown')}</span>
-            <span class="text-xs text-gray-500">${p.category || ''}</span>
-          </div>
-          <div class="flex gap-1">
-            ${p.phone ? `<button onclick="event.stopPropagation(); quickCall('${esc(p.phone)}')" class="text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700">📞</button>` : ''}
-            ${p.email ? `<button onclick="event.stopPropagation(); quickEmail('${p.id}')" class="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">📧</button>` : ''}
+        <div class="bg-white border border-red-200 rounded-xl p-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer" onclick="scrollToProspect('${p.id}', '${p.column}')">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex-1 min-w-0">
+              <div class="font-semibold text-gray-900 truncate">${esc(p.businessName || 'Unknown')}</div>
+              <div class="flex items-center gap-2 mt-1">
+                <span class="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full font-bold">${p.daysOverdue} days overdue</span>
+                ${p.category ? `<span class="text-xs text-gray-500">${esc(p.category)}</span>` : ''}
+              </div>
+            </div>
+            <a href="outreach-ipad.html" onclick="event.stopPropagation()" class="flex-shrink-0 px-4 py-2 bg-gradient-to-r from-red-500 to-orange-500 text-white text-sm rounded-lg hover:from-red-600 hover:to-orange-600 font-medium shadow-sm flex items-center gap-2">
+              <span>Open Hub</span>
+              <span>📱</span>
+            </a>
           </div>
         </div>
       `).join('');
@@ -17323,14 +17327,19 @@ function renderFollowUpDashboard() {
       dueTodayList.innerHTML = '<p class="text-sm text-gray-500 italic">Nothing due today</p>';
     } else {
       dueTodayList.innerHTML = followUpDashboardState.dueToday.slice(0, 5).map(p => `
-        <div class="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg p-2 cursor-pointer hover:bg-amber-100" onclick="scrollToProspect('${p.id}', '${p.column}')">
-          <div class="flex items-center gap-2">
-            <span class="font-medium text-gray-900">${esc(p.businessName || 'Unknown')}</span>
-            <span class="text-xs text-gray-500">${p.category || ''}</span>
-          </div>
-          <div class="flex gap-1">
-            ${p.phone ? `<button onclick="event.stopPropagation(); quickCall('${esc(p.phone)}')" class="text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700">📞</button>` : ''}
-            ${p.email ? `<button onclick="event.stopPropagation(); quickEmail('${p.id}')" class="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">📧</button>` : ''}
+        <div class="bg-white border border-amber-200 rounded-xl p-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer" onclick="scrollToProspect('${p.id}', '${p.column}')">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex-1 min-w-0">
+              <div class="font-semibold text-gray-900 truncate">${esc(p.businessName || 'Unknown')}</div>
+              <div class="flex items-center gap-2 mt-1">
+                <span class="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full font-medium">Due today</span>
+                ${p.category ? `<span class="text-xs text-gray-500">${esc(p.category)}</span>` : ''}
+              </div>
+            </div>
+            <a href="outreach-ipad.html" onclick="event.stopPropagation()" class="flex-shrink-0 px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-white text-sm rounded-lg hover:from-amber-600 hover:to-yellow-600 font-medium shadow-sm flex items-center gap-2">
+              <span>Open Hub</span>
+              <span>📱</span>
+            </a>
           </div>
         </div>
       `).join('');
@@ -17343,24 +17352,45 @@ function renderFollowUpDashboard() {
     if (sequenceCount === 0) {
       sequenceActionsList.innerHTML = '<p class="text-sm text-gray-500 italic">No sequence actions due</p>';
     } else {
-      sequenceActionsList.innerHTML = followUpDashboardState.sequenceActionsDue.slice(0, 5).map(p => `
-        <div class="flex items-center justify-between bg-purple-50 border border-purple-200 rounded-lg p-2 cursor-pointer hover:bg-purple-100" onclick="scrollToProspect('${p.id}', '${p.column}')">
-          <div class="flex items-center gap-2">
-            <span class="font-medium text-gray-900">${esc(p.businessName || 'Unknown')}</span>
-            <span class="text-xs bg-purple-600 text-white px-2 py-0.5 rounded">Step ${p.stepNumber}: ${p.step.channel}</span>
+      sequenceActionsList.innerHTML = followUpDashboardState.sequenceActionsDue.slice(0, 5).map(p => {
+        // Channel icon mapping
+        const channelIcons = {
+          'email': '✉️',
+          'text': '📱',
+          'call': '📞',
+          'linkedin': '💼',
+          'facebook': '📘',
+          'instagram': '📷'
+        };
+        const channelIcon = channelIcons[p.step.channel] || '📋';
+        const channelLabel = p.step.channel.charAt(0).toUpperCase() + p.step.channel.slice(1);
+
+        return `
+          <div class="bg-white border border-purple-200 rounded-xl p-3 shadow-sm hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex-1 min-w-0">
+                <div class="font-semibold text-gray-900 truncate">${esc(p.businessName || 'Unknown')}</div>
+                <div class="flex items-center gap-2 mt-1">
+                  <span class="text-lg">${channelIcon}</span>
+                  <span class="text-sm text-purple-700 font-medium">Step ${p.stepNumber}: ${channelLabel}</span>
+                  <span class="text-xs text-gray-500">${esc(p.step.description || '')}</span>
+                </div>
+              </div>
+              <a href="outreach-ipad.html" class="flex-shrink-0 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-sm rounded-lg hover:from-purple-700 hover:to-indigo-700 font-medium shadow-sm flex items-center gap-2">
+                <span>Open Hub</span>
+                <span>📱</span>
+              </a>
+            </div>
           </div>
-          <button onclick="event.stopPropagation(); advanceSequence('${p.id}')" class="text-xs px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 font-medium">
-            Execute ▶
-          </button>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
   }
 
-  // Show/hide dashboard based on total actions
+  // Always show dashboard (previously hidden when empty)
   const dashboardWrapper = document.getElementById('followUpDashboardWrapper');
   if (dashboardWrapper) {
-    dashboardWrapper.style.display = totalActions > 0 ? 'block' : 'none';
+    dashboardWrapper.style.display = 'block';
   }
 }
 
