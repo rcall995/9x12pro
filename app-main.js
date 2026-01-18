@@ -2348,6 +2348,28 @@ function openQuickActionPopup(leadId, columnKey) {
             return '';
           })()}
 
+          <!-- Follow-up Date Section -->
+          <div class="text-xs text-gray-600 mb-2 font-medium">📅 Follow-up Date</div>
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+            ${prospect.followUpDate ? `
+              <div class="text-sm text-blue-700 mb-2">Current: <strong>${new Date(prospect.followUpDate).toLocaleDateString()}</strong></div>
+            ` : ''}
+            <div class="flex gap-2 items-center">
+              <input type="date" id="quickFollowUpDate" value="${prospect.followUpDate || ''}"
+                     class="flex-1 px-2 py-1.5 border rounded text-sm" />
+              <button onclick="setQuickFollowUpDate('${leadId}', '${columnKey}')"
+                      class="px-3 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 font-medium">
+                Set
+              </button>
+              ${prospect.followUpDate ? `
+                <button onclick="clearFollowUpDate('${leadId}', '${columnKey}')"
+                        class="px-2 py-1.5 bg-gray-400 text-white text-xs rounded hover:bg-gray-500">
+                  ✕
+                </button>
+              ` : ''}
+            </div>
+          </div>
+
           <!-- Outreach Sequence Section -->
           <div class="text-xs text-gray-600 mb-2 font-medium">Outreach Sequence</div>
           ${(() => {
@@ -2367,7 +2389,29 @@ function openQuickActionPopup(leadId, columnKey) {
                         ${isPaused ? '⏸ Paused' : `Step ${currentStep}/${totalSteps}`}
                       </span>
                     </div>
-                    <div class="text-xs text-gray-600 mb-2">Next: ${stepDef ? esc(stepDef.description) : 'N/A'}</div>
+                    <div class="text-xs text-gray-600 mb-2">Current: ${stepDef ? esc(stepDef.description) : 'N/A'}</div>
+
+                    <!-- Step selector -->
+                    <div class="mb-3">
+                      <div class="text-xs text-gray-500 mb-1">Jump to step:</div>
+                      <div class="flex gap-1">
+                        ${seq.steps.map((s, i) => {
+                          const stepNum = i + 1;
+                          const isCurrentStep = stepNum === currentStep;
+                          const isCompleted = stepNum < currentStep;
+                          const channelIcons = { email: '✉️', text: '📱', call: '📞', facebook: '📘', instagram: '📷', linkedin: '💼' };
+                          const icon = channelIcons[s.channel] || '📋';
+                          return `
+                            <button onclick="setSequenceStep('${leadId}', ${stepNum})"
+                                    class="flex-1 px-2 py-1.5 text-xs rounded font-medium ${isCurrentStep ? 'bg-purple-600 text-white' : isCompleted ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}"
+                                    title="${s.description}">
+                              ${icon} ${stepNum}
+                            </button>
+                          `;
+                        }).join('')}
+                      </div>
+                    </div>
+
                     <div class="flex gap-2">
                       ${isPaused ? `
                         <button onclick="resumeSequence('${leadId}'); closeQuickActionPopup();" class="flex-1 px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">
@@ -17648,6 +17692,105 @@ async function cancelSequence(prospectId) {
   await saveKanban();
   renderKanban();
   refreshFollowUpDashboard();
+}
+
+// Set sequence to a specific step
+async function setSequenceStep(prospectId, stepNumber) {
+  // Find prospect
+  let prospect = null;
+  for (const colKey of Object.keys(kanbanState.columns)) {
+    const found = kanbanState.columns[colKey].find(p => p && String(p.id) === String(prospectId));
+    if (found) {
+      prospect = found;
+      break;
+    }
+  }
+  if (!prospect || !prospect.activeSequence) {
+    toast('Prospect not in a sequence', false);
+    return;
+  }
+
+  const sequence = outreachSequencesState.sequences[prospect.activeSequence.sequenceId];
+  if (!sequence) {
+    toast('Sequence not found', false);
+    return;
+  }
+
+  if (stepNumber < 1 || stepNumber > sequence.steps.length) {
+    toast('Invalid step number', false);
+    return;
+  }
+
+  // Update the current step
+  prospect.activeSequence.currentStep = stepNumber;
+
+  // If setting to a completed step, we need to clear completed status
+  if (prospect.activeSequence.completedAt) {
+    delete prospect.activeSequence.completedAt;
+  }
+
+  const stepDef = sequence.steps[stepNumber - 1];
+  const channelIcons = { email: '✉️', text: '📱', call: '📞', facebook: '📘', instagram: '📷', linkedin: '💼' };
+  const icon = channelIcons[stepDef.channel] || '📋';
+
+  toast(`${icon} Set to step ${stepNumber}: ${stepDef.description}`, true);
+
+  await saveKanban();
+  renderKanban();
+  refreshFollowUpDashboard();
+
+  // Refresh the popup to show the updated state
+  closeQuickActionPopup();
+}
+
+// Set follow-up date from quick action popup
+async function setQuickFollowUpDate(leadId, columnKey) {
+  const dateInput = document.getElementById('quickFollowUpDate');
+  if (!dateInput || !dateInput.value) {
+    toast('Please select a date', false);
+    return;
+  }
+
+  // Find the prospect
+  const items = kanbanState.columns[columnKey] || [];
+  const prospect = items.find(item => typeof item === 'object' && String(item.id) === String(leadId));
+
+  if (!prospect) {
+    toast('Prospect not found', false);
+    return;
+  }
+
+  // Set the follow-up date
+  prospect.followUpDate = dateInput.value;
+
+  toast(`📅 Follow-up set for ${new Date(dateInput.value).toLocaleDateString()}`, true);
+
+  await saveKanban();
+  renderKanban();
+  refreshFollowUpDashboard();
+  closeQuickActionPopup();
+}
+
+// Clear follow-up date from quick action popup
+async function clearFollowUpDate(leadId, columnKey) {
+  // Find the prospect
+  const items = kanbanState.columns[columnKey] || [];
+  const prospect = items.find(item => typeof item === 'object' && String(item.id) === String(leadId));
+
+  if (!prospect) {
+    toast('Prospect not found', false);
+    return;
+  }
+
+  // Clear the follow-up date
+  delete prospect.followUpDate;
+
+  toast(`📅 Follow-up date cleared`, true);
+
+  await saveKanban();
+  renderKanban();
+  refreshFollowUpDashboard();
+  closeQuickActionPopup();
 }
 
 // Execute a specific sequence step (open the appropriate channel)
