@@ -15328,6 +15328,12 @@ function setupKanbanDrag() {
       touchStartY = e.touches[0].clientY;
       touchStartTime = Date.now();
       isTouchDragging = false;
+
+      // Lock horizontal scroll on kanban container during potential drag
+      const kanbanContainer = document.getElementById('salesActivityKanbanColumns');
+      if (kanbanContainer) {
+        kanbanContainer.style.overflowX = 'hidden';
+      }
     }, { passive: true });
 
     item.addEventListener('touchmove', function(e) {
@@ -15395,6 +15401,12 @@ function setupKanbanDrag() {
     }, { passive: false });
 
     item.addEventListener('touchend', async function(e) {
+      // Restore horizontal scroll on kanban container
+      const kanbanContainer = document.getElementById('salesActivityKanbanColumns');
+      if (kanbanContainer) {
+        kanbanContainer.style.overflowX = 'auto';
+      }
+
       if (!isTouchDragging || !draggedItem) {
         isTouchDragging = false;
         return;
@@ -15496,6 +15508,26 @@ function setupKanbanDrag() {
       draggedItem = null;
       isTouchDragging = false;
     }, { passive: false });
+
+    // Handle touch cancel (e.g., incoming call)
+    item.addEventListener('touchcancel', function(e) {
+      // Restore horizontal scroll
+      const kanbanContainer = document.getElementById('salesActivityKanbanColumns');
+      if (kanbanContainer) {
+        kanbanContainer.style.overflowX = 'auto';
+      }
+
+      // Clean up
+      if (touchClone) {
+        touchClone.remove();
+        touchClone = null;
+      }
+      document.querySelectorAll('.kanban-item.drag-over').forEach(el => el.classList.remove('drag-over'));
+      document.querySelectorAll('.kanban-column.drag-over-column').forEach(el => el.classList.remove('drag-over-column'));
+      this.classList.remove('dragging');
+      draggedItem = null;
+      isTouchDragging = false;
+    }, { passive: true });
   });
 
   // Set up drop zones on columns
