@@ -18745,10 +18745,17 @@ async function executeSequenceStep(prospect, stepDef) {
 
     case 'facebook':
       if (prospect.facebook) {
-        // Try to open Messenger
-        const fbUrl = prospect.facebook.includes('messenger') ? prospect.facebook : prospect.facebook.replace('facebook.com', 'm.me').replace('www.', '');
+        // Try to open Messenger - extract just the page name
+        let fbUrl = prospect.facebook;
+        if (!fbUrl.includes('m.me') && !fbUrl.includes('messenger')) {
+          // Extract page name from Facebook URL (remove /about/, /posts/, etc.)
+          const match = fbUrl.match(/facebook\.com\/([^\/\?]+)/);
+          if (match && match[1]) {
+            fbUrl = `https://m.me/${match[1]}`;
+          }
+        }
         window.open(fbUrl, '_blank');
-        toast('📋 Facebook opened - send your message', true);
+        toast('📋 Messenger opened - send your message', true);
       } else {
         toast('No Facebook profile available', false);
       }
