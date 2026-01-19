@@ -252,6 +252,153 @@ const cloudSyncState = {
   debouncedSaves: new Map() // Track debounced save timers (dataType -> timeoutId)
 };
 
+// Offline Support - Track online/offline state and queue failed syncs
+const offlineState = {
+  isOnline: navigator.onLine,
+  syncQueue: [], // Queue of {dataType, data, timestamp} for offline saves
+  retryInProgress: false
+};
+
+// Initialize offline sync queue from localStorage
+function initOfflineSupport() {
+  // Load any queued saves from localStorage
+  try {
+    const savedQueue = localStorage.getItem('offlineSyncQueue');
+    if (savedQueue) {
+      offlineState.syncQueue = JSON.parse(savedQueue);
+      updateOfflineUI();
+    }
+  } catch (e) {
+    console.warn('Failed to load offline sync queue:', e);
+  }
+
+  // Listen for online/offline events
+  window.addEventListener('online', handleOnline);
+  window.addEventListener('offline', handleOffline);
+
+  // Initial UI update
+  updateOfflineUI();
+}
+
+// Handle going online - retry queued syncs
+async function handleOnline() {
+  console.log('🌐 Back online!');
+  offlineState.isOnline = true;
+  updateOfflineUI();
+
+  // Retry queued syncs
+  if (offlineState.syncQueue.length > 0 && !offlineState.retryInProgress) {
+    await retryQueuedSyncs();
+  }
+}
+
+// Handle going offline
+function handleOffline() {
+  console.log('📴 Gone offline');
+  offlineState.isOnline = false;
+  updateOfflineUI();
+}
+
+// Update offline/sync UI indicators
+function updateOfflineUI() {
+  const offlineBanner = document.getElementById('offlineBanner');
+  const syncQueueBanner = document.getElementById('syncQueueBanner');
+  const pendingSyncCount = document.getElementById('pendingSyncCount');
+  const syncingCount = document.getElementById('syncingCount');
+
+  if (!offlineBanner) return; // Not loaded yet
+
+  if (!offlineState.isOnline) {
+    // Show offline banner
+    offlineBanner.classList.remove('hidden');
+    if (offlineState.syncQueue.length > 0) {
+      pendingSyncCount.textContent = `${offlineState.syncQueue.length} pending`;
+      pendingSyncCount.classList.remove('hidden');
+    } else {
+      pendingSyncCount.classList.add('hidden');
+    }
+    syncQueueBanner.classList.add('hidden');
+  } else {
+    // Hide offline banner
+    offlineBanner.classList.add('hidden');
+
+    // Show sync banner if retrying
+    if (offlineState.retryInProgress && offlineState.syncQueue.length > 0) {
+      syncQueueBanner.classList.remove('hidden');
+      syncingCount.textContent = offlineState.syncQueue.length;
+    } else {
+      syncQueueBanner.classList.add('hidden');
+    }
+  }
+}
+
+// Queue a save for later when offline
+function queueOfflineSave(dataType, data) {
+  // Remove any existing entry for this dataType (keep latest only)
+  offlineState.syncQueue = offlineState.syncQueue.filter(q => q.dataType !== dataType);
+
+  // Add to queue
+  offlineState.syncQueue.push({
+    dataType,
+    data,
+    timestamp: Date.now()
+  });
+
+  // Persist to localStorage
+  try {
+    localStorage.setItem('offlineSyncQueue', JSON.stringify(offlineState.syncQueue));
+  } catch (e) {
+    console.warn('Failed to save offline sync queue:', e);
+  }
+
+  updateOfflineUI();
+}
+
+// Retry all queued syncs when back online
+async function retryQueuedSyncs() {
+  if (offlineState.retryInProgress || offlineState.syncQueue.length === 0) return;
+
+  offlineState.retryInProgress = true;
+  updateOfflineUI();
+
+  console.log(`🔄 Retrying ${offlineState.syncQueue.length} queued syncs...`);
+
+  const failedItems = [];
+
+  for (const item of offlineState.syncQueue) {
+    try {
+      await saveToCloud(item.dataType, item.data);
+      console.log(`✅ Synced queued ${item.dataType}`);
+    } catch (e) {
+      console.warn(`❌ Failed to sync queued ${item.dataType}:`, e);
+      failedItems.push(item);
+    }
+  }
+
+  // Update queue with only failed items
+  offlineState.syncQueue = failedItems;
+
+  // Persist updated queue
+  try {
+    if (failedItems.length > 0) {
+      localStorage.setItem('offlineSyncQueue', JSON.stringify(failedItems));
+    } else {
+      localStorage.removeItem('offlineSyncQueue');
+    }
+  } catch (e) {
+    console.warn('Failed to update offline sync queue:', e);
+  }
+
+  offlineState.retryInProgress = false;
+  updateOfflineUI();
+
+  if (failedItems.length === 0) {
+    toast('All changes synced successfully!', true);
+  } else {
+    toast(`${failedItems.length} changes failed to sync. Will retry later.`, false);
+  }
+}
+
 // ⚠️ SECURITY WARNING: Never commit real API keys to version control!
 //
 // Google Places API Key - Replace with your actual key
@@ -655,6 +802,16 @@ async function loadFromCloud(dataType) {
 
 // Unified function to save data to Supabase
 async function saveToCloud(dataType, data, options = {}) {
+  // Always save to IndexedDB first (local backup)
+  await idbSet(`mailslot-${dataType}`, data).catch(e => console.warn('IDB backup failed:', e));
+
+  // If offline, queue for later sync and return success (data is safe in IndexedDB)
+  if (!navigator.onLine) {
+    console.log(`📴 Offline - queuing ${dataType} for later sync`);
+    queueOfflineSave(dataType, data);
+    return { success: true, queued: true };
+  }
+
   try {
     // Use upsert to insert or update
     const { error } = await supabaseClient
@@ -669,8 +826,6 @@ async function saveToCloud(dataType, data, options = {}) {
 
     if (error) throw error;
 
-    // Update cache in IndexedDB (async, don't block)
-    idbSet(`mailslot-${dataType}`, data).catch(e => console.warn('IDB cache update failed:', e));
     cloudSyncState.lastSync = Date.now();
     delete cloudSyncState.syncErrors[dataType];
 
@@ -679,9 +834,6 @@ async function saveToCloud(dataType, data, options = {}) {
   } catch (err) {
     console.error(`❌ Failed to save ${dataType} to cloud:`, err);
     cloudSyncState.syncErrors[dataType] = err.message;
-
-    // Still save to IndexedDB as backup
-    idbSet(`mailslot-${dataType}`, data).catch(e => console.warn('IDB backup failed:', e));
 
     // Check if this is a permanent failure (data too large)
     if (err.message && err.message.includes('Data too large')) {
@@ -695,8 +847,13 @@ async function saveToCloud(dataType, data, options = {}) {
       }
 
       console.warn(`📦 ${dataType} marked as localStorage-only (too large for cloud sync)`);
+    } else if (err.message && (err.message.includes('network') || err.message.includes('fetch') || err.message.includes('Failed to fetch'))) {
+      // Network error - queue for retry
+      console.log(`🔄 Network error - queuing ${dataType} for later sync`);
+      queueOfflineSave(dataType, data);
+      return { success: true, queued: true };
     } else {
-      // Temporary failure - add to retry queue
+      // Other temporary failure - add to retry queue
       cloudSyncState.pendingSaves.add(dataType);
     }
 
@@ -20168,6 +20325,9 @@ window.selectAllCategoriesHandler = function() {
 
 /* ========= INIT ========= */
 document.addEventListener("DOMContentLoaded", () => {
+  // Initialize offline support (event listeners, sync queue)
+  initOfflineSupport();
+
   try {
     const saved = JSON.parse(safeGetItem("mailslot-sort") || "{}");
     sortOrder = saved.order || [...CANONICAL_STATUSES];
@@ -20175,7 +20335,7 @@ document.addEventListener("DOMContentLoaded", () => {
   } catch(_) {}
   updateColorMappings();
   renderLegend();
-  
+
   stagedColors.Postcard_BG = loadPostcardBg();
   stagedColors.Banner_BG = loadBannerBg();
   document.getElementById('pickerPostcard').value = stagedColors.Postcard_BG;

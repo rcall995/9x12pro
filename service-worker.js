@@ -5,7 +5,7 @@
  */
 
 // Update this version when you want to force a cache refresh
-const CACHE_VERSION = 'v201';
+const CACHE_VERSION = 'v202';
 const CACHE_NAME = `9x12-pro-${CACHE_VERSION}`;
 
 // Core app files to cache on install
@@ -21,10 +21,15 @@ const urlsToCache = [
   '/outreach-ipad.html'
 ];
 
-// External resources - don't cache these, always fetch fresh
-const EXTERNAL_RESOURCES = [
+// External CDN resources - cache with network-first strategy
+const CDN_CACHE_NAME = `9x12-cdn-${CACHE_VERSION}`;
+const CDN_RESOURCES = [
   'https://cdn.tailwindcss.com',
-  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'
+];
+
+// External resources that should never be cached (maps, API endpoints)
+const NEVER_CACHE_RESOURCES = [
   'https://maps.googleapis.com/maps/api/js'
 ];
 
@@ -47,11 +52,12 @@ self.addEventListener('install', (event) => {
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
   console.log('Service Worker: Activated');
+  const currentCaches = [CACHE_NAME, CDN_CACHE_NAME];
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
+          if (!currentCaches.includes(cacheName)) {
             console.log('Service Worker: Clearing old cache:', cacheName);
             return caches.delete(cacheName);
           }
@@ -74,10 +80,33 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Skip external resources - always fetch fresh
-  const isExternal = EXTERNAL_RESOURCES.some(url => event.request.url.startsWith(url));
-  if (isExternal) {
+  // Never cache certain resources (always fetch fresh)
+  const shouldNeverCache = NEVER_CACHE_RESOURCES.some(url => event.request.url.startsWith(url));
+  if (shouldNeverCache) {
     event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // CDN resources - network-first with cache fallback (for offline)
+  const isCDN = CDN_RESOURCES.some(url => event.request.url.startsWith(url));
+  if (isCDN) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          // Cache the fresh CDN response
+          if (response && response.status === 200) {
+            const responseToCache = response.clone();
+            caches.open(CDN_CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return response;
+        })
+        .catch(() => {
+          // Network failed - try cache
+          return caches.match(event.request);
+        })
+    );
     return;
   }
 
