@@ -15878,15 +15878,8 @@ function setupKanbanDrag() {
           decrementDailyGoal(businessName);
         }
 
-        // Save and render
-        try {
-          await saveKanban();
-          renderKanban();
-        } catch (err) {
-          console.error('Error saving kanban after move:', err);
-          toast('⚠️ Error saving changes. Refreshing...', false);
-          renderKanban();
-        }
+        // Optimistic update: render immediately, save in background
+        renderKanban();
 
         const columnTitles = {
           'prospect-list': '1. Prospect List',
@@ -15895,6 +15888,11 @@ function setupKanbanDrag() {
           'committed': '4. Committed'
         };
         toast(`Moved to ${columnTitles[toColumn] || toColumn}`);
+
+        // Save in background (non-blocking)
+        saveKanban().catch(err => {
+          console.error('Error saving kanban after move:', err);
+        });
       }
     };
 
@@ -16082,14 +16080,8 @@ function setupKanbanDrag() {
           decrementDailyGoal(businessName);
         }
 
-        // Save and render
-        try {
-          await saveKanban();
-          renderKanban();
-        } catch (err) {
-          console.error('Error saving kanban after touch move:', err);
-          renderKanban();
-        }
+        // Optimistic update: render immediately, save in background
+        renderKanban();
 
         const columnTitles = {
           'prospect-list': '1. Prospect List',
@@ -16098,6 +16090,11 @@ function setupKanbanDrag() {
           'committed': '4. Committed'
         };
         toast(`Moved to ${columnTitles[toColumn] || toColumn}`);
+
+        // Save in background (non-blocking)
+        saveKanban().catch(err => {
+          console.error('Error saving kanban after touch move:', err);
+        });
       }
 
       draggedItem = null;
@@ -16218,16 +16215,8 @@ function setupKanbanDrag() {
         }
         // Moving from "To Contact" to "Prospect List" (backwards) - don't count
 
-        // IMPORTANT: await saveKanban before rendering to prevent race condition
-        try {
-          await saveKanban();
-          renderKanban();
-        } catch (err) {
-          console.error('Error saving kanban after move:', err);
-          toast('⚠️ Error saving changes. Refreshing...', false);
-          // Still render even if save fails
-          renderKanban();
-        }
+        // Optimistic update: render immediately, save in background
+        renderKanban();
 
         // Map column key to display title
         const columnTitles = {
@@ -16237,6 +16226,11 @@ function setupKanbanDrag() {
           'committed': '4. Committed'
         };
         toast(`Moved to ${columnTitles[toColumn] || toColumn}`);
+
+        // Save in background (non-blocking)
+        saveKanban().catch(err => {
+          console.error('Error saving kanban after column drop:', err);
+        });
       }
     };
   });
