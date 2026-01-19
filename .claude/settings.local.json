@@ -52,7 +52,8 @@
       "WebFetch(domain:www.youtube-transcript.io)",
       "WebFetch(domain:get.joinblvd.com)",
       "WebFetch(domain:www.joinblvd.com)",
-      "Bash(npx vercel --prod)"
+      "Bash(npx vercel --prod)",
+      "Bash(ls:*)"
     ],
     "deny": [],
     "ask": []
