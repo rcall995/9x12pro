@@ -15155,16 +15155,14 @@ async function loadKanban() {
 // Remove all duplicate prospects from kanban data (not just rendering)
 function deduplicateKanbanData() {
   let totalRemoved = 0;
-  console.log('🧹 DEBUG: deduplicateKanbanData ENTRY - prospect-list length:', kanbanState.columns['prospect-list']?.length);
 
   Object.keys(kanbanState.columns).forEach(columnKey => {
     const items = kanbanState.columns[columnKey];
     if (!Array.isArray(items)) return;
 
-    console.log(`🧹 DEBUG: Deduping column ${columnKey} with ${items.length} items`);
-    const seenIds = new Set(); // Track by unique ID first
+    const seenIds = new Set();
     const seenPlaceIds = new Set();
-    const seenBusinessNames = new Map(); // Map to track businessName+mailerId combos
+    const seenBusinessNames = new Map();
     const deduped = [];
 
     items.forEach(item => {
@@ -15177,7 +15175,7 @@ function deduplicateKanbanData() {
       if (item.id) {
         if (seenIds.has(item.id)) {
           totalRemoved++;
-          return; // Skip duplicate
+          return;
         }
         seenIds.add(item.id);
       }
@@ -15186,7 +15184,7 @@ function deduplicateKanbanData() {
       if (item.placeId) {
         if (seenPlaceIds.has(item.placeId)) {
           totalRemoved++;
-          return; // Skip duplicate
+          return;
         }
         seenPlaceIds.add(item.placeId);
       }
@@ -15195,47 +15193,39 @@ function deduplicateKanbanData() {
         const key = `${item.businessName.toLowerCase()}|${item.mailerId}`;
         if (seenBusinessNames.has(key)) {
           totalRemoved++;
-          return; // Skip duplicate
+          return;
         }
         seenBusinessNames.set(key, true);
-      }
-      // For items from Client Database (no mailerId, no placeId), use originalClientId
-      else if (item.originalClientId) {
-        // These are already checked by item.id above, so just add them
       }
 
       deduped.push(item);
     });
 
-    console.log(`🧹 DEBUG: Column ${columnKey} - Before: ${items.length}, After: ${deduped.length}, Removed: ${items.length - deduped.length}`);
     kanbanState.columns[columnKey] = deduped;
   });
-
-  if (totalRemoved > 0) {
-    console.log(`🧹 Removed ${totalRemoved} duplicate prospect(s) from kanban data`);
-  }
-  console.log('🧹 DEBUG: deduplicateKanbanData EXIT - prospect-list length:', kanbanState.columns['prospect-list']?.length);
 
   return totalRemoved;
 }
 
+// Quick save for drag operations - no dedup, no logging, debounced
+let kanbanSaveTimeout = null;
+function saveKanbanQuick() {
+  // Debounce: wait 500ms after last drag before actually saving
+  if (kanbanSaveTimeout) clearTimeout(kanbanSaveTimeout);
+  kanbanSaveTimeout = setTimeout(() => {
+    saveToCloud('kanban', kanbanState.columns).catch(e => {
+      console.warn('Quick kanban save failed:', e);
+    });
+  }, 500);
+}
+
 async function saveKanban() {
   try {
-    // Log who called this function
-    const stack = new Error().stack;
-    const caller = stack.split('\n')[2]?.trim() || 'unknown';
-    console.log('🔵 saveKanban CALLED FROM:', caller);
-    console.log('🔵 saveKanban - Before dedup, prospect-list length:', kanbanState.columns['prospect-list']?.length);
-    console.log('🔵 saveKanban - Before dedup, to-contact length:', kanbanState.columns['to-contact']?.length);
-
-    // Deduplicate before saving
-    const removed = deduplicateKanbanData();
-    console.log('🔵 saveKanban - After dedup, prospect-list length:', kanbanState.columns['prospect-list']?.length);
-    console.log('🔵 saveKanban - After dedup, to-contact length:', kanbanState.columns['to-contact']?.length, 'Removed:', removed);
+    // Deduplicate before saving (skip verbose logging)
+    deduplicateKanbanData();
 
     // Save to cloud and localStorage
     await saveToCloud('kanban', kanbanState.columns);
-    console.log('🔵 saveKanban - Saved to cloud, prospect-list length:', kanbanState.columns['prospect-list']?.length);
   } catch(e) {
     console.warn('Kanban saved to localStorage only (cloud sync failed):', e);
   }
@@ -15907,10 +15897,8 @@ function setupKanbanDrag() {
         };
         toast(`Moved to ${columnTitles[toColumn] || toColumn}`);
 
-        // Save in background (non-blocking)
-        saveKanban().catch(err => {
-          console.error('Error saving kanban after move:', err);
-        });
+        // Save in background (debounced, non-blocking)
+        saveKanbanQuick();
       }
     };
 
@@ -16130,10 +16118,8 @@ function setupKanbanDrag() {
         };
         toast(`Moved to ${columnTitles[toColumn] || toColumn}`);
 
-        // Save in background (non-blocking)
-        saveKanban().catch(err => {
-          console.error('Error saving kanban after touch move:', err);
-        });
+        // Save in background (debounced, non-blocking)
+        saveKanbanQuick();
       }
 
       draggedItem = null;
@@ -16283,10 +16269,8 @@ function setupKanbanDrag() {
         };
         toast(`Moved to ${columnTitles[toColumn] || toColumn}`);
 
-        // Save in background (non-blocking)
-        saveKanban().catch(err => {
-          console.error('Error saving kanban after column drop:', err);
-        });
+        // Save in background (debounced, non-blocking)
+        saveKanbanQuick();
       }
     };
   });
