@@ -15878,8 +15878,26 @@ function setupKanbanDrag() {
           decrementDailyGoal(businessName);
         }
 
-        // Optimistic update: render immediately, save in background
-        renderKanban();
+        // FAST: Direct DOM move instead of full re-render
+        const targetColumn = this.closest('.kanban-column');
+        draggedItem.dataset.column = toColumn; // Update data attribute
+        targetColumn.insertBefore(draggedItem, this); // Move in DOM directly
+
+        // Update column counts in headers
+        document.querySelectorAll('.kanban-column').forEach(col => {
+          const colKey = col.dataset.column;
+          const count = (kanbanState.columns[colKey] || []).length;
+          const header = col.querySelector('.font-semibold');
+          if (header) {
+            const titleMap = {
+              'prospect-list': '1. Prospect List',
+              'to-contact': '2. To Contact',
+              'in-progress': '3. In Progress',
+              'committed': '4. Committed'
+            };
+            header.textContent = `${titleMap[colKey]} (${count})`;
+          }
+        });
 
         const columnTitles = {
           'prospect-list': '1. Prospect List',
@@ -16080,8 +16098,29 @@ function setupKanbanDrag() {
           decrementDailyGoal(businessName);
         }
 
-        // Optimistic update: render immediately, save in background
-        renderKanban();
+        // FAST: Direct DOM move instead of full re-render
+        draggedItem.dataset.column = toColumn; // Update data attribute
+        if (targetItem) {
+          targetColumn.insertBefore(draggedItem, targetItem); // Insert before target
+        } else {
+          targetColumn.appendChild(draggedItem); // Append to end
+        }
+
+        // Update column counts in headers
+        document.querySelectorAll('.kanban-column').forEach(col => {
+          const colKey = col.dataset.column;
+          const count = (kanbanState.columns[colKey] || []).length;
+          const header = col.querySelector('.font-semibold');
+          if (header) {
+            const titleMap = {
+              'prospect-list': '1. Prospect List',
+              'to-contact': '2. To Contact',
+              'in-progress': '3. In Progress',
+              'committed': '4. Committed'
+            };
+            header.textContent = `${titleMap[colKey]} (${count})`;
+          }
+        });
 
         const columnTitles = {
           'prospect-list': '1. Prospect List',
@@ -16215,8 +16254,25 @@ function setupKanbanDrag() {
         }
         // Moving from "To Contact" to "Prospect List" (backwards) - don't count
 
-        // Optimistic update: render immediately, save in background
-        renderKanban();
+        // FAST: Direct DOM move instead of full re-render
+        draggedItem.dataset.column = toColumn; // Update data attribute
+        this.appendChild(draggedItem); // Append to end of column
+
+        // Update column counts in headers
+        document.querySelectorAll('.kanban-column').forEach(col => {
+          const colKey = col.dataset.column;
+          const count = (kanbanState.columns[colKey] || []).length;
+          const header = col.querySelector('.font-semibold');
+          if (header) {
+            const titleMap = {
+              'prospect-list': '1. Prospect List',
+              'to-contact': '2. To Contact',
+              'in-progress': '3. In Progress',
+              'committed': '4. Committed'
+            };
+            header.textContent = `${titleMap[colKey]} (${count})`;
+          }
+        });
 
         // Map column key to display title
         const columnTitles = {
