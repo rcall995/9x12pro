@@ -2351,6 +2351,51 @@ function openQuickActionPopup(leadId, columnKey) {
             return '';
           })()}
 
+          <!-- Response Tracking Section -->
+          ${(() => {
+            const ct = prospect.contactTracking || {};
+            const hasBeenContacted = ct.emailed || ct.texted || ct.called || ct.facebookMessaged || ct.dmed || ct.linkedinMessaged;
+
+            if (!hasBeenContacted) return '';
+
+            const responded = ct.responded === true;
+            const responseType = ct.responseType || '';
+            const responseDate = ct.respondedDate ? new Date(ct.respondedDate).toLocaleDateString() : '';
+
+            return `
+              <div class="text-xs text-gray-600 mb-2 font-medium">💬 Response Status</div>
+              <div class="${responded ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'} border rounded-lg p-3 mb-4">
+                ${responded ? `
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-green-700 font-medium text-sm">✅ Replied${responseDate ? ` on ${responseDate}` : ''}</span>
+                    <button onclick="clearResponse('${leadId}', '${columnKey}')" class="text-xs text-gray-500 hover:text-gray-700">Clear</button>
+                  </div>
+                  ${responseType ? `<div class="text-sm text-gray-700 mb-2">Response: <strong>${esc(responseType)}</strong></div>` : ''}
+                  ${ct.responseNotes ? `<div class="text-xs text-gray-600 italic">"${esc(ct.responseNotes)}"</div>` : ''}
+                ` : `
+                  <div class="text-yellow-700 text-sm mb-2">⏳ Waiting for reply...</div>
+                  <div class="space-y-2">
+                    <div class="flex gap-2">
+                      <select id="quickResponseType" class="flex-1 px-2 py-1.5 border rounded text-sm">
+                        <option value="">Select response type...</option>
+                        <option value="Interested">✅ Interested</option>
+                        <option value="Not Interested">❌ Not Interested</option>
+                        <option value="Maybe Later">🤔 Maybe Later</option>
+                        <option value="Requested Info">📋 Requested Info</option>
+                        <option value="Left Voicemail">📞 Left Voicemail</option>
+                        <option value="Wrong Contact">⚠️ Wrong Contact</option>
+                      </select>
+                    </div>
+                    <input type="text" id="quickResponseNotes" placeholder="Optional notes..." class="w-full px-2 py-1.5 border rounded text-sm" />
+                    <button onclick="markAsResponded('${leadId}', '${columnKey}')" class="w-full px-3 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700 font-medium">
+                      ✓ Mark as Replied
+                    </button>
+                  </div>
+                `}
+              </div>
+            `;
+          })()}
+
           <!-- Follow-up Date Section -->
           <div class="text-xs text-gray-600 mb-2 font-medium">📅 Follow-up Date</div>
           <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
@@ -18021,6 +18066,85 @@ async function clearFollowUpDate(leadId, columnKey) {
   delete prospect.followUpDate;
 
   toast(`📅 Follow-up date cleared`, true);
+
+  await saveKanban();
+  renderKanban();
+  refreshFollowUpDashboard();
+  refreshContactStatusDashboard();
+  closeQuickActionPopup();
+}
+
+// Mark a prospect as having responded
+async function markAsResponded(leadId, columnKey) {
+  // Find the prospect
+  const items = kanbanState.columns[columnKey] || [];
+  const prospect = items.find(item => typeof item === 'object' && String(item.id) === String(leadId));
+
+  if (!prospect) {
+    toast('Prospect not found', false);
+    return;
+  }
+
+  const responseType = document.getElementById('quickResponseType')?.value || '';
+  const responseNotes = document.getElementById('quickResponseNotes')?.value || '';
+
+  // Initialize contact tracking if needed
+  if (!prospect.contactTracking) prospect.contactTracking = {};
+
+  // Set response data
+  prospect.contactTracking.responded = true;
+  prospect.contactTracking.respondedDate = new Date().toISOString();
+  if (responseType) prospect.contactTracking.responseType = responseType;
+  if (responseNotes) prospect.contactTracking.responseNotes = responseNotes;
+
+  // Log interaction
+  if (!prospect.interactions) prospect.interactions = [];
+  prospect.interactions.push({
+    type: 'response',
+    date: new Date().toISOString(),
+    notes: `Response received: ${responseType || 'General reply'}${responseNotes ? ` - "${responseNotes}"` : ''}`
+  });
+
+  // Auto-move "Interested" responses to committed column
+  if (responseType === 'Interested' && columnKey !== 'committed') {
+    // Remove from current column
+    kanbanState.columns[columnKey] = kanbanState.columns[columnKey].filter(
+      p => String(p.id) !== String(leadId)
+    );
+    // Add to committed
+    kanbanState.columns['committed'].push(prospect);
+    toast(`✅ "${prospect.businessName}" marked as Interested and moved to Committed!`, true);
+  } else {
+    toast(`✅ Response recorded for "${prospect.businessName}"`, true);
+  }
+
+  await saveKanban();
+  renderKanban();
+  refreshFollowUpDashboard();
+  refreshContactStatusDashboard();
+  closeQuickActionPopup();
+}
+
+// Clear response status from a prospect
+async function clearResponse(leadId, columnKey) {
+  // Find the prospect
+  const items = kanbanState.columns[columnKey] || [];
+  const prospect = items.find(item => typeof item === 'object' && String(item.id) === String(leadId));
+
+  if (!prospect) {
+    toast('Prospect not found', false);
+    return;
+  }
+
+  if (!prospect.contactTracking) return;
+
+  // Clear response data
+  delete prospect.contactTracking.responded;
+  delete prospect.contactTracking.respondedDate;
+  delete prospect.contactTracking.responseType;
+  delete prospect.contactTracking.responseNotes;
+
+  toast(`Response status cleared`, true);
 
   await saveKanban();
   renderKanban();
