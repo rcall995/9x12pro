@@ -17509,6 +17509,21 @@ async function toggleContactTracking(leadId, method, event) {
 // FOLLOW-UP DASHBOARD FUNCTIONS
 // ============================================
 
+// Parse a date string as LOCAL time (not UTC)
+// Handles "YYYY-MM-DD" format from date inputs
+function parseLocalDate(dateStr) {
+  if (!dateStr) return null;
+  // If it's already a Date object, use it
+  if (dateStr instanceof Date) return dateStr;
+  // If it's a YYYY-MM-DD string, parse as local
+  if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day); // month is 0-indexed
+  }
+  // Otherwise use standard parsing
+  return new Date(dateStr);
+}
+
 // Refresh follow-up dashboard data
 function refreshFollowUpDashboard() {
   const today = new Date();
@@ -17529,7 +17544,8 @@ function refreshFollowUpDashboard() {
 
       // Check follow-up dates
       if (prospect.followUpDate) {
-        const followUp = new Date(prospect.followUpDate);
+        const followUp = parseLocalDate(prospect.followUpDate);
+        if (!followUp) return;
         followUp.setHours(0, 0, 0, 0);
 
         if (followUp.toDateString() === todayStr) {
