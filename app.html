@@ -611,6 +611,74 @@
                     </div>
                 </div>
 
+                <!-- CONTACT STATUS DASHBOARD -->
+                <div id="contactStatusDashboardWrapper" class="mb-6">
+                    <div class="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-2xl p-4 md:p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="flex items-center gap-3">
+                                <span class="text-3xl">📊</span>
+                                <div>
+                                    <h4 class="text-lg md:text-xl font-bold text-gray-900">Contact Status</h4>
+                                    <p class="text-xs md:text-sm text-gray-600">Businesses contacted by channel</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button onclick="toggleContactStatusExpanded()" id="btnContactStatusToggle" class="text-sm text-emerald-600 hover:text-emerald-800 font-medium">
+                                    ➕ Expand
+                                </button>
+                                <button onclick="refreshContactStatusDashboard()" class="text-sm text-emerald-600 hover:text-emerald-800 font-medium">
+                                    🔄
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Summary Row (always visible) -->
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                            <div onclick="showContactedByChannel('texted')" class="bg-white rounded-xl p-3 border border-green-200 cursor-pointer hover:border-green-400 transition-colors">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-2xl">📱</span>
+                                    <span id="textedCount" class="text-2xl font-bold text-green-600">0</span>
+                                </div>
+                                <div class="text-xs font-medium text-gray-600 mt-1">Texted</div>
+                            </div>
+                            <div onclick="showContactedByChannel('emailed')" class="bg-white rounded-xl p-3 border border-blue-200 cursor-pointer hover:border-blue-400 transition-colors">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-2xl">✉️</span>
+                                    <span id="emailedCount" class="text-2xl font-bold text-blue-600">0</span>
+                                </div>
+                                <div class="text-xs font-medium text-gray-600 mt-1">Emailed</div>
+                            </div>
+                            <div onclick="showContactedByChannel('facebookMessaged')" class="bg-white rounded-xl p-3 border border-indigo-200 cursor-pointer hover:border-indigo-400 transition-colors">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-2xl">📘</span>
+                                    <span id="facebookCount" class="text-2xl font-bold text-indigo-600">0</span>
+                                </div>
+                                <div class="text-xs font-medium text-gray-600 mt-1">FB Messaged</div>
+                            </div>
+                            <div onclick="showContactedByChannel('dmed')" class="bg-white rounded-xl p-3 border border-pink-200 cursor-pointer hover:border-pink-400 transition-colors">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-2xl">📷</span>
+                                    <span id="instagramCount" class="text-2xl font-bold text-pink-600">0</span>
+                                </div>
+                                <div class="text-xs font-medium text-gray-600 mt-1">IG DM'd</div>
+                            </div>
+                        </div>
+
+                        <!-- Expanded Detail Section (hidden by default) -->
+                        <div id="contactStatusExpanded" class="hidden">
+                            <div class="bg-white rounded-xl p-4 border border-gray-200">
+                                <div class="flex items-center justify-between mb-3">
+                                    <h5 id="contactStatusTitle" class="font-bold text-gray-900">📱 Texted Businesses</h5>
+                                    <button onclick="hideContactStatusExpanded()" class="text-gray-400 hover:text-gray-600">✕</button>
+                                </div>
+                                <div id="contactStatusList" class="space-y-2 max-h-64 overflow-y-auto">
+                                    <p class="text-sm text-gray-500 italic">Click a channel above to view businesses</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Collapsible Kanban Columns -->
                 <div id="salesActivityKanbanColumns" class="transition-all duration-300 ease-in-out overflow-hidden">
                     <!-- Kanban columns dynamically populated -->

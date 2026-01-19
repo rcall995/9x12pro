@@ -14882,7 +14882,8 @@ async function loadKanban() {
     console.error('Error loading kanban:', e);
   }
   renderKanban();
-  refreshFollowUpDashboard(); // Refresh follow-up dashboard after loading kanban
+  refreshFollowUpDashboard();
+  refreshContactStatusDashboard();
 }
 
 // Remove all duplicate prospects from kanban data (not just rendering)
@@ -17415,6 +17416,243 @@ function renderFollowUpDashboard() {
   }
 }
 
+// ============================================
+// CONTACT STATUS DASHBOARD FUNCTIONS
+// ============================================
+
+// State for contact status dashboard
+let contactStatusState = {
+  texted: [],
+  emailed: [],
+  facebookMessaged: [],
+  dmed: [],
+  called: [],
+  linkedinMessaged: [],
+  currentChannel: null
+};
+
+// Refresh contact status dashboard
+function refreshContactStatusDashboard() {
+  // Reset state
+  contactStatusState.texted = [];
+  contactStatusState.emailed = [];
+  contactStatusState.facebookMessaged = [];
+  contactStatusState.dmed = [];
+  contactStatusState.called = [];
+  contactStatusState.linkedinMessaged = [];
+
+  // Scan all kanban columns
+  Object.keys(kanbanState.columns).forEach(columnKey => {
+    const items = kanbanState.columns[columnKey] || [];
+    items.forEach(prospect => {
+      if (!prospect || typeof prospect !== 'object') return;
+      const ct = prospect.contactTracking || {};
+
+      if (ct.texted) {
+        contactStatusState.texted.push({ ...prospect, column: columnKey, contactDate: ct.textedDate });
+      }
+      if (ct.emailed) {
+        contactStatusState.emailed.push({ ...prospect, column: columnKey, contactDate: ct.emailedDate });
+      }
+      if (ct.facebookMessaged) {
+        contactStatusState.facebookMessaged.push({ ...prospect, column: columnKey, contactDate: ct.facebookMessagedDate });
+      }
+      if (ct.dmed) {
+        contactStatusState.dmed.push({ ...prospect, column: columnKey, contactDate: ct.dmedDate });
+      }
+      if (ct.called) {
+        contactStatusState.called.push({ ...prospect, column: columnKey, contactDate: ct.calledDate });
+      }
+      if (ct.linkedinMessaged) {
+        contactStatusState.linkedinMessaged.push({ ...prospect, column: columnKey, contactDate: ct.linkedinMessagedDate });
+      }
+    });
+  });
+
+  // Sort each by most recent first
+  const sortByDate = (a, b) => {
+    if (!a.contactDate) return 1;
+    if (!b.contactDate) return -1;
+    return new Date(b.contactDate) - new Date(a.contactDate);
+  };
+  contactStatusState.texted.sort(sortByDate);
+  contactStatusState.emailed.sort(sortByDate);
+  contactStatusState.facebookMessaged.sort(sortByDate);
+  contactStatusState.dmed.sort(sortByDate);
+  contactStatusState.called.sort(sortByDate);
+  contactStatusState.linkedinMessaged.sort(sortByDate);
+
+  // Update counts in UI
+  const textedCount = document.getElementById('textedCount');
+  const emailedCount = document.getElementById('emailedCount');
+  const facebookCount = document.getElementById('facebookCount');
+  const instagramCount = document.getElementById('instagramCount');
+
+  if (textedCount) textedCount.textContent = contactStatusState.texted.length;
+  if (emailedCount) emailedCount.textContent = contactStatusState.emailed.length;
+  if (facebookCount) facebookCount.textContent = contactStatusState.facebookMessaged.length;
+  if (instagramCount) instagramCount.textContent = contactStatusState.dmed.length;
+
+  // If a channel is currently shown, refresh it
+  if (contactStatusState.currentChannel) {
+    showContactedByChannel(contactStatusState.currentChannel);
+  }
+}
+
+// Show businesses contacted by a specific channel
+function showContactedByChannel(channelKey) {
+  contactStatusState.currentChannel = channelKey;
+
+  const channelConfig = {
+    texted: { title: '📱 Texted Businesses', color: 'green', data: contactStatusState.texted },
+    emailed: { title: '✉️ Emailed Businesses', color: 'blue', data: contactStatusState.emailed },
+    facebookMessaged: { title: '📘 FB Messaged Businesses', color: 'indigo', data: contactStatusState.facebookMessaged },
+    dmed: { title: '📷 IG DM\'d Businesses', color: 'pink', data: contactStatusState.dmed },
+    called: { title: '📞 Called Businesses', color: 'orange', data: contactStatusState.called },
+    linkedinMessaged: { title: '💼 LinkedIn Messaged', color: 'sky', data: contactStatusState.linkedinMessaged }
+  };
+
+  const config = channelConfig[channelKey];
+  if (!config) return;
+
+  // Show expanded section
+  const expandedSection = document.getElementById('contactStatusExpanded');
+  if (expandedSection) expandedSection.classList.remove('hidden');
+
+  // Update title
+  const title = document.getElementById('contactStatusTitle');
+  if (title) title.textContent = config.title;
+
+  // Render list
+  const list = document.getElementById('contactStatusList');
+  if (!list) return;
+
+  if (config.data.length === 0) {
+    list.innerHTML = `<p class="text-sm text-gray-500 italic">No businesses ${channelKey === 'dmed' ? 'DM\'d' : channelKey} yet</p>`;
+    return;
+  }
+
+  list.innerHTML = config.data.map(p => {
+    const dateStr = p.contactDate ? new Date(p.contactDate).toLocaleDateString() : 'Unknown date';
+    const hasResponse = p.contactTracking?.responded;
+
+    return `
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 hover:bg-gray-100 cursor-pointer" onclick="openQuickActionPopup('${p.id}', '${p.column}')">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-gray-900 text-sm truncate">${esc(p.businessName || 'Unknown')}</div>
+            <div class="text-xs text-gray-500 mt-0.5">${dateStr} ${hasResponse ? '<span class="text-green-600 font-medium">✓ Replied</span>' : ''}</div>
+          </div>
+          <div class="flex gap-2 flex-shrink-0">
+            <button onclick="event.stopPropagation(); contactAgain('${p.id}', '${channelKey}')" class="px-2 py-1 bg-${config.color}-100 text-${config.color}-700 text-xs rounded hover:bg-${config.color}-200 font-medium">
+              Contact Again
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Update toggle button
+  const toggleBtn = document.getElementById('btnContactStatusToggle');
+  if (toggleBtn) toggleBtn.textContent = '➖ Collapse';
+}
+
+// Toggle expanded section
+function toggleContactStatusExpanded() {
+  const expandedSection = document.getElementById('contactStatusExpanded');
+  const toggleBtn = document.getElementById('btnContactStatusToggle');
+
+  if (expandedSection && expandedSection.classList.contains('hidden')) {
+    // Show first channel with data
+    if (contactStatusState.texted.length > 0) {
+      showContactedByChannel('texted');
+    } else if (contactStatusState.emailed.length > 0) {
+      showContactedByChannel('emailed');
+    } else if (contactStatusState.facebookMessaged.length > 0) {
+      showContactedByChannel('facebookMessaged');
+    } else if (contactStatusState.dmed.length > 0) {
+      showContactedByChannel('dmed');
+    } else {
+      showContactedByChannel('texted'); // Default
+    }
+    if (toggleBtn) toggleBtn.textContent = '➖ Collapse';
+  } else {
+    hideContactStatusExpanded();
+  }
+}
+
+// Hide expanded section
+function hideContactStatusExpanded() {
+  const expandedSection = document.getElementById('contactStatusExpanded');
+  const toggleBtn = document.getElementById('btnContactStatusToggle');
+
+  if (expandedSection) expandedSection.classList.add('hidden');
+  if (toggleBtn) toggleBtn.textContent = '➕ Expand';
+  contactStatusState.currentChannel = null;
+}
+
+// Contact a business again via the same channel
+function contactAgain(prospectId, channelKey) {
+  // Find prospect
+  let prospect = null;
+  let columnKey = null;
+  for (const colKey of Object.keys(kanbanState.columns)) {
+    const found = kanbanState.columns[colKey].find(p => p && String(p.id) === String(prospectId));
+    if (found) {
+      prospect = found;
+      columnKey = colKey;
+      break;
+    }
+  }
+
+  if (!prospect) {
+    toast('Prospect not found', false);
+    return;
+  }
+
+  // Open appropriate channel
+  switch (channelKey) {
+    case 'texted':
+      if (prospect.phone) {
+        const cleanPhone = prospect.phone.replace(/\D/g, '');
+        window.open(`https://voice.google.com/u/0/messages?itemId=t.+1${cleanPhone}`, '_blank');
+        toast('📱 Google Voice opened', true);
+      }
+      break;
+    case 'emailed':
+      if (prospect.email) {
+        window.open(`mailto:${prospect.email}`, '_blank');
+        toast('✉️ Email opened', true);
+      }
+      break;
+    case 'facebookMessaged':
+      if (prospect.facebook) {
+        window.open(ensureHttps(prospect.facebook), '_blank');
+        toast('📘 Facebook opened', true);
+      }
+      break;
+    case 'dmed':
+      if (prospect.instagram) {
+        window.open(ensureHttps(prospect.instagram), '_blank');
+        toast('📷 Instagram opened', true);
+      }
+      break;
+    case 'called':
+      if (prospect.phone) {
+        window.open(`tel:${prospect.phone}`, '_blank');
+        toast('📞 Calling...', true);
+      }
+      break;
+    case 'linkedinMessaged':
+      if (prospect.linkedin) {
+        window.open(ensureHttps(prospect.linkedin), '_blank');
+        toast('💼 LinkedIn opened', true);
+      }
+      break;
+  }
+}
+
 // Quick action: call a number
 function quickCall(phone) {
   window.open(`tel:${phone}`, '_blank');
@@ -17494,6 +17732,7 @@ function assignSequence(prospectId, sequenceId = null) {
   saveKanban();
   renderKanban();
   refreshFollowUpDashboard();
+  refreshContactStatusDashboard();
   toast(`📋 Started "${sequence.name}" for ${prospect.businessName}`, true);
 }
 
@@ -17599,6 +17838,7 @@ async function advanceSequence(prospectId) {
   saveKanban();
   renderKanban();
   refreshFollowUpDashboard();
+  refreshContactStatusDashboard();
 }
 
 // Pause an active sequence
@@ -17626,6 +17866,7 @@ async function pauseSequence(prospectId) {
   await saveKanban();
   renderKanban();
   refreshFollowUpDashboard();
+  refreshContactStatusDashboard();
 }
 
 // Resume a paused sequence
@@ -17653,6 +17894,7 @@ async function resumeSequence(prospectId) {
   await saveKanban();
   renderKanban();
   refreshFollowUpDashboard();
+  refreshContactStatusDashboard();
 }
 
 // Cancel/remove a sequence from a prospect
@@ -17682,6 +17924,7 @@ async function cancelSequence(prospectId) {
   await saveKanban();
   renderKanban();
   refreshFollowUpDashboard();
+  refreshContactStatusDashboard();
 }
 
 // Set sequence to a specific step
@@ -17728,6 +17971,7 @@ async function setSequenceStep(prospectId, stepNumber) {
   await saveKanban();
   renderKanban();
   refreshFollowUpDashboard();
+  refreshContactStatusDashboard();
 
   // Refresh the popup to show the updated state
   closeQuickActionPopup();
@@ -17758,6 +18002,7 @@ async function setQuickFollowUpDate(leadId, columnKey) {
   await saveKanban();
   renderKanban();
   refreshFollowUpDashboard();
+  refreshContactStatusDashboard();
   closeQuickActionPopup();
 }
 
@@ -17780,6 +18025,7 @@ async function clearFollowUpDate(leadId, columnKey) {
   await saveKanban();
   renderKanban();
   refreshFollowUpDashboard();
+  refreshContactStatusDashboard();
   closeQuickActionPopup();
 }
 
