@@ -607,10 +607,7 @@ async function idbSet(key, value) {
       const store = transaction.objectStore(IDB_STORE);
       const request = store.put({ key, value, timestamp: Date.now() });
 
-      request.onsuccess = () => {
-        console.log(`💾 IndexedDB saved: ${key}`);
-        resolve(true);
-      };
+      request.onsuccess = () => resolve(true);
       request.onerror = (event) => {
         console.error(`IndexedDB save error for ${key}:`, event.target.error);
         reject(event.target.error);
@@ -1237,18 +1234,9 @@ function toggleTaskComplete(checkbox) {
 function calculateFinancials(mailerId, campaign = null) {
   if (!mailerId) return null;
 
-  console.log(`\n💰 CALCULATING FINANCIALS FOR: ${mailerId}`);
-  console.log('Campaign data provided?', !!campaign);
-  console.log('spotPricing loaded?', Object.keys(productionState.spotPricing).length > 0);
-  console.log('pricing loaded?', Object.keys(productionState.pricing).length > 0);
-
   // If pricing data hasn't loaded yet, return null to avoid showing $500 defaults
-  // The calculations will run again once pricing loads
   const hasPricingData = Object.keys(productionState.pricing).length > 0 || Object.keys(productionState.spotPricing).length > 0;
-  if (!hasPricingData) {
-    console.log('⏳ Skipping financial calculations - waiting for pricing data to load');
-    return null;
-  }
+  if (!hasPricingData) return null;
 
   const expenses = productionState.expenses[mailerId] || { ...DEFAULT_EXPENSES };
   // Only sum actual expense fields, excluding addressCount
@@ -1345,21 +1333,9 @@ function calculateFinancials(mailerId, campaign = null) {
     const priceKey = normalizePriceKey(mailerId, i);
     const customSpotPrice = productionState.spotPricing[priceKey];
 
-    // Debug pricing lookup for first spot only
-    if (i === 1) {
-      console.log('🔍 PRICING DEBUG for Spot 1:');
-      console.log('  priceKey:', priceKey);
-      console.log('  customSpotPrice:', customSpotPrice);
-      console.log('  pricing object:', pricing);
-      console.log('  spotPricing keys:', Object.keys(productionState.spotPricing).slice(0, 5));
-    }
-
     if (customSpotPrice !== undefined && customSpotPrice !== null && customSpotPrice > 0) {
-      // Use manually set price
       price = parseFloat(customSpotPrice);
-      if (i === 1) console.log('  ✅ Using custom spot price:', price);
     } else if (pricing) {
-      // Use Set Pricing defaults
       if (isMerged) {
         if ((i === 13 || i === 14) && mate && (mate === 13 || mate === 14)) {
           price = parseFloat(pricing.bannerAd) || DEFAULT_SPOT_PRICE;
@@ -1369,47 +1345,28 @@ function calculateFinancials(mailerId, campaign = null) {
       } else {
         price = parseFloat(pricing.singleAd) || DEFAULT_SPOT_PRICE;
       }
-      if (i === 1) console.log('  ✅ Using Set Pricing:', price, '(isMerged:', isMerged, ')');
     } else {
-      // Fallback if nothing is set
       price = DEFAULT_SPOT_PRICE;
-      if (i === 1) console.log('  ⚠️ Using default price:', price);
     }
 
     // Only count revenue if spot has a business name entered
     if (spot && spot.status !== "Available" && spot.name && spot.name.trim() !== "") {
-      console.log(`  📍 Spot ${i}: "${spot.name}" | Status: "${spot.status}" | Price: $${price} | Merged: ${isMerged}`);
       spotsSold++;
       projectedRevenue += price;
 
-      // Count all filled spots as revenue (Reserved and beyond)
       if (spot.status === "Deposit Paid") {
-        // Deposit Paid = only 50% received so far
-        const depositAmount = price * 0.5;
-        console.log(`    💰 DEPOSIT PAID - Adding $${depositAmount} to revenue`);
-        depositRevenue += depositAmount;
+        depositRevenue += price * 0.5;
       } else {
-        // Reserved, Invoice Sent, Ad Approved, Paid in Full = full price
-        console.log(`    ✅ ${spot.status} - Adding $${price} to revenue`);
         paidRevenue += price;
         spotsPaid++;
       }
     }
   }
-  
+
   const currentRevenue = paidRevenue + depositRevenue;
   const currentProfit = currentRevenue - totalExpenses;
   const projectedProfit = projectedRevenue - totalExpenses;
   const breakeven = currentRevenue >= totalExpenses;
-
-  console.log(`💵 REVENUE SUMMARY:`);
-  console.log(`  Spots Sold: ${spotsSold}`);
-  console.log(`  Projected Revenue: $${projectedRevenue.toFixed(2)}`);
-  console.log(`  Paid Revenue: $${paidRevenue.toFixed(2)}`);
-  console.log(`  Deposit Revenue: $${depositRevenue.toFixed(2)}`);
-  console.log(`  Current Revenue: $${currentRevenue.toFixed(2)}`);
-  console.log(`  Total Expenses: $${totalExpenses.toFixed(2)}`);
-  console.log(`  Current Profit: $${currentProfit.toFixed(2)}\n`);
 
   // Use actual pricing when no spots sold, not the hardcoded default
   const avgSpotPrice = spotsSold > 0 ? projectedRevenue / spotsSold : (pricing?.singleAd || DEFAULT_SPOT_PRICE);
@@ -4152,13 +4109,10 @@ async function savePlacesCacheToCloud() {
     const fullDataStr = JSON.stringify(placesCache.searches);
     const fullSizeKB = Math.round(fullDataStr.length / 1024);
 
-    console.log(`💾 Saving prospect cache to cloud (${fullSizeKB} KB, ${Object.keys(placesCache.searches).length} searches)...`);
-
     // Supabase has a reasonable size limit - if under 5MB we're good
     if (fullDataStr.length <= 5000000) {
       await saveToCloud('placesCache', placesCache.searches);
       lastCloudSaveTime = Date.now();
-      console.log(`✅ Prospect cache saved to cloud (${fullSizeKB} KB)`);
     } else {
       console.warn('⚠️ Prospect cache too large for cloud sync (>5MB), keeping local only');
     }
@@ -15711,7 +15665,6 @@ function setupKanbanDrag() {
         }
       }
 
-      console.log('🟢 DRAG START - Item ID:', this.dataset.itemId, 'From column:', this.dataset.column);
       draggedItem = this;
       this.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
@@ -15755,9 +15708,7 @@ function setupKanbanDrag() {
     // Handle drop on individual items to insert at position
     item.ondrop = async function(e) {
       e.preventDefault();
-      e.stopPropagation(); // Prevent column ondrop from also firing
-
-      console.log('🔵 DROP on item - draggedItem exists:', !!draggedItem);
+      e.stopPropagation();
 
       // Clean up all visual indicators immediately
       document.querySelectorAll('.kanban-item.drag-over').forEach(el => {
@@ -15767,17 +15718,12 @@ function setupKanbanDrag() {
         el.classList.remove('drag-over-column');
       });
 
-      if (!draggedItem || draggedItem === this) {
-        console.log('⚠️ DROP ABORTED - draggedItem is null or same item');
-        return;
-      }
+      if (!draggedItem || draggedItem === this) return;
 
       const fromColumn = draggedItem.closest('.kanban-column').dataset.column;
       const toColumn = this.closest('.kanban-column').dataset.column;
       const itemId = draggedItem.dataset.itemId;
       const targetItemId = this.dataset.itemId;
-
-      console.log(`🟣 DROPPING item ${itemId} before item ${targetItemId} in column ${toColumn} (from ${fromColumn})`);
 
       // Find and remove from old column
       const fromItems = kanbanState.columns[fromColumn] || [];
