@@ -14992,6 +14992,7 @@ async function loadKanban() {
   renderKanban();
   refreshFollowUpDashboard();
   refreshContactStatusDashboard();
+  refreshAnalytics();
 }
 
 // Remove all duplicate prospects from kanban data (not just rendering)
@@ -17762,6 +17763,169 @@ function contactAgain(prospectId, channelKey) {
       }
       break;
   }
+}
+
+// ============================================
+// ANALYTICS DASHBOARD FUNCTIONS
+// ============================================
+
+// Analytics state
+let analyticsState = {
+  totalOutreach: 0,
+  totalResponses: 0,
+  totalInterested: 0,
+  totalClients: 0,
+  channelStats: {},
+  timeRange: 30
+};
+
+// Refresh analytics dashboard
+function refreshAnalytics() {
+  const timeRangeSelect = document.getElementById('analyticsTimeRange');
+  const days = timeRangeSelect?.value === 'all' ? null : parseInt(timeRangeSelect?.value || 30);
+  analyticsState.timeRange = days;
+
+  const cutoffDate = days ? new Date(Date.now() - days * 24 * 60 * 60 * 1000) : null;
+
+  // Reset counts
+  analyticsState.totalOutreach = 0;
+  analyticsState.totalResponses = 0;
+  analyticsState.totalInterested = 0;
+  analyticsState.channelStats = {
+    texted: { count: 0, responses: 0, label: '📱 Text', color: 'green' },
+    emailed: { count: 0, responses: 0, label: '✉️ Email', color: 'blue' },
+    facebookMessaged: { count: 0, responses: 0, label: '📘 Facebook', color: 'indigo' },
+    dmed: { count: 0, responses: 0, label: '📷 Instagram', color: 'pink' },
+    called: { count: 0, responses: 0, label: '📞 Call', color: 'orange' }
+  };
+
+  // Count clients created in time range
+  analyticsState.totalClients = Object.values(crmState.clients || {}).filter(c => {
+    if (!cutoffDate) return true;
+    const created = c.createdAt ? new Date(c.createdAt) : null;
+    return created && created >= cutoffDate;
+  }).length;
+
+  // Scan all kanban columns
+  Object.keys(kanbanState.columns).forEach(columnKey => {
+    const items = kanbanState.columns[columnKey] || [];
+    items.forEach(prospect => {
+      if (!prospect || typeof prospect !== 'object') return;
+      const ct = prospect.contactTracking || {};
+
+      // Check each channel
+      Object.keys(analyticsState.channelStats).forEach(channel => {
+        if (ct[channel]) {
+          const contactDate = ct[channel + 'Date'] ? new Date(ct[channel + 'Date']) : null;
+          if (!cutoffDate || (contactDate && contactDate >= cutoffDate)) {
+            analyticsState.channelStats[channel].count++;
+            analyticsState.totalOutreach++;
+
+            if (ct.responded) {
+              analyticsState.channelStats[channel].responses++;
+              analyticsState.totalResponses++;
+            }
+          }
+        }
+      });
+
+      // Count interested
+      if (ct.responseType === 'Interested') {
+        const responseDate = ct.respondedDate ? new Date(ct.respondedDate) : null;
+        if (!cutoffDate || (responseDate && responseDate >= cutoffDate)) {
+          analyticsState.totalInterested++;
+        }
+      }
+    });
+  });
+
+  // Update UI
+  renderAnalytics();
+}
+
+// Render analytics UI
+function renderAnalytics() {
+  // Key metrics
+  const totalOutreachEl = document.getElementById('analyticsTotalOutreach');
+  const responseRateEl = document.getElementById('analyticsResponseRate');
+  const interestedEl = document.getElementById('analyticsInterested');
+  const conversionRateEl = document.getElementById('analyticsConversionRate');
+  const newClientsEl = document.getElementById('analyticsNewClients');
+
+  if (totalOutreachEl) totalOutreachEl.textContent = analyticsState.totalOutreach;
+
+  const responseRate = analyticsState.totalOutreach > 0
+    ? Math.round((analyticsState.totalResponses / analyticsState.totalOutreach) * 100)
+    : 0;
+  if (responseRateEl) responseRateEl.textContent = responseRate + '%';
+
+  if (interestedEl) interestedEl.textContent = analyticsState.totalInterested;
+
+  const conversionRate = analyticsState.totalOutreach > 0
+    ? Math.round((analyticsState.totalClients / analyticsState.totalOutreach) * 100)
+    : 0;
+  if (conversionRateEl) conversionRateEl.textContent = conversionRate + '%';
+
+  if (newClientsEl) newClientsEl.textContent = analyticsState.totalClients;
+
+  // Channel bars
+  const channelBars = document.getElementById('analyticsChannelBars');
+  if (channelBars) {
+    const maxCount = Math.max(...Object.values(analyticsState.channelStats).map(s => s.count), 1);
+
+    channelBars.innerHTML = Object.entries(analyticsState.channelStats)
+      .sort((a, b) => b[1].count - a[1].count)
+      .map(([key, stats]) => {
+        const width = Math.round((stats.count / maxCount) * 100);
+        const responseRate = stats.count > 0 ? Math.round((stats.responses / stats.count) * 100) : 0;
+        return `
+          <div class="flex items-center gap-3">
+            <div class="w-24 text-sm font-medium text-gray-700">${stats.label}</div>
+            <div class="flex-1 bg-gray-100 rounded-full h-4 overflow-hidden">
+              <div class="bg-${stats.color}-500 h-full rounded-full transition-all" style="width: ${width}%"></div>
+            </div>
+            <div class="w-20 text-right text-sm">
+              <span class="font-bold text-gray-700">${stats.count}</span>
+              <span class="text-gray-400 text-xs">(${responseRate}%)</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+  }
+}
+
+// Export analytics as CSV
+function exportAnalytics() {
+  const timeRange = analyticsState.timeRange ? `Last ${analyticsState.timeRange} days` : 'All time';
+  const date = new Date().toISOString().split('T')[0];
+
+  let csv = `9x12 Pro Analytics Export\n`;
+  csv += `Generated: ${date}\n`;
+  csv += `Time Range: ${timeRange}\n\n`;
+
+  csv += `Key Metrics\n`;
+  csv += `Total Outreach,${analyticsState.totalOutreach}\n`;
+  csv += `Total Responses,${analyticsState.totalResponses}\n`;
+  csv += `Response Rate,${analyticsState.totalOutreach > 0 ? Math.round((analyticsState.totalResponses / analyticsState.totalOutreach) * 100) : 0}%\n`;
+  csv += `Interested,${analyticsState.totalInterested}\n`;
+  csv += `New Clients,${analyticsState.totalClients}\n\n`;
+
+  csv += `Channel Performance\n`;
+  csv += `Channel,Outreach,Responses,Response Rate\n`;
+  Object.entries(analyticsState.channelStats).forEach(([key, stats]) => {
+    const rate = stats.count > 0 ? Math.round((stats.responses / stats.count) * 100) : 0;
+    csv += `${stats.label.replace(/[📱✉️📘📷📞]/g, '').trim()},${stats.count},${stats.responses},${rate}%\n`;
+  });
+
+  // Download
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `9x12-analytics-${date}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('📥 Analytics exported!', true);
 }
 
 // Quick action: call a number
