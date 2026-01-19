@@ -1963,7 +1963,10 @@ function clientBulkSendSMS() {
         const filled = fillTemplateVariables(template, data);
         const message = filled.body;
 
-        window.open(`sms:${client.contact.phone}?body=${encodeURIComponent(message)}`, '_blank');
+        // Copy message and open Google Voice
+        const cleanPhone = client.contact.phone.replace(/\D/g, '');
+        navigator.clipboard.writeText(message).catch(() => {});
+        window.open(`https://voice.google.com/u/0/messages?itemId=t.+1${cleanPhone}`, '_blank');
         successCount++;
       }
     });
@@ -1975,7 +1978,7 @@ function clientBulkSendSMS() {
       saveUserTemplates();
     }
 
-    toast(`✅ Opened SMS for ${successCount} client${successCount > 1 ? 's' : ''}`, true);
+    toast(`📋 Message copied! Opened Google Voice for ${successCount} client${successCount > 1 ? 's' : ''}`, true);
 
     // Clear selections
     clearClientSelection();
@@ -5969,11 +5972,17 @@ function sendTextMessage(prospectOrId) {
   // Build short SMS message (curiosity hook style)
   const message = `Hey! Quick question - do you guys do any direct mail advertising? I'm putting a community postcard together for ${zip} and have one ${businessType} spot left.`;
 
-  // Use sms: protocol (works on mobile and some desktop)
-  const smsLink = `sms:${cleanPhone}?body=${encodeURIComponent(message)}`;
-
-  window.open(smsLink, '_blank');
-  toast(`💬 Opening text to ${businessName}...`, true);
+  // Copy message to clipboard and open Google Voice
+  navigator.clipboard.writeText(message).then(() => {
+    const formattedPhone = cleanPhone.replace(/\D/g, '');
+    window.open(`https://voice.google.com/u/0/messages?itemId=t.+1${formattedPhone}`, '_blank');
+    toast(`📋 Message copied! Google Voice opened for ${businessName}`, true);
+  }).catch(() => {
+    // Fallback if clipboard fails
+    const formattedPhone = cleanPhone.replace(/\D/g, '');
+    window.open(`https://voice.google.com/u/0/messages?itemId=t.+1${formattedPhone}`, '_blank');
+    toast(`📱 Google Voice opened for ${businessName}`, true);
+  });
 }
 
 // ========== AI PITCH GENERATOR (INLINE) ==========
@@ -7628,7 +7637,13 @@ function pipelineSendText() {
     return;
   }
   const message = pipelineOutreachState.aiResults?.text || '';
-  window.open(`sms:${prospect.phone}${message ? '?body=' + encodeURIComponent(message) : ''}`, '_blank');
+  // Copy message and open Google Voice
+  if (message) {
+    navigator.clipboard.writeText(message).catch(() => {});
+  }
+  const formattedPhone = prospect.phone.replace(/\D/g, '');
+  window.open(`https://voice.google.com/u/0/messages?itemId=t.+1${formattedPhone}`, '_blank');
+  toast('📋 Message copied! Google Voice opened', true);
 }
 
 function pipelineSendEmail() {
@@ -12878,18 +12893,16 @@ async function quickSendWithTemplate(sendType) {
       return;
     }
 
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const cleanPhone = currentProspectDetail.phone.replace(/\D/g, '');
 
-    if (isMobile) {
-      window.location.href = `sms:${cleanPhone}?body=${encodeURIComponent(filled.body)}`;
-    } else {
-      // Copy to clipboard for desktop
-      navigator.clipboard.writeText(filled.body).then(() => {
-        toast('📋 Message copied to clipboard!', true);
-        window.open('https://voice.google.com/u/0/messages', '_blank');
-      });
-    }
+    // Always use Google Voice for consistency across all devices
+    navigator.clipboard.writeText(filled.body).then(() => {
+      window.open(`https://voice.google.com/u/0/messages?itemId=t.+1${cleanPhone}`, '_blank');
+      toast('📋 Message copied! Google Voice opened', true);
+    }).catch(() => {
+      window.open(`https://voice.google.com/u/0/messages?itemId=t.+1${cleanPhone}`, '_blank');
+      toast('📱 Google Voice opened', true);
+    });
 
     // Auto-log interaction
     await logQuickSendInteraction('sms', currentQuickSendTemplate.name);
@@ -13094,26 +13107,16 @@ function sendSMSMessage() {
     return;
   }
 
-  // Detect if mobile or desktop
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   const cleanPhone = phone.replace(/\D/g, ''); // Remove non-digits
 
-  if (isMobile) {
-    // Mobile: Use native SMS protocol
-    const smsUrl = `sms:${cleanPhone}&body=${encodeURIComponent(message)}`;
-    window.location.href = smsUrl;
-  } else {
-    // Desktop: Open Google Voice and copy message
-    const googleVoiceUrl = `https://voice.google.com/u/0/messages`;
-    window.open(googleVoiceUrl, '_blank');
-
-    // Copy phone and message to clipboard
-    navigator.clipboard.writeText(`To: ${phone}\n\n${message}`).then(() => {
-      showSuccess(`📋 Message copied! Google Voice opened in new tab. Paste to send to: ${phone}`);
-    }).catch(() => {
-      showInfo(`Google Voice opened. Send to: ${phone}\n\nMessage: ${message}`);
-    });
-  }
+  // Always use Google Voice for consistency across all devices
+  navigator.clipboard.writeText(message).then(() => {
+    window.open(`https://voice.google.com/u/0/messages?itemId=t.+1${cleanPhone}`, '_blank');
+    showSuccess(`📋 Message copied! Google Voice opened for: ${phone}`);
+  }).catch(() => {
+    window.open(`https://voice.google.com/u/0/messages?itemId=t.+1${cleanPhone}`, '_blank');
+    showInfo(`Google Voice opened. Send to: ${phone}`);
+  });
 
   // Log this interaction
   if (!business.interactions) {
@@ -13636,20 +13639,16 @@ async function sendQuickTemplateFromPicker(clientId, sendType) {
 
   // Send based on type
   if (sendType === 'sms') {
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const cleanPhone = client.contact.phone.replace(/\D/g, '');
 
-    if (isMobile) {
-      window.location.href = `sms:${cleanPhone}?body=${encodeURIComponent(filled.body)}`;
-    } else {
-      try {
-        await navigator.clipboard.writeText(filled.body);
-        toast('📋 Message copied to clipboard!', true);
-        window.open('https://voice.google.com/u/0/messages', '_blank');
-      } catch (err) {
-        toast('Failed to copy message. Please copy manually.', false);
-        console.error('Clipboard error:', err);
-      }
+    // Always use Google Voice for consistency across all devices
+    try {
+      await navigator.clipboard.writeText(filled.body);
+      window.open(`https://voice.google.com/u/0/messages?itemId=t.+1${cleanPhone}`, '_blank');
+      toast('📋 Message copied! Google Voice opened', true);
+    } catch (err) {
+      window.open(`https://voice.google.com/u/0/messages?itemId=t.+1${cleanPhone}`, '_blank');
+      toast('📱 Google Voice opened', true);
     }
 
     // Log interaction
@@ -14090,25 +14089,16 @@ function quickAction(type) {
       break;
     case 'sms':
       if (prospect.phone) {
-        // Detect if mobile or desktop
-        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         const cleanPhone = prospect.phone.replace(/\D/g, ''); // Remove non-digits
 
-        if (isMobile) {
-          // Mobile: Use native SMS protocol
-          window.location.href = `sms:${cleanPhone}`;
-        } else {
-          // Desktop: Open Google Voice
-          const googleVoiceUrl = `https://voice.google.com/u/0/messages`;
-          window.open(googleVoiceUrl, '_blank');
-
-          // Copy phone to clipboard
-          navigator.clipboard.writeText(prospect.phone).then(() => {
-            toast(`📋 Phone number copied: ${prospect.phone}\nGoogle Voice opened in new tab.`, true);
-          }).catch(() => {
-            toast(`📱 Google Voice opened. Send to: ${prospect.phone}`, true);
-          });
-        }
+        // Always use Google Voice for consistency across all devices
+        navigator.clipboard.writeText(prospect.phone).then(() => {
+          window.open(`https://voice.google.com/u/0/messages?itemId=t.+1${cleanPhone}`, '_blank');
+          toast(`📋 Phone copied! Google Voice opened for: ${prospect.phone}`, true);
+        }).catch(() => {
+          window.open(`https://voice.google.com/u/0/messages?itemId=t.+1${cleanPhone}`, '_blank');
+          toast(`📱 Google Voice opened. Send to: ${prospect.phone}`, true);
+        });
       }
       break;
     case 'email':
@@ -20024,9 +20014,12 @@ function bulkSendSMS() {
                 const message = filled.body;
 
                 // Show progress toast
-                toast(`📱 Opening SMS ${currentIndex + 1} of ${selectedCount}: ${prospect.businessName}`, true);
+                toast(`📱 Opening Google Voice ${currentIndex + 1} of ${selectedCount}: ${prospect.businessName}`, true);
 
-                window.open(`sms:${prospect.phone}?body=${encodeURIComponent(message)}`, '_blank');
+                // Copy message and open Google Voice
+                const cleanPhone = prospect.phone.replace(/\D/g, '');
+                navigator.clipboard.writeText(message).catch(() => {});
+                window.open(`https://voice.google.com/u/0/messages?itemId=t.+1${cleanPhone}`, '_blank');
                 successCount++;
             } else if (prospect && !prospect.phone) {
                 toast(`⚠️ Skipping ${prospect.businessName} - no phone number`, false);
@@ -20034,8 +20027,8 @@ function bulkSendSMS() {
 
             currentIndex++;
 
-            // Wait 2 seconds before next SMS to avoid popup blocker
-            setTimeout(processNextSMS, 2000);
+            // Wait 3 seconds before next to allow Google Voice to load
+            setTimeout(processNextSMS, 3000);
         };
 
         // Start processing
