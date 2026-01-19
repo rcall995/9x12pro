@@ -17557,9 +17557,9 @@ function renderFollowUpDashboard() {
               <div class="font-semibold text-gray-900 text-sm truncate">${esc(p.businessName || 'Unknown')}</div>
               <div class="text-xs text-red-600 mt-0.5">${p.daysOverdue}d overdue</div>
             </div>
-            <a href="outreach-ipad.html" target="_blank" onclick="event.stopPropagation()" class="flex-shrink-0 px-3 py-1.5 bg-red-500 text-white text-xs rounded-lg hover:bg-red-600 font-medium">
+            <button onclick="event.stopPropagation(); window.open('outreach-ipad.html', '_blank', 'noopener,noreferrer')" class="flex-shrink-0 px-3 py-1.5 bg-red-500 text-white text-xs rounded-lg hover:bg-red-600 font-medium">
               Open Hub
-            </a>
+            </button>
           </div>
         </div>
       `).join('');
@@ -17579,9 +17579,9 @@ function renderFollowUpDashboard() {
               <div class="font-semibold text-gray-900 text-sm truncate">${esc(p.businessName || 'Unknown')}</div>
               <div class="text-xs text-amber-600 mt-0.5">Due today</div>
             </div>
-            <a href="outreach-ipad.html" target="_blank" onclick="event.stopPropagation()" class="flex-shrink-0 px-3 py-1.5 bg-amber-500 text-white text-xs rounded-lg hover:bg-amber-600 font-medium">
+            <button onclick="event.stopPropagation(); window.open('outreach-ipad.html', '_blank', 'noopener,noreferrer')" class="flex-shrink-0 px-3 py-1.5 bg-amber-500 text-white text-xs rounded-lg hover:bg-amber-600 font-medium">
               Open Hub
-            </a>
+            </button>
           </div>
         </div>
       `).join('');
@@ -17613,9 +17613,9 @@ function renderFollowUpDashboard() {
                 <div class="font-semibold text-gray-900 text-sm truncate">${esc(p.businessName || 'Unknown')}</div>
                 <div class="text-xs text-purple-600 mt-0.5">${channelIcon} Step ${p.stepNumber}</div>
               </div>
-              <a href="outreach-ipad.html" target="_blank" class="flex-shrink-0 px-3 py-1.5 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 font-medium">
+              <button onclick="window.open('outreach-ipad.html', '_blank', 'noopener,noreferrer')" class="flex-shrink-0 px-3 py-1.5 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 font-medium">
                 Open Hub
-              </a>
+              </button>
             </div>
           </div>
         `;
@@ -18145,9 +18145,9 @@ function processAllDueSequences() {
       </div>
 
       <div class="flex gap-3">
-        <a href="outreach-ipad.html" target="_blank" class="flex-1 px-4 py-2 bg-indigo-600 text-white text-center rounded-lg hover:bg-indigo-700 font-medium">
+        <button onclick="window.open('outreach-ipad.html', '_blank', 'noopener,noreferrer')" class="flex-1 px-4 py-2 bg-indigo-600 text-white text-center rounded-lg hover:bg-indigo-700 font-medium">
           Open Outreach Hub
-        </a>
+        </button>
         <button onclick="closeSequenceProcessModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
           Close
         </button>
