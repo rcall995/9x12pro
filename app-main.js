@@ -4020,8 +4020,6 @@ function pruneOldCacheEntries(cacheData) {
     return cacheData;
   }
 
-  console.log(`🧹 Cache pruning needed: ${entries.length} entries, ${Math.round(currentSize)} KB`);
-
   // Sort entries by lastFetched (oldest first) - entries without lastFetched go first (oldest)
   const sortedEntries = entries.sort((a, b) => {
     const dateA = a[1].lastFetched ? new Date(a[1].lastFetched).getTime() : 0;
@@ -4048,9 +4046,6 @@ function pruneOldCacheEntries(cacheData) {
     prunedData = Object.fromEntries(prunedEntries);
     newSize = JSON.stringify(prunedData).length / 1024;
   }
-
-  const removed = entries.length - prunedEntries.length;
-  console.log(`🧹 Cache pruned: Removed ${removed} old entries. New size: ${prunedEntries.length} entries, ${Math.round(newSize)} KB`);
 
   return prunedData;
 }
@@ -10678,8 +10673,6 @@ window.handleCategoryChange = handleCategoryChange;
 window.toggleFilterDropdown = toggleFilterDropdown;
 
 function renderProspectPool() {
-  console.log('🔵 DEBUG: renderProspectPool ENTRY - prospect-list length:', kanbanState.columns['prospect-list']?.length);
-
   // Clear the rendered prospects lookup at the start of each render
   prospectPoolState.renderedProspects = {};
 
@@ -10979,7 +10972,6 @@ function renderProspectPool() {
       // Skip duplicates by placeId
       if (prospect.placeId && unifiedSeenPlaceIds.has(prospect.placeId)) {
         manualProspectsSkipped++;
-        console.log(`🔵 Skipping duplicate manual prospect (placeId): ${prospect.businessName || prospect.name}`);
         return;
       }
 
@@ -10988,7 +10980,6 @@ function renderProspectPool() {
       const normalizedName = normalizeNameForDedup(prospectName);
       if (normalizedName && unifiedSeenNames.has(normalizedName)) {
         manualProspectsSkipped++;
-        console.log(`🔵 Skipping duplicate manual prospect (name): ${prospectName}`);
         return;
       }
 
@@ -11004,18 +10995,8 @@ function renderProspectPool() {
         availableZips.add(actualZipForProspect);
       }
 
-      // DEBUG: Log enrichment status for prospects with contact data
+      // Check if prospect has contact data (for enrichment status)
       const hasContactData = !!(prospect.email || prospect.website || prospect.facebook || prospect.instagram || prospect.linkedin);
-      if (hasContactData) {
-        console.log('🔍 renderProspectPool - Manual prospect with contact data:', {
-          name: prospect.businessName || prospect.name,
-          isEnriched: prospect.isEnriched,
-          enriched: prospect.enriched,
-          hasContactData,
-          website: prospect.website,
-          facebook: prospect.facebook
-        });
-      }
 
       // Check if this manual prospect is already in the system (kanban or clients)
       const manualProspectName = prospect.businessName || prospect.name || prospect.title || '';
@@ -11067,8 +11048,7 @@ function renderProspectPool() {
       const normalizedName = normalizeNameForDedup(prospectName);
       if (normalizedName && unifiedSeenNames.has(normalizedName)) {
         searchProspectsSkipped++;
-        console.log(`🔵 Skipping duplicate search prospect (name): ${prospectName}`);
-        return; // Skip duplicate by name
+        return;
       }
 
       unifiedByCategory[category].push({
@@ -11087,8 +11067,6 @@ function renderProspectPool() {
       searchProspectsAdded++;
     });
   });
-
-  console.log(`🔵 Prospect Pool Deduplication: Manual=${manualProspectsAdded} added (${manualProspectsSkipped} duplicates skipped), Search=${searchProspectsAdded} added (${searchProspectsSkipped} duplicates skipped)`);
 
   // ========= CLIENT MATCHING: Tag and count existing clients =========
   const clientNameSet = getClientNameSet();
@@ -11578,22 +11556,15 @@ function renderProspectPool() {
       inlineZipCheckboxes.innerHTML = zipCheckboxContainer.innerHTML;
     }
   }
-
-  console.log('🔵 DEBUG: renderProspectPool EXIT - prospect-list length:', kanbanState.columns['prospect-list']?.length);
 }
 
 function togglePoolProspect(placeId) {
-  console.log('🟢 togglePoolProspect called with ID:', placeId);
   if (prospectPoolState.selectedIds.has(placeId)) {
     prospectPoolState.selectedIds.delete(placeId);
-    console.log('🟢 Removed from selection. Total selected:', prospectPoolState.selectedIds.size);
   } else {
     prospectPoolState.selectedIds.add(placeId);
-    console.log('🟢 Added to selection. Total selected:', prospectPoolState.selectedIds.size);
   }
-  console.log('🟢 Selected IDs:', Array.from(prospectPoolState.selectedIds));
   updatePoolSelectedCount();
-  // Just update the checkbox state, don't re-render everything
 }
 
 function areCategoryProspectsSelected(category) {
@@ -11925,24 +11896,14 @@ async function addFromProspectPool() {
 
       kanbanState.columns[prospectingColumn].push(newLead);
       addedCount++;
-      console.log('🔵 Added to kanban. Total added:', addedCount);
-      // Enrichment already done above - business is ready to be moved to column 2
     }
 
-    console.log('🔵 Saving kanban...');
-    console.log('🔵 DEBUG: Before saveKanban, prospect-list length:', kanbanState.columns['prospect-list']?.length);
-    await saveKanban(); // AWAIT to prevent race condition
-    console.log('🔵 DEBUG: After saveKanban, prospect-list length:', kanbanState.columns['prospect-list']?.length);
-    console.log('🔵 Rendering kanban...');
+    await saveKanban();
     renderKanban();
-    console.log('🔵 DEBUG: After renderKanban, prospect-list length:', kanbanState.columns['prospect-list']?.length);
 
     // Clear selections and re-render pool
-    console.log('🔵 Clearing selections and re-rendering pool...');
     prospectPoolState.selectedIds.clear();
-    console.log('🔵 DEBUG: Before renderProspectPool, prospect-list length:', kanbanState.columns['prospect-list']?.length);
     renderProspectPool();
-    console.log('🔵 DEBUG: After renderProspectPool, prospect-list length:', kanbanState.columns['prospect-list']?.length);
 
     // Show success message
     let message = `✅ Added ${addedCount} prospect${addedCount === 1 ? '' : 's'}! Ready to start outreach.`;
@@ -11958,9 +11919,7 @@ async function addFromProspectPool() {
     }
 
     // Switch to Pipeline tab
-    console.log('🔵 DEBUG: Before switchTab, prospect-list length:', kanbanState.columns['prospect-list']?.length);
     switchTab('pipeline');
-    console.log('🔵 DEBUG: After switchTab, prospect-list length:', kanbanState.columns['prospect-list']?.length);
   } catch(err) {
     console.error('Error adding from pool:', err);
     toast('Failed to add prospects. Please try again.', false);
@@ -12348,17 +12307,11 @@ function clearCacheByZip(zipCode) {
     (p.actualZip === zipCode) || (p.zipCode === zipCode) || (p.zip === zipCode)
   );
   const manualCount = manualMatches.length;
-  console.log(`🔍 DEBUG: Found ${manualCount} manual prospects for ZIP ${zipCode}`);
 
-  // Debug: Log all cache keys
   const allKeys = Object.keys(placesCache.searches);
-  console.log(`🔍 DEBUG: All cache keys:`, allKeys);
-  console.log(`🔍 DEBUG: Looking for keys starting with: "${zipCode}-"`);
 
   // Find all cache keys that start with this ZIP code
   const keysToDelete = allKeys.filter(key => key.startsWith(`${zipCode}-`));
-
-  console.log(`🔍 DEBUG: Found ${keysToDelete.length} matching keys:`, keysToDelete);
 
   // Check ALL cache entries for businesses with matching ZIP (handles legacy data and mismatched keys)
   let otherKeysWithMatches = [];
@@ -12376,7 +12329,6 @@ function clearCacheByZip(zipCode) {
       if (matchingBusinesses.length > 0) {
         otherKeysWithMatches.push({ key, count: matchingBusinesses.length });
         otherBusinessCount += matchingBusinesses.length;
-        console.log(`🔍 DEBUG: Found ${matchingBusinesses.length} businesses for ZIP ${zipCode} in cache key '${key}'`);
       }
     }
   });
