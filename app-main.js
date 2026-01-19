@@ -1,3 +1,66 @@
+/**
+ * 9x12 Pro - Main Application Script
+ * ===================================
+ *
+ * TABLE OF CONTENTS (approximate line numbers):
+ *
+ * 1. CONFIG & INITIALIZATION ............ Lines 1-500
+ *    - Supabase setup, auth, version checking
+ *
+ * 2. CRM & CLIENT MANAGEMENT ............ Lines 500-2000
+ *    - Client state, rendering, modals
+ *    - Bulk SMS/Email for clients
+ *
+ * 3. QUICK ACTION POPUP ................. Lines 2250-2500
+ *    - Prospect quick actions modal
+ *    - Contact tracking, response tracking
+ *
+ * 4. PROSPECT POOL ...................... Lines 2500-6000
+ *    - Search, enrichment, import/export
+ *    - Business data management
+ *
+ * 5. AI PITCH GENERATOR ................. Lines 6000-6300
+ *    - Inline AI pitch generation
+ *
+ * 6. SPARK COMMENT SYSTEM ............... Lines 6300-7000
+ *    - Comment engagement AI
+ *
+ * 7. CLOSE DEALS & PIPELINE ............. Lines 7000-8000
+ *    - Pipeline outreach panel
+ *
+ * 8. KANBAN BOARD ....................... Lines 14000-17000
+ *    - Column rendering, drag-drop
+ *    - Selection, filtering, actions
+ *
+ * 9. FOLLOW-UP DASHBOARD ................ Lines 17200-17400
+ *    - Overdue, due today tracking
+ *    - Sequence actions due
+ *
+ * 10. CONTACT STATUS DASHBOARD .......... Lines 17400-17700
+ *     - Texted, emailed, FB, IG tracking
+ *
+ * 11. SEQUENCE AUTO-SCHEDULING .......... Lines 17700-17900
+ *     - Alert banner, batch processing
+ *
+ * 12. OUTREACH SEQUENCES ................ Lines 17900-18200
+ *     - Assign, advance, pause, cancel
+ *
+ * 13. TEMPLATES & QUICK SEND ............ Lines 18200-20000
+ *     - Template management
+ *     - Bulk send operations
+ *
+ * 14. GETTING STARTED & STATS ........... Lines 21400-21700
+ *     - Checklist, dashboard stats
+ *
+ * 15. CLOUD SYNC ....................... Lines 23000-24000
+ *     - Supabase sync functions
+ *
+ * 16. ONBOARDING ........................ Lines 24600-24700
+ *     - New user wizard
+ *
+ * See /modules/README.md for future modularization roadmap.
+ */
+
 console.log('🚀 Main app.html script starting...');
 
 // Hide loading overlay - called when app is ready
