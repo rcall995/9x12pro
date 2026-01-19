@@ -17459,6 +17459,9 @@ function renderFollowUpDashboard() {
   if (dashboardWrapper) {
     dashboardWrapper.style.display = 'block';
   }
+
+  // Check for due sequences and show alert if needed
+  checkSequencesDue();
 }
 
 // ============================================
@@ -17727,6 +17730,168 @@ function scrollToProspect(prospectId, columnKey) {
     card.scrollIntoView({ behavior: 'smooth', block: 'center' });
     card.classList.add('ring-4', 'ring-yellow-400');
     setTimeout(() => card.classList.remove('ring-4', 'ring-yellow-400'), 2000);
+  }
+}
+
+// ============================================
+// SEQUENCE AUTO-SCHEDULING FUNCTIONS
+// ============================================
+
+// Check for due sequences on app load
+function checkSequencesDue() {
+  const dueCount = followUpDashboardState.sequenceActionsDue?.length || 0;
+
+  // Update alert banner
+  const banner = document.getElementById('sequenceAlertBanner');
+  const alertCount = document.getElementById('sequenceAlertCount');
+  const btnProcessAll = document.getElementById('btnProcessAllSequences');
+
+  if (dueCount > 0) {
+    // Show alert banner if not dismissed today
+    const dismissedToday = localStorage.getItem('sequenceAlertDismissed');
+    const today = new Date().toDateString();
+
+    if (dismissedToday !== today && banner) {
+      banner.classList.remove('hidden');
+    }
+
+    if (alertCount) alertCount.textContent = dueCount;
+    if (btnProcessAll) btnProcessAll.classList.remove('hidden');
+  } else {
+    if (banner) banner.classList.add('hidden');
+    if (btnProcessAll) btnProcessAll.classList.add('hidden');
+  }
+}
+
+// Dismiss the sequence alert banner for today
+function dismissSequenceAlert() {
+  const banner = document.getElementById('sequenceAlertBanner');
+  if (banner) banner.classList.add('hidden');
+
+  // Remember dismissal for today
+  localStorage.setItem('sequenceAlertDismissed', new Date().toDateString());
+}
+
+// Process all due sequences - opens Outreach Hub
+function processAllDueSequences() {
+  const dueCount = followUpDashboardState.sequenceActionsDue?.length || 0;
+
+  if (dueCount === 0) {
+    toast('No sequence steps due!', true);
+    return;
+  }
+
+  // Show processing modal with list of due actions
+  const dueActions = followUpDashboardState.sequenceActionsDue;
+
+  const modal = document.createElement('div');
+  modal.id = 'sequenceProcessModal';
+  modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50';
+  modal.innerHTML = `
+    <div class="bg-white rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[80vh] overflow-y-auto">
+      <h3 class="text-xl font-bold text-gray-900 mb-4">📋 Process Sequence Steps</h3>
+      <p class="text-sm text-gray-600 mb-4">${dueCount} step${dueCount > 1 ? 's' : ''} ready to execute. Click each to process:</p>
+
+      <div class="space-y-3 mb-6">
+        ${dueActions.map((p, index) => {
+          const channelIcons = { email: '✉️', text: '📱', call: '📞', facebook: '📘', instagram: '📷', linkedin: '💼' };
+          const icon = channelIcons[p.step?.channel] || '📋';
+          return `
+            <div id="seqStep${index}" class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex-1 min-w-0">
+                  <div class="font-semibold text-gray-900">${esc(p.businessName || 'Unknown')}</div>
+                  <div class="text-sm text-purple-600">${icon} Step ${p.stepNumber}: ${p.step?.channel || 'N/A'}</div>
+                </div>
+                <button onclick="executeAndAdvanceStep('${p.id}', ${index})" class="px-3 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 font-medium">
+                  Execute
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+
+      <div class="flex gap-3">
+        <a href="outreach-ipad.html" class="flex-1 px-4 py-2 bg-indigo-600 text-white text-center rounded-lg hover:bg-indigo-700 font-medium">
+          Open Outreach Hub
+        </a>
+        <button onclick="closeSequenceProcessModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
+          Close
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  // Hide the alert banner
+  dismissSequenceAlert();
+}
+
+// Close sequence process modal
+function closeSequenceProcessModal() {
+  const modal = document.getElementById('sequenceProcessModal');
+  if (modal) modal.remove();
+}
+
+// Execute a step and advance the sequence
+async function executeAndAdvanceStep(prospectId, stepIndex) {
+  // Find the prospect
+  let prospect = null;
+  let columnKey = null;
+  for (const colKey of Object.keys(kanbanState.columns)) {
+    const found = kanbanState.columns[colKey].find(p => p && String(p.id) === String(prospectId));
+    if (found) {
+      prospect = found;
+      columnKey = colKey;
+      break;
+    }
+  }
+
+  if (!prospect || !prospect.activeSequence) {
+    toast('Prospect not found or not in sequence', false);
+    return;
+  }
+
+  const sequence = outreachSequencesState.sequences[prospect.activeSequence.sequenceId];
+  if (!sequence) {
+    toast('Sequence not found', false);
+    return;
+  }
+
+  const currentStep = prospect.activeSequence.currentStep;
+  const stepDef = sequence.steps[currentStep - 1];
+
+  // Execute the step (open the channel)
+  await executeSequenceStep(prospect, stepDef);
+
+  // Mark the step element as done
+  const stepEl = document.getElementById(`seqStep${stepIndex}`);
+  if (stepEl) {
+    stepEl.innerHTML = `
+      <div class="flex items-center justify-between gap-2 opacity-60">
+        <div class="flex-1 min-w-0">
+          <div class="font-semibold text-gray-900 line-through">${esc(prospect.businessName || 'Unknown')}</div>
+          <div class="text-sm text-green-600">✅ Opened - mark as done when complete</div>
+        </div>
+        <button onclick="advanceSequenceFromModal('${prospect.id}')" class="px-3 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700 font-medium">
+          ✓ Done
+        </button>
+      </div>
+    `;
+  }
+}
+
+// Advance sequence after executing step from modal
+async function advanceSequenceFromModal(prospectId) {
+  await advanceSequence(prospectId);
+  toast('✅ Step completed! Sequence advanced.', true);
+
+  // Refresh the modal or close it
+  const dueCount = followUpDashboardState.sequenceActionsDue?.length || 0;
+  if (dueCount === 0) {
+    closeSequenceProcessModal();
+    toast('🎉 All sequence steps processed!', true);
   }
 }
 
