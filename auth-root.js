@@ -152,14 +152,14 @@ function addLogoutButton() {
     // Add user name
     var userName = document.createElement('span');
     userName.id = 'rootUserName';
-    userName.className = 'text-sm font-medium text-gray-600';
+    userName.className = 'text-sm font-medium text-white/90';
     userName.textContent = currentAuthUser.fullName;
 
     // Create logout button
     var logoutBtn = document.createElement('button');
     logoutBtn.id = 'rootLogoutBtn';
     logoutBtn.textContent = 'Logout';
-    logoutBtn.className = 'px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition shadow-md';
+    logoutBtn.className = 'px-4 py-2 text-sm font-semibold text-white bg-white/20 border border-white/30 rounded-lg hover:bg-white/30 transition shadow-md';
     logoutBtn.onclick = function() {
       if (confirm('Are you sure you want to log out?')) {
         supabaseClient.auth.signOut().then(function() {
