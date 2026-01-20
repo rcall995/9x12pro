@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campaign Board Prototype - 9x12 Pro</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.4rem;
+            font-weight: 600;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .header select, .header button {
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: none;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        .header select {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+
+        .header button {
+            background: rgba(255,255,255,0.9);
+            color: #764ba2;
+            font-weight: 600;
+        }
+
+        .view-toggle {
+            display: flex;
+            gap: 5px;
+            background: rgba(0,0,0,0.2);
+            padding: 4px;
+            border-radius: 8px;
+        }
+
+        .view-toggle button {
+            padding: 8px 16px;
+            border: none;
+            background: transparent;
+            color: rgba(255,255,255,0.7);
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+
+        .view-toggle button.active {
+            background: rgba(255,255,255,0.9);
+            color: #764ba2;
+        }
+
+        /* Campaign Board View */
+        .campaign-board {
+            padding: 20px;
+            overflow-x: auto;
+        }
+
+        .phase-labels {
+            display: flex;
+            margin-bottom: 10px;
+            padding: 0 10px;
+        }
+
+        .phase-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #888;
+            padding: 5px 10px;
+            border-radius: 4px;
+        }
+
+        .phase-label.discovery {
+            background: rgba(102, 126, 234, 0.2);
+            color: #667eea;
+            width: calc(33.33% - 10px);
+        }
+
+        .phase-label.sales {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4CAF50;
+            width: calc(66.66% - 10px);
+            margin-left: 20px;
+        }
+
+        .columns-container {
+            display: flex;
+            gap: 15px;
+            min-width: max-content;
+        }
+
+        .column {
+            width: 220px;
+            min-width: 220px;
+            background: #252542;
+            border-radius: 12px;
+            padding: 12px;
+        }
+
+        .column-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #333;
+        }
+
+        .column-title {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .column-count {
+            background: #667eea;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.75rem;
+        }
+
+        .column.sales .column-count {
+            background: #4CAF50;
+        }
+
+        .column-cards {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 200px;
+        }
+
+        .card {
+            background: #1a1a2e;
+            border-radius: 8px;
+            padding: 12px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .card:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+
+        .card-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-bottom: 4px;
+        }
+
+        .card-zip {
+            font-size: 0.8rem;
+            color: #888;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 8px;
+        }
+
+        .card-attempt {
+            background: #333;
+            padding: 6px 8px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+
+        .attempt-label {
+            font-size: 0.75rem;
+            color: #aaa;
+            margin-bottom: 4px;
+        }
+
+        .attempt-bar {
+            height: 4px;
+            background: #444;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .attempt-progress {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 2px;
+            transition: width 0.3s;
+        }
+
+        .card-channels {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            font-size: 0.8rem;
+        }
+
+        .channel {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            padding: 3px 6px;
+            background: #333;
+            border-radius: 4px;
+        }
+
+        .channel.sent {
+            background: rgba(102, 126, 234, 0.3);
+            color: #667eea;
+        }
+
+        .channel.next {
+            background: rgba(255, 193, 7, 0.3);
+            color: #FFC107;
+            border: 1px dashed #FFC107;
+        }
+
+        .channel.locked {
+            background: rgba(76, 175, 80, 0.3);
+            color: #4CAF50;
+        }
+
+        .card-next {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #333;
+            font-size: 0.8rem;
+            color: #FFC107;
+        }
+
+        /* Sales phase card styling */
+        .card.sales-card {
+            border-left: 3px solid #4CAF50;
+        }
+
+        .card.sales-card .card-locked {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #4CAF50;
+            font-size: 0.85rem;
+            margin-top: 8px;
+        }
+
+        /* ZIP Queue View */
+        .zip-queue {
+            padding: 20px;
+            display: none;
+        }
+
+        .zip-queue.active {
+            display: block;
+        }
+
+        .campaign-board.active {
+            display: block;
+        }
+
+        .campaign-board:not(.active) {
+            display: none;
+        }
+
+        .zip-group {
+            background: #252542;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            overflow: hidden;
+        }
+
+        .zip-header {
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .zip-header:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .zip-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .zip-icon {
+            font-size: 1.5rem;
+        }
+
+        .zip-details h3 {
+            font-size: 1.1rem;
+            margin-bottom: 4px;
+        }
+
+        .zip-campaigns {
+            font-size: 0.85rem;
+            color: #888;
+        }
+
+        .zip-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .zip-count {
+            background: #667eea;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+        }
+
+        .work-zip-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .work-zip-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .zip-businesses {
+            display: none;
+            padding: 0 20px 15px;
+        }
+
+        .zip-group.expanded .zip-businesses {
+            display: block;
+        }
+
+        .business-row {
+            display: grid;
+            grid-template-columns: 2fr 1.5fr 1.5fr 1fr 100px;
+            gap: 15px;
+            padding: 12px;
+            background: #1a1a2e;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            align-items: center;
+        }
+
+        .business-name {
+            font-weight: 600;
+        }
+
+        .business-campaign {
+            font-size: 0.85rem;
+            color: #888;
+        }
+
+        .business-next {
+            font-size: 0.85rem;
+            color: #FFC107;
+        }
+
+        .business-channels {
+            display: flex;
+            gap: 4px;
+        }
+
+        .business-channels span {
+            font-size: 0.9rem;
+        }
+
+        .execute-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        /* Rapid Fire Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .rapid-fire-modal {
+            background: #252542;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            padding: 15px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 16px 16px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            font-size: 1.1rem;
+        }
+
+        .modal-progress {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .modal-progress span {
+            font-size: 0.9rem;
+        }
+
+        .modal-close {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.2rem;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .business-header {
+            margin-bottom: 20px;
+        }
+
+        .business-header h3 {
+            font-size: 1.3rem;
+            margin-bottom: 8px;
+        }
+
+        .business-meta {
+            color: #888;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+        }
+
+        .business-contact-info {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            font-size: 0.9rem;
+        }
+
+        .business-contact-info span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .attempt-status {
+            background: #1a1a2e;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .attempt-status-label {
+            font-size: 0.85rem;
+            color: #888;
+            margin-bottom: 8px;
+        }
+
+        .attempt-channels {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .attempt-channel {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 6px 10px;
+            background: #333;
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+
+        .attempt-channel.done {
+            background: rgba(102, 126, 234, 0.3);
+            color: #667eea;
+        }
+
+        .attempt-channel.current {
+            background: rgba(255, 193, 7, 0.3);
+            color: #FFC107;
+            border: 2px solid #FFC107;
+        }
+
+        .next-action-box {
+            background: #1a1a2e;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .next-action-header {
+            background: rgba(255, 193, 7, 0.2);
+            padding: 10px 15px;
+            color: #FFC107;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .message-preview {
+            padding: 15px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            color: #ddd;
+            white-space: pre-wrap;
+        }
+
+        .next-action-buttons {
+            padding: 15px;
+            display: flex;
+            gap: 10px;
+            border-top: 1px solid #333;
+        }
+
+        .next-action-buttons button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .btn-copy {
+            background: #333;
+            color: white;
+        }
+
+        .btn-open {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-mark-sent {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .other-channels {
+            margin-bottom: 20px;
+        }
+
+        .other-channels-label {
+            font-size: 0.85rem;
+            color: #888;
+            margin-bottom: 8px;
+        }
+
+        .other-channels-btns {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .other-channels-btns button {
+            padding: 10px 16px;
+            background: #333;
+            border: none;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .modal-footer {
+            padding: 15px 20px;
+            border-top: 1px solid #333;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .footer-left, .footer-right {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-responded {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-not-interested {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .btn-nav {
+            background: #333;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .btn-skip {
+            background: #555;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        /* Response Modal */
+        .response-modal {
+            background: #252542;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 500px;
+            display: none;
+        }
+
+        .response-modal.active {
+            display: block;
+        }
+
+        .response-modal h2 {
+            padding: 20px;
+            text-align: center;
+            font-size: 1.3rem;
+        }
+
+        .response-modal h2 span {
+            font-size: 2rem;
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .response-form {
+            padding: 0 20px 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+            color: #aaa;
+        }
+
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            background: #1a1a2e;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: white;
+            font-size: 0.95rem;
+        }
+
+        .lock-channel {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            background: rgba(76, 175, 80, 0.1);
+            border: 1px solid #4CAF50;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .lock-channel input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+        }
+
+        .response-types {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .response-type {
+            padding: 12px;
+            background: #1a1a2e;
+            border: 2px solid #333;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .response-type:hover {
+            border-color: #667eea;
+        }
+
+        .response-type.selected {
+            border-color: #4CAF50;
+            background: rgba(76, 175, 80, 0.1);
+        }
+
+        .response-submit {
+            display: flex;
+            gap: 10px;
+        }
+
+        .response-submit button {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .response-submit .btn-cancel {
+            background: #333;
+            color: white;
+        }
+
+        .response-submit .btn-save {
+            background: #4CAF50;
+            color: white;
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: #4CAF50;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            font-weight: 600;
+            opacity: 0;
+            transition: all 0.3s;
+            z-index: 2000;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        /* Campaign Config Panel */
+        .config-panel {
+            display: none;
+            padding: 20px;
+        }
+
+        .config-panel.active {
+            display: block;
+        }
+
+        .config-card {
+            background: #252542;
+            border-radius: 12px;
+            padding: 20px;
+            max-width: 600px;
+        }
+
+        .config-card h2 {
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+        }
+
+        .config-section {
+            margin-bottom: 20px;
+        }
+
+        .config-section h3 {
+            font-size: 0.9rem;
+            color: #888;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .channel-priority-list {
+            background: #1a1a2e;
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .channel-priority-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: #252542;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: grab;
+        }
+
+        .channel-priority-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .drag-handle {
+            color: #666;
+            font-size: 1.2rem;
+        }
+
+        .channel-priority-item select {
+            flex: 1;
+            padding: 8px;
+            background: #1a1a2e;
+            border: 1px solid #333;
+            border-radius: 6px;
+            color: white;
+        }
+
+        .add-channel-btn {
+            margin-top: 10px;
+            width: 100%;
+            padding: 10px;
+            background: transparent;
+            border: 2px dashed #444;
+            border-radius: 8px;
+            color: #888;
+            cursor: pointer;
+        }
+
+        .add-channel-btn:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>Campaign: Spring HVAC Promo</h1>
+        <div class="header-controls">
+            <div class="view-toggle">
+                <button class="active" onclick="showView('board')">Board</button>
+                <button onclick="showView('zip')">ZIP Queue</button>
+                <button onclick="showView('config')">Settings</button>
+            </div>
+            <select>
+                <option>Filter: All ZIPs</option>
+                <option>85001</option>
+                <option>85004</option>
+                <option>85006</option>
+            </select>
+            <button>+ Add from Pool</button>
+        </div>
+    </header>
+
+    <!-- Campaign Board View -->
+    <div class="campaign-board active" id="boardView">
+        <div class="phase-labels">
+            <div class="phase-label discovery">Contact Discovery</div>
+            <div class="phase-label sales">Sales Pipeline</div>
+        </div>
+        <div class="columns-container">
+            <!-- Queued Column -->
+            <div class="column">
+                <div class="column-header">
+                    <span class="column-title">Queued</span>
+                    <span class="column-count">3</span>
+                </div>
+                <div class="column-cards">
+                    <div class="card" onclick="showRapidFire(0)">
+                        <div class="card-name">ABC Plumbing</div>
+                        <div class="card-zip">📍 85001</div>
+                        <div class="card-channels">
+                            <span class="channel">📱</span>
+                            <span class="channel">📧</span>
+                            <span class="channel">📘</span>
+                            <span class="channel">📞</span>
+                        </div>
+                        <div class="card-next">Ready to start</div>
+                    </div>
+                    <div class="card" onclick="showRapidFire(1)">
+                        <div class="card-name">Quick Electric</div>
+                        <div class="card-zip">📍 85001</div>
+                        <div class="card-channels">
+                            <span class="channel">📱</span>
+                            <span class="channel">📧</span>
+                            <span class="channel">📞</span>
+                        </div>
+                        <div class="card-next">Ready to start</div>
+                    </div>
+                    <div class="card" onclick="showRapidFire(2)">
+                        <div class="card-name">Phoenix HVAC</div>
+                        <div class="card-zip">📍 85004</div>
+                        <div class="card-channels">
+                            <span class="channel">📱</span>
+                            <span class="channel">📧</span>
+                            <span class="channel">📘</span>
+                        </div>
+                        <div class="card-next">Ready to start</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attempting Column -->
+            <div class="column">
+                <div class="column-header">
+                    <span class="column-title">Attempting</span>
+                    <span class="column-count">4</span>
+                </div>
+                <div class="column-cards">
+                    <div class="card" onclick="showRapidFire(3)">
+                        <div class="card-name">XYZ Electric</div>
+                        <div class="card-zip">📍 85001</div>
+                        <div class="card-attempt">
+                            <div class="attempt-label">Attempt 2 of 4</div>
+                            <div class="attempt-bar">
+                                <div class="attempt-progress" style="width: 50%"></div>
+                            </div>
+                        </div>
+                        <div class="card-channels">
+                            <span class="channel sent">📱 ✓</span>
+                            <span class="channel sent">📧 ✓</span>
+                            <span class="channel next">📘 next</span>
+                            <span class="channel">📞</span>
+                        </div>
+                    </div>
+                    <div class="card" onclick="showRapidFire(4)">
+                        <div class="card-name">Desert Air Co</div>
+                        <div class="card-zip">📍 85004</div>
+                        <div class="card-attempt">
+                            <div class="attempt-label">Attempt 1 of 4</div>
+                            <div class="attempt-bar">
+                                <div class="attempt-progress" style="width: 25%"></div>
+                            </div>
+                        </div>
+                        <div class="card-channels">
+                            <span class="channel sent">📱 ✓</span>
+                            <span class="channel next">📧 next</span>
+                            <span class="channel">📘</span>
+                        </div>
+                    </div>
+                    <div class="card" onclick="showRapidFire(5)">
+                        <div class="card-name">Valley Heating</div>
+                        <div class="card-zip">📍 85006</div>
+                        <div class="card-attempt">
+                            <div class="attempt-label">Attempt 3 of 4</div>
+                            <div class="attempt-bar">
+                                <div class="attempt-progress" style="width: 75%"></div>
+                            </div>
+                        </div>
+                        <div class="card-channels">
+                            <span class="channel sent">📱 ✓</span>
+                            <span class="channel sent">📧 ✓</span>
+                            <span class="channel sent">📘 ✓</span>
+                            <span class="channel next">📞 next</span>
+                        </div>
+                    </div>
+                    <div class="card" onclick="showRapidFire(6)">
+                        <div class="card-name">Cool Breeze AC</div>
+                        <div class="card-zip">📍 85001</div>
+                        <div class="card-attempt">
+                            <div class="attempt-label">Attempt 1 of 4</div>
+                            <div class="attempt-bar">
+                                <div class="attempt-progress" style="width: 25%"></div>
+                            </div>
+                        </div>
+                        <div class="card-channels">
+                            <span class="channel sent">📱 ✓</span>
+                            <span class="channel next">📧 next</span>
+                            <span class="channel">📞</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Negotiating Column -->
+            <div class="column sales">
+                <div class="column-header">
+                    <span class="column-title">Negotiating</span>
+                    <span class="column-count">2</span>
+                </div>
+                <div class="column-cards">
+                    <div class="card sales-card">
+                        <div class="card-name">Joe's Heating</div>
+                        <div class="card-zip">📍 85004</div>
+                        <div class="card-locked">
+                            <span class="channel locked">📱 Locked</span>
+                            <span>+ 📧 captured</span>
+                        </div>
+                    </div>
+                    <div class="card sales-card">
+                        <div class="card-name">Comfort Air</div>
+                        <div class="card-zip">📍 85001</div>
+                        <div class="card-locked">
+                            <span class="channel locked">📧 Locked</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Invoice Sent Column -->
+            <div class="column sales">
+                <div class="column-header">
+                    <span class="column-title">Invoice Sent</span>
+                    <span class="column-count">1</span>
+                </div>
+                <div class="column-cards">
+                    <div class="card sales-card">
+                        <div class="card-name">AZ Climate Control</div>
+                        <div class="card-zip">📍 85001</div>
+                        <div class="card-locked">
+                            <span class="channel locked">📞 Locked</span>
+                            <span>+ 📧 captured</span>
+                        </div>
+                        <div style="margin-top: 8px; font-size: 0.85rem; color: #888;">
+                            Invoice: $299 • Sent 1/18
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Proof Approved Column -->
+            <div class="column sales">
+                <div class="column-header">
+                    <span class="column-title">Proof Approved</span>
+                    <span class="column-count">1</span>
+                </div>
+                <div class="column-cards">
+                    <div class="card sales-card">
+                        <div class="card-name">Premier HVAC</div>
+                        <div class="card-zip">📍 85006</div>
+                        <div class="card-locked">
+                            <span class="channel locked">📱 Locked</span>
+                            <span>+ 📧 captured</span>
+                        </div>
+                        <div style="margin-top: 8px; font-size: 0.85rem; color: #888;">
+                            $349 • Ready to print
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Paid in Full Column -->
+            <div class="column sales">
+                <div class="column-header">
+                    <span class="column-title">Paid in Full</span>
+                    <span class="column-count">1</span>
+                </div>
+                <div class="column-cards">
+                    <div class="card sales-card" style="border-left-color: #FFD700;">
+                        <div class="card-name">Elite AC Services</div>
+                        <div class="card-zip">📍 85001</div>
+                        <div class="card-locked">
+                            <span class="channel locked">📧 Locked</span>
+                        </div>
+                        <div style="margin-top: 8px; font-size: 0.85rem; color: #4CAF50;">
+                            $449 PAID • Auto-moving to Clients...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ZIP Queue View -->
+    <div class="zip-queue" id="zipView">
+        <div class="zip-group expanded">
+            <div class="zip-header" onclick="toggleZip(this)">
+                <div class="zip-info">
+                    <span class="zip-icon">📍</span>
+                    <div class="zip-details">
+                        <h3>85001 Phoenix</h3>
+                        <div class="zip-campaigns">HVAC Promo (5) • Food Promo (3)</div>
+                    </div>
+                </div>
+                <div class="zip-actions">
+                    <span class="zip-count">8 ready</span>
+                    <button class="work-zip-btn" onclick="event.stopPropagation(); showRapidFire(0)">Work This ZIP</button>
+                </div>
+            </div>
+            <div class="zip-businesses">
+                <div class="business-row">
+                    <div>
+                        <div class="business-name">ABC Plumbing</div>
+                        <div class="business-campaign">HVAC Promo</div>
+                    </div>
+                    <div class="business-next">📱 SMS (Step 1)</div>
+                    <div class="business-channels">
+                        <span>📱</span><span>📧</span><span>📘</span><span>📞</span>
+                    </div>
+                    <div>Queued</div>
+                    <button class="execute-btn" onclick="showRapidFire(0)">Execute</button>
+                </div>
+                <div class="business-row">
+                    <div>
+                        <div class="business-name">XYZ Electric</div>
+                        <div class="business-campaign">HVAC Promo</div>
+                    </div>
+                    <div class="business-next">📘 FB (Step 3)</div>
+                    <div class="business-channels">
+                        <span style="color: #667eea">📱✓</span>
+                        <span style="color: #667eea">📧✓</span>
+                        <span>📘</span>
+                        <span>📞</span>
+                    </div>
+                    <div>Attempt 2</div>
+                    <button class="execute-btn" onclick="showRapidFire(3)">Execute</button>
+                </div>
+                <div class="business-row">
+                    <div>
+                        <div class="business-name">Maria's Kitchen</div>
+                        <div class="business-campaign">Food Promo</div>
+                    </div>
+                    <div class="business-next">📘 FB (Step 1)</div>
+                    <div class="business-channels">
+                        <span>📘</span><span>📷</span><span>📧</span>
+                    </div>
+                    <div>Queued</div>
+                    <button class="execute-btn" onclick="showRapidFire(7)">Execute</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="zip-group">
+            <div class="zip-header" onclick="toggleZip(this)">
+                <div class="zip-info">
+                    <span class="zip-icon">📍</span>
+                    <div class="zip-details">
+                        <h3>85004 Phoenix</h3>
+                        <div class="zip-campaigns">HVAC Promo (4) • Food Promo (2)</div>
+                    </div>
+                </div>
+                <div class="zip-actions">
+                    <span class="zip-count">6 ready</span>
+                    <button class="work-zip-btn" onclick="event.stopPropagation(); showRapidFire(0)">Work This ZIP</button>
+                </div>
+            </div>
+            <div class="zip-businesses">
+                <!-- Would contain business rows -->
+            </div>
+        </div>
+
+        <div class="zip-group">
+            <div class="zip-header" onclick="toggleZip(this)">
+                <div class="zip-info">
+                    <span class="zip-icon">📍</span>
+                    <div class="zip-details">
+                        <h3>85006 Phoenix</h3>
+                        <div class="zip-campaigns">HVAC Promo (3)</div>
+                    </div>
+                </div>
+                <div class="zip-actions">
+                    <span class="zip-count">3 ready</span>
+                    <button class="work-zip-btn" onclick="event.stopPropagation(); showRapidFire(0)">Work This ZIP</button>
+                </div>
+            </div>
+            <div class="zip-businesses">
+                <!-- Would contain business rows -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Campaign Config View -->
+    <div class="config-panel" id="configView">
+        <div class="config-card">
+            <h2>Campaign Settings</h2>
+
+            <div class="config-section">
+                <div class="form-group">
+                    <label>Campaign Name</label>
+                    <input type="text" value="Spring HVAC Promo">
+                </div>
+                <div class="form-group">
+                    <label>Linked Mailer</label>
+                    <select>
+                        <option>Mailer #127 - HVAC Spring Special</option>
+                        <option>Mailer #128 - Summer AC</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="config-section">
+                <h3>Channel Priority Order</h3>
+                <p style="font-size: 0.85rem; color: #888; margin-bottom: 10px;">Drag to reorder. Each campaign can start with a different channel.</p>
+                <div class="channel-priority-list">
+                    <div class="channel-priority-item">
+                        <span class="drag-handle">≡</span>
+                        <span>1. 📱 SMS</span>
+                        <select>
+                            <option>HVAC SMS Intro</option>
+                            <option>HVAC SMS Follow-up</option>
+                        </select>
+                    </div>
+                    <div class="channel-priority-item">
+                        <span class="drag-handle">≡</span>
+                        <span>2. 📧 Email</span>
+                        <select>
+                            <option>HVAC Email Intro</option>
+                            <option>HVAC Email Follow-up</option>
+                        </select>
+                    </div>
+                    <div class="channel-priority-item">
+                        <span class="drag-handle">≡</span>
+                        <span>3. 📘 Facebook</span>
+                        <select>
+                            <option>HVAC FB Message</option>
+                        </select>
+                    </div>
+                    <div class="channel-priority-item">
+                        <span class="drag-handle">≡</span>
+                        <span>4. 📞 Phone</span>
+                        <select>
+                            <option>HVAC Call Script</option>
+                        </select>
+                    </div>
+                    <button class="add-channel-btn">+ Add Channel</button>
+                </div>
+            </div>
+
+            <div class="config-section">
+                <div class="form-group">
+                    <label>Days Between Attempts</label>
+                    <input type="number" value="3" style="width: 100px;">
+                </div>
+            </div>
+
+            <button style="background: #4CAF50; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: 600;">Save Settings</button>
+        </div>
+    </div>
+
+    <!-- Rapid Fire Modal -->
+    <div class="modal-overlay" id="rapidFireModal">
+        <div class="rapid-fire-modal">
+            <div class="modal-header">
+                <h2>ZIP 85001</h2>
+                <div class="modal-progress">
+                    <span id="progressText">1 of 8</span>
+                    <button class="modal-close" onclick="closeModal()">×</button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="business-header">
+                    <h3 id="modalBusinessName">ABC Plumbing</h3>
+                    <div class="business-meta">
+                        <span id="modalCampaign">Campaign: HVAC Promo</span> •
+                        <span id="modalAttempt">Attempt: 1 of 4</span>
+                    </div>
+                    <div class="business-contact-info">
+                        <span>📞 (555) 123-4567</span>
+                        <span>📧 info@abcplumb.com</span>
+                        <span>📍 123 Main St, Phoenix AZ 85001</span>
+                    </div>
+                </div>
+
+                <div class="attempt-status">
+                    <div class="attempt-status-label">Channel Status</div>
+                    <div class="attempt-channels">
+                        <span class="attempt-channel current">📱 SMS - Next</span>
+                        <span class="attempt-channel">📧 Email</span>
+                        <span class="attempt-channel">📘 Facebook</span>
+                        <span class="attempt-channel">📞 Phone</span>
+                    </div>
+                </div>
+
+                <div class="next-action-box">
+                    <div class="next-action-header">
+                        <span>📱</span> Next Action: SMS
+                    </div>
+                    <div class="message-preview">Hey! I'm reaching out from 9x12 Pro about our Spring HVAC promotion.
+
+We're helping local HVAC businesses like ABC Plumbing reach more customers with targeted postcard advertising.
+
+Would you have 5 minutes this week to see some examples of what we've done for other HVAC companies in 85001?</div>
+                    <div class="next-action-buttons">
+                        <button class="btn-copy" onclick="copyMessage()">Copy</button>
+                        <button class="btn-open">Open SMS</button>
+                        <button class="btn-mark-sent" onclick="markSent()">Mark Sent ✓</button>
+                    </div>
+                </div>
+
+                <div class="other-channels">
+                    <div class="other-channels-label">Or try another channel:</div>
+                    <div class="other-channels-btns">
+                        <button>📧 Email</button>
+                        <button>📘 Facebook</button>
+                        <button>📞 Call</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="footer-left">
+                    <button class="btn-responded" onclick="showResponseModal()">🎉 Responded!</button>
+                    <button class="btn-not-interested">✗ Not Interested</button>
+                </div>
+                <div class="footer-right">
+                    <button class="btn-nav" onclick="prevBusiness()">◀ Prev</button>
+                    <button class="btn-skip" onclick="nextBusiness()">Skip ▶</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Response Modal (nested) -->
+        <div class="response-modal" id="responseModal">
+            <h2><span>🎉</span>Contact Made!</h2>
+            <div class="response-form">
+                <div class="lock-channel">
+                    <input type="checkbox" id="lockChannel" checked>
+                    <label for="lockChannel">Lock <strong>📱 SMS</strong> as preferred contact method</label>
+                </div>
+
+                <div class="form-group">
+                    <label>Capture/Confirm Email for Updates</label>
+                    <input type="email" value="info@abcplumb.com" placeholder="email@example.com">
+                </div>
+
+                <div class="form-group">
+                    <label>Response Type</label>
+                    <div class="response-types">
+                        <div class="response-type selected">Interested</div>
+                        <div class="response-type">Need More Info</div>
+                        <div class="response-type">Call Me Back</div>
+                        <div class="response-type">Not Now</div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Notes</label>
+                    <textarea rows="2" placeholder="Any notes about the conversation..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Move to</label>
+                    <select>
+                        <option>Negotiating</option>
+                        <option>Invoice Sent</option>
+                    </select>
+                </div>
+
+                <div class="response-submit">
+                    <button class="btn-cancel" onclick="closeResponseModal()">Cancel</button>
+                    <button class="btn-save" onclick="saveResponse()">Save & Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast">Message copied!</div>
+
+    <script>
+        let currentIndex = 0;
+        const totalBusinesses = 8;
+
+        function showView(view) {
+            document.querySelectorAll('.view-toggle button').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            document.getElementById('boardView').classList.remove('active');
+            document.getElementById('zipView').classList.remove('active');
+            document.getElementById('configView').classList.remove('active');
+
+            if (view === 'board') {
+                document.getElementById('boardView').classList.add('active');
+            } else if (view === 'zip') {
+                document.getElementById('zipView').classList.add('active');
+            } else if (view === 'config') {
+                document.getElementById('configView').classList.add('active');
+            }
+        }
+
+        function toggleZip(header) {
+            header.parentElement.classList.toggle('expanded');
+        }
+
+        function showRapidFire(index) {
+            currentIndex = index;
+            updateRapidFireContent();
+            document.getElementById('rapidFireModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('rapidFireModal').classList.remove('active');
+            document.getElementById('responseModal').classList.remove('active');
+        }
+
+        function updateRapidFireContent() {
+            document.getElementById('progressText').textContent = `${currentIndex + 1} of ${totalBusinesses}`;
+        }
+
+        function nextBusiness() {
+            if (currentIndex < totalBusinesses - 1) {
+                currentIndex++;
+                updateRapidFireContent();
+                showToast('Skipped - Next business');
+            }
+        }
+
+        function prevBusiness() {
+            if (currentIndex > 0) {
+                currentIndex--;
+                updateRapidFireContent();
+            }
+        }
+
+        function copyMessage() {
+            const message = document.querySelector('.message-preview').textContent;
+            navigator.clipboard.writeText(message);
+            showToast('Message copied!');
+        }
+
+        function markSent() {
+            showToast('Marked as sent - moving to next');
+            setTimeout(() => nextBusiness(), 500);
+        }
+
+        function showResponseModal() {
+            document.getElementById('responseModal').classList.add('active');
+        }
+
+        function closeResponseModal() {
+            document.getElementById('responseModal').classList.remove('active');
+        }
+
+        function saveResponse() {
+            closeResponseModal();
+            showToast('🎉 Moved to Negotiating!');
+            setTimeout(() => {
+                nextBusiness();
+            }, 1000);
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2000);
+        }
+
+        // Response type selection
+        document.querySelectorAll('.response-type').forEach(el => {
+            el.addEventListener('click', function() {
+                document.querySelectorAll('.response-type').forEach(t => t.classList.remove('selected'));
+                this.classList.add('selected');
+            });
+        });
+
+        // Close modal on overlay click
+        document.getElementById('rapidFireModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>
