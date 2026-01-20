@@ -16461,10 +16461,23 @@ function moveCampaignBoardItem(businessId, fromColumn, toColumn, board) {
 // Render campaign board (new 6-column system)
 function renderCampaignBoard() {
   const board = getCurrentCampaignBoard();
+  console.log('📊 renderCampaignBoard called');
+  console.log('📊 Board:', board);
+  console.log('📊 Board mailerId:', board?.mailerId);
+  console.log('📊 state.current?.Mailer_ID:', state.current?.Mailer_ID);
+  console.log('📊 All boards:', Object.keys(campaignBoardsState.boards));
+
   if (!board) {
+    console.log('📊 No board found, falling back to legacy');
     // Fall back to legacy kanban if no board
     return renderLegacyKanban();
   }
+
+  // Log column counts
+  const columnKeys = ['queued', 'attempting', 'negotiating', 'invoice-sent', 'proof-approved', 'paid-in-full'];
+  columnKeys.forEach(col => {
+    console.log(`📊 Column ${col}: ${(board.columns[col] || []).length} items`);
+  });
 
   const dailyGoalContainer = document.getElementById('dailyGoalContainer');
   const kanbanColumnsContainer = document.getElementById('salesActivityKanbanColumns');
@@ -16993,9 +17006,14 @@ async function saveCampaignConfig() {
 
 // Data migration from legacy kanban to campaign boards
 async function migrateToCampaignBoards() {
+  console.log('📥 MIGRATION STARTED');
   const currentMailerId = state.current?.Mailer_ID;
+  console.log('📥 Current Mailer ID:', currentMailerId);
+  console.log('📥 Legacy kanban columns:', Object.keys(kanbanState.columns).map(k => `${k}: ${kanbanState.columns[k]?.length || 0}`));
+
   if (!currentMailerId) {
     toast('No campaign selected for migration');
+    console.log('📥 MIGRATION FAILED: No campaign selected');
     return false;
   }
 
@@ -17066,9 +17084,17 @@ async function migrateToCampaignBoards() {
     }
   });
 
+  // Log final counts before saving
+  console.log('📥 MIGRATION COMPLETE - Column counts:');
+  Object.keys(board.columns).forEach(col => {
+    console.log(`📥   ${col}: ${board.columns[col].length} items`);
+  });
+
   await saveCampaignBoards();
+  console.log('📥 Board saved to cloud');
 
   const totalMigrated = Object.values(board.columns).reduce((sum, col) => sum + col.length, 0);
+  console.log('📥 Total migrated:', totalMigrated);
   toast(`Migrated ${totalMigrated} businesses to Campaign Board`);
 
   return true;
