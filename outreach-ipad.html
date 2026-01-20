@@ -106,6 +106,19 @@
             <div id="zipQueueStats" class="hidden text-xs text-gray-500">
                 <span id="zipGroupCount">0</span> ZIPs • <span id="zipTotalCount">0</span> prospects
             </div>
+            <!-- ZIP Queue Channel Selector -->
+            <div id="zipQueueChannelSelector" class="hidden flex items-center gap-2 ml-auto">
+                <span class="text-xs text-gray-500">Outreach via:</span>
+                <select id="zipQueueChannel" onchange="setZipQueueChannel(this.value)"
+                        class="text-sm px-2 py-1 rounded-lg border border-gray-300 bg-white font-medium focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    <option value="email">📧 Email</option>
+                    <option value="sms">📱 SMS</option>
+                    <option value="facebook">📘 Facebook</option>
+                    <option value="instagram">📷 Instagram</option>
+                    <option value="linkedin">💼 LinkedIn</option>
+                    <option value="call">📞 Call</option>
+                </select>
+            </div>
         </div>
 
         <!-- Channel Tabs (shown in channel mode) -->
@@ -433,7 +446,8 @@
                 groups: {},       // { "85001": [businesses], ... }
                 activeZip: null,
                 rapidFireIndex: 0,
-                rapidFireActive: false
+                rapidFireActive: false,
+                selectedChannel: 'email'  // Default to email for ZIP Queue outreach
             }
         };
 
@@ -798,6 +812,11 @@
             state.campaignBoardData = boardsData;
             state.currentMailerId = mailerId;
 
+            // Check for ZIP filter from main app
+            const zipFilter = localStorage.getItem('outreach-zip-filter') || '';
+            state.zipFilter = zipFilter;
+            console.log(`📍 ZIP filter from main app: "${zipFilter || 'All'}"`);
+
             const allProspects = [];
 
             // Get the board for the current campaign
@@ -815,8 +834,17 @@
             console.log('📊 Processing Campaign Board:', board.name || mailerId);
 
             // Load from 'queued' column (ready for outreach)
-            const queuedItems = board.columns?.['queued'] || [];
-            console.log(`📋 Queued column: ${queuedItems.length} items`);
+            let queuedItems = board.columns?.['queued'] || [];
+            console.log(`📋 Queued column: ${queuedItems.length} items (before filter)`);
+
+            // Apply ZIP filter if set
+            if (zipFilter) {
+                queuedItems = queuedItems.filter(item => {
+                    const itemZip = item.actualZip || item.zipCode || item.zip;
+                    return String(itemZip) === zipFilter;
+                });
+                console.log(`📋 Queued column: ${queuedItems.length} items (after ZIP filter: ${zipFilter})`);
+            }
 
             queuedItems.forEach(item => {
                 if (item && typeof item === 'object' && (item.businessName || item.name)) {
@@ -829,8 +857,17 @@
             });
 
             // Also show 'attempting' column items (already contacted, may need follow-up)
-            const attemptingItems = board.columns?.['attempting'] || [];
-            console.log(`📋 Attempting column: ${attemptingItems.length} items`);
+            let attemptingItems = board.columns?.['attempting'] || [];
+            console.log(`📋 Attempting column: ${attemptingItems.length} items (before filter)`);
+
+            // Apply ZIP filter if set
+            if (zipFilter) {
+                attemptingItems = attemptingItems.filter(item => {
+                    const itemZip = item.actualZip || item.zipCode || item.zip;
+                    return String(itemZip) === zipFilter;
+                });
+                console.log(`📋 Attempting column: ${attemptingItems.length} items (after ZIP filter: ${zipFilter})`);
+            }
 
             attemptingItems.forEach(item => {
                 if (item && typeof item === 'object' && (item.businessName || item.name)) {
@@ -1760,6 +1797,7 @@
             // Show/hide appropriate content
             document.getElementById('channelTabs').classList.toggle('hidden', mode === 'zipQueue');
             document.getElementById('zipQueueStats').classList.toggle('hidden', mode !== 'zipQueue');
+            document.getElementById('zipQueueChannelSelector').classList.toggle('hidden', mode !== 'zipQueue');
 
             if (mode === 'zipQueue') {
                 buildZipQueue();
@@ -1769,11 +1807,34 @@
             }
         }
 
+        function setZipQueueChannel(channel) {
+            state.zipQueue.selectedChannel = channel;
+            console.log('📧 ZIP Queue channel set to:', channel);
+            // Rebuild ZIP queue to filter by channel availability
+            buildZipQueue();
+            renderZipQueue();
+        }
+
         // ============ ZIP QUEUE ============
         function buildZipQueue() {
             const groups = {};
+            const channel = state.zipQueue.selectedChannel || 'email';
 
-            state.prospects.forEach(p => {
+            // Filter prospects that have the selected channel available and not yet contacted
+            const filteredProspects = state.prospects.filter(p => {
+                const ct = p.contactTracking || {};
+                switch (channel) {
+                    case 'email': return p.email && !ct.emailed;
+                    case 'sms': return p.phone && !ct.texted;
+                    case 'facebook': return p.facebook && !ct.facebookMessaged;
+                    case 'instagram': return p.instagram && !ct.dmed;
+                    case 'linkedin': return p.linkedin && !ct.linkedinMessaged;
+                    case 'call': return p.phone && !ct.called;
+                    default: return true;
+                }
+            });
+
+            filteredProspects.forEach(p => {
                 const zip = p.zipCode || p.actualZip || p.zip || 'Unknown';
                 if (!groups[zip]) {
                     groups[zip] = [];
@@ -1785,7 +1846,7 @@
 
             // Update stats
             const zipCount = Object.keys(groups).length;
-            const totalCount = state.prospects.length;
+            const totalCount = filteredProspects.length;
             document.getElementById('zipGroupCount').textContent = zipCount;
             document.getElementById('zipTotalCount').textContent = totalCount;
         }
@@ -1794,15 +1855,26 @@
             const container = document.getElementById('prospectList');
             const groups = state.zipQueue.groups;
             const zipCodes = Object.keys(groups).sort();
+            const channel = state.zipQueue.selectedChannel || 'email';
 
-            document.getElementById('listTitle').textContent = 'ZIP Queue';
+            const channelLabels = {
+                email: '📧 Email',
+                sms: '📱 SMS',
+                facebook: '📘 Facebook',
+                instagram: '📷 Instagram',
+                linkedin: '💼 LinkedIn',
+                call: '📞 Call'
+            };
+
+            document.getElementById('listTitle').textContent = `ZIP Queue - ${channelLabels[channel]}`;
             document.getElementById('listCount').textContent = `${zipCodes.length} ZIP codes`;
 
             if (zipCodes.length === 0) {
                 container.innerHTML = `
                     <div class="p-8 text-center text-gray-400">
                         <div class="text-4xl mb-2">📍</div>
-                        <p>No prospects with ZIP codes</p>
+                        <p>No prospects available for ${channelLabels[channel]}</p>
+                        <p class="text-sm mt-2">Try selecting a different channel</p>
                     </div>
                 `;
                 return;
@@ -1810,14 +1882,6 @@
 
             container.innerHTML = zipCodes.map(zip => {
                 const prospects = groups[zip];
-                const contacted = prospects.filter(p => {
-                    const ct = p.contactTracking || {};
-                    return ct.emailed || ct.texted || ct.called || ct.facebookMessaged || ct.dmed;
-                }).length;
-
-                const hasPhone = prospects.filter(p => p.phone).length;
-                const hasEmail = prospects.filter(p => p.email).length;
-                const hasFacebook = prospects.filter(p => p.facebook).length;
 
                 return `
                     <div class="p-4 border-b border-gray-200 hover:bg-gray-50">
@@ -1826,14 +1890,9 @@
                                 <span class="text-lg font-bold text-gray-900">📍 ${zip}</span>
                                 <span class="ml-2 text-sm text-gray-500">${prospects.length} businesses</span>
                             </div>
-                            <span class="text-xs ${contacted === prospects.length ? 'text-green-600' : 'text-gray-400'}">
-                                ${contacted}/${prospects.length} contacted
+                            <span class="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">
+                                ${channelLabels[channel]}
                             </span>
-                        </div>
-                        <div class="flex items-center gap-2 text-xs text-gray-500 mb-3">
-                            <span>📱 ${hasPhone}</span>
-                            <span>📧 ${hasEmail}</span>
-                            <span>📘 ${hasFacebook}</span>
                         </div>
                         <div class="flex gap-2">
                             <button onclick="startRapidFire('${zip}')" class="flex-1 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg font-semibold text-sm hover:shadow-lg transition-shadow">
@@ -1997,21 +2056,17 @@
             if (prospect.facebook) contactHtml.push(`<div class="bg-gray-50 rounded px-2 py-1"><span class="text-gray-500 text-xs">📘</span> Facebook</div>`);
             document.getElementById('rapidFireContact').innerHTML = contactHtml.join('');
 
-            // Determine best channel
-            const ct = prospect.contactTracking || {};
-            let channel = 'sms';
-            let channelIcon = '📱';
-            let channelName = 'SMS';
-
-            if (prospect.phone && !ct.texted) {
-                channel = 'sms'; channelIcon = '📱'; channelName = 'SMS';
-            } else if (prospect.email && !ct.emailed) {
-                channel = 'email'; channelIcon = '📧'; channelName = 'Email';
-            } else if (prospect.facebook && !ct.facebookMessaged) {
-                channel = 'facebook'; channelIcon = '📘'; channelName = 'Facebook';
-            } else if (prospect.phone && !ct.called) {
-                channel = 'call'; channelIcon = '📞'; channelName = 'Call';
-            }
+            // Use the selected channel from ZIP Queue settings
+            const channelMap = {
+                email: { icon: '📧', name: 'Email' },
+                sms: { icon: '📱', name: 'SMS' },
+                facebook: { icon: '📘', name: 'Facebook' },
+                instagram: { icon: '📷', name: 'Instagram' },
+                linkedin: { icon: '💼', name: 'LinkedIn' },
+                call: { icon: '📞', name: 'Call' }
+            };
+            const channel = state.zipQueue.selectedChannel || 'email';
+            const { icon: channelIcon, name: channelName } = channelMap[channel];
 
             state.currentChannel = channel;
             document.getElementById('rapidFireChannel').innerHTML = `${channelIcon} ${channelName}`;
