@@ -16487,8 +16487,6 @@ function renderCampaignBoard() {
     return;
   }
 
-  const columnKeys = ['queued', 'attempting', 'negotiating', 'invoice-sent', 'proof-approved', 'paid-in-full'];
-
   // Build columns HTML
   const columnsHTML = columnKeys.map(colKey => {
     const colDef = campaignBoardColumns[colKey];
