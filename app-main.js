@@ -1036,6 +1036,33 @@ const kanbanState = {
   }
 };
 
+// CAMPAIGN BOARDS STATE - New unified pipeline system
+const campaignBoardsState = {
+  boards: {},           // { mailerId: boardObject }
+  activeBoardId: null,
+  useLegacyKanban: true // Feature flag for rollout - set to false to enable new system
+};
+
+// Board structure template (not stored, just documentation):
+// {
+//   mailerId: "MAILER-001",
+//   name: "Spring HVAC Promo",
+//   config: {
+//     channelPriority: ['sms', 'email', 'facebook', 'call'],
+//     templates: { sms: 'tpl_1', email: 'tpl_2', facebook: 'tpl_3', call: 'tpl_4' },
+//     daysBetweenAttempts: 3,
+//     maxAttempts: 4
+//   },
+//   columns: {
+//     'queued': [],
+//     'attempting': [],
+//     'negotiating': [],
+//     'invoice-sent': [],
+//     'proof-approved': [],
+//     'paid-in-full': []
+//   }
+// }
+
 // DAILY OUTREACH GOAL STATE
 const dailyGoalState = {
   dailyGoal: 10,               // Default goal: contact 10 businesses per day
@@ -15052,6 +15079,14 @@ async function loadKanban() {
   } catch(e) {
     console.error('Error loading kanban:', e);
   }
+
+  // Also load campaign boards data
+  try {
+    await loadCampaignBoards();
+  } catch (e) {
+    console.error('Error loading campaign boards:', e);
+  }
+
   renderKanban();
   refreshFollowUpDashboard();
   refreshContactStatusDashboard();
@@ -15279,6 +15314,12 @@ const debouncedRenderKanban = debounce(() => renderKanban(), DEBOUNCE_RENDER_DEL
 
 function renderKanban() {
   try {
+    // Check feature flag - use new campaign board system if enabled
+    if (!campaignBoardsState.useLegacyKanban && state.current?.Mailer_ID) {
+      renderCampaignBoard();
+      return;
+    }
+
     const dailyGoalContainer = document.getElementById('dailyGoalContainer');
     const kanbanColumnsContainer = document.getElementById('salesActivityKanbanColumns');
 
@@ -15607,8 +15648,22 @@ function renderKanban() {
     </div>
   `;
 
+  // View toggle for switching to Campaign Board
+  const viewToggleHTML = state.current?.Mailer_ID ? `
+    <div class="flex items-center gap-2 mb-3">
+      <button onclick="toggleCampaignBoardView()" class="px-3 py-1 text-xs font-medium rounded bg-purple-100 text-purple-700 hover:bg-purple-200">
+        📊 Try New Campaign Board
+      </button>
+      <button onclick="migrateToCampaignBoards()" class="px-3 py-1 text-xs font-medium rounded bg-blue-100 text-blue-700 hover:bg-blue-200">
+        📥 Migrate Data
+      </button>
+      <span class="text-xs text-gray-500">Legacy 4-column view</span>
+    </div>
+  ` : '';
+
   // Wrap columns in flex container
   const columnsWrapperHTML = `
+    ${viewToggleHTML}
     <div style="display: flex; gap: 1rem; padding-bottom: 0.5rem; overflow-x: auto; scrollbar-width: thin; -webkit-overflow-scrolling: touch;">
       ${columnsHTML}
     </div>
@@ -16172,6 +16227,909 @@ function setupKanbanDrag() {
       }
     };
   });
+}
+
+/* ========= CAMPAIGN BOARDS FUNCTIONS ========= */
+
+// Column definitions for campaign boards
+const campaignBoardColumns = {
+  'queued': { title: '1. Queued', color: 'blue', phase: 'discovery', icon: '📋' },
+  'attempting': { title: '2. Attempting', color: 'purple', phase: 'discovery', icon: '📞' },
+  'negotiating': { title: '3. Negotiating', color: 'green', phase: 'sales', icon: '💬' },
+  'invoice-sent': { title: '4. Invoice Sent', color: 'yellow', phase: 'sales', icon: '📄' },
+  'proof-approved': { title: '5. Proof Approved', color: 'orange', phase: 'sales', icon: '✅' },
+  'paid-in-full': { title: '6. Paid in Full', color: 'emerald', phase: 'sales', icon: '💰' }
+};
+
+// Create a new campaign board for a mailer
+function createCampaignBoard(mailerId, mailerName) {
+  const board = {
+    mailerId: mailerId,
+    name: mailerName || `Campaign ${mailerId}`,
+    createdAt: new Date().toISOString(),
+    config: {
+      channelPriority: ['sms', 'email', 'facebook', 'call'],
+      templates: {},
+      daysBetweenAttempts: 3,
+      maxAttempts: 4
+    },
+    columns: {
+      'queued': [],
+      'attempting': [],
+      'negotiating': [],
+      'invoice-sent': [],
+      'proof-approved': [],
+      'paid-in-full': []
+    }
+  };
+
+  campaignBoardsState.boards[mailerId] = board;
+  return board;
+}
+
+// Get or create campaign board for current mailer
+function getCurrentCampaignBoard() {
+  const currentMailerId = state.current?.Mailer_ID;
+  if (!currentMailerId) return null;
+
+  if (!campaignBoardsState.boards[currentMailerId]) {
+    const mailerName = state.current?.town || state.current?.Mailer_ID;
+    createCampaignBoard(currentMailerId, mailerName);
+  }
+
+  return campaignBoardsState.boards[currentMailerId];
+}
+
+// Enhance business with attempt tracking fields
+function enhanceBusinessForCampaignBoard(business, maxAttempts = 4) {
+  return {
+    ...business,
+    attemptTracking: business.attemptTracking || {
+      currentAttempt: 0,
+      maxAttempts: maxAttempts,
+      attemptHistory: [],
+      nextChannel: null,
+      nextActionDate: null
+    },
+    channelStatus: business.channelStatus || {
+      sms: { available: !!business.phone, sent: false, sentDate: null },
+      email: { available: !!business.email, sent: false, sentDate: null },
+      facebook: { available: !!business.facebook, sent: false, sentDate: null },
+      instagram: { available: !!business.instagram, sent: false, sentDate: null },
+      linkedin: { available: !!business.linkedin, sent: false, sentDate: null },
+      call: { available: !!business.phone, sent: false, sentDate: null }
+    },
+    lockedChannel: business.lockedChannel || null,
+    salesInfo: business.salesInfo || {
+      invoiceAmount: null,
+      invoiceSentDate: null,
+      proofApprovedDate: null,
+      paidDate: null
+    }
+  };
+}
+
+// Calculate next channel to use based on priority and what's been tried
+function calculateNextChannel(business, channelPriority) {
+  const channels = business.channelStatus || {};
+
+  // If a channel is locked (responded), that's the only channel to use
+  if (business.lockedChannel?.channel) {
+    return business.lockedChannel.channel;
+  }
+
+  // Find first available channel that hasn't been sent yet
+  for (const channel of channelPriority) {
+    const status = channels[channel];
+    if (status?.available && !status?.sent) {
+      return channel;
+    }
+  }
+
+  // All channels tried - cycle back to first available
+  for (const channel of channelPriority) {
+    if (channels[channel]?.available) {
+      return channel;
+    }
+  }
+
+  return null;
+}
+
+// Calculate next action date based on days between attempts
+function calculateNextActionDate(business, daysBetweenAttempts = 3) {
+  const history = business.attemptTracking?.attemptHistory || [];
+  if (history.length === 0) {
+    return new Date().toISOString().split('T')[0]; // Today
+  }
+
+  const lastAttempt = history[history.length - 1];
+  const lastDate = new Date(lastAttempt.date);
+  lastDate.setDate(lastDate.getDate() + daysBetweenAttempts);
+  return lastDate.toISOString().split('T')[0];
+}
+
+// Mark a channel as sent for a business
+function markChannelSent(businessId, channel, board) {
+  const columns = board.columns;
+
+  // Find the business in any column
+  for (const colKey of Object.keys(columns)) {
+    const items = columns[colKey];
+    const idx = items.findIndex(item => String(item.id) === String(businessId));
+
+    if (idx !== -1) {
+      const business = items[idx];
+
+      // Update channel status
+      if (!business.channelStatus) {
+        business.channelStatus = {};
+      }
+      if (!business.channelStatus[channel]) {
+        business.channelStatus[channel] = { available: true, sent: false };
+      }
+      business.channelStatus[channel].sent = true;
+      business.channelStatus[channel].sentDate = new Date().toISOString();
+
+      // Update attempt tracking
+      if (!business.attemptTracking) {
+        business.attemptTracking = { currentAttempt: 0, maxAttempts: 4, attemptHistory: [] };
+      }
+      business.attemptTracking.currentAttempt++;
+      business.attemptTracking.attemptHistory.push({
+        date: new Date().toISOString(),
+        channel: channel,
+        sent: true,
+        responded: false
+      });
+
+      // Calculate next action
+      business.attemptTracking.nextChannel = calculateNextChannel(business, board.config.channelPriority);
+      business.attemptTracking.nextActionDate = calculateNextActionDate(business, board.config.daysBetweenAttempts);
+
+      // Move to attempting if in queued
+      if (colKey === 'queued') {
+        items.splice(idx, 1);
+        columns['attempting'].push(business);
+      }
+
+      return business;
+    }
+  }
+
+  return null;
+}
+
+// Advance attempt (when cycling through channels)
+function advanceAttempt(businessId, board) {
+  const business = findBusinessInBoard(businessId, board);
+  if (!business) return null;
+
+  business.attemptTracking.currentAttempt++;
+  business.attemptTracking.nextChannel = calculateNextChannel(business, board.config.channelPriority);
+  business.attemptTracking.nextActionDate = calculateNextActionDate(business, board.config.daysBetweenAttempts);
+
+  return business;
+}
+
+// Get attempt progress as percentage
+function getAttemptProgress(business) {
+  const tracking = business.attemptTracking;
+  if (!tracking) return 0;
+  return Math.min(100, Math.round((tracking.currentAttempt / tracking.maxAttempts) * 100));
+}
+
+// Find business in any column of a board
+function findBusinessInBoard(businessId, board) {
+  for (const colKey of Object.keys(board.columns)) {
+    const items = board.columns[colKey];
+    const item = items.find(item => String(item.id) === String(businessId));
+    if (item) return item;
+  }
+  return null;
+}
+
+// Move business between columns in campaign board
+function moveCampaignBoardItem(businessId, fromColumn, toColumn, board) {
+  const fromItems = board.columns[fromColumn];
+  const toItems = board.columns[toColumn];
+
+  const idx = fromItems.findIndex(item => String(item.id) === String(businessId));
+  if (idx === -1) return false;
+
+  const business = fromItems[idx];
+  fromItems.splice(idx, 1);
+
+  // Update sales info based on destination column
+  const now = new Date().toISOString();
+  if (toColumn === 'invoice-sent' && !business.salesInfo?.invoiceSentDate) {
+    business.salesInfo = business.salesInfo || {};
+    business.salesInfo.invoiceSentDate = now;
+  } else if (toColumn === 'proof-approved' && !business.salesInfo?.proofApprovedDate) {
+    business.salesInfo = business.salesInfo || {};
+    business.salesInfo.proofApprovedDate = now;
+  } else if (toColumn === 'paid-in-full') {
+    business.salesInfo = business.salesInfo || {};
+    business.salesInfo.paidDate = now;
+    // Auto-move to clients will be triggered separately
+  }
+
+  toItems.push(business);
+  return true;
+}
+
+// Render campaign board (new 6-column system)
+function renderCampaignBoard() {
+  const board = getCurrentCampaignBoard();
+  if (!board) {
+    // Fall back to legacy kanban if no board
+    return renderLegacyKanban();
+  }
+
+  const dailyGoalContainer = document.getElementById('dailyGoalContainer');
+  const kanbanColumnsContainer = document.getElementById('salesActivityKanbanColumns');
+
+  if (!dailyGoalContainer || !kanbanColumnsContainer) {
+    console.warn('Campaign board containers not found');
+    return;
+  }
+
+  const columnKeys = ['queued', 'attempting', 'negotiating', 'invoice-sent', 'proof-approved', 'paid-in-full'];
+
+  // Build columns HTML
+  const columnsHTML = columnKeys.map(colKey => {
+    const colDef = campaignBoardColumns[colKey];
+    const items = board.columns[colKey] || [];
+
+    // Collect ZIPs for filter
+    const columnZips = new Set();
+    items.forEach(item => {
+      const zip = item.actualZip || item.zipCode || item.zip;
+      if (zip) columnZips.add(String(zip));
+    });
+    const sortedZips = Array.from(columnZips).sort();
+
+    // Phase separator styling
+    const isFirstSalesPhase = colKey === 'negotiating';
+    const phaseSeparator = isFirstSalesPhase ? 'border-l-4 border-l-yellow-400 pl-2' : '';
+
+    // Column-specific empty states
+    const emptyStates = {
+      'queued': '<div class="text-center p-4 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg"><span class="text-2xl mb-2 block">📋</span><p class="text-xs font-medium">Ready to start outreach</p><p class="text-xs">Add from Business Pool</p></div>',
+      'attempting': '<div class="text-center p-4 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg"><span class="text-2xl mb-2 block">📞</span><p class="text-xs font-medium">Active outreach</p><p class="text-xs">Shows attempt progress</p></div>',
+      'negotiating': '<div class="text-center p-4 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg"><span class="text-2xl mb-2 block">💬</span><p class="text-xs font-medium">In conversation</p><p class="text-xs">Response received</p></div>',
+      'invoice-sent': '<div class="text-center p-4 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg"><span class="text-2xl mb-2 block">📄</span><p class="text-xs font-medium">Awaiting payment</p><p class="text-xs">Invoice delivered</p></div>',
+      'proof-approved': '<div class="text-center p-4 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg"><span class="text-2xl mb-2 block">✅</span><p class="text-xs font-medium">Ad approved</p><p class="text-xs">Waiting for payment</p></div>',
+      'paid-in-full': '<div class="text-center p-4 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg"><span class="text-2xl mb-2 block">💰</span><p class="text-xs font-medium">Complete!</p><p class="text-xs">Auto-moves to Clients</p></div>'
+    };
+
+    // Render cards
+    const cardsHTML = items.map((item, idx) => {
+      if (!item) return '';
+
+      const leadName = item.businessName || item.name || 'Unnamed Business';
+      const leadId = String(item.id || idx);
+      const isDoNotContact = item.doNotContact === true;
+
+      // Check if contacted
+      const ct = item.contactTracking || {};
+      const hasBeenContacted = ct.emailed || ct.texted || ct.called || ct.linkedinMessaged || ct.facebookMessaged || ct.dmed;
+
+      // Attempt progress for "attempting" column
+      let attemptHTML = '';
+      if (colKey === 'attempting' && item.attemptTracking) {
+        const progress = getAttemptProgress(item);
+        const current = item.attemptTracking.currentAttempt || 0;
+        const max = item.attemptTracking.maxAttempts || 4;
+        const channels = item.channelStatus || {};
+
+        // Channel status icons
+        const channelIcons = board.config.channelPriority.map(ch => {
+          const status = channels[ch];
+          if (!status?.available) return '';
+          const icons = { sms: '📱', email: '📧', facebook: '📘', instagram: '📷', linkedin: '💼', call: '📞' };
+          const icon = icons[ch] || '📤';
+          if (status.sent) return `<span class="text-green-600" title="${ch}: sent">${icon}✓</span>`;
+          if (item.attemptTracking.nextChannel === ch) return `<span class="text-blue-600 font-bold" title="${ch}: next">${icon}→</span>`;
+          return `<span class="text-gray-400" title="${ch}: pending">${icon}</span>`;
+        }).filter(Boolean).join(' ');
+
+        attemptHTML = `
+          <div class="mt-2 pt-2 border-t border-gray-100">
+            <div class="flex items-center justify-between text-xs mb-1">
+              <span class="text-gray-500">Attempt ${current} of ${max}</span>
+              <span class="text-purple-600 font-medium">${progress}%</span>
+            </div>
+            <div class="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+              <div class="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full" style="width: ${progress}%"></div>
+            </div>
+            <div class="flex gap-1 mt-1.5 justify-center text-sm">${channelIcons}</div>
+          </div>
+        `;
+      }
+
+      // Sales info for sales pipeline columns
+      let salesHTML = '';
+      if (['invoice-sent', 'proof-approved', 'paid-in-full'].includes(colKey) && item.salesInfo) {
+        const info = item.salesInfo;
+        const details = [];
+        if (info.invoiceAmount) details.push(`$${info.invoiceAmount}`);
+        if (info.invoiceSentDate) details.push(`Sent: ${new Date(info.invoiceSentDate).toLocaleDateString()}`);
+        if (info.proofApprovedDate) details.push(`Approved: ${new Date(info.proofApprovedDate).toLocaleDateString()}`);
+        if (details.length > 0) {
+          salesHTML = `<div class="mt-2 pt-2 border-t border-gray-100 text-xs text-gray-500">${details.join(' • ')}</div>`;
+        }
+      }
+
+      // Social icons
+      const socialIcons = [];
+      if (item.phone) socialIcons.push(`<a href="tel:${esc(item.phone)}" onclick="event.stopPropagation()" class="px-1.5 py-0.5 bg-gray-100 rounded hover:bg-gray-200 text-sm" title="Call">📞</a>`);
+      if (item.website) socialIcons.push(`<a href="${esc(ensureHttps(item.website))}" onclick="event.stopPropagation()" target="_blank" class="px-1.5 py-0.5 bg-gray-100 rounded hover:bg-gray-200 text-sm" title="Website">🌐</a>`);
+      if (item.email) socialIcons.push(`<a href="mailto:${esc(item.email)}" onclick="event.stopPropagation()" class="px-1.5 py-0.5 bg-gray-100 rounded hover:bg-gray-200 text-sm" title="Email">✉️</a>`);
+      if (item.facebook) socialIcons.push(`<a href="${esc(ensureHttps(item.facebook))}" onclick="event.stopPropagation()" target="_blank" class="px-1.5 py-0.5 bg-blue-50 rounded hover:bg-blue-100 text-sm" title="Facebook">📘</a>`);
+
+      return `
+        <div class="kanban-item campaign-board-item text-xs p-2 ${isDoNotContact ? 'bg-red-50' : 'bg-white'} border rounded ${hasBeenContacted ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'}"
+             data-item-id="${leadId}" data-column="${colKey}"
+             ondblclick="openCampaignBoardQuickAction('${leadId}', '${colKey}')">
+          ${isDoNotContact ? '<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10"><span class="text-6xl text-red-500 font-bold opacity-40">✕</span></div>' : ''}
+
+          <div class="flex items-start gap-2">
+            <div class="flex-1 drag-handle min-w-0">
+              <div class="font-medium text-xs break-words ${isDoNotContact ? 'line-through text-gray-500' : ''}">${esc(leadName)}</div>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between gap-1 mt-1.5">
+            <div class="text-xs text-gray-500 font-medium">
+              ${(item.zipCode || item.actualZip) ? `<span class="bg-gray-100 px-1.5 py-0.5 rounded">📍 ${esc(item.zipCode || item.actualZip)}</span>` : ''}
+            </div>
+            <div class="flex gap-1 flex-shrink-0">
+              <button onclick="event.stopPropagation(); openCampaignBoardQuickAction('${leadId}', '${colKey}')" class="text-indigo-600 hover:text-indigo-800 text-sm" title="View">👁</button>
+              <button onclick="event.stopPropagation(); deleteCampaignBoardItem('${leadId}', '${colKey}')" class="text-red-600 hover:text-red-800 text-sm" title="Delete">🗑</button>
+            </div>
+          </div>
+
+          ${socialIcons.length > 0 ? `<div class="flex flex-wrap gap-1 items-center justify-center pt-1.5 mt-1.5 border-t border-gray-100">${socialIcons.join('')}</div>` : ''}
+          ${attemptHTML}
+          ${salesHTML}
+        </div>
+      `;
+    }).join('');
+
+    // ZIP filter dropdown
+    const zipFilterHTML = sortedZips.length > 0 ? `
+      <select onchange="setCampaignBoardZipFilter('${colKey}', this.value)" class="text-xs px-1 py-0.5 border rounded bg-white">
+        <option value="">📍 All (${items.length})</option>
+        ${sortedZips.map(zip => `<option value="${zip}">${zip}</option>`).join('')}
+      </select>
+    ` : '';
+
+    return `
+      <div class="kanban-column campaign-board-column ${phaseSeparator}" data-column="${colKey}" style="min-width: 200px; flex: 1;">
+        <div class="flex flex-wrap justify-between items-center mb-2 gap-1">
+          <div class="font-semibold text-sm text-${colDef.color}-600">${colDef.icon} ${colDef.title} (${items.length})</div>
+          <div class="flex gap-1">${zipFilterHTML}</div>
+        </div>
+        ${items.length === 0 ? emptyStates[colKey] : ''}
+        ${cardsHTML}
+      </div>
+    `;
+  }).join('');
+
+  // Phase headers
+  const phaseHeaders = `
+    <div class="flex mb-2 text-xs font-medium">
+      <div class="flex-1 text-center text-blue-700 bg-blue-50 py-1 rounded-l">📞 Contact Discovery Phase</div>
+      <div class="flex-1 text-center text-yellow-700 bg-yellow-50 py-1 rounded-r">💼 Sales Pipeline Phase</div>
+    </div>
+  `;
+
+  // Toggle button to switch between views
+  const viewToggle = `
+    <div class="flex items-center gap-2 mb-3">
+      <button onclick="toggleCampaignBoardView()" class="px-3 py-1 text-xs font-medium rounded ${campaignBoardsState.useLegacyKanban ? 'bg-gray-200 text-gray-700' : 'bg-purple-600 text-white'}">
+        ${campaignBoardsState.useLegacyKanban ? '📊 Switch to Campaign Board' : '📋 Switch to Classic Kanban'}
+      </button>
+      <button onclick="openCampaignConfigModal()" class="px-3 py-1 text-xs font-medium rounded bg-blue-100 text-blue-700 hover:bg-blue-200">
+        ⚙️ Campaign Config
+      </button>
+      <span class="text-xs text-gray-500">Campaign: ${esc(board.name)}</span>
+    </div>
+  `;
+
+  // Daily Goal (same as legacy)
+  const dailyGoalHTML = `
+    <div class="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-300 rounded-lg p-4 mb-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <div class="text-2xl">🎯</div>
+          <div>
+            <div class="text-sm text-gray-600 font-medium">Daily Outreach Goal</div>
+            <div class="text-2xl font-bold text-purple-700">
+              ${dailyGoalState.todayCount} <span class="text-gray-400">/</span> ${dailyGoalState.dailyGoal}
+              <span class="text-sm text-gray-500 font-normal">contacts today</span>
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="text-right">
+            <div class="text-xs text-gray-500 mb-1">Completion</div>
+            <div class="text-lg font-bold ${dailyGoalState.todayCount >= dailyGoalState.dailyGoal ? 'text-green-600' : 'text-purple-600'}">
+              ${Math.round((dailyGoalState.todayCount / dailyGoalState.dailyGoal) * 100)}%
+            </div>
+          </div>
+          <button onclick="openDailyGoalSettings()" class="px-4 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 font-medium">⚙️ Settings</button>
+        </div>
+      </div>
+      <div class="mt-3 w-full h-3 bg-gray-200 rounded-full overflow-hidden">
+        <div class="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full transition-all duration-300" style="width: ${Math.min((dailyGoalState.todayCount / dailyGoalState.dailyGoal) * 100, 100)}%;"></div>
+      </div>
+    </div>
+  `;
+
+  // Columns wrapper
+  const columnsWrapperHTML = `
+    ${viewToggle}
+    ${phaseHeaders}
+    <div style="display: flex; gap: 0.75rem; padding-bottom: 0.5rem; overflow-x: auto; scrollbar-width: thin; -webkit-overflow-scrolling: touch;">
+      ${columnsHTML}
+    </div>
+  `;
+
+  dailyGoalContainer.innerHTML = dailyGoalHTML;
+  kanbanColumnsContainer.innerHTML = columnsWrapperHTML;
+
+  setupCampaignBoardDrag();
+}
+
+// Setup drag and drop for campaign board
+function setupCampaignBoardDrag() {
+  const items = document.querySelectorAll('.campaign-board-item');
+
+  items.forEach(item => {
+    item.setAttribute('draggable', 'true');
+
+    item.ondragstart = function(e) {
+      draggedItem = this;
+      this.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', this.dataset.itemId);
+    };
+
+    item.ondragend = function() {
+      this.classList.remove('dragging');
+      draggedItem = null;
+      document.querySelectorAll('.campaign-board-item.drag-over').forEach(el => el.classList.remove('drag-over'));
+      document.querySelectorAll('.campaign-board-column.drag-over-column').forEach(el => el.classList.remove('drag-over-column'));
+    };
+
+    item.ondragover = function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (draggedItem && draggedItem !== this) {
+        document.querySelectorAll('.campaign-board-item.drag-over').forEach(el => el.classList.remove('drag-over'));
+        this.classList.add('drag-over');
+      }
+    };
+
+    item.ondrop = function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      handleCampaignBoardDrop(this, e);
+    };
+  });
+
+  // Column drop zones
+  const columns = document.querySelectorAll('.campaign-board-column');
+  columns.forEach(col => {
+    col.ondragover = function(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (!this.classList.contains('drag-over-column')) {
+        this.classList.add('drag-over-column');
+      }
+    };
+
+    col.ondragleave = function(e) {
+      if (e.target === this) {
+        this.classList.remove('drag-over-column');
+      }
+    };
+
+    col.ondrop = function(e) {
+      e.preventDefault();
+      handleCampaignBoardDrop(this, e, true);
+    };
+  });
+}
+
+// Handle campaign board drop
+async function handleCampaignBoardDrop(target, e, isColumn = false) {
+  document.querySelectorAll('.campaign-board-item.drag-over').forEach(el => el.classList.remove('drag-over'));
+  document.querySelectorAll('.campaign-board-column.drag-over-column').forEach(el => el.classList.remove('drag-over-column'));
+
+  if (!draggedItem) return;
+
+  const board = getCurrentCampaignBoard();
+  if (!board) return;
+
+  const fromColumn = draggedItem.dataset.column;
+  const toColumn = isColumn ? target.dataset.column : target.closest('.campaign-board-column').dataset.column;
+  const itemId = draggedItem.dataset.itemId;
+
+  if (moveCampaignBoardItem(itemId, fromColumn, toColumn, board)) {
+    // Check for auto-move to clients
+    if (toColumn === 'paid-in-full') {
+      const business = findBusinessInBoard(itemId, board);
+      if (business) {
+        setTimeout(() => autoMoveToClients(itemId, board), 500);
+      }
+    }
+
+    toast(`Moved to ${campaignBoardColumns[toColumn].title}`);
+
+    // Save and re-render
+    await saveCampaignBoards();
+    renderCampaignBoard();
+  }
+}
+
+// Open quick action popup for campaign board item
+function openCampaignBoardQuickAction(leadId, columnKey) {
+  const board = getCurrentCampaignBoard();
+  if (!board) return;
+
+  const business = findBusinessInBoard(leadId, board);
+  if (!business) return;
+
+  // Use existing quick action popup with campaign board context
+  openQuickActionPopup(leadId, columnKey);
+}
+
+// Delete item from campaign board
+async function deleteCampaignBoardItem(leadId, columnKey) {
+  if (!confirm('Remove this business from the campaign board?')) return;
+
+  const board = getCurrentCampaignBoard();
+  if (!board) return;
+
+  const items = board.columns[columnKey];
+  const idx = items.findIndex(item => String(item.id) === String(leadId));
+
+  if (idx !== -1) {
+    items.splice(idx, 1);
+    await saveCampaignBoards();
+    renderCampaignBoard();
+    toast('Removed from campaign board');
+  }
+}
+
+// Set ZIP filter for campaign board column
+function setCampaignBoardZipFilter(columnKey, zip) {
+  // TODO: Implement per-column ZIP filtering for campaign boards
+  renderCampaignBoard();
+}
+
+// Toggle between legacy kanban and campaign board
+function toggleCampaignBoardView() {
+  campaignBoardsState.useLegacyKanban = !campaignBoardsState.useLegacyKanban;
+
+  if (campaignBoardsState.useLegacyKanban) {
+    renderKanban();
+  } else {
+    renderCampaignBoard();
+  }
+
+  toast(campaignBoardsState.useLegacyKanban ? 'Switched to Classic Kanban' : 'Switched to Campaign Board');
+}
+
+// Open campaign configuration modal
+function openCampaignConfigModal() {
+  const board = getCurrentCampaignBoard();
+  if (!board) {
+    toast('No campaign selected');
+    return;
+  }
+
+  const config = board.config;
+  const channelOptions = ['sms', 'email', 'facebook', 'instagram', 'linkedin', 'call'];
+
+  const modalHTML = `
+    <div id="campaignConfigModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
+        <h3 class="text-xl font-bold mb-4">⚙️ Campaign Configuration</h3>
+        <p class="text-sm text-gray-500 mb-4">Campaign: <strong>${esc(board.name)}</strong></p>
+
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Channel Priority (drag to reorder)</label>
+            <div id="channelPriorityList" class="space-y-1">
+              ${config.channelPriority.map((ch, idx) => `
+                <div class="flex items-center gap-2 p-2 bg-gray-50 rounded border cursor-move" data-channel="${ch}">
+                  <span class="text-gray-400">☰</span>
+                  <span class="flex-1">${getChannelIcon(ch)} ${ch.charAt(0).toUpperCase() + ch.slice(1)}</span>
+                  <span class="text-xs text-gray-400">#${idx + 1}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Days Between Attempts</label>
+            <input type="number" id="configDaysBetween" value="${config.daysBetweenAttempts}" min="1" max="14"
+                   class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Max Attempts per Business</label>
+            <input type="number" id="configMaxAttempts" value="${config.maxAttempts}" min="1" max="10"
+                   class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+          </div>
+        </div>
+
+        <div class="flex gap-3 mt-6">
+          <button onclick="closeCampaignConfigModal()" class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium">Cancel</button>
+          <button onclick="saveCampaignConfig()" class="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">Save</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+  // Setup channel reorder drag
+  setupChannelPriorityDrag();
+}
+
+// Get channel icon
+function getChannelIcon(channel) {
+  const icons = { sms: '📱', email: '📧', facebook: '📘', instagram: '📷', linkedin: '💼', call: '📞' };
+  return icons[channel] || '📤';
+}
+
+// Setup drag and drop for channel priority
+function setupChannelPriorityDrag() {
+  const list = document.getElementById('channelPriorityList');
+  if (!list) return;
+
+  const items = list.querySelectorAll('[data-channel]');
+  items.forEach(item => {
+    item.setAttribute('draggable', 'true');
+
+    item.ondragstart = function(e) {
+      e.dataTransfer.setData('text/plain', this.dataset.channel);
+      this.classList.add('opacity-50');
+    };
+
+    item.ondragend = function() {
+      this.classList.remove('opacity-50');
+    };
+
+    item.ondragover = function(e) {
+      e.preventDefault();
+      this.classList.add('bg-purple-100');
+    };
+
+    item.ondragleave = function() {
+      this.classList.remove('bg-purple-100');
+    };
+
+    item.ondrop = function(e) {
+      e.preventDefault();
+      this.classList.remove('bg-purple-100');
+      const draggedChannel = e.dataTransfer.getData('text/plain');
+      const targetChannel = this.dataset.channel;
+
+      if (draggedChannel !== targetChannel) {
+        // Swap positions
+        const list = document.getElementById('channelPriorityList');
+        const draggedEl = list.querySelector(`[data-channel="${draggedChannel}"]`);
+        const targetEl = this;
+
+        const parent = list;
+        const draggedIdx = Array.from(parent.children).indexOf(draggedEl);
+        const targetIdx = Array.from(parent.children).indexOf(targetEl);
+
+        if (draggedIdx < targetIdx) {
+          parent.insertBefore(draggedEl, targetEl.nextSibling);
+        } else {
+          parent.insertBefore(draggedEl, targetEl);
+        }
+
+        // Update numbers
+        Array.from(parent.children).forEach((el, idx) => {
+          const numEl = el.querySelector('.text-xs');
+          if (numEl) numEl.textContent = `#${idx + 1}`;
+        });
+      }
+    };
+  });
+}
+
+// Close campaign config modal
+function closeCampaignConfigModal() {
+  const modal = document.getElementById('campaignConfigModal');
+  if (modal) modal.remove();
+}
+
+// Save campaign configuration
+async function saveCampaignConfig() {
+  const board = getCurrentCampaignBoard();
+  if (!board) return;
+
+  // Get channel priority from DOM order
+  const list = document.getElementById('channelPriorityList');
+  const newPriority = Array.from(list.querySelectorAll('[data-channel]')).map(el => el.dataset.channel);
+
+  board.config.channelPriority = newPriority;
+  board.config.daysBetweenAttempts = parseInt(document.getElementById('configDaysBetween').value) || 3;
+  board.config.maxAttempts = parseInt(document.getElementById('configMaxAttempts').value) || 4;
+
+  await saveCampaignBoards();
+  closeCampaignConfigModal();
+  toast('Campaign configuration saved');
+
+  // Re-render to apply changes
+  if (!campaignBoardsState.useLegacyKanban) {
+    renderCampaignBoard();
+  }
+}
+
+// Data migration from legacy kanban to campaign boards
+async function migrateToCampaignBoards() {
+  const currentMailerId = state.current?.Mailer_ID;
+  if (!currentMailerId) {
+    toast('No campaign selected for migration');
+    return false;
+  }
+
+  // Check if already migrated
+  if (campaignBoardsState.boards[currentMailerId] &&
+      Object.values(campaignBoardsState.boards[currentMailerId].columns).some(col => col.length > 0)) {
+    if (!confirm('This campaign already has data. Merge legacy kanban data into it?')) {
+      return false;
+    }
+  }
+
+  // Get or create board
+  const board = getCurrentCampaignBoard();
+  if (!board) return false;
+
+  // Migration mapping:
+  // prospect-list → queued
+  // to-contact → queued or attempting (based on contact history)
+  // in-progress → attempting or negotiating (if responded)
+  // committed → negotiating
+
+  const legacyColumns = kanbanState.columns;
+
+  // Helper to check if business has been contacted
+  const hasBeenContacted = (item) => {
+    if (typeof item !== 'object') return false;
+    const ct = item.contactTracking || {};
+    return ct.emailed || ct.texted || ct.called || ct.linkedinMessaged || ct.facebookMessaged || ct.dmed;
+  };
+
+  // Migrate prospect-list → queued
+  (legacyColumns['prospect-list'] || []).forEach(item => {
+    if (!item) return;
+    const enhanced = enhanceBusinessForCampaignBoard(item, board.config.maxAttempts);
+    if (!board.columns['queued'].some(b => b.id === enhanced.id)) {
+      board.columns['queued'].push(enhanced);
+    }
+  });
+
+  // Migrate to-contact → queued or attempting
+  (legacyColumns['to-contact'] || []).forEach(item => {
+    if (!item) return;
+    const enhanced = enhanceBusinessForCampaignBoard(item, board.config.maxAttempts);
+    const targetCol = hasBeenContacted(item) ? 'attempting' : 'queued';
+    if (!board.columns[targetCol].some(b => b.id === enhanced.id)) {
+      board.columns[targetCol].push(enhanced);
+    }
+  });
+
+  // Migrate in-progress → attempting or negotiating
+  (legacyColumns['in-progress'] || []).forEach(item => {
+    if (!item) return;
+    const enhanced = enhanceBusinessForCampaignBoard(item, board.config.maxAttempts);
+    // If they've responded (has notes or follow-up date), they're negotiating
+    const isNegotiating = item.notes || item.followUpDate || item.lastContactResponse;
+    const targetCol = isNegotiating ? 'negotiating' : 'attempting';
+    if (!board.columns[targetCol].some(b => b.id === enhanced.id)) {
+      board.columns[targetCol].push(enhanced);
+    }
+  });
+
+  // Migrate committed → negotiating
+  (legacyColumns['committed'] || []).forEach(item => {
+    if (!item) return;
+    const enhanced = enhanceBusinessForCampaignBoard(item, board.config.maxAttempts);
+    if (!board.columns['negotiating'].some(b => b.id === enhanced.id)) {
+      board.columns['negotiating'].push(enhanced);
+    }
+  });
+
+  await saveCampaignBoards();
+
+  const totalMigrated = Object.values(board.columns).reduce((sum, col) => sum + col.length, 0);
+  toast(`Migrated ${totalMigrated} businesses to Campaign Board`);
+
+  return true;
+}
+
+// Save campaign boards to cloud
+async function saveCampaignBoards() {
+  try {
+    await saveToCloud('campaign-boards', campaignBoardsState.boards);
+    console.log('✅ Campaign boards saved to cloud');
+  } catch (err) {
+    console.error('❌ Failed to save campaign boards:', err);
+    toast('Failed to save campaign boards', false);
+  }
+}
+
+// Load campaign boards from cloud
+async function loadCampaignBoards() {
+  try {
+    const data = await loadFromCloud('campaign-boards');
+    if (data && typeof data === 'object') {
+      campaignBoardsState.boards = data;
+      console.log('✅ Campaign boards loaded:', Object.keys(data).length, 'boards');
+    }
+  } catch (err) {
+    console.error('Failed to load campaign boards:', err);
+  }
+}
+
+// Auto-move to clients when paid in full
+async function autoMoveToClients(businessId, board) {
+  const business = findBusinessInBoard(businessId, board);
+  if (!business) return;
+
+  // Build client object using existing function
+  const clientData = buildClientObjectFromBusiness(business);
+
+  // Add to clients database
+  if (!state.clientsData) state.clientsData = [];
+  state.clientsData.push(clientData);
+
+  // Save clients
+  await saveToCloud('clients', state.clientsData);
+
+  // Remove from paid-in-full column
+  const paidItems = board.columns['paid-in-full'];
+  const idx = paidItems.findIndex(item => String(item.id) === String(businessId));
+  if (idx !== -1) {
+    paidItems.splice(idx, 1);
+    await saveCampaignBoards();
+  }
+
+  toast(`🎉 ${business.businessName || 'Business'} moved to Clients!`);
+
+  renderCampaignBoard();
+}
+
+// Build client object from business (for auto-move)
+function buildClientObjectFromBusiness(business) {
+  return {
+    id: business.id || `client_${Date.now()}`,
+    name: business.businessName || business.name,
+    category: business.category || business.types?.[0],
+    address: business.address || business.vicinity,
+    phone: business.phone,
+    email: business.email,
+    website: business.website,
+    facebook: business.facebook,
+    instagram: business.instagram,
+    linkedin: business.linkedin,
+    createdAt: new Date().toISOString(),
+    source: 'campaign-board',
+    salesInfo: business.salesInfo,
+    notes: business.notes || '',
+    mailerId: business.mailerId
+  };
 }
 
 /* ========= TASKS FUNCTIONS ========= */
@@ -16817,6 +17775,16 @@ async function sortKanbanColumnByZip(columnKey) {
   toast(`📍 Sorted by ZIP code`, true);
 }
 window.sortKanbanColumnByZip = sortKanbanColumnByZip;
+
+// Campaign Board window exports
+window.toggleCampaignBoardView = toggleCampaignBoardView;
+window.openCampaignConfigModal = openCampaignConfigModal;
+window.saveCampaignConfig = saveCampaignConfig;
+window.closeCampaignConfigModal = closeCampaignConfigModal;
+window.migrateToCampaignBoards = migrateToCampaignBoards;
+window.openCampaignBoardQuickAction = openCampaignBoardQuickAction;
+window.deleteCampaignBoardItem = deleteCampaignBoardItem;
+window.setCampaignBoardZipFilter = setCampaignBoardZipFilter;
 
 function openLeadModal(column = null, leadId = null) {
   const modal = document.getElementById("leadModal");

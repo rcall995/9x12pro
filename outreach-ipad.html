@@ -91,30 +91,48 @@
         </div>
     </div>
 
-    <!-- Channel Tabs -->
-    <div class="bg-white border-b border-gray-200 px-2 py-2 flex gap-1 overflow-x-auto flex-shrink-0">
-        <button onclick="switchChannel('sms')" id="tab-sms" class="channel-tab active flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-green-500 text-white">
-            <span class="text-lg">📱</span> SMS
-        </button>
-        <button onclick="switchChannel('email')" id="tab-email" class="channel-tab flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">
-            <span class="text-lg">📧</span> Email
-        </button>
-        <button onclick="switchChannel('facebook')" id="tab-facebook" class="channel-tab flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">
-            <span class="text-lg">📘</span> Facebook
-        </button>
-        <button onclick="switchChannel('instagram')" id="tab-instagram" class="channel-tab flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">
-            <span class="text-lg">📷</span> Instagram
-        </button>
-        <button onclick="switchChannel('linkedin')" id="tab-linkedin" class="channel-tab flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">
-            <span class="text-lg">💼</span> LinkedIn
-        </button>
-        <button onclick="switchChannel('call')" id="tab-call" class="channel-tab flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">
-            <span class="text-lg">📞</span> Call
-        </button>
-        <button onclick="switchChannel('nearby')" id="tab-nearby" class="channel-tab flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">
-            <span class="text-lg">📍</span> Nearby
-            <span id="nearbyCount" class="hidden bg-green-600 text-white text-xs px-2 py-0.5 rounded-full">0</span>
-        </button>
+    <!-- View Mode Toggle + Channel Tabs -->
+    <div class="bg-white border-b border-gray-200 px-2 py-2 flex-shrink-0">
+        <!-- View Toggle -->
+        <div class="flex items-center justify-between mb-2">
+            <div class="flex gap-1">
+                <button onclick="switchViewMode('channel')" id="viewMode-channel" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600 text-white">
+                    📋 By Channel
+                </button>
+                <button onclick="switchViewMode('zipQueue')" id="viewMode-zipQueue" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-200 text-gray-700 hover:bg-gray-300">
+                    📍 ZIP Queue
+                </button>
+            </div>
+            <div id="zipQueueStats" class="hidden text-xs text-gray-500">
+                <span id="zipGroupCount">0</span> ZIPs • <span id="zipTotalCount">0</span> prospects
+            </div>
+        </div>
+
+        <!-- Channel Tabs (shown in channel mode) -->
+        <div id="channelTabs" class="flex gap-1 overflow-x-auto">
+            <button onclick="switchChannel('sms')" id="tab-sms" class="channel-tab active flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-green-500 text-white">
+                <span class="text-lg">📱</span> SMS
+            </button>
+            <button onclick="switchChannel('email')" id="tab-email" class="channel-tab flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">
+                <span class="text-lg">📧</span> Email
+            </button>
+            <button onclick="switchChannel('facebook')" id="tab-facebook" class="channel-tab flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">
+                <span class="text-lg">📘</span> Facebook
+            </button>
+            <button onclick="switchChannel('instagram')" id="tab-instagram" class="channel-tab flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">
+                <span class="text-lg">📷</span> Instagram
+            </button>
+            <button onclick="switchChannel('linkedin')" id="tab-linkedin" class="channel-tab flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">
+                <span class="text-lg">💼</span> LinkedIn
+            </button>
+            <button onclick="switchChannel('call')" id="tab-call" class="channel-tab flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">
+                <span class="text-lg">📞</span> Call
+            </button>
+            <button onclick="switchChannel('nearby')" id="tab-nearby" class="channel-tab flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">
+                <span class="text-lg">📍</span> Nearby
+                <span id="nearbyCount" class="hidden bg-green-600 text-white text-xs px-2 py-0.5 rounded-full">0</span>
+            </button>
+        </div>
     </div>
 
     <!-- Main Content - Split View -->
@@ -266,6 +284,124 @@
         <span id="toastMessage">Message</span>
     </div>
 
+    <!-- Rapid Fire Modal -->
+    <div id="rapidFireModal" class="fixed inset-0 bg-black/90 hidden flex-col z-50">
+        <div class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <button onclick="closeRapidFire()" class="p-2 hover:bg-white/20 rounded-lg">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+                <div>
+                    <h2 class="font-bold text-lg">⚡ Rapid Fire Mode</h2>
+                    <p id="rapidFireZip" class="text-xs text-purple-200">ZIP: 00000</p>
+                </div>
+            </div>
+            <div class="text-right">
+                <div class="text-2xl font-bold" id="rapidFireProgress">1/10</div>
+                <div class="text-xs text-purple-200">Progress</div>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-4 bg-gray-900">
+            <div class="max-w-2xl mx-auto">
+                <!-- Business Info -->
+                <div class="bg-white rounded-xl p-4 mb-4">
+                    <h3 id="rapidFireBusinessName" class="text-xl font-bold text-gray-900">Business Name</h3>
+                    <p id="rapidFireCategory" class="text-gray-500 text-sm">Category</p>
+                    <div id="rapidFireContact" class="mt-2 grid grid-cols-2 gap-2 text-sm">
+                        <!-- Contact info filled dynamically -->
+                    </div>
+                </div>
+
+                <!-- Template Preview -->
+                <div class="bg-white rounded-xl p-4 mb-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="font-semibold text-gray-700">Message</span>
+                        <span id="rapidFireChannel" class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">📱 SMS</span>
+                    </div>
+                    <pre id="rapidFireTemplate" class="template-preview text-gray-700 text-sm bg-gray-50 p-3 rounded-lg"></pre>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="space-y-3">
+                    <button onclick="rapidFireCopyAndOpen()" class="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold text-lg shadow-lg">
+                        📋 Copy & Open
+                    </button>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="rapidFireMarkSent()" class="py-3 bg-blue-500 text-white rounded-xl font-semibold">
+                            ✓ Mark Sent
+                        </button>
+                        <button onclick="rapidFireGotResponse()" class="py-3 bg-purple-500 text-white rounded-xl font-semibold">
+                            💬 Got Response!
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="rapidFirePrevious()" class="py-3 bg-gray-600 text-white rounded-xl font-semibold">
+                            ← Previous
+                        </button>
+                        <button onclick="rapidFireNext()" class="py-3 bg-gray-600 text-white rounded-xl font-semibold">
+                            Next →
+                        </button>
+                    </div>
+                    <button onclick="rapidFireSkip()" class="w-full py-2 bg-gray-700 text-gray-300 rounded-xl text-sm">
+                        Skip this business
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Response Capture Modal -->
+    <div id="responseCaptureModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-2xl p-6 mx-4 max-w-md w-full shadow-2xl">
+            <h3 class="text-xl font-bold mb-2">💬 Response Received!</h3>
+            <p id="responseCaptureBusiness" class="text-gray-600 mb-4">Business Name</p>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Response Channel (locked for follow-up)</label>
+                    <div id="responseChannel" class="px-3 py-2 bg-purple-100 text-purple-700 rounded-lg font-medium text-sm">📱 SMS</div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Did they provide an email?</label>
+                    <input type="email" id="capturedEmail" placeholder="email@example.com (optional)"
+                           class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Response Notes</label>
+                    <textarea id="responseNotes" rows="3" placeholder="What did they say? Interest level? Next steps?"
+                              class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Interest Level</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="setInterestLevel('hot')" class="interest-btn py-2 px-3 border-2 border-gray-200 rounded-lg text-sm font-medium hover:border-red-500 hover:bg-red-50" data-level="hot">
+                            🔥 Hot
+                        </button>
+                        <button onclick="setInterestLevel('warm')" class="interest-btn py-2 px-3 border-2 border-gray-200 rounded-lg text-sm font-medium hover:border-yellow-500 hover:bg-yellow-50" data-level="warm">
+                            ☀️ Warm
+                        </button>
+                        <button onclick="setInterestLevel('cold')" class="interest-btn py-2 px-3 border-2 border-gray-200 rounded-lg text-sm font-medium hover:border-blue-500 hover:bg-blue-50" data-level="cold">
+                            ❄️ Cold
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex gap-3 mt-6">
+                <button onclick="closeResponseCapture()" class="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold">Cancel</button>
+                <button onclick="saveResponse()" class="flex-1 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl font-semibold">
+                    Save & Move to Negotiating
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // ============ STATE ============
         const state = {
@@ -288,7 +424,15 @@
                 contacted: 0,
                 date: new Date().toDateString()
             },
-            visitOutcome: null
+            visitOutcome: null,
+            // ZIP Queue state
+            viewMode: 'channel',  // 'channel' or 'zipQueue'
+            zipQueue: {
+                groups: {},       // { "85001": [businesses], ... }
+                activeZip: null,
+                rapidFireIndex: 0,
+                rapidFireActive: false
+            }
         };
 
         let supabaseClient = null;
@@ -1522,6 +1666,541 @@
             document.getElementById('toastMessage').textContent = message;
             toast.classList.add('show');
             setTimeout(() => toast.classList.remove('show'), 2500);
+        }
+
+        // ============ VIEW MODE TOGGLE ============
+        function switchViewMode(mode) {
+            state.viewMode = mode;
+
+            // Update toggle buttons
+            document.getElementById('viewMode-channel').classList.toggle('bg-purple-600', mode === 'channel');
+            document.getElementById('viewMode-channel').classList.toggle('text-white', mode === 'channel');
+            document.getElementById('viewMode-channel').classList.toggle('bg-gray-200', mode !== 'channel');
+            document.getElementById('viewMode-channel').classList.toggle('text-gray-700', mode !== 'channel');
+
+            document.getElementById('viewMode-zipQueue').classList.toggle('bg-purple-600', mode === 'zipQueue');
+            document.getElementById('viewMode-zipQueue').classList.toggle('text-white', mode === 'zipQueue');
+            document.getElementById('viewMode-zipQueue').classList.toggle('bg-gray-200', mode !== 'zipQueue');
+            document.getElementById('viewMode-zipQueue').classList.toggle('text-gray-700', mode !== 'zipQueue');
+
+            // Show/hide appropriate content
+            document.getElementById('channelTabs').classList.toggle('hidden', mode === 'zipQueue');
+            document.getElementById('zipQueueStats').classList.toggle('hidden', mode !== 'zipQueue');
+
+            if (mode === 'zipQueue') {
+                buildZipQueue();
+                renderZipQueue();
+            } else {
+                renderProspectList();
+            }
+        }
+
+        // ============ ZIP QUEUE ============
+        function buildZipQueue() {
+            const groups = {};
+
+            state.prospects.forEach(p => {
+                const zip = p.zipCode || p.actualZip || p.zip || 'Unknown';
+                if (!groups[zip]) {
+                    groups[zip] = [];
+                }
+                groups[zip].push(p);
+            });
+
+            state.zipQueue.groups = groups;
+
+            // Update stats
+            const zipCount = Object.keys(groups).length;
+            const totalCount = state.prospects.length;
+            document.getElementById('zipGroupCount').textContent = zipCount;
+            document.getElementById('zipTotalCount').textContent = totalCount;
+        }
+
+        function renderZipQueue() {
+            const container = document.getElementById('prospectList');
+            const groups = state.zipQueue.groups;
+            const zipCodes = Object.keys(groups).sort();
+
+            document.getElementById('listTitle').textContent = 'ZIP Queue';
+            document.getElementById('listCount').textContent = `${zipCodes.length} ZIP codes`;
+
+            if (zipCodes.length === 0) {
+                container.innerHTML = `
+                    <div class="p-8 text-center text-gray-400">
+                        <div class="text-4xl mb-2">📍</div>
+                        <p>No prospects with ZIP codes</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = zipCodes.map(zip => {
+                const prospects = groups[zip];
+                const contacted = prospects.filter(p => {
+                    const ct = p.contactTracking || {};
+                    return ct.emailed || ct.texted || ct.called || ct.facebookMessaged || ct.dmed;
+                }).length;
+
+                const hasPhone = prospects.filter(p => p.phone).length;
+                const hasEmail = prospects.filter(p => p.email).length;
+                const hasFacebook = prospects.filter(p => p.facebook).length;
+
+                return `
+                    <div class="p-4 border-b border-gray-200 hover:bg-gray-50">
+                        <div class="flex items-center justify-between mb-2">
+                            <div>
+                                <span class="text-lg font-bold text-gray-900">📍 ${zip}</span>
+                                <span class="ml-2 text-sm text-gray-500">${prospects.length} businesses</span>
+                            </div>
+                            <span class="text-xs ${contacted === prospects.length ? 'text-green-600' : 'text-gray-400'}">
+                                ${contacted}/${prospects.length} contacted
+                            </span>
+                        </div>
+                        <div class="flex items-center gap-2 text-xs text-gray-500 mb-3">
+                            <span>📱 ${hasPhone}</span>
+                            <span>📧 ${hasEmail}</span>
+                            <span>📘 ${hasFacebook}</span>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="startRapidFire('${zip}')" class="flex-1 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg font-semibold text-sm hover:shadow-lg transition-shadow">
+                                ⚡ Work This ZIP
+                            </button>
+                            <button onclick="expandZipGroup('${zip}')" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium text-sm hover:bg-gray-300">
+                                View List
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function expandZipGroup(zip) {
+            const prospects = state.zipQueue.groups[zip] || [];
+            state.filteredProspects = prospects;
+            state.zipQueue.activeZip = zip;
+
+            const container = document.getElementById('prospectList');
+            document.getElementById('listTitle').textContent = `ZIP ${zip}`;
+            document.getElementById('listCount').textContent = `${prospects.length} businesses`;
+
+            container.innerHTML = `
+                <div class="p-2 bg-purple-50 border-b border-purple-200">
+                    <button onclick="renderZipQueue()" class="text-sm text-purple-600 font-medium">← Back to ZIP Queue</button>
+                </div>
+            ` + prospects.map((p, idx) => {
+                const ct = p.contactTracking || {};
+                const isContacted = ct.emailed || ct.texted || ct.called || ct.facebookMessaged || ct.dmed;
+
+                const icons = [];
+                if (p.phone) icons.push(ct.texted ? '📱✓' : '📱');
+                if (p.email) icons.push(ct.emailed ? '📧✓' : '📧');
+                if (p.facebook) icons.push(ct.facebookMessaged ? '📘✓' : '📘');
+
+                return `
+                    <div class="prospect-item p-3 border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${isContacted ? 'contacted' : ''}"
+                         onclick="selectProspectFromZip(${idx}, '${zip}')">
+                        <div class="flex items-center justify-between">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2">
+                                    ${isContacted ? '<span class="text-green-500">✓</span>' : ''}
+                                    <span class="font-medium text-gray-900 truncate">${p.businessName}</span>
+                                </div>
+                                <div class="text-xs text-gray-500 truncate">${p.category || 'No category'}</div>
+                            </div>
+                            <div class="text-xs text-gray-400 ml-2 flex-shrink-0">${icons.join(' ')}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function selectProspectFromZip(index, zip) {
+            const prospects = state.zipQueue.groups[zip] || [];
+            state.selectedProspect = prospects[index];
+            state.filteredProspects = prospects;
+
+            // Update list selection
+            document.querySelectorAll('.prospect-item').forEach((el, i) => {
+                el.classList.toggle('selected', i === index);
+            });
+
+            // Show details (reuse existing function)
+            document.getElementById('emptyState').classList.add('hidden');
+            document.getElementById('prospectDetails').classList.remove('hidden');
+
+            const prospect = prospects[index];
+            document.getElementById('detailName').textContent = prospect.businessName;
+            document.getElementById('detailCategory').textContent = prospect.category || 'No category';
+            document.getElementById('detailAddress').textContent = prospect.address || prospect.fullAddress || '';
+
+            // Contact info
+            const contactHtml = [];
+            if (prospect.phone) contactHtml.push(`<div class="bg-white rounded-lg p-2 border"><span class="text-gray-500 text-xs">Phone:</span><br><span class="font-medium">${prospect.phone}</span></div>`);
+            if (prospect.email) contactHtml.push(`<div class="bg-white rounded-lg p-2 border"><span class="text-gray-500 text-xs">Email:</span><br><span class="font-medium text-sm truncate">${prospect.email}</span></div>`);
+            document.getElementById('contactInfo').innerHTML = contactHtml.join('');
+
+            // Contact status
+            const ct = prospect.contactTracking || {};
+            const statusHtml = [
+                { key: 'emailed', icon: '📧', label: 'Email' },
+                { key: 'texted', icon: '📱', label: 'Text' },
+                { key: 'called', icon: '📞', label: 'Call' },
+                { key: 'facebookMessaged', icon: '📘', label: 'FB' },
+                { key: 'dmed', icon: '📷', label: 'IG' },
+                { key: 'linkedinMessaged', icon: '💼', label: 'LI' }
+            ].map(s => `
+                <span class="px-2 py-1 rounded-full text-xs ${ct[s.key] ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}">
+                    ${s.icon} ${s.label} ${ct[s.key] ? '✓' : ''}
+                </span>
+            `).join('');
+            document.getElementById('statusIcons').innerHTML = statusHtml;
+
+            updateTemplatePreview();
+            updateActionButton();
+
+            // Show standard actions
+            document.getElementById('nearbyActions').classList.add('hidden');
+            document.getElementById('btnCopyOpen').classList.remove('hidden');
+            document.getElementById('btnMarkContacted').classList.remove('hidden');
+        }
+
+        // ============ RAPID FIRE MODE ============
+        function startRapidFire(zip) {
+            const prospects = state.zipQueue.groups[zip] || [];
+            if (prospects.length === 0) {
+                showToast('No prospects in this ZIP');
+                return;
+            }
+
+            state.zipQueue.activeZip = zip;
+            state.zipQueue.rapidFireIndex = 0;
+            state.zipQueue.rapidFireActive = true;
+
+            document.getElementById('rapidFireModal').classList.remove('hidden');
+            document.getElementById('rapidFireModal').classList.add('flex');
+            document.getElementById('rapidFireZip').textContent = `ZIP: ${zip}`;
+
+            updateRapidFireDisplay();
+        }
+
+        function closeRapidFire() {
+            state.zipQueue.rapidFireActive = false;
+            document.getElementById('rapidFireModal').classList.add('hidden');
+            document.getElementById('rapidFireModal').classList.remove('flex');
+
+            // Refresh the ZIP queue display
+            if (state.viewMode === 'zipQueue') {
+                buildZipQueue();
+                renderZipQueue();
+            }
+        }
+
+        function updateRapidFireDisplay() {
+            const zip = state.zipQueue.activeZip;
+            const prospects = state.zipQueue.groups[zip] || [];
+            const idx = state.zipQueue.rapidFireIndex;
+
+            if (idx < 0 || idx >= prospects.length) {
+                closeRapidFire();
+                showToast('🎉 ZIP complete!');
+                return;
+            }
+
+            const prospect = prospects[idx];
+            state.selectedProspect = prospect;
+
+            // Update progress
+            document.getElementById('rapidFireProgress').textContent = `${idx + 1}/${prospects.length}`;
+
+            // Update business info
+            document.getElementById('rapidFireBusinessName').textContent = prospect.businessName;
+            document.getElementById('rapidFireCategory').textContent = prospect.category || 'No category';
+
+            // Contact info
+            const contactHtml = [];
+            if (prospect.phone) contactHtml.push(`<div class="bg-gray-50 rounded px-2 py-1"><span class="text-gray-500 text-xs">📱</span> ${prospect.phone}</div>`);
+            if (prospect.email) contactHtml.push(`<div class="bg-gray-50 rounded px-2 py-1"><span class="text-gray-500 text-xs">📧</span> ${prospect.email}</div>`);
+            if (prospect.facebook) contactHtml.push(`<div class="bg-gray-50 rounded px-2 py-1"><span class="text-gray-500 text-xs">📘</span> Facebook</div>`);
+            document.getElementById('rapidFireContact').innerHTML = contactHtml.join('');
+
+            // Determine best channel
+            const ct = prospect.contactTracking || {};
+            let channel = 'sms';
+            let channelIcon = '📱';
+            let channelName = 'SMS';
+
+            if (prospect.phone && !ct.texted) {
+                channel = 'sms'; channelIcon = '📱'; channelName = 'SMS';
+            } else if (prospect.email && !ct.emailed) {
+                channel = 'email'; channelIcon = '📧'; channelName = 'Email';
+            } else if (prospect.facebook && !ct.facebookMessaged) {
+                channel = 'facebook'; channelIcon = '📘'; channelName = 'Facebook';
+            } else if (prospect.phone && !ct.called) {
+                channel = 'call'; channelIcon = '📞'; channelName = 'Call';
+            }
+
+            state.currentChannel = channel;
+            document.getElementById('rapidFireChannel').innerHTML = `${channelIcon} ${channelName}`;
+
+            // Template
+            const template = getTemplateForChannel(channel);
+            const filledTemplate = fillTemplate(template, prospect);
+            document.getElementById('rapidFireTemplate').textContent = filledTemplate;
+        }
+
+        function rapidFireCopyAndOpen() {
+            const prospect = state.selectedProspect;
+            if (!prospect) return;
+
+            const channel = state.currentChannel;
+            const template = getTemplateForChannel(channel);
+            const filledMessage = fillTemplate(template, prospect);
+
+            // Copy to clipboard
+            navigator.clipboard.writeText(filledMessage).then(() => {
+                showToast('📋 Copied!');
+            }).catch(() => {
+                showToast('Copy failed');
+            });
+
+            // Open appropriate app
+            setTimeout(() => {
+                openChannelApp(prospect, channel);
+            }, 300);
+        }
+
+        function rapidFireMarkSent() {
+            const prospect = state.selectedProspect;
+            if (!prospect) return;
+
+            const channel = state.currentChannel;
+            if (!prospect.contactTracking) prospect.contactTracking = {};
+
+            switch (channel) {
+                case 'sms': prospect.contactTracking.texted = true; break;
+                case 'email': prospect.contactTracking.emailed = true; break;
+                case 'facebook': prospect.contactTracking.facebookMessaged = true; break;
+                case 'call': prospect.contactTracking.called = true; break;
+                case 'instagram': prospect.contactTracking.dmed = true; break;
+                case 'linkedin': prospect.contactTracking.linkedinMessaged = true; break;
+            }
+
+            // Update stats
+            state.sessionStats.contacted++;
+            state.todayStats.contacted++;
+            saveTodayStats();
+
+            // Sync and move to next
+            syncToCloud().then(() => {
+                showToast('✓ Marked as sent');
+                rapidFireNext();
+            });
+        }
+
+        function rapidFireGotResponse() {
+            const prospect = state.selectedProspect;
+            if (!prospect) return;
+
+            // Open response capture modal
+            document.getElementById('responseCaptureBusiness').textContent = prospect.businessName;
+
+            const channelIcons = { sms: '📱 SMS', email: '📧 Email', facebook: '📘 Facebook', call: '📞 Call' };
+            document.getElementById('responseChannel').textContent = channelIcons[state.currentChannel] || state.currentChannel;
+
+            document.getElementById('capturedEmail').value = '';
+            document.getElementById('responseNotes').value = '';
+
+            // Reset interest level
+            document.querySelectorAll('.interest-btn').forEach(btn => {
+                btn.classList.remove('border-red-500', 'bg-red-50', 'border-yellow-500', 'bg-yellow-50', 'border-blue-500', 'bg-blue-50');
+                btn.classList.add('border-gray-200');
+            });
+            state.responseInterestLevel = null;
+
+            document.getElementById('responseCaptureModal').classList.remove('hidden');
+            document.getElementById('responseCaptureModal').classList.add('flex');
+        }
+
+        function rapidFirePrevious() {
+            if (state.zipQueue.rapidFireIndex > 0) {
+                state.zipQueue.rapidFireIndex--;
+                updateRapidFireDisplay();
+            }
+        }
+
+        function rapidFireNext() {
+            const zip = state.zipQueue.activeZip;
+            const prospects = state.zipQueue.groups[zip] || [];
+
+            if (state.zipQueue.rapidFireIndex < prospects.length - 1) {
+                state.zipQueue.rapidFireIndex++;
+                updateRapidFireDisplay();
+            } else {
+                closeRapidFire();
+                showToast('🎉 ZIP complete!');
+            }
+        }
+
+        function rapidFireSkip() {
+            rapidFireNext();
+        }
+
+        // ============ RESPONSE CAPTURE ============
+        function setInterestLevel(level) {
+            state.responseInterestLevel = level;
+
+            const colors = {
+                hot: ['border-red-500', 'bg-red-50'],
+                warm: ['border-yellow-500', 'bg-yellow-50'],
+                cold: ['border-blue-500', 'bg-blue-50']
+            };
+
+            document.querySelectorAll('.interest-btn').forEach(btn => {
+                btn.classList.remove('border-red-500', 'bg-red-50', 'border-yellow-500', 'bg-yellow-50', 'border-blue-500', 'bg-blue-50');
+                btn.classList.add('border-gray-200');
+
+                if (btn.dataset.level === level) {
+                    btn.classList.remove('border-gray-200');
+                    btn.classList.add(...colors[level]);
+                }
+            });
+        }
+
+        function closeResponseCapture() {
+            document.getElementById('responseCaptureModal').classList.add('hidden');
+            document.getElementById('responseCaptureModal').classList.remove('flex');
+        }
+
+        async function saveResponse() {
+            const prospect = state.selectedProspect;
+            if (!prospect) return;
+
+            const capturedEmail = document.getElementById('capturedEmail').value.trim();
+            const responseNotes = document.getElementById('responseNotes').value.trim();
+            const interestLevel = state.responseInterestLevel;
+
+            // Update prospect data
+            if (!prospect.contactTracking) prospect.contactTracking = {};
+
+            // Mark channel as responded
+            const channel = state.currentChannel;
+            switch (channel) {
+                case 'sms': prospect.contactTracking.texted = true; prospect.contactTracking.smsResponded = true; break;
+                case 'email': prospect.contactTracking.emailed = true; prospect.contactTracking.emailResponded = true; break;
+                case 'facebook': prospect.contactTracking.facebookMessaged = true; prospect.contactTracking.facebookResponded = true; break;
+                case 'call': prospect.contactTracking.called = true; prospect.contactTracking.callResponded = true; break;
+            }
+
+            // Lock channel for follow-up
+            prospect.lockedChannel = {
+                channel: channel,
+                capturedEmail: capturedEmail || null,
+                lockedAt: new Date().toISOString()
+            };
+
+            // Save captured email if provided
+            if (capturedEmail && !prospect.email) {
+                prospect.email = capturedEmail;
+            }
+
+            // Save response notes and interest level
+            prospect.lastContactResponse = responseNotes;
+            prospect.interestLevel = interestLevel;
+            prospect.respondedAt = new Date().toISOString();
+
+            // Move to in-progress (negotiating in new system)
+            const oldColumn = prospect._column;
+            prospect._column = 'in-progress';
+            prospect.pipelineStage = 'In Progress';
+
+            // Update stats
+            state.sessionStats.contacted++;
+            state.todayStats.contacted++;
+            saveTodayStats();
+
+            // Sync to cloud
+            await syncToCloud(oldColumn);
+
+            closeResponseCapture();
+            showToast('🎉 Moved to In Progress!');
+
+            // Continue rapid fire if active
+            if (state.zipQueue.rapidFireActive) {
+                rapidFireNext();
+            } else {
+                // Refresh displays
+                if (state.viewMode === 'zipQueue') {
+                    buildZipQueue();
+                    renderZipQueue();
+                } else {
+                    renderProspectList();
+                }
+            }
+        }
+
+        // Helper function to get template for channel
+        function getTemplateForChannel(channel) {
+            const templates = state.templates || {};
+            const templateMap = {
+                sms: templates.sms || templates.text || 'Hi {businessName}!',
+                email: templates.email || 'Hello {businessName},',
+                facebook: templates.facebook || 'Hi {businessName}!',
+                instagram: templates.instagram || templates.dm || 'Hi {businessName}!',
+                linkedin: templates.linkedin || 'Hello {businessName},',
+                call: templates.call || 'Call script for {businessName}'
+            };
+            return templateMap[channel] || 'Hi {businessName}!';
+        }
+
+        // Helper function to fill template
+        function fillTemplate(template, prospect) {
+            const settings = state.settings || {};
+            return template
+                .replace(/\{businessName\}/g, prospect.businessName || 'there')
+                .replace(/\{yourName\}/g, settings.yourName || 'Your Name')
+                .replace(/\{postcardName\}/g, settings.postcardName || 'The Postcard')
+                .replace(/\{areaName\}/g, settings.areaName || 'the area')
+                .replace(/\{homeCount\}/g, settings.homeCount || '5,000')
+                .replace(/\{spotPrice\}/g, settings.spotPrice || '$400')
+                .replace(/\{category\}/g, prospect.category || 'business');
+        }
+
+        // Helper function to open channel app
+        function openChannelApp(prospect, channel) {
+            switch (channel) {
+                case 'sms':
+                    if (prospect.phone) {
+                        window.open(`sms:${prospect.phone}`, '_blank');
+                    }
+                    break;
+                case 'email':
+                    if (prospect.email) {
+                        window.open(`mailto:${prospect.email}`, '_blank');
+                    }
+                    break;
+                case 'facebook':
+                    if (prospect.facebook) {
+                        const messengerUrl = convertToMessengerUrl(prospect.facebook);
+                        window.open(messengerUrl, '_blank');
+                    }
+                    break;
+                case 'instagram':
+                    if (prospect.instagram) {
+                        const igUrl = convertToInstagramDM(prospect.instagram);
+                        window.open(igUrl, '_blank');
+                    }
+                    break;
+                case 'linkedin':
+                    if (prospect.linkedin) {
+                        window.open(prospect.linkedin, '_blank');
+                    }
+                    break;
+                case 'call':
+                    if (prospect.phone) {
+                        window.open(`tel:${prospect.phone}`, '_blank');
+                    }
+                    break;
+            }
         }
     </script>
 </body>
