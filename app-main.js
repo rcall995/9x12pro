@@ -17040,44 +17040,57 @@ async function migrateToCampaignBoards() {
     return ct.emailed || ct.texted || ct.called || ct.linkedinMessaged || ct.facebookMessaged || ct.dmed;
   };
 
-  // Migrate prospect-list → queued
-  (legacyColumns['prospect-list'] || []).forEach(item => {
-    if (!item) return;
-    const enhanced = enhanceBusinessForCampaignBoard(item, board.config.maxAttempts);
-    if (!board.columns['queued'].some(b => b.id === enhanced.id)) {
-      board.columns['queued'].push(enhanced);
-    }
-  });
+  // Helper to check if business exists in ANY column (prevent cross-column duplicates)
+  const existsInAnyColumn = (itemId) => {
+    const allColumns = ['queued', 'attempting', 'negotiating', 'invoice-sent', 'proof-approved', 'paid-in-full'];
+    return allColumns.some(col => board.columns[col]?.some(b => b.id === itemId));
+  };
 
-  // Migrate to-contact → queued or attempting
-  (legacyColumns['to-contact'] || []).forEach(item => {
+  // Helper to get business ID consistently
+  const getBusinessId = (item) => {
+    return item.id || item._id || item.place_id || item.businessName;
+  };
+
+  // Migrate in reverse priority order (later stages first) so businesses end up in their most advanced stage
+
+  // Migrate committed → negotiating (FIRST - highest priority)
+  (legacyColumns['committed'] || []).forEach(item => {
     if (!item) return;
+    const itemId = getBusinessId(item);
+    if (existsInAnyColumn(itemId)) return;
     const enhanced = enhanceBusinessForCampaignBoard(item, board.config.maxAttempts);
-    const targetCol = hasBeenContacted(item) ? 'attempting' : 'queued';
-    if (!board.columns[targetCol].some(b => b.id === enhanced.id)) {
-      board.columns[targetCol].push(enhanced);
-    }
+    board.columns['negotiating'].push(enhanced);
   });
 
   // Migrate in-progress → attempting or negotiating
   (legacyColumns['in-progress'] || []).forEach(item => {
     if (!item) return;
+    const itemId = getBusinessId(item);
+    if (existsInAnyColumn(itemId)) return;
     const enhanced = enhanceBusinessForCampaignBoard(item, board.config.maxAttempts);
     // If they've responded (has notes or follow-up date), they're negotiating
     const isNegotiating = item.notes || item.followUpDate || item.lastContactResponse;
     const targetCol = isNegotiating ? 'negotiating' : 'attempting';
-    if (!board.columns[targetCol].some(b => b.id === enhanced.id)) {
-      board.columns[targetCol].push(enhanced);
-    }
+    board.columns[targetCol].push(enhanced);
   });
 
-  // Migrate committed → negotiating
-  (legacyColumns['committed'] || []).forEach(item => {
+  // Migrate to-contact → queued or attempting
+  (legacyColumns['to-contact'] || []).forEach(item => {
     if (!item) return;
+    const itemId = getBusinessId(item);
+    if (existsInAnyColumn(itemId)) return;
     const enhanced = enhanceBusinessForCampaignBoard(item, board.config.maxAttempts);
-    if (!board.columns['negotiating'].some(b => b.id === enhanced.id)) {
-      board.columns['negotiating'].push(enhanced);
-    }
+    const targetCol = hasBeenContacted(item) ? 'attempting' : 'queued';
+    board.columns[targetCol].push(enhanced);
+  });
+
+  // Migrate prospect-list → queued (LAST - lowest priority)
+  (legacyColumns['prospect-list'] || []).forEach(item => {
+    if (!item) return;
+    const itemId = getBusinessId(item);
+    if (existsInAnyColumn(itemId)) return;
+    const enhanced = enhanceBusinessForCampaignBoard(item, board.config.maxAttempts);
+    board.columns['queued'].push(enhanced);
   });
 
   // Log final counts before saving
@@ -17105,6 +17118,55 @@ async function saveCampaignBoards() {
     console.error('❌ Failed to save campaign boards:', err);
     toast('Failed to save campaign boards', false);
   }
+}
+
+// Clean up duplicates in campaign board (for users who already migrated)
+async function cleanupCampaignBoardDuplicates() {
+  const board = getCurrentCampaignBoard();
+  if (!board) {
+    toast('No campaign board to clean');
+    return;
+  }
+
+  const allColumns = ['queued', 'attempting', 'negotiating', 'invoice-sent', 'proof-approved', 'paid-in-full'];
+  const seenIds = new Set();
+  let duplicatesRemoved = 0;
+
+  // Helper to get business ID consistently
+  const getBusinessId = (item) => {
+    return item.id || item._id || item.place_id || item.businessName;
+  };
+
+  // Process columns in priority order (later stages keep the business)
+  const priorityOrder = ['paid-in-full', 'proof-approved', 'invoice-sent', 'negotiating', 'attempting', 'queued'];
+
+  priorityOrder.forEach(colKey => {
+    const column = board.columns[colKey];
+    if (!column) return;
+
+    const filtered = column.filter(item => {
+      const itemId = getBusinessId(item);
+      if (seenIds.has(itemId)) {
+        duplicatesRemoved++;
+        console.log(`🧹 Removing duplicate: ${item.businessName || item.name} from ${colKey}`);
+        return false;
+      }
+      seenIds.add(itemId);
+      return true;
+    });
+
+    board.columns[colKey] = filtered;
+  });
+
+  if (duplicatesRemoved > 0) {
+    await saveCampaignBoards();
+    toast(`Cleaned up ${duplicatesRemoved} duplicates`);
+    renderCampaignBoard();
+  } else {
+    toast('No duplicates found');
+  }
+
+  console.log(`🧹 Cleanup complete: removed ${duplicatesRemoved} duplicates`);
 }
 
 // Load campaign boards from cloud

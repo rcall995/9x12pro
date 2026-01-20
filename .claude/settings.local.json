@@ -53,7 +53,20 @@
       "WebFetch(domain:get.joinblvd.com)",
       "WebFetch(domain:www.joinblvd.com)",
       "Bash(npx vercel --prod)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(ping:*)",
+      "Bash(timeout:*)",
+      "Bash(vercel)",
+      "Bash(vercel whoami:*)",
+      "Bash(vercel logout:*)",
+      "Bash(vercel login)",
+      "Bash(vercel link:*)",
+      "Bash(npm install:*)",
+      "WebFetch(domain:www.vercel-status.com)",
+      "Bash(vercel:*)",
+      "Bash(echo:*)",
+      "Bash(netsh winhttp show proxy:*)",
+      "Bash(npx vercel@latest --prod --yes)"
     ],
     "deny": [],
     "ask": []
