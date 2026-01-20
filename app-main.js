@@ -1040,7 +1040,7 @@ const kanbanState = {
 const campaignBoardsState = {
   boards: {},           // { mailerId: boardObject }
   activeBoardId: null,
-  useLegacyKanban: false // Feature flag - false = new 6-column Campaign Board
+  useLegacyKanban: true // Start with legacy, user clicks to switch to Campaign Board
 };
 
 // Board structure template (not stored, just documentation):
@@ -16826,23 +16826,19 @@ function setCampaignBoardZipFilter(columnKey, zip) {
 
 // Toggle between legacy kanban and campaign board
 function toggleCampaignBoardView() {
-  // Check current view by looking at what's rendered
-  const isShowingLegacy = document.querySelector('.kanban-column[data-column="prospect-list"]') !== null;
+  // Simply toggle the state flag
+  campaignBoardsState.useLegacyKanban = !campaignBoardsState.useLegacyKanban;
 
-  console.log('🔄 Toggle clicked. Currently showing legacy:', isShowingLegacy);
+  console.log('🔄 Toggle clicked. useLegacyKanban is now:', campaignBoardsState.useLegacyKanban);
 
-  if (isShowingLegacy) {
-    // Currently showing legacy, switch to Campaign Board
-    campaignBoardsState.useLegacyKanban = false;
+  if (campaignBoardsState.useLegacyKanban) {
+    console.log('📋 Rendering Legacy Kanban...');
+    renderKanban();
+    toast('Switched to Classic Kanban');
+  } else {
     console.log('📊 Rendering Campaign Board...');
     renderCampaignBoard();
     toast('Switched to 6-Column Campaign Board');
-  } else {
-    // Currently showing Campaign Board, switch to legacy
-    campaignBoardsState.useLegacyKanban = true;
-    console.log('📋 Rendering Legacy Kanban...');
-    renderLegacyKanban();
-    toast('Switched to Classic Kanban');
   }
 }
 
