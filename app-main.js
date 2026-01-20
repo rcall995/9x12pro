@@ -15648,18 +15648,18 @@ function renderKanban() {
     </div>
   `;
 
-  // View toggle for switching to Campaign Board
-  const viewToggleHTML = state.current?.Mailer_ID ? `
-    <div class="flex items-center gap-2 mb-3">
-      <button onclick="toggleCampaignBoardView()" class="px-3 py-1 text-xs font-medium rounded bg-purple-100 text-purple-700 hover:bg-purple-200">
-        📊 Try New Campaign Board
+  // View toggle for switching to Campaign Board (always visible)
+  const viewToggleHTML = `
+    <div class="flex items-center gap-2 mb-3 p-2 bg-purple-50 rounded-lg border border-purple-200">
+      <span class="text-sm font-medium text-purple-700">🆕 New!</span>
+      <button onclick="toggleCampaignBoardView()" class="px-3 py-1.5 text-sm font-medium rounded bg-purple-600 text-white hover:bg-purple-700">
+        📊 Switch to 6-Column Campaign Board
       </button>
-      <button onclick="migrateToCampaignBoards()" class="px-3 py-1 text-xs font-medium rounded bg-blue-100 text-blue-700 hover:bg-blue-200">
+      <button onclick="migrateToCampaignBoards()" class="px-3 py-1.5 text-sm font-medium rounded bg-blue-500 text-white hover:bg-blue-600">
         📥 Migrate Data
       </button>
-      <span class="text-xs text-gray-500">Legacy 4-column view</span>
     </div>
-  ` : '';
+  `;
 
   // Wrap columns in flex container
   const columnsWrapperHTML = `
