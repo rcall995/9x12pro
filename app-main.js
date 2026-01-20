@@ -16889,37 +16889,43 @@ function openCampaignBoardBusinessModal(prospect, columnKey, board) {
         ` : ''}
 
         <!-- Email Reply Templates -->
-        ${prospect.email ? `
-          <div class="p-4 border-b bg-blue-50">
-            <div class="text-xs text-gray-600 mb-2 font-medium">📧 Reply with Template</div>
+        <div class="p-4 border-b bg-blue-50">
+          <div class="text-xs text-gray-600 mb-2 font-medium">📧 Reply with Template</div>
+          ${(prospect.email || prospect.emailAddress) ? `
             <div class="grid grid-cols-3 gap-2">
-              <button onclick="openEmailWithTemplate('${esc(prospect.email)}', 'moreInfo', '${esc(businessName)}')"
+              <button onclick="openEmailWithTemplate('${esc(prospect.email || prospect.emailAddress)}', 'moreInfo', '${esc(businessName)}')"
                       class="px-2 py-2 bg-white hover:bg-blue-100 border border-blue-200 rounded-lg text-xs font-medium text-center">
                 ℹ️ More Info
               </button>
-              <button onclick="openEmailWithTemplate('${esc(prospect.email)}', 'pricing', '${esc(businessName)}')"
+              <button onclick="openEmailWithTemplate('${esc(prospect.email || prospect.emailAddress)}', 'pricing', '${esc(businessName)}')"
                       class="px-2 py-2 bg-white hover:bg-blue-100 border border-blue-200 rounded-lg text-xs font-medium text-center">
                 💰 Pricing
               </button>
-              <button onclick="openEmailWithTemplate('${esc(prospect.email)}', 'scheduleCall', '${esc(businessName)}')"
+              <button onclick="openEmailWithTemplate('${esc(prospect.email || prospect.emailAddress)}', 'scheduleCall', '${esc(businessName)}')"
                       class="px-2 py-2 bg-white hover:bg-blue-100 border border-blue-200 rounded-lg text-xs font-medium text-center">
                 📞 Schedule
               </button>
-              <button onclick="openEmailWithTemplate('${esc(prospect.email)}', 'followUp', '${esc(businessName)}')"
+              <button onclick="openEmailWithTemplate('${esc(prospect.email || prospect.emailAddress)}', 'followUp', '${esc(businessName)}')"
                       class="px-2 py-2 bg-white hover:bg-blue-100 border border-blue-200 rounded-lg text-xs font-medium text-center">
                 🔄 Follow Up
               </button>
-              <button onclick="openEmailWithTemplate('${esc(prospect.email)}', 'proofReady', '${esc(businessName)}')"
+              <button onclick="openEmailWithTemplate('${esc(prospect.email || prospect.emailAddress)}', 'proofReady', '${esc(businessName)}')"
                       class="px-2 py-2 bg-white hover:bg-blue-100 border border-blue-200 rounded-lg text-xs font-medium text-center">
                 ✅ Proof Ready
               </button>
-              <button onclick="openEmailWithTemplate('${esc(prospect.email)}', 'invoiceSent', '${esc(businessName)}')"
+              <button onclick="openEmailWithTemplate('${esc(prospect.email || prospect.emailAddress)}', 'invoiceSent', '${esc(businessName)}')"
                       class="px-2 py-2 bg-white hover:bg-blue-100 border border-blue-200 rounded-lg text-xs font-medium text-center">
                 📄 Invoice
               </button>
             </div>
-          </div>
-        ` : ''}
+          ` : `
+            <div class="text-center py-3 text-gray-500 text-sm">
+              <span class="text-xl">📭</span>
+              <p class="mt-1">No email on file for this business</p>
+              <p class="text-xs mt-1">Add an email in Business Pool to enable templates</p>
+            </div>
+          `}
+        </div>
 
         <!-- Social Links -->
         ${socialLinks.length > 0 ? `
