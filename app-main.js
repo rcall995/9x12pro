@@ -16813,15 +16813,30 @@ function setCampaignBoardZipFilter(columnKey, zip) {
 
 // Toggle between legacy kanban and campaign board
 function toggleCampaignBoardView() {
-  campaignBoardsState.useLegacyKanban = !campaignBoardsState.useLegacyKanban;
+  // Check current view by looking at what's rendered
+  const isShowingLegacy = document.querySelector('.kanban-column[data-column="prospect-list"]') !== null;
 
-  if (campaignBoardsState.useLegacyKanban) {
-    renderKanban();
-  } else {
+  console.log('🔄 Toggle clicked. Currently showing legacy:', isShowingLegacy);
+
+  if (isShowingLegacy) {
+    // Currently showing legacy, switch to Campaign Board
+    campaignBoardsState.useLegacyKanban = false;
+    console.log('📊 Rendering Campaign Board...');
     renderCampaignBoard();
+    toast('Switched to 6-Column Campaign Board');
+  } else {
+    // Currently showing Campaign Board, switch to legacy
+    campaignBoardsState.useLegacyKanban = true;
+    console.log('📋 Rendering Legacy Kanban...');
+    renderLegacyKanban();
+    toast('Switched to Classic Kanban');
   }
+}
 
-  toast(campaignBoardsState.useLegacyKanban ? 'Switched to Classic Kanban' : 'Switched to Campaign Board');
+// Render legacy kanban (4-column) - wrapper to bypass campaign board check
+function renderLegacyKanban() {
+  campaignBoardsState.useLegacyKanban = true;
+  renderKanban();
 }
 
 // Open campaign configuration modal
