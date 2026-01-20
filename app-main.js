@@ -23099,6 +23099,9 @@ function pickCampaign(e){
   const m = state.mailers[i];
   state.current = m;
 
+  // Immediately re-render kanban to show Campaign Board now that we have a Mailer_ID
+  renderKanban();
+
   // Save selected campaign to localStorage for page refresh persistence
   if (m.Mailer_ID) {
     safeSetItem('mailslot-selectedMailerId', m.Mailer_ID);
@@ -23140,6 +23143,8 @@ function pickCampaign(e){
   loadAdImagesFromCloud(m.Mailer_ID).then(() => {
     // Re-render after images are loaded
     renderAll();
+    // Re-render kanban to switch to Campaign Board now that we have a Mailer_ID
+    renderKanban();
   });
 
   // Load colors: use postcard data if available, otherwise fall back to localStorage
