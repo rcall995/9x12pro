@@ -703,11 +703,19 @@
                 updateTemplatePreview();
             }
 
-            showToast(`Campaign loaded: ${campaign.town}`);
-
             // Reset ZIP filter when campaign changes
             state.zipFilter = '';
             document.getElementById('zipFilterDropdown').value = '';
+
+            // IMPORTANT: Reload campaign board data for this campaign
+            const mailerId = campaign.mailer_id || campaign.Mailer_ID;
+            if (mailerId && state.campaignBoardData) {
+                state.currentMailerId = mailerId;
+                console.log('🔄 Reloading data for campaign:', mailerId);
+                processCampaignBoardData(state.campaignBoardData, mailerId);
+            }
+
+            showToast(`Campaign loaded: ${campaign.town}`);
         }
 
         function onZipFilterSelect() {
@@ -950,7 +958,11 @@
             console.log('✅ Loaded', allProspects.length, 'prospects from Campaign Board');
             renderProspectList();
             updateStats();
-            populateZipDropdown();
+            try {
+                populateZipDropdown();
+            } catch (err) {
+                console.error('❌ Error populating ZIP dropdown:', err);
+            }
         }
 
         async function loadSettings() {
