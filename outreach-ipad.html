@@ -539,8 +539,15 @@
 
         // ============ CAMPAIGNS ============
         async function loadCampaigns() {
-            if (!currentUserEmail || !supabaseClient) return;
             console.log('📥 Loading campaigns...');
+            console.log('🔍 DEBUG currentUserEmail:', currentUserEmail);
+            console.log('🔍 DEBUG supabaseClient exists:', !!supabaseClient);
+
+            if (!currentUserEmail || !supabaseClient) {
+                console.warn('⚠️ Cannot load campaigns - no user or supabase client');
+                return;
+            }
+
             try {
                 const { data, error } = await supabaseClient
                     .from('postcards')
@@ -555,6 +562,7 @@
 
                 state.campaigns = data || [];
                 console.log('✅ Loaded', state.campaigns.length, 'campaigns');
+                console.log('🔍 DEBUG campaigns:', state.campaigns.map(c => c.town));
             } catch (err) {
                 console.error('Failed to load campaigns:', err);
             }
@@ -586,8 +594,16 @@
         }
 
         function populateCampaignDropdown() {
+            console.log('🔍 DEBUG populateCampaignDropdown called');
+            console.log('🔍 DEBUG state.campaigns.length:', state.campaigns.length);
+
             const dropdown = document.getElementById('campaignDropdown');
             dropdown.innerHTML = '<option value="">-- Select Campaign --</option>';
+
+            if (state.campaigns.length === 0) {
+                console.warn('⚠️ No campaigns to populate dropdown');
+                return;
+            }
 
             state.campaigns.forEach((campaign, index) => {
                 const option = document.createElement('option');
@@ -597,6 +613,8 @@
                 option.textContent = `${campaign.town} ${size}${date}`;
                 dropdown.appendChild(option);
             });
+
+            console.log('✅ Populated dropdown with', state.campaigns.length, 'campaigns');
 
             // Auto-select if settings have a matching campaign
             if (state.settings.postcardName) {

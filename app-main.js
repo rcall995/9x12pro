@@ -7088,6 +7088,12 @@ function escapeHtml(str) {
 // Initialize Spark on page load
 document.addEventListener('DOMContentLoaded', () => {
   setTimeout(loadSparkData, 200);
+
+  // Display version in header
+  const versionEl = document.getElementById('appVersionDisplay');
+  if (versionEl && window.APP_CONFIG?.app?.version) {
+    versionEl.textContent = window.APP_CONFIG.app.version;
+  }
 });
 
 // Open selected prospect's social page based on platform selection
