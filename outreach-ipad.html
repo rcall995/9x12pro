@@ -72,6 +72,7 @@
             </div>
         </div>
         <div class="flex items-center gap-2">
+            <span id="hubVersionDisplay" class="text-xs text-purple-300/70 font-mono"></span>
             <button onclick="reloadFromCloud()" class="text-xs bg-white/30 hover:bg-white/40 px-2 py-1 rounded-full">🔄 Reload</button>
             <span id="syncStatus" class="text-xs bg-white/20 px-2 py-1 rounded-full">Loading...</span>
             <span id="userStatus" class="text-xs bg-white/20 px-2 py-1 rounded-full hidden"></span>
@@ -464,6 +465,12 @@
         // ============ INITIALIZATION ============
         document.addEventListener('DOMContentLoaded', async () => {
             console.log('🚀 Outreach Hub loaded');
+
+            // Display version in header
+            if (window.APP_CONFIG?.app?.version) {
+                const versionEl = document.getElementById('hubVersionDisplay');
+                if (versionEl) versionEl.textContent = window.APP_CONFIG.app.version;
+            }
 
             // Initialize Supabase
             if (window.supabase && window.APP_CONFIG) {
