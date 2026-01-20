@@ -16888,6 +16888,39 @@ function openCampaignBoardBusinessModal(prospect, columnKey, board) {
           </div>
         ` : ''}
 
+        <!-- Email Reply Templates -->
+        ${prospect.email ? `
+          <div class="p-4 border-b bg-blue-50">
+            <div class="text-xs text-gray-600 mb-2 font-medium">📧 Reply with Template</div>
+            <div class="grid grid-cols-3 gap-2">
+              <button onclick="openEmailWithTemplate('${esc(prospect.email)}', 'moreInfo', '${esc(businessName)}')"
+                      class="px-2 py-2 bg-white hover:bg-blue-100 border border-blue-200 rounded-lg text-xs font-medium text-center">
+                ℹ️ More Info
+              </button>
+              <button onclick="openEmailWithTemplate('${esc(prospect.email)}', 'pricing', '${esc(businessName)}')"
+                      class="px-2 py-2 bg-white hover:bg-blue-100 border border-blue-200 rounded-lg text-xs font-medium text-center">
+                💰 Pricing
+              </button>
+              <button onclick="openEmailWithTemplate('${esc(prospect.email)}', 'scheduleCall', '${esc(businessName)}')"
+                      class="px-2 py-2 bg-white hover:bg-blue-100 border border-blue-200 rounded-lg text-xs font-medium text-center">
+                📞 Schedule
+              </button>
+              <button onclick="openEmailWithTemplate('${esc(prospect.email)}', 'followUp', '${esc(businessName)}')"
+                      class="px-2 py-2 bg-white hover:bg-blue-100 border border-blue-200 rounded-lg text-xs font-medium text-center">
+                🔄 Follow Up
+              </button>
+              <button onclick="openEmailWithTemplate('${esc(prospect.email)}', 'proofReady', '${esc(businessName)}')"
+                      class="px-2 py-2 bg-white hover:bg-blue-100 border border-blue-200 rounded-lg text-xs font-medium text-center">
+                ✅ Proof Ready
+              </button>
+              <button onclick="openEmailWithTemplate('${esc(prospect.email)}', 'invoiceSent', '${esc(businessName)}')"
+                      class="px-2 py-2 bg-white hover:bg-blue-100 border border-blue-200 rounded-lg text-xs font-medium text-center">
+                📄 Invoice
+              </button>
+            </div>
+          </div>
+        ` : ''}
+
         <!-- Social Links -->
         ${socialLinks.length > 0 ? `
           <div class="p-4 border-b">
@@ -16925,6 +16958,140 @@ function openCampaignBoardBusinessModal(prospect, columnKey, board) {
 function closeCampaignBoardModal() {
   const modal = document.getElementById('campaignBoardModal');
   if (modal) modal.remove();
+}
+
+// Email reply templates for follow-up
+const emailReplyTemplates = {
+  moreInfo: {
+    name: 'More Info',
+    icon: 'ℹ️',
+    subject: 'Re: Advertising Opportunity - More Information',
+    body: `Hi [NAME],
+
+Thank you for your interest! I'd be happy to share more details.
+
+Our 9x12 mailer reaches [NUMBER] households in your area each month. Your ad would appear alongside other local businesses, giving you premium exposure to potential customers right in their mailboxes.
+
+Here's what's included:
+• Professional ad design (we handle everything)
+• Distribution to targeted ZIP codes
+• Tracking and analytics
+
+Would you like to schedule a quick call to discuss how this could work for your business?
+
+Best regards`
+  },
+  pricing: {
+    name: 'Pricing',
+    icon: '💰',
+    subject: 'Re: Advertising Rates & Packages',
+    body: `Hi [NAME],
+
+Thanks for asking about our rates! Here's a quick overview:
+
+[INSERT YOUR PRICING DETAILS HERE]
+
+The great thing about our mailer is that you're sharing the cost with other local businesses, making it much more affordable than solo direct mail campaigns.
+
+I'd love to put together a custom quote based on your goals. When would be a good time for a quick call?
+
+Best regards`
+  },
+  scheduleCall: {
+    name: 'Schedule Call',
+    icon: '📞',
+    subject: 'Re: Let\'s Schedule a Quick Call',
+    body: `Hi [NAME],
+
+I'd love to chat and answer any questions you have!
+
+I'm available:
+• [DAY/TIME OPTION 1]
+• [DAY/TIME OPTION 2]
+• [DAY/TIME OPTION 3]
+
+Just let me know what works best for you, or feel free to call me directly at [YOUR PHONE].
+
+Looking forward to speaking with you!
+
+Best regards`
+  },
+  followUp: {
+    name: 'Follow Up',
+    icon: '🔄',
+    subject: 'Re: Following Up - Local Advertising Opportunity',
+    body: `Hi [NAME],
+
+I wanted to follow up on my previous message about advertising in our local mailer.
+
+I know you're busy running your business, so I'll keep this brief - we have a spot opening up in next month's edition and I thought of you.
+
+Is this something you'd like to explore? Happy to answer any questions.
+
+Best regards`
+  },
+  proofReady: {
+    name: 'Proof Ready',
+    icon: '✅',
+    subject: 'Your Ad Proof is Ready for Review',
+    body: `Hi [NAME],
+
+Great news! Your ad proof is ready for review.
+
+[ATTACH PROOF OR INSERT LINK]
+
+Please take a look and let me know:
+1. If everything looks good and you're ready to approve, or
+2. Any changes you'd like me to make
+
+Once approved, your ad will appear in the [MONTH] edition reaching [NUMBER] local households.
+
+Let me know if you have any questions!
+
+Best regards`
+  },
+  invoiceSent: {
+    name: 'Invoice',
+    icon: '📄',
+    subject: 'Invoice for Your Ad in [MONTH] Mailer',
+    body: `Hi [NAME],
+
+Thank you for choosing to advertise with us! I've attached your invoice for the [MONTH] edition.
+
+Invoice Details:
+• Amount: $[AMOUNT]
+• Due Date: [DATE]
+• Payment Methods: [PAYMENT OPTIONS]
+
+Your ad is scheduled to reach [NUMBER] households in [AREA].
+
+Please let me know if you have any questions. Looking forward to a great campaign!
+
+Best regards`
+  }
+};
+
+// Open email client with template
+function openEmailWithTemplate(email, templateKey, businessName) {
+  const template = emailReplyTemplates[templateKey];
+  if (!template || !email) {
+    toast('No email address available', false);
+    return;
+  }
+
+  // Replace [NAME] placeholder with first name or business name
+  let body = template.body;
+  const firstName = businessName ? businessName.split(' ')[0] : 'there';
+  body = body.replace(/\[NAME\]/g, firstName);
+
+  // Encode for mailto URL
+  const subject = encodeURIComponent(template.subject);
+  const encodedBody = encodeURIComponent(body);
+
+  const mailtoUrl = `mailto:${encodeURIComponent(email)}?subject=${subject}&body=${encodedBody}`;
+  window.open(mailtoUrl, '_blank');
+
+  toast(`Opening ${template.name} template in email client`);
 }
 
 async function moveCampaignBoardItemAndRefresh(leadId, fromColumn, toColumn) {
