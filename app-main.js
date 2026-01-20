@@ -15314,8 +15314,12 @@ const debouncedRenderKanban = debounce(() => renderKanban(), DEBOUNCE_RENDER_DEL
 
 function renderKanban() {
   try {
-    // Check feature flag - use new campaign board system if enabled
-    if (!campaignBoardsState.useLegacyKanban && state.current?.Mailer_ID) {
+    // Always use Campaign Board - legacy kanban removed
+    // Only fall back to legacy if no campaign board data exists
+    const hasMailer = state.current?.Mailer_ID;
+    const hasCampaignBoard = hasMailer && campaignBoardsState.boards?.[state.current.Mailer_ID];
+
+    if (hasMailer) {
       renderCampaignBoard();
       return;
     }
@@ -15648,16 +15652,10 @@ function renderKanban() {
     </div>
   `;
 
-  // View toggle for switching to Campaign Board (always visible)
+  // Legacy view message (shown only when no campaign is selected)
   const viewToggleHTML = `
-    <div class="flex items-center gap-2 mb-3 p-2 bg-purple-50 rounded-lg border border-purple-200">
-      <span class="text-sm font-medium text-purple-700">🆕 New!</span>
-      <button onclick="toggleCampaignBoardView()" class="px-3 py-1.5 text-sm font-medium rounded bg-purple-600 text-white hover:bg-purple-700">
-        📊 Switch to 6-Column Campaign Board
-      </button>
-      <button onclick="migrateToCampaignBoards()" class="px-3 py-1.5 text-sm font-medium rounded bg-blue-500 text-white hover:bg-blue-600">
-        📥 Migrate Data
-      </button>
+    <div class="flex items-center gap-2 mb-3 p-2 bg-yellow-50 rounded-lg border border-yellow-200">
+      <span class="text-sm font-medium text-yellow-700">⚠️ Select a campaign to view the 6-Column Campaign Board</span>
     </div>
   `;
 
