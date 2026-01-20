@@ -728,19 +728,25 @@
                 updateTemplatePreview();
             }
 
-            // Campaign selection is just for template settings
-            // Data is loaded from ALL campaigns, not filtered by campaign
+            // Reset ZIP filter when campaign changes
+            state.zipFilter = '';
+            document.getElementById('zipFilterDropdown').value = '';
+
+            // Load data for this campaign
             const campaignMailerId = campaign.mailer_id || campaign.Mailer_ID;
             if (campaignMailerId) {
                 state.currentMailerId = campaignMailerId;
+
+                // Reload data for the selected campaign
+                if (state.campaignBoardData) {
+                    processCampaignBoardData(state.campaignBoardData, campaignMailerId);
+                } else {
+                    // Data not loaded yet, fetch it
+                    loadProspects();
+                }
             }
 
-            // Re-render template preview if a prospect is selected
-            if (state.selectedProspect) {
-                updateTemplatePreview();
-            }
-
-            showToast(`Campaign selected: ${campaign.town}`);
+            showToast(`Campaign: ${campaign.town}`);
         }
 
         function onZipFilterSelect() {
@@ -914,77 +920,77 @@
         function processCampaignBoardData(boardsData, mailerId) {
             // Store raw campaign board data for syncing later
             state.campaignBoardData = boardsData;
-            state.currentMailerId = mailerId;
+            if (mailerId) state.currentMailerId = mailerId;
 
-            // Use ZIP filter from dropdown (state.zipFilter is set by onZipFilterSelect)
+            // Use ZIP filter from dropdown
             const zipFilter = state.zipFilter || '';
-            console.log(`📍 ZIP filter: "${zipFilter || 'All'}"`);
 
             const allProspects = [];
 
-            // Load businesses from ALL campaign boards (not filtered by campaign)
-            // Campaign dropdown is just for template settings, not data filtering
-            const boardKeys = Object.keys(boardsData || {});
-            console.log('📊 Loading from ALL boards:', boardKeys);
+            // Get the board for the selected campaign
+            const board = mailerId && boardsData?.[mailerId];
 
-            boardKeys.forEach(boardKey => {
-                const board = boardsData[boardKey];
-                if (!board?.columns) return;
+            if (!board) {
+                console.log('⚠️ No board found for mailer:', mailerId);
+                console.log('Available boards:', Object.keys(boardsData || {}));
+                state.prospects = [];
+                renderProspectList();
+                updateStats();
+                populateZipDropdown();
+                return;
+            }
 
-                // Load from 'queued' column
-                let queuedItems = board.columns['queued'] || [];
+            console.log('📊 Loading from board:', mailerId);
 
-                // Apply ZIP filter if set
-                if (zipFilter) {
-                    queuedItems = queuedItems.filter(item => {
-                        const itemZip = item.actualZip || item.zipCode || item.zip;
-                        return String(itemZip) === zipFilter;
+            // Load from 'queued' column
+            let queuedItems = board.columns?.['queued'] || [];
+
+            // Apply ZIP filter if set
+            if (zipFilter) {
+                queuedItems = queuedItems.filter(item => {
+                    const itemZip = item.actualZip || item.zipCode || item.zip;
+                    return String(itemZip) === zipFilter;
+                });
+            }
+
+            queuedItems.forEach(item => {
+                if (item && typeof item === 'object' && (item.businessName || item.name)) {
+                    allProspects.push({
+                        ...item,
+                        _column: 'queued',
+                        _boardId: mailerId,
+                        pipelineStage: 'Queued'
                     });
                 }
+            });
 
-                queuedItems.forEach(item => {
-                    if (item && typeof item === 'object' && (item.businessName || item.name)) {
-                        allProspects.push({
-                            ...item,
-                            _column: 'queued',
-                            _boardId: boardKey,
-                            pipelineStage: 'Queued'
-                        });
-                    }
+            // Load from 'attempting' column
+            let attemptingItems = board.columns?.['attempting'] || [];
+
+            // Apply ZIP filter if set
+            if (zipFilter) {
+                attemptingItems = attemptingItems.filter(item => {
+                    const itemZip = item.actualZip || item.zipCode || item.zip;
+                    return String(itemZip) === zipFilter;
                 });
+            }
 
-                // Load from 'attempting' column
-                let attemptingItems = board.columns['attempting'] || [];
-
-                // Apply ZIP filter if set
-                if (zipFilter) {
-                    attemptingItems = attemptingItems.filter(item => {
-                        const itemZip = item.actualZip || item.zipCode || item.zip;
-                        return String(itemZip) === zipFilter;
+            attemptingItems.forEach(item => {
+                if (item && typeof item === 'object' && (item.businessName || item.name)) {
+                    allProspects.push({
+                        ...item,
+                        _column: 'attempting',
+                        _boardId: mailerId,
+                        pipelineStage: 'Attempting'
                     });
                 }
-
-                attemptingItems.forEach(item => {
-                    if (item && typeof item === 'object' && (item.businessName || item.name)) {
-                        allProspects.push({
-                            ...item,
-                            _column: 'attempting',
-                            _boardId: boardKey,
-                            pipelineStage: 'Attempting'
-                        });
-                    }
-                });
             });
 
             state.prospects = allProspects;
-            console.log('✅ Loaded', allProspects.length, 'prospects from ALL Campaign Boards');
+            console.log('✅ Loaded', allProspects.length, 'prospects from board:', mailerId);
             renderProspectList();
             updateStats();
-            try {
-                populateZipDropdown();
-            } catch (err) {
-                console.error('❌ Error populating ZIP dropdown:', err);
-            }
+            populateZipDropdown();
         }
 
         async function loadSettings() {
