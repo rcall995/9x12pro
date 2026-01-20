@@ -1040,7 +1040,7 @@ const kanbanState = {
 const campaignBoardsState = {
   boards: {},           // { mailerId: boardObject }
   activeBoardId: null,
-  useLegacyKanban: true // Feature flag for rollout - set to false to enable new system
+  useLegacyKanban: false // Feature flag - false = new 6-column Campaign Board
 };
 
 // Board structure template (not stored, just documentation):
