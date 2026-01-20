@@ -16634,13 +16634,27 @@ function renderCampaignBoard() {
     </div>
   `;
 
-  // Campaign info bar
+  // Build campaign dropdown options
+  const campaignOptions = (state.mailers || []).map(m => {
+    const mailerId = m.Mailer_ID || m.id;
+    const name = m.Town ? `${m.Town} ${m.Mail_Date || ''}`.trim() : mailerId;
+    const selected = mailerId === state.current?.Mailer_ID ? 'selected' : '';
+    return `<option value="${esc(mailerId)}" ${selected}>${esc(name)}</option>`;
+  }).join('');
+
+  // Campaign info bar with dropdown
   const viewToggle = `
-    <div class="flex items-center gap-2 mb-3">
+    <div class="flex items-center gap-3 mb-3 flex-wrap">
+      <div class="flex items-center gap-2">
+        <label class="text-xs font-medium text-gray-600">Campaign:</label>
+        <select onchange="switchCampaignFromDropdown(this.value)"
+                class="px-2 py-1 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+          ${campaignOptions}
+        </select>
+      </div>
       <button onclick="openCampaignConfigModal()" class="px-3 py-1 text-xs font-medium rounded bg-blue-100 text-blue-700 hover:bg-blue-200">
         ⚙️ Campaign Config
       </button>
-      <span class="text-xs text-gray-500">Campaign: ${esc(board.name)}</span>
     </div>
   `;
 
@@ -17223,6 +17237,22 @@ function setCampaignBoardZipFilter(columnKey, zip) {
 }
 
 // Toggle between legacy kanban and campaign board
+// Switch campaign from the dropdown selector
+function switchCampaignFromDropdown(mailerId) {
+  if (!mailerId) return;
+
+  // Find the mailer index
+  const idx = state.mailers.findIndex(m => (m.Mailer_ID || m.id) === mailerId);
+  if (idx === -1) {
+    toast('Campaign not found', false);
+    return;
+  }
+
+  // Use existing selectMailer function to switch campaigns
+  selectMailer(idx);
+  toast(`Switched to campaign`);
+}
+
 function toggleCampaignBoardView() {
   // Simply toggle the state flag
   campaignBoardsState.useLegacyKanban = !campaignBoardsState.useLegacyKanban;
