@@ -17249,17 +17249,6 @@ async function deleteCampaignBoardItem(leadId, columnKey) {
 function setCampaignBoardZipFilter(columnKey, zip) {
   campaignBoardsState.zipFilters[columnKey] = zip || '';
   console.log(`📍 ZIP filter set: ${columnKey} = "${zip || 'All'}"`);
-
-  // Save queued column filter to localStorage for Outreach Hub sync
-  if (columnKey === 'queued') {
-    if (zip) {
-      localStorage.setItem('outreach-zip-filter', zip);
-    } else {
-      localStorage.removeItem('outreach-zip-filter');
-    }
-    console.log(`📍 Outreach Hub ZIP filter synced: "${zip || 'All'}"`);
-  }
-
   renderCampaignBoard();
 }
 

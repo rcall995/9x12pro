@@ -79,14 +79,20 @@
     </header>
 
     <!-- Campaign Selector -->
-    <div class="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-4 flex-shrink-0">
-        <div class="flex items-center gap-2 flex-1">
+    <div class="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3 flex-shrink-0">
+        <div class="flex items-center gap-2">
             <label class="text-sm font-semibold text-gray-600 whitespace-nowrap">Campaign:</label>
-            <select id="campaignDropdown" onchange="onCampaignSelect()" class="flex-1 px-3 py-2 border-2 border-purple-200 rounded-lg text-sm font-medium focus:border-purple-500 focus:outline-none bg-white">
+            <select id="campaignDropdown" onchange="onCampaignSelect()" class="px-3 py-2 border-2 border-purple-200 rounded-lg text-sm font-medium focus:border-purple-500 focus:outline-none bg-white">
                 <option value="">-- Select Campaign --</option>
             </select>
         </div>
-        <div id="campaignInfo" class="hidden text-sm text-purple-600 bg-purple-50 px-3 py-2 rounded-lg font-medium">
+        <div class="flex items-center gap-2">
+            <label class="text-sm font-semibold text-gray-600 whitespace-nowrap">ZIP:</label>
+            <select id="zipFilterDropdown" onchange="onZipFilterSelect()" class="px-3 py-2 border-2 border-blue-200 rounded-lg text-sm font-medium focus:border-blue-500 focus:outline-none bg-white">
+                <option value="">All ZIPs</option>
+            </select>
+        </div>
+        <div id="campaignInfo" class="hidden text-sm text-purple-600 bg-purple-50 px-3 py-2 rounded-lg font-medium ml-auto">
             <span id="campaignInfoText"></span>
         </div>
     </div>
@@ -697,6 +703,67 @@
             }
 
             showToast(`Campaign loaded: ${campaign.town}`);
+
+            // Reset ZIP filter when campaign changes
+            state.zipFilter = '';
+            document.getElementById('zipFilterDropdown').value = '';
+        }
+
+        function onZipFilterSelect() {
+            const dropdown = document.getElementById('zipFilterDropdown');
+            state.zipFilter = dropdown.value;
+            console.log(`📍 ZIP filter changed to: "${state.zipFilter || 'All'}"`);
+
+            // Re-process data with new filter
+            if (state.campaignBoardData && state.currentMailerId) {
+                processCampaignBoardData(state.campaignBoardData, state.currentMailerId);
+            }
+
+            // Update ZIP Queue if active
+            if (state.viewMode === 'zipQueue') {
+                buildZipQueue();
+                renderZipQueue();
+            }
+        }
+
+        function populateZipDropdown() {
+            const dropdown = document.getElementById('zipFilterDropdown');
+            const currentValue = state.zipFilter || '';
+
+            // Collect all unique ZIPs from prospects
+            const zips = new Set();
+            state.prospects.forEach(p => {
+                const zip = p.actualZip || p.zipCode || p.zip;
+                if (zip) zips.add(String(zip));
+            });
+
+            // Also check raw board data for complete ZIP list
+            if (state.campaignBoardData && state.currentMailerId) {
+                const board = state.campaignBoardData[state.currentMailerId];
+                if (board?.columns) {
+                    ['queued', 'attempting'].forEach(col => {
+                        (board.columns[col] || []).forEach(item => {
+                            const zip = item.actualZip || item.zipCode || item.zip;
+                            if (zip) zips.add(String(zip));
+                        });
+                    });
+                }
+            }
+
+            const sortedZips = Array.from(zips).sort();
+
+            // Build options
+            let options = '<option value="">All ZIPs (' + (state.prospects.length || 0) + ')</option>';
+            sortedZips.forEach(zip => {
+                const count = state.prospects.filter(p => {
+                    const pZip = p.actualZip || p.zipCode || p.zip;
+                    return String(pZip) === zip;
+                }).length;
+                options += `<option value="${zip}" ${currentValue === zip ? 'selected' : ''}>${zip} (${count})</option>`;
+            });
+
+            dropdown.innerHTML = options;
+            console.log(`📍 ZIP dropdown populated: ${sortedZips.length} ZIPs`);
         }
 
         async function saveSettingsToCloud() {
@@ -812,10 +879,9 @@
             state.campaignBoardData = boardsData;
             state.currentMailerId = mailerId;
 
-            // Check for ZIP filter from main app
-            const zipFilter = localStorage.getItem('outreach-zip-filter') || '';
-            state.zipFilter = zipFilter;
-            console.log(`📍 ZIP filter from main app: "${zipFilter || 'All'}"`);
+            // Use ZIP filter from dropdown (state.zipFilter is set by onZipFilterSelect)
+            const zipFilter = state.zipFilter || '';
+            console.log(`📍 ZIP filter: "${zipFilter || 'All'}"`);
 
             const allProspects = [];
 
@@ -883,6 +949,7 @@
             console.log('✅ Loaded', allProspects.length, 'prospects from Campaign Board');
             renderProspectList();
             updateStats();
+            populateZipDropdown();
         }
 
         async function loadSettings() {
