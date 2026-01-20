@@ -1615,21 +1615,61 @@
                 }
 
                 const newColumn = prospect._column;
-                const prospectId = prospect.id || prospect._id || prospect.place_id || prospect.businessName;
+
+                // Helper function for robust prospect matching
+                function matchProspect(item, prospect) {
+                    // Try multiple matching strategies
+                    const itemId = item.id || item._id || item.place_id;
+                    const prospectId = prospect.id || prospect._id || prospect.place_id;
+
+                    // Match by ID if both have one
+                    if (itemId && prospectId && String(itemId) === String(prospectId)) {
+                        return true;
+                    }
+
+                    // Match by business name (normalized)
+                    const itemName = (item.businessName || item.name || '').toLowerCase().trim();
+                    const prospectName = (prospect.businessName || prospect.name || '').toLowerCase().trim();
+                    if (itemName && prospectName && itemName === prospectName) {
+                        // Also check address or phone to avoid false matches
+                        const itemAddr = (item.address || item.fullAddress || '').toLowerCase();
+                        const prospectAddr = (prospect.address || prospect.fullAddress || '').toLowerCase();
+                        if (itemAddr && prospectAddr && itemAddr.includes(prospectAddr.slice(0, 20))) {
+                            return true;
+                        }
+                        // Or match by phone
+                        if (item.phone && prospect.phone && item.phone === prospect.phone) {
+                            return true;
+                        }
+                        // If no address/phone, still match by name alone
+                        if (!itemAddr && !prospectAddr) {
+                            return true;
+                        }
+                        return true; // Fallback: same name is good enough
+                    }
+
+                    return false;
+                }
 
                 // Handle column move if oldColumn provided and different from new
                 if (oldColumn && oldColumn !== newColumn) {
                     console.log(`🔄 Moving prospect from ${oldColumn} to ${newColumn}`);
+                    console.log(`📋 Prospect: ${prospect.businessName} (id: ${prospect.id || prospect._id || prospect.place_id || 'none'})`);
 
                     // Remove from old column
                     const oldItems = board.columns[oldColumn] || [];
-                    const oldIdx = oldItems.findIndex(item => {
-                        const itemId = item.id || item._id || item.place_id || item.businessName;
-                        return String(itemId) === String(prospectId);
-                    });
+                    console.log(`📋 Old column ${oldColumn} has ${oldItems.length} items`);
+
+                    const oldIdx = oldItems.findIndex(item => matchProspect(item, prospect));
                     if (oldIdx !== -1) {
                         oldItems.splice(oldIdx, 1);
                         console.log(`✅ Removed from ${oldColumn}`);
+                    } else {
+                        console.warn(`⚠️ Could not find prospect in ${oldColumn} to remove`);
+                        // Log first few items for debugging
+                        oldItems.slice(0, 3).forEach((item, i) => {
+                            console.log(`   Item ${i}: ${item.businessName} (id: ${item.id || item._id || item.place_id || 'none'})`);
+                        });
                     }
 
                     // Add to new column
@@ -1639,23 +1679,24 @@
                     delete prospectCopy._column;
                     delete prospectCopy.pipelineStage;
                     board.columns[newColumn].push(prospectCopy);
-                    console.log(`✅ Added to ${newColumn}`);
+                    console.log(`✅ Added to ${newColumn} (now has ${board.columns[newColumn].length} items)`);
                 } else {
                     // Just update in current column
                     const items = board.columns[newColumn] || [];
-                    console.log(`🔍 Looking for prospect in ${newColumn} (${items.length} items)`);
+                    console.log(`🔍 Looking for prospect "${prospect.businessName}" in ${newColumn} (${items.length} items)`);
 
-                    const idx = items.findIndex(item => {
-                        const itemId = item.id || item._id || item.place_id || item.businessName;
-                        return String(itemId) === String(prospectId);
-                    });
+                    const idx = items.findIndex(item => matchProspect(item, prospect));
 
                     if (idx !== -1) {
                         items[idx].contactTracking = { ...prospect.contactTracking };
                         items[idx].lastContacted = new Date().toISOString();
                         console.log(`✅ Updated contact tracking for ${prospect.businessName}`);
                     } else {
-                        console.warn(`⚠️ Prospect not found in ${newColumn}`);
+                        console.warn(`⚠️ Prospect "${prospect.businessName}" not found in ${newColumn}`);
+                        // Log first few items for debugging
+                        items.slice(0, 3).forEach((item, i) => {
+                            console.log(`   Item ${i}: ${item.businessName}`);
+                        });
                     }
                 }
 
@@ -2114,15 +2155,26 @@
                 case 'linkedin': prospect.contactTracking.linkedinMessaged = true; break;
             }
 
+            // Auto-move from 'queued' to 'attempting' when contacted
+            const oldColumn = prospect._column;
+            if (oldColumn === 'queued') {
+                prospect._column = 'attempting';
+                prospect.pipelineStage = 'Attempting';
+                console.log('📤 Moving from queued to attempting');
+            }
+
             // Update stats
             state.sessionStats.contacted++;
             state.todayStats.contacted++;
             saveTodayStats();
 
-            // Sync and move to next
-            syncToCloud().then(() => {
+            // Sync with column move info and move to next
+            syncToCloud(oldColumn).then(() => {
                 showToast('✓ Marked as sent');
                 rapidFireNext();
+            }).catch(err => {
+                console.error('❌ Sync failed:', err);
+                showToast('⚠️ Sync failed - try again');
             });
         }
 
