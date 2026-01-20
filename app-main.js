@@ -16791,11 +16791,243 @@ function openCampaignBoardQuickAction(leadId, columnKey) {
   const board = getCurrentCampaignBoard();
   if (!board) return;
 
-  const business = findBusinessInBoard(leadId, board);
-  if (!business) return;
+  // Find business in the specific column
+  const items = board.columns[columnKey] || [];
+  const prospect = items.find(item => {
+    const itemId = item.id || item._id || item.place_id || item.businessName;
+    return String(itemId) === String(leadId);
+  });
 
-  // Use existing quick action popup with campaign board context
-  openQuickActionPopup(leadId, columnKey);
+  if (!prospect) {
+    toast('Prospect not found', false);
+    return;
+  }
+
+  // Open the unified business modal for Campaign Board items
+  openCampaignBoardBusinessModal(prospect, columnKey, board);
+}
+
+// Business modal for Campaign Board items
+function openCampaignBoardBusinessModal(prospect, columnKey, board) {
+  const businessName = prospect.businessName || prospect.name || 'Unknown Business';
+  const isDoNotContact = prospect.doNotContact === true;
+  const leadId = prospect.id || prospect._id || prospect.place_id || prospect.businessName;
+
+  // Check if this is already a client
+  const isClient = prospect.source === 'client' ||
+    prospect.originalClientId ||
+    (prospect.businessName && Object.values(crmState.clients || {}).some(c =>
+      c.businessName && c.businessName.toLowerCase() === prospect.businessName.toLowerCase()
+    ));
+
+  // Build contact info HTML
+  const contactInfo = [];
+  if (prospect.phone) contactInfo.push(`<div class="flex items-center gap-2"><span class="text-gray-500">📞</span><a href="tel:${esc(prospect.phone)}" class="text-blue-600 hover:underline">${esc(prospect.phone)}</a></div>`);
+  if (prospect.email) contactInfo.push(`<div class="flex items-center gap-2"><span class="text-gray-500">✉️</span><a href="mailto:${esc(prospect.email)}" class="text-blue-600 hover:underline">${esc(prospect.email)}</a></div>`);
+  if (prospect.website) contactInfo.push(`<div class="flex items-center gap-2"><span class="text-gray-500">🌐</span><a href="${esc(ensureHttps(prospect.website))}" target="_blank" class="text-blue-600 hover:underline">${esc(prospect.website)}</a></div>`);
+  if (prospect.address) contactInfo.push(`<div class="flex items-center gap-2"><span class="text-gray-500">📍</span><span>${esc(prospect.address)}</span></div>`);
+  if (prospect.zipCode || prospect.actualZip) contactInfo.push(`<div class="flex items-center gap-2"><span class="text-gray-500">🏷️</span><span>ZIP: ${esc(prospect.zipCode || prospect.actualZip)}</span></div>`);
+  if (prospect.category) contactInfo.push(`<div class="flex items-center gap-2"><span class="text-gray-500">📁</span><span>${esc(prospect.category)}</span></div>`);
+
+  // Build social links HTML
+  const socialLinks = [];
+  if (prospect.facebook) socialLinks.push(`<a href="${esc(ensureHttps(prospect.facebook))}" target="_blank" class="p-2 bg-blue-100 rounded-lg hover:bg-blue-200" title="Facebook">📘</a>`);
+  if (prospect.instagram) socialLinks.push(`<a href="${esc(ensureHttps(prospect.instagram))}" target="_blank" class="p-2 bg-pink-100 rounded-lg hover:bg-pink-200" title="Instagram">📷</a>`);
+  if (prospect.linkedin) socialLinks.push(`<a href="${esc(ensureHttps(prospect.linkedin))}" target="_blank" class="p-2 bg-blue-100 rounded-lg hover:bg-blue-200" title="LinkedIn">💼</a>`);
+
+  // Column move options for Campaign Board
+  const columnOptions = [
+    { key: 'queued', label: '1. Queued', icon: '📋' },
+    { key: 'attempting', label: '2. Attempting', icon: '📞' },
+    { key: 'negotiating', label: '3. Negotiating', icon: '💬' },
+    { key: 'invoice-sent', label: '4. Invoice Sent', icon: '📄' },
+    { key: 'proof-approved', label: '5. Proof Approved', icon: '✅' },
+    { key: 'paid-in-full', label: '6. Paid in Full', icon: '💰' }
+  ].filter(col => col.key !== columnKey);
+
+  const moveOptionsHTML = columnOptions.map(col =>
+    `<button onclick="moveCampaignBoardItemAndRefresh('${leadId}', '${columnKey}', '${col.key}'); closeCampaignBoardModal();"
+            class="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm">
+      ${col.icon} ${col.label}
+    </button>`
+  ).join('');
+
+  const modalHTML = `
+    <div id="campaignBoardModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target === this) closeCampaignBoardModal()">
+      <div class="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+        <!-- Header -->
+        <div class="flex justify-between items-center p-4 border-b bg-gray-50 rounded-t-xl">
+          <h3 class="font-bold text-lg">${esc(businessName)}</h3>
+          <button onclick="closeCampaignBoardModal()" class="text-gray-500 hover:text-gray-700 text-2xl leading-none">&times;</button>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="p-4 bg-gradient-to-r from-purple-50 to-blue-50 border-b">
+          <div class="text-xs text-gray-600 mb-2 font-medium">Quick Actions</div>
+          <div class="flex gap-2">
+            <button onclick="toggleCampaignBoardDoNotContact('${leadId}', '${columnKey}'); closeCampaignBoardModal();"
+                    class="flex-1 px-3 py-2 ${isDoNotContact ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'} text-white text-sm rounded-lg font-medium">
+              🚫 ${isDoNotContact ? 'Remove DNC' : 'Not Interested'}
+            </button>
+            ${isClient
+              ? `<button onclick="removeCampaignBoardItem('${leadId}', '${columnKey}'); closeCampaignBoardModal();" class="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 font-medium">
+                  ✅ Current Client
+                </button>`
+              : `<button onclick="convertCampaignBoardToClient('${leadId}', '${columnKey}'); closeCampaignBoardModal();" class="flex-1 px-3 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 font-medium">
+                  👤 Convert to Client
+                </button>`
+            }
+          </div>
+        </div>
+
+        <!-- Contact Info -->
+        ${contactInfo.length > 0 ? `
+          <div class="p-4 border-b">
+            <div class="text-xs text-gray-600 mb-2 font-medium">Contact Info</div>
+            <div class="space-y-2 text-sm">${contactInfo.join('')}</div>
+          </div>
+        ` : ''}
+
+        <!-- Social Links -->
+        ${socialLinks.length > 0 ? `
+          <div class="p-4 border-b">
+            <div class="text-xs text-gray-600 mb-2 font-medium">Social Links</div>
+            <div class="flex gap-2">${socialLinks.join('')}</div>
+          </div>
+        ` : ''}
+
+        <!-- Move to Column -->
+        <div class="p-4 border-b">
+          <div class="text-xs text-gray-600 mb-2 font-medium">Move to Column</div>
+          <div class="grid grid-cols-2 gap-2">
+            ${moveOptionsHTML}
+          </div>
+        </div>
+
+        <!-- Delete -->
+        <div class="p-4">
+          <button onclick="deleteCampaignBoardItem('${leadId}', '${columnKey}'); closeCampaignBoardModal();"
+                  class="w-full px-3 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg text-sm font-medium">
+            🗑️ Remove from Board
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Remove existing modal if any
+  const existing = document.getElementById('campaignBoardModal');
+  if (existing) existing.remove();
+
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+function closeCampaignBoardModal() {
+  const modal = document.getElementById('campaignBoardModal');
+  if (modal) modal.remove();
+}
+
+async function moveCampaignBoardItemAndRefresh(leadId, fromColumn, toColumn) {
+  const board = getCurrentCampaignBoard();
+  if (!board) return;
+
+  const fromItems = board.columns[fromColumn];
+  const idx = fromItems.findIndex(item => {
+    const itemId = item.id || item._id || item.place_id || item.businessName;
+    return String(itemId) === String(leadId);
+  });
+
+  if (idx === -1) return;
+
+  const business = fromItems[idx];
+  fromItems.splice(idx, 1);
+  board.columns[toColumn].push(business);
+
+  await saveCampaignBoards();
+  renderCampaignBoard();
+  toast(`Moved to ${toColumn.replace(/-/g, ' ')}`);
+}
+
+async function toggleCampaignBoardDoNotContact(leadId, columnKey) {
+  const board = getCurrentCampaignBoard();
+  if (!board) return;
+
+  const items = board.columns[columnKey];
+  const item = items.find(item => {
+    const itemId = item.id || item._id || item.place_id || item.businessName;
+    return String(itemId) === String(leadId);
+  });
+
+  if (item) {
+    item.doNotContact = !item.doNotContact;
+    await saveCampaignBoards();
+    renderCampaignBoard();
+    toast(item.doNotContact ? 'Marked as Do Not Contact' : 'Removed Do Not Contact flag');
+  }
+}
+
+async function removeCampaignBoardItem(leadId, columnKey) {
+  const board = getCurrentCampaignBoard();
+  if (!board) return;
+
+  const items = board.columns[columnKey];
+  const idx = items.findIndex(item => {
+    const itemId = item.id || item._id || item.place_id || item.businessName;
+    return String(itemId) === String(leadId);
+  });
+
+  if (idx !== -1) {
+    items.splice(idx, 1);
+    await saveCampaignBoards();
+    renderCampaignBoard();
+    toast('Removed from campaign board');
+  }
+}
+
+async function convertCampaignBoardToClient(leadId, columnKey) {
+  const board = getCurrentCampaignBoard();
+  if (!board) return;
+
+  const items = board.columns[columnKey];
+  const idx = items.findIndex(item => {
+    const itemId = item.id || item._id || item.place_id || item.businessName;
+    return String(itemId) === String(leadId);
+  });
+
+  if (idx === -1) return;
+
+  const prospect = items[idx];
+
+  // Create client from prospect
+  const clientId = `client_${Date.now()}`;
+  const newClient = {
+    id: clientId,
+    businessName: prospect.businessName || prospect.name,
+    phone: prospect.phone || '',
+    email: prospect.email || '',
+    website: prospect.website || '',
+    address: prospect.address || '',
+    zipCode: prospect.zipCode || prospect.actualZip || '',
+    category: prospect.category || '',
+    facebook: prospect.facebook || '',
+    instagram: prospect.instagram || '',
+    linkedin: prospect.linkedin || '',
+    notes: prospect.notes || '',
+    createdAt: new Date().toISOString(),
+    source: 'campaign-board-conversion'
+  };
+
+  // Add to clients
+  if (!crmState.clients) crmState.clients = {};
+  crmState.clients[clientId] = newClient;
+  await saveToCloud('clients', crmState.clients);
+
+  // Remove from campaign board
+  items.splice(idx, 1);
+  await saveCampaignBoards();
+  renderCampaignBoard();
+
+  toast(`${newClient.businessName} converted to client!`);
 }
 
 // Delete item from campaign board
