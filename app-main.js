@@ -1040,7 +1040,8 @@ const kanbanState = {
 const campaignBoardsState = {
   boards: {},           // { mailerId: boardObject }
   activeBoardId: null,
-  useLegacyKanban: false // Campaign Board is now the default (legacy kanban removed)
+  useLegacyKanban: false, // Campaign Board is now the default (legacy kanban removed)
+  zipFilters: {}        // { columnKey: zipCode } for per-column filtering
 };
 
 // Board structure template (not stored, just documentation):
@@ -16488,15 +16489,24 @@ function renderCampaignBoard() {
   // Build columns HTML
   const columnsHTML = columnKeys.map(colKey => {
     const colDef = campaignBoardColumns[colKey];
-    const items = board.columns[colKey] || [];
+    const allItems = board.columns[colKey] || [];
 
-    // Collect ZIPs for filter
+    // Collect ZIPs for filter (from ALL items, not just filtered)
     const columnZips = new Set();
-    items.forEach(item => {
+    allItems.forEach(item => {
       const zip = item.actualZip || item.zipCode || item.zip;
       if (zip) columnZips.add(String(zip));
     });
     const sortedZips = Array.from(columnZips).sort();
+
+    // Apply ZIP filter
+    const currentZipFilter = campaignBoardsState.zipFilters[colKey] || '';
+    const items = currentZipFilter
+      ? allItems.filter(item => {
+          const itemZip = item.actualZip || item.zipCode || item.zip;
+          return String(itemZip) === currentZipFilter;
+        })
+      : allItems;
 
     // Phase separator styling
     const isFirstSalesPhase = colKey === 'negotiating';
@@ -16606,18 +16616,23 @@ function renderCampaignBoard() {
       `;
     }).join('');
 
-    // ZIP filter dropdown
+    // ZIP filter dropdown with selected state
     const zipFilterHTML = sortedZips.length > 0 ? `
       <select onchange="setCampaignBoardZipFilter('${colKey}', this.value)" class="text-xs px-1 py-0.5 border rounded bg-white">
-        <option value="">📍 All (${items.length})</option>
-        ${sortedZips.map(zip => `<option value="${zip}">${zip}</option>`).join('')}
+        <option value="" ${!currentZipFilter ? 'selected' : ''}>📍 All (${allItems.length})</option>
+        ${sortedZips.map(zip => `<option value="${zip}" ${currentZipFilter === zip ? 'selected' : ''}>${zip}</option>`).join('')}
       </select>
     ` : '';
+
+    // Show filtered count if filtering
+    const countDisplay = currentZipFilter
+      ? `${items.length}/${allItems.length}`
+      : `${items.length}`;
 
     return `
       <div class="kanban-column campaign-board-column ${phaseSeparator}" data-column="${colKey}" style="min-width: 200px; flex: 1;">
         <div class="flex flex-wrap justify-between items-center mb-2 gap-1">
-          <div class="font-semibold text-sm text-${colDef.color}-600">${colDef.icon} ${colDef.title} (${items.length})</div>
+          <div class="font-semibold text-sm text-${colDef.color}-600">${colDef.icon} ${colDef.title} (${countDisplay})</div>
           <div class="flex gap-1">${zipFilterHTML}</div>
         </div>
         ${items.length === 0 ? emptyStates[colKey] : ''}
@@ -17232,7 +17247,8 @@ async function deleteCampaignBoardItem(leadId, columnKey) {
 
 // Set ZIP filter for campaign board column
 function setCampaignBoardZipFilter(columnKey, zip) {
-  // TODO: Implement per-column ZIP filtering for campaign boards
+  campaignBoardsState.zipFilters[columnKey] = zip || '';
+  console.log(`📍 ZIP filter set: ${columnKey} = "${zip || 'All'}"`);
   renderCampaignBoard();
 }
 
