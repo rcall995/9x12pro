@@ -733,11 +733,12 @@
             document.getElementById('zipFilterDropdown').value = '';
 
             // IMPORTANT: Reload campaign board data for this campaign
-            const mailerId = campaign.mailer_id || campaign.Mailer_ID;
-            if (mailerId && state.campaignBoardData) {
-                state.currentMailerId = mailerId;
-                console.log('🔄 Reloading data for campaign:', mailerId);
-                processCampaignBoardData(state.campaignBoardData, mailerId);
+            // Note: mailerId is already declared above for pricing lookup
+            const campaignMailerId = campaign.mailer_id || campaign.Mailer_ID;
+            if (campaignMailerId && state.campaignBoardData) {
+                state.currentMailerId = campaignMailerId;
+                console.log('🔄 Reloading data for campaign:', campaignMailerId);
+                processCampaignBoardData(state.campaignBoardData, campaignMailerId);
             }
 
             showToast(`Campaign loaded: ${campaign.town}`);
