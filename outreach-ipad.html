@@ -849,12 +849,15 @@
 
                     if (!error && data?.data) {
                         console.log('✅ Loaded campaign boards from cloud');
+                        console.log('🔍 DEBUG cloud data keys:', Object.keys(data.data || {}));
+                        console.log('🔍 DEBUG cloud data sample:', JSON.stringify(data.data).substring(0, 500));
                         processCampaignBoardData(data.data, currentMailerId);
                         // Also cache locally
                         localStorage.setItem('campaign-boards', JSON.stringify(data.data));
                         return;
                     } else {
                         console.log('⚠️ No campaign board data or error:', error?.message);
+                        console.log('🔍 DEBUG error details:', JSON.stringify(error));
                     }
                 } catch (err) {
                     console.error('Cloud load failed:', err);
@@ -884,6 +887,12 @@
         }
 
         function processCampaignBoardData(boardsData, mailerId) {
+            // DEBUG: Log raw data received
+            console.log('🔍 DEBUG processCampaignBoardData called');
+            console.log('🔍 DEBUG boardsData type:', typeof boardsData);
+            console.log('🔍 DEBUG boardsData keys:', boardsData ? Object.keys(boardsData) : 'null/undefined');
+            console.log('🔍 DEBUG mailerId:', mailerId);
+
             // Store raw campaign board data for syncing later
             state.campaignBoardData = boardsData;
             state.currentMailerId = mailerId;
@@ -899,7 +908,7 @@
 
             if (!board) {
                 console.log('⚠️ No board found for mailer:', mailerId);
-                console.log('Available boards:', Object.keys(boardsData || {}));
+                console.log('🔍 DEBUG Available boards:', JSON.stringify(Object.keys(boardsData || {})));
                 state.prospects = [];
                 renderProspectList();
                 updateStats();
@@ -907,6 +916,9 @@
             }
 
             console.log('📊 Processing Campaign Board:', board.name || mailerId);
+            console.log('🔍 DEBUG board.columns keys:', board.columns ? Object.keys(board.columns) : 'no columns');
+            console.log('🔍 DEBUG queued count:', board.columns?.queued?.length || 0);
+            console.log('🔍 DEBUG attempting count:', board.columns?.attempting?.length || 0);
 
             // Load from 'queued' column (ready for outreach)
             let queuedItems = board.columns?.['queued'] || [];
