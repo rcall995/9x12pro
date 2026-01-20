@@ -729,15 +729,22 @@
                         .single();
 
                     let currentMailerId = null;
-                    if (!mailersResult.error && mailersResult.data?.data) {
-                        // Find the current/active mailer
+
+                    // First check localStorage for the selected campaign (same key main app uses)
+                    const savedMailerId = localStorage.getItem('mailslot-selectedMailerId');
+                    if (savedMailerId) {
+                        currentMailerId = savedMailerId;
+                        state.currentMailerId = currentMailerId;
+                        console.log('✅ Current mailer from localStorage:', currentMailerId);
+                    } else if (!mailersResult.error && mailersResult.data?.data) {
+                        // Fall back to finding current/active mailer or first one
                         const mailers = mailersResult.data.data;
                         const mailersList = Array.isArray(mailers) ? mailers : Object.values(mailers);
                         const currentMailer = mailersList.find(m => m.current || m.status === 'current') || mailersList[0];
                         if (currentMailer) {
                             currentMailerId = currentMailer.Mailer_ID || currentMailer.id;
                             state.currentMailerId = currentMailerId;
-                            console.log('✅ Current mailer:', currentMailerId);
+                            console.log('✅ Current mailer from mailers list:', currentMailerId);
                         }
                     }
 
@@ -771,10 +778,11 @@
         function loadFromLocalStorage() {
             try {
                 const stored = localStorage.getItem('campaign-boards');
-                const mailerId = state.currentMailerId || localStorage.getItem('currentMailerId');
+                const mailerId = state.currentMailerId || localStorage.getItem('mailslot-selectedMailerId');
                 if (stored) {
                     const parsed = JSON.parse(stored);
                     console.log('📦 localStorage campaign board data:', parsed);
+                    console.log('📦 Using mailerId:', mailerId);
                     processCampaignBoardData(parsed, mailerId);
                 } else {
                     console.log('❌ No campaign board data in localStorage either');
