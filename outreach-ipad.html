@@ -415,7 +415,9 @@
             settings: {},
             campaigns: [],
             pricingData: {},
-            kanbanData: null,  // Raw kanban data for syncing
+            kanbanData: null,  // Raw kanban data for syncing (legacy)
+            campaignBoardData: null,  // Campaign board data
+            currentMailerId: null,    // Current campaign/mailer ID
             sessionStats: {
                 contacted: 0,
                 startTime: Date.now()
@@ -712,27 +714,50 @@
 
         // ============ DATA LOADING ============
         async function loadProspects() {
-            console.log('📥 Loading prospects...');
+            console.log('📥 Loading prospects from Campaign Board...');
 
             // ALWAYS load from Supabase first if logged in (for cross-device sync)
             if (supabaseClient && currentUserEmail) {
                 try {
-                    console.log('☁️ Loading kanban from Supabase...');
+                    // First, get the current mailer/campaign
+                    console.log('☁️ Loading current mailer...');
+                    const mailersResult = await supabaseClient
+                        .from('app_data')
+                        .select('data')
+                        .eq('user_email', currentUserEmail)
+                        .eq('data_type', 'mailers')
+                        .single();
+
+                    let currentMailerId = null;
+                    if (!mailersResult.error && mailersResult.data?.data) {
+                        // Find the current/active mailer
+                        const mailers = mailersResult.data.data;
+                        const mailersList = Array.isArray(mailers) ? mailers : Object.values(mailers);
+                        const currentMailer = mailersList.find(m => m.current || m.status === 'current') || mailersList[0];
+                        if (currentMailer) {
+                            currentMailerId = currentMailer.Mailer_ID || currentMailer.id;
+                            state.currentMailerId = currentMailerId;
+                            console.log('✅ Current mailer:', currentMailerId);
+                        }
+                    }
+
+                    // Now load campaign boards
+                    console.log('☁️ Loading campaign boards from Supabase...');
                     const { data, error } = await supabaseClient
                         .from('app_data')
                         .select('data')
                         .eq('user_email', currentUserEmail)
-                        .eq('data_type', 'kanban')
+                        .eq('data_type', 'campaign-boards')
                         .single();
 
                     if (!error && data?.data) {
-                        console.log('✅ Loaded kanban from cloud');
-                        processKanbanData(data.data);
+                        console.log('✅ Loaded campaign boards from cloud');
+                        processCampaignBoardData(data.data, currentMailerId);
                         // Also cache locally
-                        localStorage.setItem('mailslot-kanban', JSON.stringify(data.data));
+                        localStorage.setItem('campaign-boards', JSON.stringify(data.data));
                         return;
                     } else {
-                        console.log('⚠️ No cloud data or error:', error?.message);
+                        console.log('⚠️ No campaign board data or error:', error?.message);
                     }
                 } catch (err) {
                     console.error('Cloud load failed:', err);
@@ -745,13 +770,14 @@
 
         function loadFromLocalStorage() {
             try {
-                const stored = localStorage.getItem('mailslot-kanban');
+                const stored = localStorage.getItem('campaign-boards');
+                const mailerId = state.currentMailerId || localStorage.getItem('currentMailerId');
                 if (stored) {
                     const parsed = JSON.parse(stored);
-                    console.log('📦 localStorage kanban data:', parsed);
-                    processKanbanData(parsed);
+                    console.log('📦 localStorage campaign board data:', parsed);
+                    processCampaignBoardData(parsed, mailerId);
                 } else {
-                    console.log('❌ No kanban data in localStorage either');
+                    console.log('❌ No campaign board data in localStorage either');
                     document.getElementById('syncStatus').textContent = 'No data';
                 }
             } catch (err) {
@@ -759,30 +785,57 @@
             }
         }
 
-        function processKanbanData(data) {
-            // Store raw kanban data for syncing later
-            state.kanbanData = data;
+        function processCampaignBoardData(boardsData, mailerId) {
+            // Store raw campaign board data for syncing later
+            state.campaignBoardData = boardsData;
+            state.currentMailerId = mailerId;
 
             const allProspects = [];
-            const columns = ['to-contact', 'in-progress'];
 
-            columns.forEach(col => {
-                // Data structure is data['to-contact'], not data.columns['to-contact']
-                const items = data?.[col] || [];
-                console.log(`📋 Column ${col}:`, items.length, 'items');
-                items.forEach(item => {
-                    if (item && typeof item === 'object' && item.businessName) {
-                        allProspects.push({
-                            ...item,
-                            _column: col,  // Track which column this prospect is in
-                            pipelineStage: col === 'to-contact' ? 'To Contact' : 'In Progress'
-                        });
-                    }
-                });
+            // Get the board for the current campaign
+            const board = mailerId && boardsData?.[mailerId];
+
+            if (!board) {
+                console.log('⚠️ No board found for mailer:', mailerId);
+                console.log('Available boards:', Object.keys(boardsData || {}));
+                state.prospects = [];
+                renderProspectList();
+                updateStats();
+                return;
+            }
+
+            console.log('📊 Processing Campaign Board:', board.name || mailerId);
+
+            // Load from 'queued' column (ready for outreach)
+            const queuedItems = board.columns?.['queued'] || [];
+            console.log(`📋 Queued column: ${queuedItems.length} items`);
+
+            queuedItems.forEach(item => {
+                if (item && typeof item === 'object' && (item.businessName || item.name)) {
+                    allProspects.push({
+                        ...item,
+                        _column: 'queued',
+                        pipelineStage: 'Queued'
+                    });
+                }
+            });
+
+            // Also show 'attempting' column items (already contacted, may need follow-up)
+            const attemptingItems = board.columns?.['attempting'] || [];
+            console.log(`📋 Attempting column: ${attemptingItems.length} items`);
+
+            attemptingItems.forEach(item => {
+                if (item && typeof item === 'object' && (item.businessName || item.name)) {
+                    allProspects.push({
+                        ...item,
+                        _column: 'attempting',
+                        pipelineStage: 'Attempting'
+                    });
+                }
             });
 
             state.prospects = allProspects;
-            console.log('✅ Loaded', allProspects.length, 'prospects');
+            console.log('✅ Loaded', allProspects.length, 'prospects from Campaign Board');
             renderProspectList();
             updateStats();
         }
@@ -1250,11 +1303,11 @@
             prospect.contactTracking[trackingKey] = true;
             prospect.contactTracking[trackingKey + 'Date'] = new Date().toISOString();
 
-            // Auto-move from 'to-contact' to 'in-progress' when contacted
+            // Auto-move from 'queued' to 'attempting' when contacted
             const oldColumn = prospect._column;
-            if (oldColumn === 'to-contact') {
-                prospect._column = 'in-progress';
-                prospect.pipelineStage = 'In Progress';
+            if (oldColumn === 'queued') {
+                prospect._column = 'attempting';
+                prospect.pipelineStage = 'Attempting';
             }
 
             // Update stats
@@ -1271,13 +1324,13 @@
             try {
                 await syncToCloud(oldColumn);
 
-                // Also increment the daily goal counter if moving from to-contact
-                if (oldColumn === 'to-contact') {
+                // Also increment the daily goal counter if moving from queued
+                if (oldColumn === 'queued') {
                     await incrementDailyGoalInCloud(prospect.businessName);
                 }
 
                 document.getElementById('syncStatus').textContent = '✓ Saved';
-                const movedMsg = oldColumn === 'to-contact' ? ' → In Progress' : '';
+                const movedMsg = oldColumn === 'queued' ? ' → Attempting' : '';
                 showToast('✓ Marked & synced!' + movedMsg);
             } catch (err) {
                 document.getElementById('syncStatus').textContent = '⚠️ Sync failed';
@@ -1496,13 +1549,14 @@
             }
 
             try {
-                // Use kanban data from state (loaded from cloud)
-                if (!state.kanbanData) {
-                    console.warn('⚠️ No kanban data to sync');
+                // Use campaign board data from state (loaded from cloud)
+                if (!state.campaignBoardData || !state.currentMailerId) {
+                    console.warn('⚠️ No campaign board data to sync');
                     return;
                 }
 
-                const data = state.kanbanData;
+                const boardsData = state.campaignBoardData;
+                const board = boardsData[state.currentMailerId];
                 const prospect = state.selectedProspect;
 
                 if (!prospect) {
@@ -1510,34 +1564,46 @@
                     return;
                 }
 
+                if (!board) {
+                    console.warn('⚠️ Board not found for mailer:', state.currentMailerId);
+                    return;
+                }
+
                 const newColumn = prospect._column;
+                const prospectId = prospect.id || prospect._id || prospect.place_id || prospect.businessName;
 
                 // Handle column move if oldColumn provided and different from new
                 if (oldColumn && oldColumn !== newColumn) {
                     console.log(`🔄 Moving prospect from ${oldColumn} to ${newColumn}`);
 
                     // Remove from old column
-                    const oldItems = data[oldColumn] || [];
-                    const oldIdx = oldItems.findIndex(item => String(item.id) === String(prospect.id));
+                    const oldItems = board.columns[oldColumn] || [];
+                    const oldIdx = oldItems.findIndex(item => {
+                        const itemId = item.id || item._id || item.place_id || item.businessName;
+                        return String(itemId) === String(prospectId);
+                    });
                     if (oldIdx !== -1) {
                         oldItems.splice(oldIdx, 1);
                         console.log(`✅ Removed from ${oldColumn}`);
                     }
 
                     // Add to new column
-                    if (!data[newColumn]) data[newColumn] = [];
+                    if (!board.columns[newColumn]) board.columns[newColumn] = [];
                     // Create clean copy without internal _column property
                     const prospectCopy = { ...prospect };
                     delete prospectCopy._column;
                     delete prospectCopy.pipelineStage;
-                    data[newColumn].push(prospectCopy);
+                    board.columns[newColumn].push(prospectCopy);
                     console.log(`✅ Added to ${newColumn}`);
                 } else {
                     // Just update in current column
-                    const items = data[newColumn] || [];
-                    console.log(`🔍 Looking for prospect ID ${prospect.id} in ${newColumn} (${items.length} items)`);
+                    const items = board.columns[newColumn] || [];
+                    console.log(`🔍 Looking for prospect in ${newColumn} (${items.length} items)`);
 
-                    const idx = items.findIndex(item => String(item.id) === String(prospect.id));
+                    const idx = items.findIndex(item => {
+                        const itemId = item.id || item._id || item.place_id || item.businessName;
+                        return String(itemId) === String(prospectId);
+                    });
 
                     if (idx !== -1) {
                         items[idx].contactTracking = { ...prospect.contactTracking };
@@ -1551,19 +1617,19 @@
                 // Save to Supabase FIRST (this is the important one)
                 const { error } = await supabaseClient.from('app_data').upsert({
                     user_email: currentUserEmail,
-                    data_type: 'kanban',
-                    data: data
+                    data_type: 'campaign-boards',
+                    data: boardsData
                 }, { onConflict: 'user_email,data_type' });
 
                 if (error) {
                     console.error('❌ Supabase sync error:', error);
                     throw new Error('Supabase error: ' + error.message);
                 }
-                console.log('✅ Synced to Supabase cloud');
+                console.log('✅ Synced campaign board to Supabase cloud');
 
                 // Try localStorage as backup (may fail on iPad due to quota)
                 try {
-                    localStorage.setItem('mailslot-kanban', JSON.stringify(data));
+                    localStorage.setItem('campaign-boards', JSON.stringify(boardsData));
                     console.log('💾 Saved to localStorage');
                 } catch (lsErr) {
                     console.warn('⚠️ localStorage save failed (quota exceeded), using cloud only');

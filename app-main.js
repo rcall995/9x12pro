@@ -1040,7 +1040,7 @@ const kanbanState = {
 const campaignBoardsState = {
   boards: {},           // { mailerId: boardObject }
   activeBoardId: null,
-  useLegacyKanban: true // Start with legacy, user clicks to switch to Campaign Board
+  useLegacyKanban: false // Campaign Board is now the default (legacy kanban removed)
 };
 
 // Board structure template (not stored, just documentation):
@@ -16636,12 +16636,9 @@ function renderCampaignBoard() {
     </div>
   `;
 
-  // Toggle button to switch between views
+  // Campaign info bar
   const viewToggle = `
     <div class="flex items-center gap-2 mb-3">
-      <button onclick="toggleCampaignBoardView()" class="px-3 py-1 text-xs font-medium rounded ${campaignBoardsState.useLegacyKanban ? 'bg-gray-200 text-gray-700' : 'bg-purple-600 text-white'}">
-        ${campaignBoardsState.useLegacyKanban ? '📊 Switch to Campaign Board' : '📋 Switch to Classic Kanban'}
-      </button>
       <button onclick="openCampaignConfigModal()" class="px-3 py-1 text-xs font-medium rounded bg-blue-100 text-blue-700 hover:bg-blue-200">
         ⚙️ Campaign Config
       </button>
