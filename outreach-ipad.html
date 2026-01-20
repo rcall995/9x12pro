@@ -735,10 +735,20 @@
             // IMPORTANT: Reload campaign board data for this campaign
             // Note: mailerId is already declared above for pricing lookup
             const campaignMailerId = campaign.mailer_id || campaign.Mailer_ID;
+            console.log('🔍 DEBUG onCampaignSelect:');
+            console.log('  - campaign.mailer_id:', campaign.mailer_id);
+            console.log('  - campaign.Mailer_ID:', campaign.Mailer_ID);
+            console.log('  - campaignMailerId:', campaignMailerId);
+            console.log('  - state.campaignBoardData exists:', !!state.campaignBoardData);
+            console.log('  - state.campaignBoardData keys:', state.campaignBoardData ? Object.keys(state.campaignBoardData) : 'N/A');
+
             if (campaignMailerId && state.campaignBoardData) {
                 state.currentMailerId = campaignMailerId;
                 console.log('🔄 Reloading data for campaign:', campaignMailerId);
+                console.log('  - Board exists for this ID:', !!state.campaignBoardData[campaignMailerId]);
                 processCampaignBoardData(state.campaignBoardData, campaignMailerId);
+            } else {
+                console.warn('⚠️ Cannot reload - missing mailerId or campaignBoardData');
             }
 
             showToast(`Campaign loaded: ${campaign.town}`);
