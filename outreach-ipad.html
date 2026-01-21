@@ -93,6 +93,12 @@
                 <option value="">All ZIPs</option>
             </select>
         </div>
+        <div class="flex items-center gap-2">
+            <label class="text-sm font-semibold text-gray-600 whitespace-nowrap">Category:</label>
+            <select id="categoryFilterDropdown" onchange="onCategoryFilterSelect()" class="px-3 py-2 border-2 border-green-200 rounded-lg text-sm font-medium focus:border-green-500 focus:outline-none bg-white">
+                <option value="">All Categories</option>
+            </select>
+        </div>
         <div id="campaignInfo" class="hidden text-sm text-purple-600 bg-purple-50 px-3 py-2 rounded-lg font-medium ml-auto">
             <span id="campaignInfoText"></span>
         </div>
@@ -439,6 +445,7 @@
             campaignBoardData: null,  // Campaign board data
             currentMailerId: null,    // Current campaign/mailer ID
             zipFilter: '',            // ZIP filter for Outreach Hub
+            categoryFilter: '',       // Category filter for Outreach Hub
             sessionStats: {
                 contacted: 0,
                 startTime: Date.now()
@@ -969,6 +976,45 @@
             console.log(`📍 ZIP dropdown populated: ${sortedZips.length} ZIPs`);
         }
 
+        function onCategoryFilterSelect() {
+            const dropdown = document.getElementById('categoryFilterDropdown');
+            state.categoryFilter = dropdown.value;
+            console.log(`🏷️ Category filter changed to: "${state.categoryFilter || 'All'}"`);
+
+            // Re-render the prospect list with filter
+            renderProspectList();
+            updateStats();
+        }
+
+        function populateCategoryDropdown() {
+            const dropdown = document.getElementById('categoryFilterDropdown');
+            if (!dropdown) return;
+
+            const currentValue = state.categoryFilter || '';
+
+            // Collect all unique categories from prospects
+            const categories = new Set();
+            state.prospects.forEach(p => {
+                const category = p.category || p.businessType || p.type;
+                if (category) categories.add(String(category));
+            });
+
+            const sortedCategories = Array.from(categories).sort();
+
+            // Build options
+            let options = `<option value="">All Categories (${state.prospects.length})</option>`;
+            sortedCategories.forEach(category => {
+                const count = state.prospects.filter(p => {
+                    const pCat = p.category || p.businessType || p.type;
+                    return String(pCat) === category;
+                }).length;
+                options += `<option value="${category}" ${currentValue === category ? 'selected' : ''}>${category} (${count})</option>`;
+            });
+
+            dropdown.innerHTML = options;
+            console.log(`🏷️ Category dropdown populated: ${sortedCategories.length} categories`);
+        }
+
         async function saveSettingsToCloud() {
             if (!currentUserEmail || !supabaseClient) return;
             try {
@@ -1189,6 +1235,7 @@
                     renderProspectList();
                     updateStats();
                     populateZipDropdown();
+            populateCategoryDropdown();
                     return;
                 }
 
@@ -1196,6 +1243,7 @@
                 renderProspectList();
                 updateStats();
                 populateZipDropdown();
+            populateCategoryDropdown();
                 return;
             }
 
@@ -1255,6 +1303,7 @@
             renderProspectList();
             updateStats();
             populateZipDropdown();
+            populateCategoryDropdown();
         }
 
         async function loadSettings() {
@@ -1404,7 +1453,7 @@
                 return filterNearby();
             }
 
-            return state.prospects.filter(p => {
+            let filtered = state.prospects.filter(p => {
                 switch (channel) {
                     case 'sms':
                     case 'call':
@@ -1421,6 +1470,16 @@
                         return true;
                 }
             });
+
+            // Apply category filter if set
+            if (state.categoryFilter) {
+                filtered = filtered.filter(p => {
+                    const pCat = p.category || p.businessType || p.type;
+                    return String(pCat) === state.categoryFilter;
+                });
+            }
+
+            return filtered;
         }
 
         function filterNearby() {
@@ -1491,7 +1550,7 @@
                                     ${isContacted ? '<span class="text-green-500">✓</span>' : ''}
                                     <span class="font-medium text-gray-900 truncate">${p.businessName}</span>
                                 </div>
-                                <div class="text-xs text-gray-500 truncate">${p.category || 'No category'}</div>
+                                <div class="text-xs text-gray-500 truncate">${p.category || 'No category'} • ZIP: ${p.actualZip || p.zipCode || p.zip || '?'}</div>
                                 ${distanceText}
                             </div>
                             <div class="text-xs text-gray-400 ml-2 flex-shrink-0">${icons.join(' ')}</div>
