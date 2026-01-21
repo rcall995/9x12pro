@@ -16510,6 +16510,25 @@ function moveCampaignBoardItem(businessId, fromColumn, toColumn, board) {
   return true;
 }
 
+// Helper to update pipeline debug banner
+function updatePipelineDebug(message, append = true) {
+  const banner = document.getElementById('pipelineDebugBanner');
+  const text = document.getElementById('pipelineDebugText');
+  if (text) {
+    if (append && !text.innerHTML.includes('Loading pipeline')) {
+      text.innerHTML += '<br>' + message;
+    } else {
+      text.innerHTML = message;
+    }
+    // Keep last 6 lines
+    const lines = text.innerHTML.split('<br>');
+    if (lines.length > 6) {
+      text.innerHTML = lines.slice(-6).join('<br>');
+    }
+  }
+  console.log('PIPELINE DEBUG:', message);
+}
+
 // Render campaign board (new 6-column system)
 function renderCampaignBoard() {
   const board = getCurrentCampaignBoard();
@@ -16519,14 +16538,24 @@ function renderCampaignBoard() {
   console.log('📊 state.current?.Mailer_ID:', state.current?.Mailer_ID);
   console.log('📊 All boards:', Object.keys(campaignBoardsState.boards));
 
+  // Update debug banner
+  updatePipelineDebug(`🔍 Current mailer: "${state.current?.Mailer_ID || 'NOT SET'}"`, false);
+  updatePipelineDebug(`📋 Available boards: ${Object.keys(campaignBoardsState.boards).join(', ') || '(none)'}`);
+
   if (!board) {
     console.log('📊 No board found, falling back to legacy');
+    updatePipelineDebug('❌ No board found - showing legacy kanban');
     // Fall back to legacy kanban if no board
     return renderLegacyKanban();
   }
 
+  updatePipelineDebug(`✅ Board found: "${board.mailerId || board.name}"`);
+
   // Log column counts
   const columnKeys = ['queued', 'attempting', 'negotiating', 'invoice-sent', 'proof-approved', 'paid-in-full'];
+  const colCounts = columnKeys.map(col => `${col}:${(board.columns[col] || []).length}`).join(', ');
+  updatePipelineDebug(`📊 Columns: ${colCounts}`);
+
   columnKeys.forEach(col => {
     console.log(`📊 Column ${col}: ${(board.columns[col] || []).length} items`);
   });
@@ -17752,6 +17781,15 @@ async function loadCampaignBoards() {
       });
       campaignBoardsState.boards = data;
       console.log('✅ Campaign boards loaded:', Object.keys(data).length, 'boards');
+      // Update debug banner if visible
+      if (typeof updatePipelineDebug === 'function') {
+        updatePipelineDebug(`☁️ Loaded ${Object.keys(data).length} boards from cloud: ${Object.keys(data).join(', ')}`);
+      }
+    } else {
+      console.log('⚠️ No campaign board data in cloud');
+      if (typeof updatePipelineDebug === 'function') {
+        updatePipelineDebug('⚠️ No campaign boards found in cloud');
+      }
     }
   } catch (err) {
     console.error('Failed to load campaign boards:', err);
