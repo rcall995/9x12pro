@@ -16564,7 +16564,7 @@ function renderCampaignBoard() {
   const totalLegacy = Object.values(kanbanState.columns || {}).reduce((sum, arr) => sum + (arr?.length || 0), 0);
   const totalBoard = columnKeys.reduce((sum, col) => sum + (board.columns[col]?.length || 0), 0);
   if (totalLegacy > 0 && totalBoard === 0) {
-    updatePipelineDebug(`⚠️ Legacy has ${totalLegacy} items - run migration!`);
+    updatePipelineDebug(`⚠️ Legacy has ${totalLegacy} items - <button onclick="migrateToCampaignBoards()" style="background:#f59e0b;color:white;padding:2px 8px;border-radius:4px;font-weight:bold;">Run Migration</button>`);
   }
 
   columnKeys.forEach(col => {
