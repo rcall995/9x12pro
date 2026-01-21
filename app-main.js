@@ -16542,6 +16542,10 @@ function renderCampaignBoard() {
   updatePipelineDebug(`🔍 Current mailer: "${state.current?.Mailer_ID || 'NOT SET'}"`, false);
   updatePipelineDebug(`📋 Available boards: ${Object.keys(campaignBoardsState.boards).join(', ') || '(none)'}`);
 
+  // Also show legacy kanban counts
+  const legacyCounts = Object.entries(kanbanState.columns || {}).map(([k,v]) => `${k}:${(v||[]).length}`).join(', ');
+  updatePipelineDebug(`📦 Legacy kanban: ${legacyCounts || '(empty)'}`);
+
   if (!board) {
     console.log('📊 No board found, falling back to legacy');
     updatePipelineDebug('❌ No board found - showing legacy kanban');
@@ -16555,6 +16559,13 @@ function renderCampaignBoard() {
   const columnKeys = ['queued', 'attempting', 'negotiating', 'invoice-sent', 'proof-approved', 'paid-in-full'];
   const colCounts = columnKeys.map(col => `${col}:${(board.columns[col] || []).length}`).join(', ');
   updatePipelineDebug(`📊 Columns: ${colCounts}`);
+
+  // Check if legacy has data but board is empty - suggest migration
+  const totalLegacy = Object.values(kanbanState.columns || {}).reduce((sum, arr) => sum + (arr?.length || 0), 0);
+  const totalBoard = columnKeys.reduce((sum, col) => sum + (board.columns[col]?.length || 0), 0);
+  if (totalLegacy > 0 && totalBoard === 0) {
+    updatePipelineDebug(`⚠️ Legacy has ${totalLegacy} items - run migration!`);
+  }
 
   columnKeys.forEach(col => {
     console.log(`📊 Column ${col}: ${(board.columns[col] || []).length} items`);
@@ -17368,8 +17379,8 @@ function switchCampaignFromDropdown(mailerId) {
     return;
   }
 
-  // Use existing selectMailer function to switch campaigns
-  selectMailer(idx);
+  // Use pickCampaign to properly switch campaigns (this sets state.current and re-renders)
+  pickCampaign({ target: { value: idx.toString() } });
   toast(`Switched to campaign`);
 }
 
