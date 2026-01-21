@@ -868,17 +868,24 @@
             document.getElementById('zipFilterDropdown').value = '';
 
             // Load data for this campaign
-            const campaignMailerId = campaign.mailer_id || campaign.Mailer_ID;
+            const campaignMailerId = campaign.mailer_id || campaign.Mailer_ID || campaign.id;
+            console.log(`🔍 Campaign selected: "${campaign.town}", mailer_id: "${campaignMailerId}"`);
+            console.log(`🔍 Campaign object keys:`, Object.keys(campaign));
+
             if (campaignMailerId) {
                 state.currentMailerId = campaignMailerId;
 
                 // Reload data for the selected campaign
                 if (state.campaignBoardData) {
+                    console.log(`🔍 Using cached board data, keys: ${Object.keys(state.campaignBoardData).join(', ')}`);
                     processCampaignBoardData(state.campaignBoardData, campaignMailerId);
                 } else {
                     // Data not loaded yet, fetch it
+                    console.log('📥 No cached board data, fetching...');
                     loadProspects();
                 }
+            } else {
+                console.warn('⚠️ No mailer ID found for campaign:', campaign);
             }
 
             showToast(`Campaign: ${campaign.town}`);
@@ -1062,8 +1069,40 @@
 
             const allProspects = [];
 
-            // Get the board for the selected campaign
-            const board = mailerId && boardsData?.[mailerId];
+            // Get the board for the selected campaign (with flexible key matching)
+            let board = null;
+            if (mailerId && boardsData) {
+                // Try exact match first
+                board = boardsData[mailerId];
+
+                // If not found, try case-insensitive match
+                if (!board) {
+                    const mailerIdLower = mailerId.toLowerCase();
+                    const matchingKey = Object.keys(boardsData).find(key =>
+                        key.toLowerCase() === mailerIdLower
+                    );
+                    if (matchingKey) {
+                        board = boardsData[matchingKey];
+                        console.log(`🔄 Found board with different case: ${matchingKey} (searched for: ${mailerId})`);
+                        // Update state to use the actual key
+                        state.currentMailerId = matchingKey;
+                    }
+                }
+
+                // If still not found, try partial match (mailer ID might be subset)
+                if (!board) {
+                    const matchingKey = Object.keys(boardsData).find(key =>
+                        key.includes(mailerId) || mailerId.includes(key)
+                    );
+                    if (matchingKey) {
+                        board = boardsData[matchingKey];
+                        console.log(`🔄 Found board with partial match: ${matchingKey} (searched for: ${mailerId})`);
+                        state.currentMailerId = matchingKey;
+                    }
+                }
+            }
+
+            console.log(`🔍 Board lookup: mailerId="${mailerId}", found=${!!board}, availableKeys=${Object.keys(boardsData || {}).join(', ')}`);
 
             if (!board) {
                 console.log('⚠️ No board found for mailer:', mailerId);
