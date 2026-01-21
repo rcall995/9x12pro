@@ -98,6 +98,11 @@
         </div>
     </div>
 
+    <!-- Debug Info Banner (temporary) -->
+    <div id="debugBanner" class="bg-yellow-100 border-b border-yellow-300 px-3 py-2 text-xs font-mono text-yellow-800 hidden">
+        <div id="debugText">Debug info will appear here</div>
+    </div>
+
     <!-- View Mode Toggle + Channel Tabs -->
     <div class="bg-white border-b border-gray-200 px-2 py-2 flex-shrink-0">
         <!-- View Toggle -->
@@ -556,9 +561,30 @@
             document.getElementById('syncStatus').classList.add('bg-yellow-500/30');
         });
 
+        // ============ DEBUG HELPER ============
+        function showDebug(message, append = true) {
+            const banner = document.getElementById('debugBanner');
+            const text = document.getElementById('debugText');
+            if (banner && text) {
+                banner.classList.remove('hidden');
+                if (append && text.textContent !== 'Debug info will appear here') {
+                    text.innerHTML += '<br>' + message;
+                } else {
+                    text.innerHTML = message;
+                }
+                // Keep only last 8 lines
+                const lines = text.innerHTML.split('<br>');
+                if (lines.length > 8) {
+                    text.innerHTML = lines.slice(-8).join('<br>');
+                }
+            }
+            console.log('DEBUG:', message);
+        }
+
         // ============ INITIALIZATION ============
         document.addEventListener('DOMContentLoaded', async () => {
             console.log('🚀 Outreach Hub loaded');
+            showDebug('🚀 Outreach Hub initializing...', false);
 
             // Load offline queue first
             loadOfflineQueue();
@@ -978,10 +1004,13 @@
         // ============ DATA LOADING ============
         async function loadProspects() {
             console.log('📥 Loading prospects from Campaign Board...');
+            showDebug('📥 Loading prospects...');
 
             // ALWAYS load from Supabase first if logged in (for cross-device sync)
             if (supabaseClient && currentUserEmail) {
                 try {
+                    showDebug(`☁️ User: ${currentUserEmail}`);
+
                     // First, get the current mailer/campaign
                     console.log('☁️ Loading current mailer...');
                     const mailersResult = await supabaseClient
@@ -999,6 +1028,7 @@
                         currentMailerId = savedMailerId;
                         state.currentMailerId = currentMailerId;
                         console.log('✅ Current mailer from localStorage:', currentMailerId);
+                        showDebug(`📋 Mailer from localStorage: ${currentMailerId}`);
                     } else if (!mailersResult.error && mailersResult.data?.data) {
                         // Fall back to finding current/active mailer or first one
                         const mailers = mailersResult.data.data;
@@ -1008,7 +1038,10 @@
                             currentMailerId = currentMailer.Mailer_ID || currentMailer.id;
                             state.currentMailerId = currentMailerId;
                             console.log('✅ Current mailer from mailers list:', currentMailerId);
+                            showDebug(`📋 Mailer from list: ${currentMailerId}`);
                         }
+                    } else {
+                        showDebug('⚠️ No mailer ID found yet');
                     }
 
                     // Now load campaign boards
@@ -1021,20 +1054,25 @@
                         .single();
 
                     if (!error && data?.data) {
+                        const boardKeys = Object.keys(data.data || {});
                         console.log('✅ Loaded campaign boards from cloud');
-                        console.log('🔍 DEBUG cloud data keys:', Object.keys(data.data || {}));
-                        console.log('🔍 DEBUG cloud data sample:', JSON.stringify(data.data).substring(0, 500));
+                        console.log('🔍 DEBUG cloud data keys:', boardKeys);
+                        showDebug(`✅ Boards loaded: ${boardKeys.length} boards`);
+                        showDebug(`📋 Board keys: ${boardKeys.join(', ') || '(none)'}`);
                         processCampaignBoardData(data.data, currentMailerId);
                         // Also cache locally
                         localStorage.setItem('campaign-boards', JSON.stringify(data.data));
                         return;
                     } else {
                         console.log('⚠️ No campaign board data or error:', error?.message);
-                        console.log('🔍 DEBUG error details:', JSON.stringify(error));
+                        showDebug(`❌ No boards: ${error?.message || 'empty'}`);
                     }
                 } catch (err) {
                     console.error('Cloud load failed:', err);
+                    showDebug(`❌ Load error: ${err.message}`);
                 }
+            } else {
+                showDebug('⚠️ No supabase or user');
             }
 
             // Fall back to local data if cloud fails
@@ -1103,6 +1141,9 @@
             }
 
             console.log(`🔍 Board lookup: mailerId="${mailerId}", found=${!!board}, availableKeys=${Object.keys(boardsData || {}).join(', ')}`);
+            showDebug(`🔍 Looking for: "${mailerId}"`);
+            showDebug(`📋 Available: ${Object.keys(boardsData || {}).join(', ') || '(none)'}`);
+            showDebug(`${board ? '✅ Board FOUND' : '❌ Board NOT found'}`);
 
             if (!board) {
                 console.log('⚠️ No board found for mailer:', mailerId);
@@ -1111,6 +1152,7 @@
                 // Auto-create an empty board structure for this campaign
                 if (mailerId && boardsData) {
                     console.log('🔧 Auto-creating empty board for:', mailerId);
+                    showDebug('🔧 Auto-creating empty board...');
                     const newBoard = {
                         mailerId: mailerId,
                         name: mailerId,
@@ -1164,6 +1206,10 @@
 
             console.log('📊 Loading from board:', mailerId);
 
+            // Show column counts in debug
+            const colCounts = Object.entries(board.columns || {}).map(([k, v]) => `${k}:${(v || []).length}`).join(', ');
+            showDebug(`📊 Columns: ${colCounts || '(no columns)'}`);
+
             // Load from 'queued' column
             let queuedItems = board.columns?.['queued'] || [];
 
@@ -1210,6 +1256,7 @@
 
             state.prospects = allProspects;
             console.log('✅ Loaded', allProspects.length, 'prospects from board:', mailerId);
+            showDebug(`✅ Loaded ${allProspects.length} prospects`);
             renderProspectList();
             updateStats();
             populateZipDropdown();
