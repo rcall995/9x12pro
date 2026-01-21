@@ -63,6 +63,26 @@
 
 console.log('🚀 Main app.html script starting...');
 
+// Global error handler to catch uncaught exceptions
+window.onerror = function(message, source, lineno, colno, error) {
+  console.error('❌ GLOBAL ERROR:', message, 'at', source, 'line', lineno);
+  // Don't show toast for every error - too noisy
+  // Only show for critical sync/data errors
+  if (message.includes('campaign') || message.includes('sync') || message.includes('save')) {
+    if (typeof toast === 'function') {
+      toast('An error occurred. Your data is safe in local storage.', false);
+    }
+  }
+  return false; // Let error propagate to console
+};
+
+// Handle unhandled promise rejections
+window.onunhandledrejection = function(event) {
+  console.error('❌ Unhandled Promise Rejection:', event.reason);
+  // Prevent the default handling (which would log it again)
+  event.preventDefault();
+};
+
 // Hide loading overlay - called when app is ready
 function hideLoadingOverlay() {
   const overlay = document.getElementById('app-loading-overlay');
@@ -763,11 +783,38 @@ window.updateCacheStatus = updateCacheStatus;
 // Unified function to load data from Google Sheets
 async function loadFromCloud(dataType) {
   try {
+    // Wait for auth if ACTIVE_USER not yet available (race condition fix)
+    let userEmail = ACTIVE_USER;
+    if (!userEmail) {
+      // Try to get it from window.currentAuthUser
+      if (window.currentAuthUser?.email) {
+        userEmail = window.currentAuthUser.email;
+        ACTIVE_USER = userEmail;
+      } else {
+        // Wait up to 3 seconds for auth to complete
+        for (let i = 0; i < 30; i++) {
+          await new Promise(r => setTimeout(r, 100));
+          if (window.currentAuthUser?.email) {
+            userEmail = window.currentAuthUser.email;
+            ACTIVE_USER = userEmail;
+            break;
+          }
+        }
+      }
+    }
+
+    // If still no user, fall back to IndexedDB cache
+    if (!userEmail) {
+      console.warn(`⚠️ No auth user for ${dataType}, using IndexedDB cache`);
+      const cached = await idbGet(`mailslot-${dataType}`);
+      return cached || null;
+    }
+
     // Query Supabase app_data table for this data type
     const { data, error } = await supabaseClient
       .from('app_data')
       .select('data')
-      .eq('user_email', ACTIVE_USER)
+      .eq('user_email', userEmail)
       .eq('data_type', dataType)
       .single();
 
@@ -17134,17 +17181,39 @@ async function moveCampaignBoardItemAndRefresh(leadId, fromColumn, toColumn) {
   const board = getCurrentCampaignBoard();
   if (!board) return;
 
-  const fromItems = board.columns[fromColumn];
-  const idx = fromItems.findIndex(item => {
-    const itemId = item.id || item._id || item.place_id || item.businessName;
-    return String(itemId) === String(leadId);
-  });
+  // Ensure destination column exists
+  if (!board.columns[toColumn]) {
+    board.columns[toColumn] = [];
+  }
 
-  if (idx === -1) return;
+  const fromItems = board.columns[fromColumn] || [];
+  const toItems = board.columns[toColumn];
+
+  const getItemId = (item) => item.id || item._id || item.place_id || item.businessName;
+
+  const idx = fromItems.findIndex(item => String(getItemId(item)) === String(leadId));
+  if (idx === -1) {
+    console.warn(`Item ${leadId} not found in ${fromColumn}`);
+    return;
+  }
 
   const business = fromItems[idx];
+  const businessId = getItemId(business);
+
+  // Check if item already exists in destination column (prevent duplicates)
+  const existsInDest = toItems.some(item => String(getItemId(item)) === String(businessId));
+  if (existsInDest) {
+    console.warn(`Item ${businessId} already exists in ${toColumn}, removing from source only`);
+    fromItems.splice(idx, 1);
+    await saveCampaignBoards();
+    renderCampaignBoard();
+    toast(`Item was already in ${toColumn.replace(/-/g, ' ')}`);
+    return;
+  }
+
+  // Remove from source and add to destination
   fromItems.splice(idx, 1);
-  board.columns[toColumn].push(business);
+  toItems.push(business);
 
   await saveCampaignBoards();
   renderCampaignBoard();
@@ -17559,10 +17628,33 @@ async function migrateToCampaignBoards() {
   return true;
 }
 
-// Save campaign boards to cloud
+// Save campaign boards to cloud with validation
 async function saveCampaignBoards() {
   try {
-    await saveToCloud('campaign-boards', campaignBoardsState.boards);
+    // Validate data before saving
+    const boards = campaignBoardsState.boards;
+
+    if (!boards || typeof boards !== 'object') {
+      console.error('❌ Invalid boards data - skipping save');
+      return;
+    }
+
+    // Clean up any null/undefined entries in columns
+    Object.keys(boards).forEach(boardId => {
+      const board = boards[boardId];
+      if (!board || !board.columns) return;
+
+      Object.keys(board.columns).forEach(colKey => {
+        if (!Array.isArray(board.columns[colKey])) {
+          board.columns[colKey] = [];
+        } else {
+          // Filter out null/undefined items
+          board.columns[colKey] = board.columns[colKey].filter(item => item && typeof item === 'object');
+        }
+      });
+    });
+
+    await saveToCloud('campaign-boards', boards);
     console.log('✅ Campaign boards saved to cloud');
   } catch (err) {
     console.error('❌ Failed to save campaign boards:', err);
@@ -17619,11 +17711,45 @@ async function cleanupCampaignBoardDuplicates() {
   console.log(`🧹 Cleanup complete: removed ${duplicatesRemoved} duplicates`);
 }
 
-// Load campaign boards from cloud
+// Load campaign boards from cloud with validation
 async function loadCampaignBoards() {
   try {
     const data = await loadFromCloud('campaign-boards');
     if (data && typeof data === 'object') {
+      // Validate and repair board structure
+      Object.keys(data).forEach(boardId => {
+        const board = data[boardId];
+        if (!board) {
+          delete data[boardId];
+          return;
+        }
+        // Ensure columns object exists
+        if (!board.columns || typeof board.columns !== 'object') {
+          board.columns = {
+            'queued': [],
+            'attempting': [],
+            'negotiating': [],
+            'invoice-sent': [],
+            'proof-approved': [],
+            'paid-in-full': []
+          };
+        }
+        // Ensure each column is an array
+        const requiredColumns = ['queued', 'attempting', 'negotiating', 'invoice-sent', 'proof-approved', 'paid-in-full'];
+        requiredColumns.forEach(col => {
+          if (!Array.isArray(board.columns[col])) {
+            board.columns[col] = [];
+          }
+        });
+        // Ensure config exists
+        if (!board.config) {
+          board.config = {
+            channelPriority: ['sms', 'email', 'facebook', 'call'],
+            maxAttempts: 4,
+            daysBetweenAttempts: 3
+          };
+        }
+      });
       campaignBoardsState.boards = data;
       console.log('✅ Campaign boards loaded:', Object.keys(data).length, 'boards');
     }

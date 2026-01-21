@@ -456,15 +456,112 @@
                 rapidFireIndex: 0,
                 rapidFireActive: false,
                 selectedChannel: 'email'  // Default to email for ZIP Queue outreach
-            }
+            },
+            // Offline sync queue
+            offlineSyncQueue: []
         };
 
         let supabaseClient = null;
         let currentUserEmail = null;
 
+        // Load offline queue from localStorage on startup
+        function loadOfflineQueue() {
+            try {
+                const saved = localStorage.getItem('outreach-offline-queue');
+                if (saved) {
+                    state.offlineSyncQueue = JSON.parse(saved);
+                    console.log(`📥 Loaded ${state.offlineSyncQueue.length} items from offline queue`);
+                }
+            } catch (e) {
+                console.warn('Failed to load offline queue:', e);
+            }
+        }
+
+        // Save offline queue to localStorage
+        function saveOfflineQueue() {
+            try {
+                localStorage.setItem('outreach-offline-queue', JSON.stringify(state.offlineSyncQueue));
+            } catch (e) {
+                console.warn('Failed to save offline queue:', e);
+            }
+        }
+
+        // Add item to offline queue
+        function queueForOfflineSync(prospectData, oldColumn, newColumn) {
+            state.offlineSyncQueue.push({
+                prospect: prospectData,
+                oldColumn: oldColumn,
+                newColumn: newColumn,
+                mailerId: state.currentMailerId,
+                timestamp: Date.now()
+            });
+            saveOfflineQueue();
+            console.log(`📝 Queued sync for offline: ${prospectData.businessName}`);
+        }
+
+        // Process offline queue when back online
+        async function processOfflineQueue() {
+            if (state.offlineSyncQueue.length === 0) return;
+
+            console.log(`🔄 Processing ${state.offlineSyncQueue.length} queued sync items...`);
+            const queue = [...state.offlineSyncQueue];
+            state.offlineSyncQueue = [];
+            saveOfflineQueue();
+
+            for (const item of queue) {
+                try {
+                    // Temporarily set state for sync
+                    const originalMailerId = state.currentMailerId;
+                    const originalProspect = state.selectedProspect;
+
+                    state.currentMailerId = item.mailerId;
+                    state.selectedProspect = item.prospect;
+                    state.selectedProspect._column = item.newColumn;
+
+                    await syncToCloud(item.oldColumn);
+
+                    // Restore state
+                    state.currentMailerId = originalMailerId;
+                    state.selectedProspect = originalProspect;
+
+                    console.log(`✅ Synced queued item: ${item.prospect.businessName}`);
+                } catch (err) {
+                    console.error(`❌ Failed to sync queued item: ${item.prospect.businessName}`, err);
+                    // Re-queue if still failing
+                    state.offlineSyncQueue.push(item);
+                }
+            }
+            saveOfflineQueue();
+
+            if (state.offlineSyncQueue.length === 0) {
+                showToast('✓ All offline changes synced!');
+            } else {
+                showToast(`⚠️ ${state.offlineSyncQueue.length} items still pending`);
+            }
+        }
+
+        // Listen for online/offline events
+        window.addEventListener('online', () => {
+            console.log('🌐 Back online - processing offline queue');
+            document.getElementById('syncStatus').textContent = '✓ Online';
+            document.getElementById('syncStatus').classList.remove('bg-yellow-500/30');
+            document.getElementById('syncStatus').classList.add('bg-green-500/30');
+            processOfflineQueue();
+        });
+
+        window.addEventListener('offline', () => {
+            console.log('📴 Gone offline');
+            document.getElementById('syncStatus').textContent = '⚠️ Offline';
+            document.getElementById('syncStatus').classList.remove('bg-green-500/30');
+            document.getElementById('syncStatus').classList.add('bg-yellow-500/30');
+        });
+
         // ============ INITIALIZATION ============
         document.addEventListener('DOMContentLoaded', async () => {
             console.log('🚀 Outreach Hub loaded');
+
+            // Load offline queue first
+            loadOfflineQueue();
 
             // Display version in header
             if (window.APP_CONFIG?.app?.version) {
@@ -482,6 +579,12 @@
 
             // Check auth first (needed for cloud loading)
             await checkAuth();
+
+            // Process any pending offline sync items
+            if (navigator.onLine && state.offlineSyncQueue.length > 0) {
+                console.log('🔄 Processing offline queue on startup...');
+                setTimeout(processOfflineQueue, 2000); // Delay to let other loading complete
+            }
 
             // Load data from cloud
             await loadCampaigns();
@@ -623,14 +726,46 @@
 
             console.log('✅ Populated dropdown with', state.campaigns.length, 'campaigns');
 
-            // Auto-select if settings have a matching campaign
+            // Auto-select campaign in order of priority:
+            // 1. Settings have a matching campaign
+            // 2. Most recent campaign by mail_date
+            // 3. First campaign if nothing else matches
+            let selectedIndex = -1;
+
+            // Try to match settings first
             if (state.settings.postcardName) {
-                const matchIndex = state.campaigns.findIndex(c =>
+                selectedIndex = state.campaigns.findIndex(c =>
                     c.town && state.settings.postcardName.includes(c.town)
                 );
-                if (matchIndex >= 0) {
-                    dropdown.value = matchIndex;
-                }
+            }
+
+            // If no settings match, find most recent campaign by date
+            if (selectedIndex < 0 && state.campaigns.length > 0) {
+                let mostRecentIndex = 0;
+                let mostRecentDate = null;
+
+                state.campaigns.forEach((campaign, index) => {
+                    if (campaign.mail_date) {
+                        const campaignDate = new Date(campaign.mail_date);
+                        if (!mostRecentDate || campaignDate > mostRecentDate) {
+                            mostRecentDate = campaignDate;
+                            mostRecentIndex = index;
+                        }
+                    }
+                });
+
+                selectedIndex = mostRecentIndex;
+                console.log('📅 Auto-selecting most recent campaign:', state.campaigns[selectedIndex]?.town);
+            }
+
+            // Apply selection and trigger onCampaignSelect to load data
+            if (selectedIndex >= 0) {
+                dropdown.value = selectedIndex;
+                console.log('✅ Auto-selected campaign index:', selectedIndex);
+                // Trigger campaign selection to load prospects
+                setTimeout(() => {
+                    onCampaignSelect();
+                }, 100);
             }
         }
 
@@ -933,6 +1068,54 @@
             if (!board) {
                 console.log('⚠️ No board found for mailer:', mailerId);
                 console.log('Available boards:', Object.keys(boardsData || {}));
+
+                // Auto-create an empty board structure for this campaign
+                if (mailerId && boardsData) {
+                    console.log('🔧 Auto-creating empty board for:', mailerId);
+                    const newBoard = {
+                        mailerId: mailerId,
+                        name: mailerId,
+                        config: {
+                            channelPriority: ['sms', 'email', 'facebook', 'call'],
+                            maxAttempts: 4,
+                            daysBetweenAttempts: 3
+                        },
+                        columns: {
+                            'queued': [],
+                            'attempting': [],
+                            'negotiating': [],
+                            'invoice-sent': [],
+                            'proof-approved': [],
+                            'paid-in-full': []
+                        },
+                        createdAt: new Date().toISOString()
+                    };
+                    boardsData[mailerId] = newBoard;
+                    state.campaignBoardData = boardsData;
+
+                    // Save the new board to cloud
+                    if (currentUserEmail && supabaseClient) {
+                        supabaseClient.from('app_data').upsert({
+                            user_email: currentUserEmail,
+                            data_type: 'campaign-boards',
+                            data: boardsData
+                        }, { onConflict: 'user_email,data_type' }).then(({ error }) => {
+                            if (error) {
+                                console.error('Failed to save auto-created board:', error);
+                            } else {
+                                console.log('✅ Auto-created board saved to cloud');
+                            }
+                        });
+                    }
+
+                    // Continue with empty board (will show empty list)
+                    state.prospects = [];
+                    renderProspectList();
+                    updateStats();
+                    populateZipDropdown();
+                    return;
+                }
+
                 state.prospects = [];
                 renderProspectList();
                 updateStats();
@@ -1703,12 +1886,37 @@
 
             try {
                 // Use campaign board data from state (loaded from cloud)
-                if (!state.campaignBoardData || !state.currentMailerId) {
+                if (!state.currentMailerId) {
                     console.warn('⚠️ No campaign board data to sync');
                     return;
                 }
 
-                const boardsData = state.campaignBoardData;
+                // MERGE FIX: Fetch latest data from cloud to avoid overwriting other device's changes
+                let boardsData = state.campaignBoardData || {};
+                try {
+                    const { data: cloudData, error: fetchError } = await supabaseClient
+                        .from('app_data')
+                        .select('data')
+                        .eq('user_email', currentUserEmail)
+                        .eq('data_type', 'campaign-boards')
+                        .single();
+
+                    if (!fetchError && cloudData?.data) {
+                        // Merge: Start with cloud data, then apply local changes
+                        const cloudBoards = cloudData.data;
+                        // Copy any boards we don't have locally
+                        Object.keys(cloudBoards).forEach(boardId => {
+                            if (!boardsData[boardId]) {
+                                boardsData[boardId] = cloudBoards[boardId];
+                            }
+                        });
+                        // Update state with merged data
+                        state.campaignBoardData = boardsData;
+                        console.log('📥 Fetched fresh cloud data for merge');
+                    }
+                } catch (fetchErr) {
+                    console.warn('⚠️ Could not fetch latest cloud data, proceeding with local:', fetchErr);
+                }
                 const board = boardsData[state.currentMailerId];
                 const prospect = state.selectedProspect;
 
@@ -1749,11 +1957,20 @@
                         if (item.phone && prospect.phone && item.phone === prospect.phone) {
                             return true;
                         }
-                        // If no address/phone, still match by name alone
+                        // If no address/phone available, require exact name match with place_id
                         if (!itemAddr && !prospectAddr) {
-                            return true;
+                            // Only match if we have matching place_id as additional confirmation
+                            const itemPlaceId = item.place_id || item.placeId;
+                            const prospectPlaceId = prospect.place_id || prospect.placeId;
+                            if (itemPlaceId && prospectPlaceId && itemPlaceId === prospectPlaceId) {
+                                return true;
+                            }
+                            // Without address AND without place_id, don't match by name alone - too risky
+                            console.warn(`⚠️ Skipping name-only match for "${itemName}" - no address/phone/place_id to confirm`);
+                            return false;
                         }
-                        return true; // Fallback: same name is good enough
+                        // Name matched but address/phone didn't - NOT a match
+                        return false;
                     }
 
                     return false;
@@ -1780,14 +1997,23 @@
                         });
                     }
 
-                    // Add to new column
+                    // Add to new column (with duplicate check)
                     if (!board.columns[newColumn]) board.columns[newColumn] = [];
-                    // Create clean copy without internal _column property
-                    const prospectCopy = { ...prospect };
-                    delete prospectCopy._column;
-                    delete prospectCopy.pipelineStage;
-                    board.columns[newColumn].push(prospectCopy);
-                    console.log(`✅ Added to ${newColumn} (now has ${board.columns[newColumn].length} items)`);
+
+                    // Check if item already exists in destination column
+                    const newColItems = board.columns[newColumn];
+                    const existsInDest = newColItems.some(item => matchProspect(item, prospect));
+
+                    if (existsInDest) {
+                        console.warn(`⚠️ Item "${prospect.businessName}" already exists in ${newColumn}, skipping add`);
+                    } else {
+                        // Create clean copy without internal _column property
+                        const prospectCopy = { ...prospect };
+                        delete prospectCopy._column;
+                        delete prospectCopy.pipelineStage;
+                        newColItems.push(prospectCopy);
+                        console.log(`✅ Added to ${newColumn} (now has ${newColItems.length} items)`);
+                    }
                 } else {
                     // Just update in current column
                     const items = board.columns[newColumn] || [];
@@ -1842,7 +2068,12 @@
                 }
 
                 if (lastError) {
-                    throw new Error('Sync failed after 3 attempts: ' + (lastError.message || lastError));
+                    // Queue for offline sync instead of throwing
+                    console.warn('⚠️ Sync failed after 3 attempts, queuing for later');
+                    queueForOfflineSync({ ...prospect }, oldColumn, newColumn);
+                    showToast('📴 Saved offline - will sync when online');
+                    // Don't throw - data is queued
+                    return;
                 }
 
                 // Try localStorage as backup (may fail on iPad due to quota)
@@ -1854,7 +2085,12 @@
                 }
             } catch (err) {
                 console.error('❌ Sync failed:', err);
-                throw err;
+                // Queue for offline sync instead of throwing
+                const prospect = state.selectedProspect;
+                if (prospect) {
+                    queueForOfflineSync({ ...prospect }, oldColumn, prospect._column);
+                    showToast('📴 Saved offline - will sync when online');
+                }
             }
         }
 
@@ -2256,7 +2492,8 @@
 
             const channel = state.currentChannel;
             const template = getTemplateForChannel(channel);
-            const filledMessage = fillTemplate(template, prospect);
+            // Enable warning on missing variables when copying
+            const filledMessage = fillTemplate(template, prospect, true);
 
             // Copy to clipboard
             navigator.clipboard.writeText(filledMessage).then(() => {
@@ -2469,17 +2706,40 @@
             return templateMap[channel] || 'Hi {businessName}!';
         }
 
-        // Helper function to fill template
-        function fillTemplate(template, prospect) {
+        // Helper function to fill template with validation
+        function fillTemplate(template, prospect, warnOnMissing = false) {
             const settings = state.settings || {};
-            return template
-                .replace(/\{businessName\}/g, prospect.businessName || 'there')
-                .replace(/\{yourName\}/g, settings.yourName || 'Your Name')
-                .replace(/\{postcardName\}/g, settings.postcardName || 'The Postcard')
-                .replace(/\{areaName\}/g, settings.areaName || 'the area')
-                .replace(/\{homeCount\}/g, settings.homeCount || '5,000')
-                .replace(/\{spotPrice\}/g, settings.spotPrice || '$400')
-                .replace(/\{category\}/g, prospect.category || 'business');
+            const missingVars = [];
+
+            // Track which variables are using fallback values
+            const checkAndReplace = (text, pattern, value, fallback, varName) => {
+                if (!value || value === fallback) {
+                    missingVars.push(varName);
+                }
+                return text.replace(pattern, value || fallback);
+            };
+
+            let result = template;
+            result = checkAndReplace(result, /\{businessName\}/g, prospect.businessName, 'there', 'Business Name');
+            result = checkAndReplace(result, /\{yourName\}/g, settings.yourName, 'Your Name', 'Your Name (Settings)');
+            result = checkAndReplace(result, /\{postcardName\}/g, settings.postcardName, 'The Postcard', 'Postcard Name (Settings)');
+            result = checkAndReplace(result, /\{areaName\}/g, settings.areaName, 'the area', 'Area Name (Settings)');
+            result = checkAndReplace(result, /\{homeCount\}/g, settings.homeCount, '5,000', 'Home Count (Settings)');
+            result = checkAndReplace(result, /\{spotPrice\}/g, settings.spotPrice, '$400', 'Spot Price (Settings)');
+            result = checkAndReplace(result, /\{category\}/g, prospect.category, 'business', 'Business Category');
+
+            // Warn if missing variables and warnOnMissing is true
+            if (warnOnMissing && missingVars.length > 0) {
+                console.warn('⚠️ Template using fallback values for:', missingVars);
+                // Only warn once per session for settings-related variables
+                const settingsVars = missingVars.filter(v => v.includes('Settings'));
+                if (settingsVars.length > 0 && !state._settingsWarningShown) {
+                    state._settingsWarningShown = true;
+                    showToast(`⚠️ Update Settings: ${settingsVars.join(', ')}`);
+                }
+            }
+
+            return result;
         }
 
         // Helper function to open channel app

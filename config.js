@@ -36,7 +36,7 @@
 
     // App Configuration
     app: {
-      version: "2026-01-20-v359",
+      version: "2026-01-21-v360",
       environment: window.ENV_ENVIRONMENT || "production",
       enableDebugLogs: window.ENV_DEBUG === 'true' || false
     },
@@ -72,5 +72,42 @@
     console.warn.apply(console, arguments);
   };
 
-  console.log('✅ App configuration loaded - Version:', window.APP_CONFIG.app.version);
+  // Production console wrapper - reduce noise while keeping important logs
+  // Enable verbose mode by setting localStorage.setItem('9x12_verbose_logs', 'true')
+  const isVerbose = localStorage.getItem('9x12_verbose_logs') === 'true';
+  const originalConsoleLog = console.log;
+
+  if (!isVerbose && window.APP_CONFIG.app.environment === 'production') {
+    // In production, filter out verbose debug logs (ones with emoji prefixes)
+    console.log = function() {
+      const firstArg = arguments[0];
+      // Keep important logs (errors, success confirmations, critical state)
+      if (typeof firstArg === 'string') {
+        // Always show: errors, important success, and explicit debug requests
+        if (firstArg.includes('❌') || firstArg.includes('✅ App') ||
+            firstArg.includes('ERROR') || firstArg.includes('CRITICAL') ||
+            firstArg.startsWith('🚀')) {
+          originalConsoleLog.apply(console, arguments);
+        }
+        // Suppress verbose sync/debug logs (🔄, 📋, 🔍, ☁️, 📊, 📥, etc.)
+        // These can be re-enabled via localStorage
+        return;
+      }
+      originalConsoleLog.apply(console, arguments);
+    };
+
+    // Provide way to enable verbose logging
+    window.enableVerboseLogs = function() {
+      localStorage.setItem('9x12_verbose_logs', 'true');
+      console.log = originalConsoleLog;
+      console.log('🔧 Verbose logging enabled - reload to take full effect');
+    };
+
+    window.disableVerboseLogs = function() {
+      localStorage.removeItem('9x12_verbose_logs');
+      location.reload();
+    };
+  }
+
+  console.log('🚀 App configuration loaded - Version:', window.APP_CONFIG.app.version);
 })();
