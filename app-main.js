@@ -17705,17 +17705,43 @@ async function loadCampaignBoards() {
 // Auto-move to clients when paid in full
 async function autoMoveToClients(businessId, board) {
   const business = findBusinessInBoard(businessId, board);
-  if (!business) return;
+  if (!business) {
+    console.warn('autoMoveToClients: Business not found:', businessId);
+    return;
+  }
 
-  // Build client object using existing function
-  const clientData = buildClientObjectFromBusiness(business);
+  // Build proper client object using CRM's buildClientObject
+  const clientData = {
+    businessName: business.businessName || business.name || '',
+    category: business.category || business.types?.[0] || '',
+    contactName: business.contactName || '',
+    firstName: business.firstName || '',
+    phone: business.phone || '',
+    email: business.email || '',
+    address: business.address || business.vicinity || '',
+    notes: business.notes || '',
+    tags: ['campaign-board', business.mailerId].filter(Boolean),
+    createdDate: new Date().toISOString(),
+    // Carry over sales info if available
+    monthlyPrice: business.salesInfo?.invoiceAmount || 0
+  };
 
-  // Add to clients database
-  if (!state.clientsData) state.clientsData = [];
-  state.clientsData.push(clientData);
+  const client = buildClientObject(clientData);
 
-  // Save clients
-  await saveToCloud('clients', state.clientsData);
+  // Store additional business info in notes if not already there
+  let additionalInfo = [];
+  if (business.website) additionalInfo.push(`Website: ${business.website}`);
+  if (business.facebook) additionalInfo.push(`Facebook: ${business.facebook}`);
+  if (business.salesInfo?.paidDate) additionalInfo.push(`Paid: ${business.salesInfo.paidDate}`);
+  if (additionalInfo.length > 0 && !client.notes) {
+    client.notes = additionalInfo.join('\n');
+  }
+
+  // Add to CRM clients database (object, not array)
+  crmState.clients[client.id] = client;
+
+  // Save using proper CRM save function
+  await saveClients();
 
   // Remove from paid-in-full column
   const paidItems = board.columns['paid-in-full'];
@@ -17725,30 +17751,11 @@ async function autoMoveToClients(businessId, board) {
     await saveCampaignBoards();
   }
 
-  toast(`🎉 ${business.businessName || 'Business'} moved to Clients!`);
+  toast(`🎉 ${business.businessName || 'Business'} added to Clients Database!`);
 
+  // Refresh both views
   renderCampaignBoard();
-}
-
-// Build client object from business (for auto-move)
-function buildClientObjectFromBusiness(business) {
-  return {
-    id: business.id || `client_${Date.now()}`,
-    name: business.businessName || business.name,
-    category: business.category || business.types?.[0],
-    address: business.address || business.vicinity,
-    phone: business.phone,
-    email: business.email,
-    website: business.website,
-    facebook: business.facebook,
-    instagram: business.instagram,
-    linkedin: business.linkedin,
-    createdAt: new Date().toISOString(),
-    source: 'campaign-board',
-    salesInfo: business.salesInfo,
-    notes: business.notes || '',
-    mailerId: business.mailerId
-  };
+  renderClientList();
 }
 
 /* ========= TASKS FUNCTIONS ========= */
