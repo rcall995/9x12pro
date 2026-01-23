@@ -16661,8 +16661,12 @@ function renderCampaignBoard() {
       ? `${items.length}/${allItems.length}`
       : `${items.length}`;
 
+    // Sales pipeline columns (last 4) can be narrower since they have fewer items
+    const isSalesColumn = ['negotiating', 'invoice-sent', 'proof-approved', 'paid-in-full'].includes(colKey);
+    const columnWidth = isSalesColumn ? 'min-width: 150px;' : 'min-width: 180px;';
+
     return `
-      <div class="kanban-column campaign-board-column ${phaseSeparator}" data-column="${colKey}" style="min-width: 200px; flex: 1;">
+      <div class="kanban-column campaign-board-column ${phaseSeparator}" data-column="${colKey}" style="${columnWidth} flex: 1;">
         <div class="flex flex-wrap justify-between items-center mb-2 gap-1">
           <div class="font-semibold text-sm text-${colDef.color}-600">${colDef.icon} ${colDef.title} (${countDisplay})</div>
           <div class="flex gap-1">${zipFilterHTML}</div>
