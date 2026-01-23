@@ -16451,8 +16451,37 @@ function moveCampaignBoardItem(businessId, fromColumn, toColumn, board) {
   const business = fromItems[idx];
   fromItems.splice(idx, 1);
 
-  // Update sales info based on destination column
   const now = new Date().toISOString();
+
+  // Initialize attempt tracking when entering "attempting" column
+  if (toColumn === 'attempting') {
+    if (!business.attemptTracking || business.attemptTracking.currentAttempt === 0) {
+      // Set up channel status based on available contact info
+      const channelStatus = {
+        sms: { available: !!business.phone, sent: false },
+        email: { available: !!business.email, sent: false },
+        facebook: { available: !!business.facebook, sent: false },
+        instagram: { available: !!business.instagram, sent: false },
+        linkedin: { available: !!business.linkedin, sent: false },
+        call: { available: !!business.phone, sent: false }
+      };
+
+      // Find first available channel based on priority
+      const priority = board.config?.channelPriority || ['sms', 'email', 'facebook', 'call'];
+      const nextChannel = priority.find(ch => channelStatus[ch]?.available) || null;
+
+      business.attemptTracking = {
+        currentAttempt: 1,
+        maxAttempts: board.config?.maxAttempts || 4,
+        attemptHistory: [],
+        nextChannel: nextChannel,
+        nextActionDate: now.split('T')[0]
+      };
+      business.channelStatus = channelStatus;
+    }
+  }
+
+  // Update sales info based on destination column
   if (toColumn === 'invoice-sent' && !business.salesInfo?.invoiceSentDate) {
     business.salesInfo = business.salesInfo || {};
     business.salesInfo.invoiceSentDate = now;
@@ -17161,8 +17190,49 @@ async function moveCampaignBoardItemAndRefresh(leadId, fromColumn, toColumn) {
     return;
   }
 
-  // Remove from source and add to destination
+  // Remove from source
   fromItems.splice(idx, 1);
+
+  // Initialize attempt tracking when entering "attempting" column
+  if (toColumn === 'attempting') {
+    if (!business.attemptTracking || business.attemptTracking.currentAttempt === 0) {
+      const now = new Date().toISOString();
+      const channelStatus = {
+        sms: { available: !!business.phone, sent: false },
+        email: { available: !!business.email, sent: false },
+        facebook: { available: !!business.facebook, sent: false },
+        instagram: { available: !!business.instagram, sent: false },
+        linkedin: { available: !!business.linkedin, sent: false },
+        call: { available: !!business.phone, sent: false }
+      };
+      const priority = board.config?.channelPriority || ['sms', 'email', 'facebook', 'call'];
+      const nextChannel = priority.find(ch => channelStatus[ch]?.available) || null;
+
+      business.attemptTracking = {
+        currentAttempt: 1,
+        maxAttempts: board.config?.maxAttempts || 4,
+        attemptHistory: [],
+        nextChannel: nextChannel,
+        nextActionDate: now.split('T')[0]
+      };
+      business.channelStatus = channelStatus;
+    }
+  }
+
+  // Update sales info for sales columns
+  const now = new Date().toISOString();
+  if (toColumn === 'invoice-sent' && !business.salesInfo?.invoiceSentDate) {
+    business.salesInfo = business.salesInfo || {};
+    business.salesInfo.invoiceSentDate = now;
+  } else if (toColumn === 'proof-approved' && !business.salesInfo?.proofApprovedDate) {
+    business.salesInfo = business.salesInfo || {};
+    business.salesInfo.proofApprovedDate = now;
+  } else if (toColumn === 'paid-in-full') {
+    business.salesInfo = business.salesInfo || {};
+    business.salesInfo.paidDate = now;
+  }
+
+  // Add to destination
   toItems.push(business);
 
   await saveCampaignBoards();
@@ -17694,6 +17764,32 @@ async function loadCampaignBoards() {
             daysBetweenAttempts: 3
           };
         }
+
+        // Repair items in "attempting" column that have currentAttempt: 0
+        const attemptingItems = board.columns['attempting'] || [];
+        attemptingItems.forEach(business => {
+          if (!business.attemptTracking || business.attemptTracking.currentAttempt === 0) {
+            const channelStatus = {
+              sms: { available: !!business.phone, sent: false },
+              email: { available: !!business.email, sent: false },
+              facebook: { available: !!business.facebook, sent: false },
+              instagram: { available: !!business.instagram, sent: false },
+              linkedin: { available: !!business.linkedin, sent: false },
+              call: { available: !!business.phone, sent: false }
+            };
+            const priority = board.config?.channelPriority || ['sms', 'email', 'facebook', 'call'];
+            const nextChannel = priority.find(ch => channelStatus[ch]?.available) || null;
+
+            business.attemptTracking = {
+              currentAttempt: 1,
+              maxAttempts: board.config?.maxAttempts || 4,
+              attemptHistory: [],
+              nextChannel: nextChannel,
+              nextActionDate: new Date().toISOString().split('T')[0]
+            };
+            business.channelStatus = channelStatus;
+          }
+        });
       });
       campaignBoardsState.boards = data;
     }
