@@ -936,44 +936,56 @@
             }
         }
 
+        // Helper function to check if a prospect has the required contact info for a channel
+        function prospectHasChannelInfo(p, channel) {
+            switch (channel) {
+                case 'sms':
+                case 'call':
+                    return !!p.phone;
+                case 'email':
+                    return !!p.email;
+                case 'facebook':
+                    return !!p.facebook;
+                case 'instagram':
+                    return !!p.instagram;
+                case 'linkedin':
+                    return !!p.linkedin;
+                case 'nearby':
+                    return !!(p.lat && p.lng);
+                default:
+                    return true;
+            }
+        }
+
         function populateZipDropdown() {
             const dropdown = document.getElementById('zipFilterDropdown');
             const currentValue = state.zipFilter || '';
+            const channel = state.currentChannel;
 
-            // Collect all unique ZIPs from prospects
+            // Filter prospects by current channel first
+            const channelProspects = state.prospects.filter(p => prospectHasChannelInfo(p, channel));
+
+            // Collect all unique ZIPs from channel-filtered prospects
             const zips = new Set();
-            state.prospects.forEach(p => {
+            channelProspects.forEach(p => {
                 const zip = p.actualZip || p.zipCode || p.zip;
-                if (zip) zips.add(String(zip));
+                if (zip) zips.add(String(zip).substring(0, 5)); // Normalize to 5 digits
             });
-
-            // Also check raw board data for complete ZIP list
-            if (state.campaignBoardData && state.currentMailerId) {
-                const board = state.campaignBoardData[state.currentMailerId];
-                if (board?.columns) {
-                    ['queued', 'attempting'].forEach(col => {
-                        (board.columns[col] || []).forEach(item => {
-                            const zip = item.actualZip || item.zipCode || item.zip;
-                            if (zip) zips.add(String(zip));
-                        });
-                    });
-                }
-            }
 
             const sortedZips = Array.from(zips).sort();
 
             // Build options
-            let options = '<option value="">All ZIPs (' + (state.prospects.length || 0) + ')</option>';
+            let options = '<option value="">All ZIPs (' + channelProspects.length + ')</option>';
             sortedZips.forEach(zip => {
-                const count = state.prospects.filter(p => {
-                    const pZip = p.actualZip || p.zipCode || p.zip;
-                    return String(pZip) === zip;
+                const count = channelProspects.filter(p => {
+                    const pZip = String(p.actualZip || p.zipCode || p.zip || '').substring(0, 5);
+                    return pZip === zip;
                 }).length;
                 options += `<option value="${zip}" ${currentValue === zip ? 'selected' : ''}>${zip} (${count})</option>`;
             });
 
             dropdown.innerHTML = options;
-            console.log(`📍 ZIP dropdown populated: ${sortedZips.length} ZIPs`);
+            console.log(`📍 ZIP dropdown populated: ${sortedZips.length} ZIPs for ${channel} channel`);
         }
 
         function onCategoryFilterSelect() {
@@ -991,10 +1003,14 @@
             if (!dropdown) return;
 
             const currentValue = state.categoryFilter || '';
+            const channel = state.currentChannel;
 
-            // Collect all unique categories from prospects
+            // Filter prospects by current channel first
+            const channelProspects = state.prospects.filter(p => prospectHasChannelInfo(p, channel));
+
+            // Collect all unique categories from channel-filtered prospects
             const categories = new Set();
-            state.prospects.forEach(p => {
+            channelProspects.forEach(p => {
                 const category = p.category || p.businessType || p.type;
                 if (category) categories.add(String(category));
             });
@@ -1002,9 +1018,9 @@
             const sortedCategories = Array.from(categories).sort();
 
             // Build options
-            let options = `<option value="">All Categories (${state.prospects.length})</option>`;
+            let options = `<option value="">All Categories (${channelProspects.length})</option>`;
             sortedCategories.forEach(category => {
-                const count = state.prospects.filter(p => {
+                const count = channelProspects.filter(p => {
                     const pCat = p.category || p.businessType || p.type;
                     return String(pCat) === category;
                 }).length;
@@ -1012,7 +1028,7 @@
             });
 
             dropdown.innerHTML = options;
-            console.log(`🏷️ Category dropdown populated: ${sortedCategories.length} categories`);
+            console.log(`🏷️ Category dropdown populated: ${sortedCategories.length} categories for ${channel} channel`);
         }
 
         async function saveSettingsToCloud() {
@@ -1256,11 +1272,11 @@
             // Load from 'queued' column
             let queuedItems = board.columns?.['queued'] || [];
 
-            // Apply ZIP filter if set
+            // Apply ZIP filter if set (normalize to 5 digits for comparison)
             if (zipFilter) {
                 queuedItems = queuedItems.filter(item => {
-                    const itemZip = item.actualZip || item.zipCode || item.zip;
-                    return String(itemZip) === zipFilter;
+                    const itemZip = String(item.actualZip || item.zipCode || item.zip || '').substring(0, 5);
+                    return itemZip === zipFilter;
                 });
             }
 
@@ -1278,11 +1294,11 @@
             // Load from 'attempting' column
             let attemptingItems = board.columns?.['attempting'] || [];
 
-            // Apply ZIP filter if set
+            // Apply ZIP filter if set (normalize to 5 digits for comparison)
             if (zipFilter) {
                 attemptingItems = attemptingItems.filter(item => {
-                    const itemZip = item.actualZip || item.zipCode || item.zip;
-                    return String(itemZip) === zipFilter;
+                    const itemZip = String(item.actualZip || item.zipCode || item.zip || '').substring(0, 5);
+                    return itemZip === zipFilter;
                 });
             }
 
@@ -1441,6 +1457,10 @@
             };
             document.getElementById('listTitle').textContent = titles[channel];
 
+            // Repopulate dropdowns to show only businesses with this channel's contact info
+            populateZipDropdown();
+            populateCategoryDropdown();
+
             renderProspectList();
             showEmptyState();
         }
@@ -1541,6 +1561,22 @@
                 if (p.instagram) icons.push(ct.dmed ? '📷✓' : '📷');
                 if (p.linkedin) icons.push(ct.linkedinMessaged ? '💼✓' : '💼');
 
+                // Build "Contacted via" badge showing which methods were used
+                const usedMethods = [];
+                if (ct.texted) usedMethods.push('📱');
+                if (ct.emailed) usedMethods.push('📧');
+                if (ct.called) usedMethods.push('📞');
+                if (ct.facebookMessaged) usedMethods.push('📘');
+                if (ct.dmed) usedMethods.push('📷');
+                if (ct.linkedinMessaged) usedMethods.push('💼');
+
+                const contactedBadge = usedMethods.length > 0
+                    ? `<div class="mt-1 inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 border border-green-300 rounded-full text-xs">
+                         <span class="text-green-700 font-medium">Contacted:</span>
+                         <span class="text-green-800 font-bold">${usedMethods.join(' ')}</span>
+                       </div>`
+                    : '';
+
                 return `
                     <div class="prospect-item p-3 border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${isContacted ? 'contacted' : ''}"
                          onclick="selectProspect(${idx})">
@@ -1551,6 +1587,7 @@
                                     <span class="font-medium text-gray-900 truncate">${p.businessName}</span>
                                 </div>
                                 <div class="text-xs text-gray-500 truncate">${p.category || 'No category'} • ZIP: ${p.actualZip || p.zipCode || p.zip || '?'}</div>
+                                ${contactedBadge}
                                 ${distanceText}
                             </div>
                             <div class="text-xs text-gray-400 ml-2 flex-shrink-0">${icons.join(' ')}</div>
@@ -1580,11 +1617,58 @@
             const address = prospect.address || prospect.fullAddress || '';
             document.getElementById('detailAddress').textContent = address;
 
-            // Contact info
-            const contactHtml = [];
-            if (prospect.phone) contactHtml.push(`<div class="bg-white rounded-lg p-2 border"><span class="text-gray-500 text-xs">Phone:</span><br><span class="font-medium">${prospect.phone}</span></div>`);
-            if (prospect.email) contactHtml.push(`<div class="bg-white rounded-lg p-2 border"><span class="text-gray-500 text-xs">Email:</span><br><span class="font-medium text-sm truncate">${prospect.email}</span></div>`);
-            document.getElementById('contactInfo').innerHTML = contactHtml.join('');
+            // Contact info with edit capability
+            const contactHtml = `
+                <div id="contactDisplay">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs text-gray-500 font-medium">Contact Info</span>
+                        <button onclick="toggleHubEditMode()" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">✏️ Edit</button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="bg-white rounded-lg p-2 border">
+                            <span class="text-gray-500 text-xs">Phone:</span><br>
+                            <span class="font-medium">${prospect.phone || '<span class="text-gray-400">Not set</span>'}</span>
+                        </div>
+                        <div class="bg-white rounded-lg p-2 border">
+                            <span class="text-gray-500 text-xs">Email:</span><br>
+                            <span class="font-medium text-sm truncate">${prospect.email || '<span class="text-gray-400">Not set</span>'}</span>
+                        </div>
+                    </div>
+                    <div class="mt-2 bg-white rounded-lg p-2 border">
+                        <span class="text-gray-500 text-xs">Category:</span><br>
+                        <span class="font-medium">${prospect.category || '<span class="text-gray-400">Not set</span>'}</span>
+                    </div>
+                </div>
+                <div id="contactEdit" class="hidden">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs text-gray-500 font-medium">Edit Contact Info</span>
+                        <button onclick="toggleHubEditMode()" class="text-xs text-red-600 hover:text-red-800 font-medium">❌ Cancel</button>
+                    </div>
+                    <div class="space-y-2">
+                        <div>
+                            <label class="text-xs text-gray-500">Phone</label>
+                            <input type="tel" id="hubEditPhone" value="${prospect.phone || ''}" class="w-full px-2 py-1.5 border rounded text-sm" placeholder="Phone number">
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-500">Email</label>
+                            <input type="email" id="hubEditEmail" value="${prospect.email || ''}" class="w-full px-2 py-1.5 border rounded text-sm" placeholder="Email address">
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-500">Category</label>
+                            <input type="text" id="hubEditCategory" value="${prospect.category || ''}" class="w-full px-2 py-1.5 border rounded text-sm" placeholder="Business category">
+                        </div>
+                        <div class="flex gap-2 pt-1">
+                            <button onclick="saveHubContactEdit()" class="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 font-medium">
+                                💾 Save
+                            </button>
+                            <button onclick="deleteFromHub()" class="px-3 py-2 bg-red-100 text-red-700 text-sm rounded-lg hover:bg-red-200 font-medium">
+                                🗑️ Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('contactInfo').innerHTML = contactHtml;
 
             // Contact status icons
             const ct = prospect.contactTracking || {};
@@ -1650,6 +1734,16 @@
             // Fill variables
             const filled = fillVariables(template, prospect);
             document.getElementById('templatePreview').textContent = filled;
+
+            // Debug logging
+            console.log('📝 Template preview updated:', {
+                channel,
+                businessName: prospect.businessName,
+                category: prospect.category,
+                settings: { yourName: state.settings.yourName, areaName: state.settings.areaName, homeCount: state.settings.homeCount },
+                rawTemplate: template.substring(0, 50) + '...',
+                filled: filled.substring(0, 50) + '...'
+            });
         }
 
         // Unified template variable replacement - supports both [BRACKET] and {curlyBrace} syntax
@@ -1747,7 +1841,29 @@
             if (!prospect) return;
 
             const channel = state.currentChannel;
-            const template = document.getElementById('templatePreview').textContent;
+
+            // Regenerate filled template fresh (don't rely on preview which might be stale)
+            let rawTemplate = '';
+            if (channel === 'sms') {
+                rawTemplate = state.templates.sms1?.body || 'Hey! This is [YOUR_NAME]. We do a community postcard that hits [HOME_COUNT] homes in [AREA] and have the [CATEGORY] spot open. Interested?';
+            } else if (channel === 'email') {
+                rawTemplate = state.templates.email1?.body || 'Hi, we send out a community postcard...';
+            } else if (channel === 'facebook') {
+                rawTemplate = state.templates.fb?.body || 'Hey! I came across [BUSINESS_NAME] and love what you\'re doing...';
+            } else if (channel === 'instagram') {
+                rawTemplate = state.templates.ig?.body || 'Hey! Love your page. I help local businesses reach more customers...';
+            } else if (channel === 'linkedin') {
+                rawTemplate = state.templates.linkedin2?.body || 'Thanks for connecting! I run a community postcard...';
+            } else if (channel === 'call') {
+                rawTemplate = state.templates.call1?.body || '=== OPENER ===\nHi, is this [BUSINESS_NAME]?...';
+            }
+
+            const template = fillVariables(rawTemplate, prospect);
+
+            // Also update the preview to match
+            document.getElementById('templatePreview').textContent = template;
+
+            console.log('📋 Copying template:', { channel, rawTemplate: rawTemplate.substring(0, 50), filled: template.substring(0, 50), settings: state.settings });
 
             // Copy to clipboard
             try {
@@ -1794,6 +1910,130 @@
             }
 
             showToast('📋 Copied! Opening...');
+        }
+
+        // Toggle edit mode for contact info in Outreach Hub
+        function toggleHubEditMode() {
+            const displayEl = document.getElementById('contactDisplay');
+            const editEl = document.getElementById('contactEdit');
+            if (displayEl && editEl) {
+                displayEl.classList.toggle('hidden');
+                editEl.classList.toggle('hidden');
+            }
+        }
+
+        // Save contact info edits from Outreach Hub
+        async function saveHubContactEdit() {
+            const prospect = state.selectedProspect;
+            if (!prospect) return;
+
+            const newPhone = document.getElementById('hubEditPhone')?.value.trim() || '';
+            const newEmail = document.getElementById('hubEditEmail')?.value.trim() || '';
+            const newCategory = document.getElementById('hubEditCategory')?.value.trim() || '';
+
+            // Update prospect in local state
+            prospect.phone = newPhone;
+            prospect.email = newEmail;
+            if (newCategory) prospect.category = newCategory;
+
+            // Update in Campaign Board data
+            if (state.campaignBoardData && state.currentMailerId) {
+                const board = state.campaignBoardData[state.currentMailerId];
+                if (board?.columns) {
+                    for (const colKey of ['queued', 'attempting']) {
+                        const items = board.columns[colKey] || [];
+                        const item = items.find(i =>
+                            (i.businessName || i.name) === (prospect.businessName || prospect.name) ||
+                            i.id === prospect.id
+                        );
+                        if (item) {
+                            item.phone = newPhone;
+                            item.email = newEmail;
+                            if (newCategory) item.category = newCategory;
+                            console.log('✅ Updated in Campaign Board:', item.businessName);
+                        }
+                    }
+                }
+
+                // Save to cloud
+                await saveCampaignBoardsFromHub();
+            }
+
+            // Re-render
+            toggleHubEditMode();
+            renderProspectList();
+
+            // Re-select to refresh the display
+            const idx = state.filteredProspects.findIndex(p => p === prospect);
+            if (idx >= 0) selectProspect(idx);
+
+            showToast('✅ Contact info saved');
+        }
+
+        // Delete business from Hub (removes from Campaign Board)
+        async function deleteFromHub() {
+            const prospect = state.selectedProspect;
+            if (!prospect) return;
+
+            if (!confirm(`Delete "${prospect.businessName}" from the Campaign Board?`)) return;
+
+            // Remove from Campaign Board data
+            if (state.campaignBoardData && state.currentMailerId) {
+                const board = state.campaignBoardData[state.currentMailerId];
+                if (board?.columns) {
+                    for (const colKey of ['queued', 'attempting']) {
+                        const items = board.columns[colKey] || [];
+                        const idx = items.findIndex(i =>
+                            (i.businessName || i.name) === (prospect.businessName || prospect.name) ||
+                            i.id === prospect.id
+                        );
+                        if (idx >= 0) {
+                            items.splice(idx, 1);
+                            console.log('🗑️ Deleted from Campaign Board:', prospect.businessName);
+                        }
+                    }
+                }
+
+                // Save to cloud
+                await saveCampaignBoardsFromHub();
+            }
+
+            // Remove from local prospects
+            state.prospects = state.prospects.filter(p => p !== prospect);
+            state.selectedProspect = null;
+
+            // Re-render
+            renderProspectList();
+            showEmptyState();
+
+            showToast('🗑️ Business deleted');
+        }
+
+        // Save campaign boards from Outreach Hub
+        async function saveCampaignBoardsFromHub() {
+            if (!currentUserEmail || !supabaseClient || !state.campaignBoardData) return;
+
+            try {
+                const { error } = await supabaseClient
+                    .from('app_data')
+                    .upsert({
+                        user_email: currentUserEmail,
+                        data_type: 'campaign-boards',
+                        data: state.campaignBoardData
+                    }, {
+                        onConflict: 'user_email,data_type'
+                    });
+
+                if (error) {
+                    console.error('Failed to save campaign boards:', error);
+                } else {
+                    console.log('☁️ Campaign boards saved from Hub');
+                    // Also update localStorage
+                    localStorage.setItem('campaign-boards', JSON.stringify(state.campaignBoardData));
+                }
+            } catch (err) {
+                console.error('Save error:', err);
+            }
         }
 
         async function markContacted() {

@@ -3070,9 +3070,51 @@ function saveClientModal() {
   }
 
   saveClients();
+
+  // Also update Campaign Board entries with matching business name
+  syncClientToCampaignBoard(client);
+
   renderClientList();
   closeClientModal();
   toast(isNew ? 'Client added' : 'Client updated');
+}
+
+// Sync client data to Campaign Board entries with matching business name
+async function syncClientToCampaignBoard(client) {
+  if (!client || !client.businessName) return;
+
+  const clientNameLower = client.businessName.toLowerCase();
+  let updated = false;
+
+  // Search all campaign boards
+  for (const [mailerId, board] of Object.entries(campaignBoardsState.boards)) {
+    const columnKeys = ['queued', 'attempting', 'negotiating', 'invoice-sent', 'proof-approved', 'paid-in-full'];
+
+    for (const colKey of columnKeys) {
+      const items = board.columns[colKey] || [];
+      for (const item of items) {
+        const itemName = (item.businessName || item.name || '').toLowerCase();
+        if (itemName === clientNameLower) {
+          // Update the Campaign Board item with client data
+          if (client.contact?.phone) item.phone = client.contact.phone;
+          if (client.contact?.email) item.email = client.contact.email;
+          if (client.category) item.category = client.category;
+          if (client.contact?.name) item.contactName = client.contact.name;
+          if (client.contact?.firstName) item.firstName = client.contact.firstName;
+          updated = true;
+          console.log(`✅ Synced client "${client.businessName}" to Campaign Board (${colKey})`);
+        }
+      }
+    }
+  }
+
+  if (updated) {
+    await saveCampaignBoards();
+    // Re-render if viewing Campaign Board
+    if (!campaignBoardsState.useLegacyKanban) {
+      renderCampaignBoard();
+    }
+  }
 }
 
 function deleteClientModal() {
@@ -11953,6 +11995,8 @@ function selectAllInCategory(category) {
   const hasZipFilter = !allZipsSelected && activeZips.size > 0;
 
   // Build set of IDs already in system (to skip)
+  // NOTE: Only check kanban columns, NOT CRM clients - existing clients should still be
+  // available to add to kanban for the current campaign (matches renderProspectPool behavior)
   const existingPlaceIds = new Set();
   Object.values(kanbanState.columns).forEach(column => {
     if (Array.isArray(column)) {
@@ -11960,9 +12004,6 @@ function selectAllInCategory(category) {
         if (lead && lead.placeId) existingPlaceIds.add(lead.placeId);
       });
     }
-  });
-  Object.values(crmState.clients).forEach(client => {
-    if (client.placeId) existingPlaceIds.add(client.placeId);
   });
 
   // First pass: collect all eligible IDs in this category (respecting ZIP filter)
@@ -11982,10 +12023,14 @@ function selectAllInCategory(category) {
     eligibleIds.add(prospectId);
   });
 
-  // From search cache
+  // From search cache - use endsWith for robust category matching (handles categories with dashes)
   Object.keys(placesCache.searches).forEach(cacheKey => {
-    const [searchedZipCode, cacheCategory] = cacheKey.split('-');
-    if (cacheCategory !== category) return;
+    // Use endsWith instead of split to handle categories with dashes like 'hvac-contractors'
+    if (!cacheKey.endsWith(`-${category}`)) return;
+
+    // Extract ZIP code from cache key (everything before the last dash + category)
+    const searchedZipCode = cacheKey.substring(0, cacheKey.length - category.length - 1);
+
     // ZIP filter: only include cache entries matching active ZIP filter
     if (hasZipFilter && !activeZips.has(searchedZipCode)) return;
 
@@ -16628,11 +16673,16 @@ function renderCampaignBoard() {
           if (contactTracking.dmed) usedChannels.push({ channel: 'instagram', label: channelLabels.instagram });
         }
 
+        // Get attempt tracking info
+        const currentAttempt = item.attemptTracking?.currentAttempt || usedChannels.length || 1;
+        const maxAttempts = item.attemptTracking?.maxAttempts || 4;
+
         if (usedChannels.length > 0) {
-          // Show prominent "Contacted via" badge
+          // Show attempt counter AND "Contacted via" badge
           const contactedVia = usedChannels.map(u => u.label).join(', ');
           attemptHTML = `
             <div class="mt-2 pt-2 border-t border-gray-100">
+              <div class="text-xs text-gray-500 text-center mb-1">Attempt ${currentAttempt} of ${maxAttempts}</div>
               <div class="bg-green-100 border border-green-300 rounded-lg px-2 py-1.5 text-center">
                 <div class="text-xs text-green-800 font-medium">📬 Contacted via:</div>
                 <div class="text-sm font-bold text-green-700">${contactedVia}</div>
@@ -16640,9 +16690,10 @@ function renderCampaignBoard() {
             </div>
           `;
         } else {
-          // No contact recorded yet - show prompt
+          // No contact recorded yet - show attempt counter and prompt
           attemptHTML = `
             <div class="mt-2 pt-2 border-t border-gray-100">
+              <div class="text-xs text-gray-500 text-center mb-1">Attempt ${currentAttempt} of ${maxAttempts}</div>
               <div class="bg-yellow-50 border border-yellow-200 rounded-lg px-2 py-1.5 text-center">
                 <div class="text-xs text-yellow-700">⚠️ No outreach recorded</div>
                 <div class="text-xs text-yellow-600">Double-click to mark contact method</div>
@@ -16732,7 +16783,7 @@ function renderCampaignBoard() {
       if (item.facebook) socialIcons.push(`<a href="${esc(ensureHttps(item.facebook))}" onclick="event.stopPropagation()" target="_blank" class="px-1.5 py-0.5 bg-blue-50 rounded hover:bg-blue-100 text-sm" title="Facebook">📘</a>`);
 
       return `
-        <div class="kanban-item campaign-board-item text-xs p-2 ${isDoNotContact ? 'bg-red-50' : 'bg-white'} border rounded ${hasBeenContacted ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'}"
+        <div class="kanban-item campaign-board-item text-xs p-2 ${isDoNotContact ? 'bg-red-50' : 'bg-white'} border rounded ${hasBeenContacted ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'} relative ${isDoNotContact ? 'opacity-60' : ''}"
              data-item-id="${leadId}" data-column="${colKey}"
              ondblclick="openCampaignBoardQuickAction('${leadId}', '${colKey}')">
           ${isDoNotContact ? '<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10"><span class="text-6xl text-red-500 font-bold opacity-40">✕</span></div>' : ''}
@@ -17139,6 +17190,62 @@ function openCampaignBoardBusinessModal(prospect, columnKey, board) {
   if (prospect.instagram) socialLinks.push(`<a href="${esc(ensureHttps(prospect.instagram))}" target="_blank" class="p-2 bg-pink-100 rounded-lg hover:bg-pink-200" title="Instagram">📷</a>`);
   if (prospect.linkedin) socialLinks.push(`<a href="${esc(ensureHttps(prospect.linkedin))}" target="_blank" class="p-2 bg-blue-100 rounded-lg hover:bg-blue-200" title="LinkedIn">💼</a>`);
 
+  // Build "Try Another Channel" section for Column 2 (Attempting)
+  let tryAnotherChannelHTML = '';
+  if (columnKey === 'attempting') {
+    const channelStatus = prospect.channelStatus || {};
+    const attemptHistory = prospect.attemptTracking?.attemptHistory || [];
+
+    // Define all possible channels with their requirements and actions
+    const channels = [
+      { key: 'sms', label: 'SMS', icon: '📱', requires: 'phone', action: `sms:${prospect.phone || ''}`, color: 'green' },
+      { key: 'email', label: 'Email', icon: '📧', requires: 'email', action: `mailto:${prospect.email || prospect.emailAddress || ''}`, color: 'blue' },
+      { key: 'call', label: 'Call', icon: '📞', requires: 'phone', action: `tel:${prospect.phone || ''}`, color: 'yellow' },
+      { key: 'facebook', label: 'Facebook', icon: '📘', requires: 'facebook', action: prospect.facebook ? ensureHttps(prospect.facebook) : '', color: 'blue' },
+      { key: 'instagram', label: 'Instagram', icon: '📷', requires: 'instagram', action: prospect.instagram ? ensureHttps(prospect.instagram) : '', color: 'pink' },
+      { key: 'linkedin', label: 'LinkedIn', icon: '💼', requires: 'linkedin', action: prospect.linkedin ? ensureHttps(prospect.linkedin) : '', color: 'blue' }
+    ];
+
+    // Find channels that are available but not yet used
+    const unusedChannels = channels.filter(ch => {
+      // Check if the required contact info exists
+      const hasContactInfo = ch.requires === 'phone' ? prospect.phone :
+                            ch.requires === 'email' ? (prospect.email || prospect.emailAddress) :
+                            prospect[ch.requires];
+      if (!hasContactInfo) return false;
+
+      // Check if already sent via this channel
+      const alreadySent = channelStatus[ch.key]?.sent ||
+                         attemptHistory.some(h => h.channel === ch.key && h.sent);
+      return !alreadySent;
+    });
+
+    if (unusedChannels.length > 0) {
+      const channelButtonsHTML = unusedChannels.map(ch => `
+        <div class="flex items-center gap-2 bg-white p-2 rounded-lg border border-gray-200">
+          <a href="${ch.key === 'facebook' || ch.key === 'instagram' || ch.key === 'linkedin' ? ch.action : ch.action}"
+             ${ch.key === 'facebook' || ch.key === 'instagram' || ch.key === 'linkedin' ? 'target="_blank"' : ''}
+             class="flex-1 px-3 py-2 bg-${ch.color}-100 hover:bg-${ch.color}-200 rounded-lg text-sm font-medium text-center">
+            ${ch.icon} Open ${ch.label}
+          </a>
+          <button onclick="markCampaignBoardOutreach('${leadId}', '${columnKey}', '${ch.key}')"
+                  class="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium">
+            ✓ Sent
+          </button>
+        </div>
+      `).join('');
+
+      tryAnotherChannelHTML = `
+        <div class="p-4 border-b bg-gradient-to-r from-orange-50 to-yellow-50">
+          <div class="text-xs text-gray-600 mb-2 font-medium">🔄 Try Another Channel (${unusedChannels.length} available)</div>
+          <div class="space-y-2">
+            ${channelButtonsHTML}
+          </div>
+        </div>
+      `;
+    }
+  }
+
   // Column move options for Campaign Board
   const columnOptions = [
     { key: 'queued', label: '1. Queued', icon: '📋' },
@@ -17184,13 +17291,43 @@ function openCampaignBoardBusinessModal(prospect, columnKey, board) {
           </div>
         </div>
 
-        <!-- Contact Info -->
-        ${contactInfo.length > 0 ? `
-          <div class="p-4 border-b">
-            <div class="text-xs text-gray-600 mb-2 font-medium">Contact Info</div>
-            <div class="space-y-2 text-sm">${contactInfo.join('')}</div>
+        <!-- Editable Contact Info -->
+        <div class="p-4 border-b">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-xs text-gray-600 font-medium">Contact Info</div>
+            <button onclick="toggleCampaignBoardEditMode('${leadId}', '${columnKey}')" id="cbEditToggle" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+              ✏️ Edit
+            </button>
           </div>
-        ` : ''}
+          <div id="cbContactDisplay" class="space-y-2 text-sm">
+            ${contactInfo.length > 0 ? contactInfo.join('') : '<div class="text-gray-400 text-sm">No contact info - click Edit to add</div>'}
+          </div>
+          <div id="cbContactEdit" class="hidden space-y-2">
+            <div>
+              <label class="text-xs text-gray-500">Phone</label>
+              <input type="tel" id="cbEditPhone" value="${esc(prospect.phone || '')}" class="w-full px-2 py-1 border rounded text-sm" placeholder="Phone number">
+            </div>
+            <div>
+              <label class="text-xs text-gray-500">Email</label>
+              <input type="email" id="cbEditEmail" value="${esc(prospect.email || '')}" class="w-full px-2 py-1 border rounded text-sm" placeholder="Email address">
+            </div>
+            <div>
+              <label class="text-xs text-gray-500">Category</label>
+              <input type="text" id="cbEditCategory" value="${esc(prospect.category || '')}" class="w-full px-2 py-1 border rounded text-sm" placeholder="Business category">
+            </div>
+            <div class="flex gap-2 pt-2">
+              <button onclick="saveCampaignBoardContactEdit('${leadId}', '${columnKey}')" class="flex-1 px-3 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700 font-medium">
+                💾 Save
+              </button>
+              <button onclick="toggleCampaignBoardEditMode('${leadId}', '${columnKey}')" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Try Another Channel (Column 2 only) -->
+        ${tryAnotherChannelHTML}
 
         <!-- Email Reply Templates -->
         <div class="p-4 border-b bg-blue-50">
@@ -17302,6 +17439,59 @@ function openCampaignBoardBusinessModal(prospect, columnKey, board) {
 function closeCampaignBoardModal() {
   const modal = document.getElementById('campaignBoardModal');
   if (modal) modal.remove();
+}
+
+// Toggle edit mode for contact info in Campaign Board modal
+function toggleCampaignBoardEditMode(leadId, columnKey) {
+  const displayEl = document.getElementById('cbContactDisplay');
+  const editEl = document.getElementById('cbContactEdit');
+  const toggleBtn = document.getElementById('cbEditToggle');
+
+  if (displayEl && editEl) {
+    const isEditing = !editEl.classList.contains('hidden');
+    displayEl.classList.toggle('hidden', !isEditing);
+    editEl.classList.toggle('hidden', isEditing);
+    if (toggleBtn) {
+      toggleBtn.textContent = isEditing ? '✏️ Edit' : '❌ Cancel';
+    }
+  }
+}
+
+// Save contact info edits for Campaign Board item
+async function saveCampaignBoardContactEdit(leadId, columnKey) {
+  const board = getCurrentCampaignBoard();
+  if (!board) return;
+
+  const items = board.columns[columnKey] || [];
+  const business = items.find(item => {
+    const itemId = item.id || item._id || item.place_id || item.businessName;
+    return String(itemId) === String(leadId);
+  });
+
+  if (!business) {
+    toast('Business not found', false);
+    return;
+  }
+
+  // Get values from edit form
+  const newPhone = document.getElementById('cbEditPhone')?.value.trim() || '';
+  const newEmail = document.getElementById('cbEditEmail')?.value.trim() || '';
+  const newCategory = document.getElementById('cbEditCategory')?.value.trim() || '';
+
+  // Update the business object
+  business.phone = newPhone;
+  business.email = newEmail;
+  if (newCategory) business.category = newCategory;
+
+  // Save to cloud
+  await saveCampaignBoards();
+
+  // Close modal and re-render
+  closeCampaignBoardModal();
+  renderCampaignBoard();
+
+  toast('✅ Contact info updated');
+  console.log(`✅ Updated ${business.businessName}: phone=${newPhone}, email=${newEmail}, category=${newCategory}`);
 }
 
 // Mark outreach sent for a campaign board item
@@ -19264,6 +19454,8 @@ window.clearLogReplySelection = clearLogReplySelection;
 window.selectLogReplyChannel = selectLogReplyChannel;
 window.submitLogReply = submitLogReply;
 window.closeLogReplyModal = closeLogReplyModal;
+window.toggleCampaignBoardEditMode = toggleCampaignBoardEditMode;
+window.saveCampaignBoardContactEdit = saveCampaignBoardContactEdit;
 
 function openLeadModal(column = null, leadId = null) {
   const modal = document.getElementById("leadModal");
