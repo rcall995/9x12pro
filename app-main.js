@@ -11929,10 +11929,37 @@ async function addFromProspectPool() {
       }
 
       kanbanState.columns[prospectingColumn].push(newLead);
+
+      // ALSO add to Campaign Board if one exists for this mailer
+      if (currentMailerId && campaignBoardsState.boards[currentMailerId]) {
+        const board = campaignBoardsState.boards[currentMailerId];
+        if (!board.columns) board.columns = {};
+        if (!board.columns['queued']) board.columns['queued'] = [];
+
+        // Check if not already in Campaign Board
+        const boardBusinessId = newLead.placeId || newLead.id;
+        const existsInBoard = Object.values(board.columns).some(col =>
+          col.some(item => (item.placeId || item.id) === boardBusinessId)
+        );
+
+        if (!existsInBoard) {
+          const enhancedLead = enhanceBusinessForCampaignBoard(newLead, board.config?.maxAttempts || 4);
+          board.columns['queued'].push(enhancedLead);
+          console.log('📊 Also added to Campaign Board queued column:', newLead.businessName);
+        }
+      }
+
       addedCount++;
     }
 
     await saveKanban();
+
+    // Save Campaign Boards if we added any
+    if (currentMailerId && campaignBoardsState.boards[currentMailerId] && addedCount > 0) {
+      await saveCampaignBoards();
+      console.log('📊 Campaign Boards saved with new prospects');
+    }
+
     renderKanban();
 
     // Clear selections and re-render pool
@@ -12532,15 +12559,20 @@ function exportProspectListCSV() {
 }
 
 function exportProspectPoolCSV() {
-  // Collect all prospects from searches cache
+  // Collect all prospects from searches cache AND manual prospects
   const allProspects = [];
+  const seenIds = new Set(); // Prevent duplicates
 
+  // First, add from search cache
   Object.keys(placesCache.searches).forEach(cacheKey => {
     const cached = placesCache.searches[cacheKey];
     if (cached.cachedData && cached.cachedData.length > 0) {
       cached.cachedData.forEach(business => {
         // Skip if already in system
         if (notInterestedState.placeIds.has(business.placeId)) return;
+        // Skip duplicates
+        if (business.placeId && seenIds.has(business.placeId)) return;
+        if (business.placeId) seenIds.add(business.placeId);
 
         allProspects.push({
           businessName: business.name || '',
@@ -12550,7 +12582,7 @@ function exportProspectPoolCSV() {
           facebook: business.facebook || '',
           instagram: business.instagram || '',
           category: business.category || '',
-          zipCode: business.zipCode || '',
+          zipCode: business.zipCode || business.actualZip || '',
           address: business.address || '',
           rating: business.rating || '',
           reviewsCount: business.reviewsCount || '',
@@ -12561,6 +12593,33 @@ function exportProspectPoolCSV() {
       });
     }
   });
+
+  // Also add manually added prospects
+  if (prospectPoolState.manualProspects && prospectPoolState.manualProspects.length > 0) {
+    prospectPoolState.manualProspects.forEach(prospect => {
+      const prospectId = prospect.placeId || prospect.id;
+      // Skip if already added from search cache
+      if (prospectId && seenIds.has(prospectId)) return;
+      if (prospectId) seenIds.add(prospectId);
+
+      allProspects.push({
+        businessName: prospect.businessName || prospect.name || '',
+        phone: prospect.phone || '',
+        website: prospect.website || '',
+        email: prospect.email || '',
+        facebook: prospect.facebook || '',
+        instagram: prospect.instagram || '',
+        category: prospect.category || '',
+        zipCode: prospect.zipCode || prospect.actualZip || '',
+        address: prospect.address || '',
+        rating: prospect.rating || '',
+        reviewsCount: prospect.reviewsCount || prospect.userRatingsTotal || '',
+        placeId: prospectId || '',
+        notes: prospect.notes || '',
+        dateAdded: prospect.dateAdded || new Date().toISOString().split('T')[0]
+      });
+    });
+  }
 
   if (allProspects.length === 0) {
     toast('⚠️ No prospects to export', false);
