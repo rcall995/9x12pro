@@ -3324,46 +3324,6 @@ function syncClientsToSheets() {
   return;
 }
 
-function syncClientsToSheets_DEPRECATED() {
-  const clients = Object.values(crmState.clients);
-
-  if (clients.length === 0) {
-    toast('No clients to sync', false);
-    return;
-  }
-
-  toast('Syncing clients to Google Sheets...', true);
-
-  const payload = {
-    action: 'syncClients',
-    user: ACTIVE_USER,
-    clients: clients
-  };
-
-  fetch(GAS_URL, {
-    method: 'POST',
-    mode: 'no-cors',  // Google Apps Script requires no-cors
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload)
-  })
-  .then(() => {
-    // no-cors mode doesn't allow reading response, so we assume success
-    toast(`✓ Client sync request sent (${clients.length} clients)`, true);
-  })
-  .catch(err => {
-    console.error('Sync error:', err);
-    toast('⚠️ Sync failed. Your Google Apps Script may need to handle "syncClients" action. Clients are saved locally.', false);
-  });
-
-  // Note: To make this fully functional, add this to your Google Apps Script doPost():
-  // if (data.action === 'syncClients') {
-  //   // Handle client sync logic here
-  //   return ContentService.createTextOutput(JSON.stringify({success: true}))
-  //     .setMimeType(ContentService.MimeType.JSON);
-  // }
-}
 
 /* ========= EMAIL FUNCTIONS ========= */
 
@@ -13429,10 +13389,12 @@ function closeSendEmailModal() {
   currentEmailBusinessId = null;
 }
 
-function loadEmailTemplate() {
-  const templateSelect = document.getElementById('emailTemplate');
+function loadEmailTemplate(source) {
+  // Support both original emailTemplate and renamed emailTemplatePipeline
+  const templateSelect = document.getElementById(source === 'pipeline' ? 'emailTemplatePipeline' : 'emailTemplate');
   const subjectInput = document.getElementById('emailSubject');
   const messageArea = document.getElementById('emailMessage');
+  if (!templateSelect) return;
   const templateValue = templateSelect.value;
 
   if (templateValue && templateValue !== 'custom') {
@@ -16550,7 +16512,8 @@ function renderCampaignBoard() {
     console.log('📊 No board found, falling back to legacy');
     updatePipelineDebug('❌ No board found - showing legacy kanban');
     // Fall back to legacy kanban if no board
-    return renderLegacyKanban();
+    campaignBoardsState.useLegacyKanban = true;
+    return renderKanban();
   }
 
   updatePipelineDebug(`✅ Board found: "${board.mailerId || board.name}"`);
@@ -17401,11 +17364,6 @@ function toggleCampaignBoardView() {
   }
 }
 
-// Render legacy kanban (4-column) - wrapper to bypass campaign board check
-function renderLegacyKanban() {
-  campaignBoardsState.useLegacyKanban = true;
-  renderKanban();
-}
 
 // Open campaign configuration modal
 function openCampaignConfigModal() {
