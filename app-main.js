@@ -16623,6 +16623,65 @@ function renderCampaignBoard() {
         }
       }
 
+      // Negotiating column - show which channel got a response
+      let negotiatingHTML = '';
+      if (colKey === 'negotiating') {
+        const channels = item.channelStatus || {};
+        const history = item.attemptTracking?.attemptHistory || [];
+        const contactTracking = item.contactTracking || {};
+        const channelLabels = { sms: '📱 SMS', email: '📧 Email', facebook: '📘 FB Msg', instagram: '📷 IG DM', linkedin: '💼 LinkedIn', call: '📞 Call' };
+
+        // Check for explicitly set responded channel
+        let respondedChannel = item.respondedChannel || item.lockedChannel?.channel;
+
+        // If not set, find the most recent channel used
+        if (!respondedChannel) {
+          // Check history for responded flag
+          const respondedEntry = history.find(h => h.responded);
+          if (respondedEntry) {
+            respondedChannel = respondedEntry.channel;
+          } else {
+            // Fall back to most recent sent channel
+            const sentChannels = Object.entries(channels)
+              .filter(([ch, status]) => status?.sent)
+              .sort((a, b) => (b[1].sentDate || '').localeCompare(a[1].sentDate || ''));
+            if (sentChannels.length > 0) {
+              respondedChannel = sentChannels[0][0];
+            }
+          }
+        }
+
+        // Check legacy tracking as fallback
+        if (!respondedChannel) {
+          if (contactTracking.texted) respondedChannel = 'sms';
+          else if (contactTracking.emailed) respondedChannel = 'email';
+          else if (contactTracking.called) respondedChannel = 'call';
+          else if (contactTracking.facebookMessaged) respondedChannel = 'facebook';
+          else if (contactTracking.linkedinMessaged) respondedChannel = 'linkedin';
+          else if (contactTracking.dmed) respondedChannel = 'instagram';
+        }
+
+        if (respondedChannel) {
+          const label = channelLabels[respondedChannel] || respondedChannel;
+          negotiatingHTML = `
+            <div class="mt-2 pt-2 border-t border-gray-100">
+              <div class="bg-blue-100 border border-blue-300 rounded-lg px-2 py-1.5 text-center">
+                <div class="text-xs text-blue-800 font-medium">✅ Responded via:</div>
+                <div class="text-sm font-bold text-blue-700">${label}</div>
+              </div>
+            </div>
+          `;
+        } else {
+          negotiatingHTML = `
+            <div class="mt-2 pt-2 border-t border-gray-100">
+              <div class="bg-gray-100 border border-gray-200 rounded-lg px-2 py-1.5 text-center">
+                <div class="text-xs text-gray-600">💬 In conversation</div>
+              </div>
+            </div>
+          `;
+        }
+      }
+
       // Sales info for sales pipeline columns
       let salesHTML = '';
       if (['invoice-sent', 'proof-approved', 'paid-in-full'].includes(colKey) && item.salesInfo) {
@@ -16667,6 +16726,7 @@ function renderCampaignBoard() {
 
           ${socialIcons.length > 0 ? `<div class="flex flex-wrap gap-1 items-center justify-center pt-1.5 mt-1.5 border-t border-gray-100">${socialIcons.join('')}</div>` : ''}
           ${attemptHTML}
+          ${negotiatingHTML}
           ${salesHTML}
         </div>
       `;
