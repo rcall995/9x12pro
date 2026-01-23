@@ -2244,7 +2244,7 @@
       <div class="space-y-4">
         <div>
           <label class="text-sm font-medium text-gray-700 block mb-1">Template</label>
-          <select id="emailTemplate" class="border rounded-md w-full p-2 bg-white" onchange="loadEmailTemplate()">
+          <select id="emailTemplate" class="border rounded-md w-full p-2 bg-white" onchange="loadClientEmailTemplate()">
             <option value="">— Select Template —</option>
             <option value="invoice">Invoice Reminder</option>
             <option value="proof">Proof Ready for Review</option>
@@ -2524,7 +2524,7 @@
 
         <div>
           <label class="text-sm font-medium text-gray-700 block mb-1">Template</label>
-          <select id="emailTemplatePipeline" class="border rounded-md w-full p-2 bg-white" onchange="loadEmailTemplate('pipeline')">
+          <select id="emailTemplatePipeline" class="border rounded-md w-full p-2 bg-white" onchange="loadProspectEmailTemplate('pipeline')">
             <option value="">-- Select a template --</option>
             <option value="intro">Introduction & Value Proposition</option>
             <option value="follow-up">Follow-up</option>

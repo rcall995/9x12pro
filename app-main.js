@@ -3362,11 +3362,12 @@ function closeEmailModal() {
   if (lastFocusedElementBeforeModal) lastFocusedElementBeforeModal.focus();
 }
 
-function loadEmailTemplate() {
+function loadClientEmailTemplate() {
   const templateKey = document.getElementById('emailTemplate').value;
   if (!templateKey) return;
-  
+
   const template = emailTemplates[templateKey];
+  if (!template) return;
   document.getElementById('emailSubject').value = template.subject;
   document.getElementById('emailBody').value = template.body;
 }
@@ -10788,8 +10789,6 @@ function renderProspectPool() {
     const [searchedZipCode, category] = cacheKey.split('-');
     const cached = placesCache.searches[cacheKey];
 
-    // console.log(`🔍 DEBUG: Processing cache key: ${cacheKey}, has data: ${cached.cachedData ? cached.cachedData.length : 0}, lastFetched: ${cached.lastFetched}`);
-
     if (!cached.cachedData || cached.cachedData.length === 0) return;
 
     // NOTE: Don't check cache expiration - user should always see their prospect data
@@ -10800,7 +10799,6 @@ function renderProspectPool() {
       const fetchedDate = new Date(cached.lastFetched);
       if (fetchedDate < cutoffDate) {
         skippedByDate++;
-        // console.log(`🔍 DEBUG: Skipping ${cacheKey} - Date filter (fetched: ${fetchedDate.toLocaleDateString()}, cutoff: ${cutoffDate.toLocaleDateString()})`);
         return; // Skip if outside date range
       }
     }
@@ -10851,9 +10849,6 @@ function renderProspectPool() {
       }
     });
   });
-
-  // console.log(`🔍 DEBUG SUMMARY: Total cache keys: ${Object.keys(placesCache.searches).length}, Processed: ${processedCaches}, Skipped by ZIP: ${skippedByZip}, Skipped by Date: ${skippedByDate}`);
-  // console.log(`🔍 DEBUG SUMMARY: Total prospects found: ${totalProspects}, Categories: ${Object.keys(categorizedProspects).length}`);
 
   // Render stats - only count categories with actual businesses (after filtering)
   const categoriesWithBusinesses = Object.keys(categorizedProspects).filter(cat => categorizedProspects[cat].length > 0).length;
@@ -13389,7 +13384,7 @@ function closeSendEmailModal() {
   currentEmailBusinessId = null;
 }
 
-function loadEmailTemplate(source) {
+function loadProspectEmailTemplate(source) {
   // Support both original emailTemplate and renamed emailTemplatePipeline
   const templateSelect = document.getElementById(source === 'pipeline' ? 'emailTemplatePipeline' : 'emailTemplate');
   const subjectInput = document.getElementById('emailSubject');
@@ -16472,67 +16467,17 @@ function moveCampaignBoardItem(businessId, fromColumn, toColumn, board) {
   return true;
 }
 
-// Helper to update pipeline debug banner
-function updatePipelineDebug(message, append = true) {
-  const banner = document.getElementById('pipelineDebugBanner');
-  const text = document.getElementById('pipelineDebugText');
-  if (text) {
-    if (append && !text.innerHTML.includes('Loading pipeline')) {
-      text.innerHTML += '<br>' + message;
-    } else {
-      text.innerHTML = message;
-    }
-    // Keep last 6 lines
-    const lines = text.innerHTML.split('<br>');
-    if (lines.length > 6) {
-      text.innerHTML = lines.slice(-6).join('<br>');
-    }
-  }
-  console.log('PIPELINE DEBUG:', message);
-}
-
 // Render campaign board (new 6-column system)
 function renderCampaignBoard() {
   const board = getCurrentCampaignBoard();
-  console.log('📊 renderCampaignBoard called');
-  console.log('📊 Board:', board);
-  console.log('📊 Board mailerId:', board?.mailerId);
-  console.log('📊 state.current?.Mailer_ID:', state.current?.Mailer_ID);
-  console.log('📊 All boards:', Object.keys(campaignBoardsState.boards));
-
-  // Update debug banner
-  updatePipelineDebug(`🔍 Current mailer: "${state.current?.Mailer_ID || 'NOT SET'}"`, false);
-  updatePipelineDebug(`📋 Available boards: ${Object.keys(campaignBoardsState.boards).join(', ') || '(none)'}`);
-
-  // Also show legacy kanban counts
-  const legacyCounts = Object.entries(kanbanState.columns || {}).map(([k,v]) => `${k}:${(v||[]).length}`).join(', ');
-  updatePipelineDebug(`📦 Legacy kanban: ${legacyCounts || '(empty)'}`);
 
   if (!board) {
-    console.log('📊 No board found, falling back to legacy');
-    updatePipelineDebug('❌ No board found - showing legacy kanban');
     // Fall back to legacy kanban if no board
     campaignBoardsState.useLegacyKanban = true;
     return renderKanban();
   }
 
-  updatePipelineDebug(`✅ Board found: "${board.mailerId || board.name}"`);
-
-  // Log column counts
   const columnKeys = ['queued', 'attempting', 'negotiating', 'invoice-sent', 'proof-approved', 'paid-in-full'];
-  const colCounts = columnKeys.map(col => `${col}:${(board.columns[col] || []).length}`).join(', ');
-  updatePipelineDebug(`📊 Columns: ${colCounts}`);
-
-  // Check if legacy has data but board is empty - suggest migration
-  const totalLegacy = Object.values(kanbanState.columns || {}).reduce((sum, arr) => sum + (arr?.length || 0), 0);
-  const totalBoard = columnKeys.reduce((sum, col) => sum + (board.columns[col]?.length || 0), 0);
-  if (totalLegacy > 0 && totalBoard === 0) {
-    updatePipelineDebug(`⚠️ Legacy has ${totalLegacy} items - <button onclick="migrateToCampaignBoards()" style="background:#f59e0b;color:white;padding:2px 8px;border-radius:4px;font-weight:bold;">Run Migration</button>`);
-  }
-
-  columnKeys.forEach(col => {
-    console.log(`📊 Column ${col}: ${(board.columns[col] || []).length} items`);
-  });
 
   const dailyGoalContainer = document.getElementById('dailyGoalContainer');
   const kanbanColumnsContainer = document.getElementById('salesActivityKanbanColumns');
@@ -17749,16 +17694,6 @@ async function loadCampaignBoards() {
         }
       });
       campaignBoardsState.boards = data;
-      console.log('✅ Campaign boards loaded:', Object.keys(data).length, 'boards');
-      // Update debug banner if visible
-      if (typeof updatePipelineDebug === 'function') {
-        updatePipelineDebug(`☁️ Loaded ${Object.keys(data).length} boards from cloud: ${Object.keys(data).join(', ')}`);
-      }
-    } else {
-      console.log('⚠️ No campaign board data in cloud');
-      if (typeof updatePipelineDebug === 'function') {
-        updatePipelineDebug('⚠️ No campaign boards found in cloud');
-      }
     }
   } catch (err) {
     console.error('Failed to load campaign boards:', err);
