@@ -1088,7 +1088,7 @@ const campaignBoardsState = {
   boards: {},           // { mailerId: boardObject }
   activeBoardId: null,
   useLegacyKanban: false, // Campaign Board is now the default (legacy kanban removed)
-  zipFilters: {}        // { columnKey: zipCode } for per-column filtering
+  globalZipFilter: 'target' // 'target' = show target ZIPs only, 'all' = show all, or specific ZIP code
 };
 
 // Board structure template (not stored, just documentation):
@@ -16254,6 +16254,10 @@ const campaignBoardColumns = {
 
 // Create a new campaign board for a mailer
 function createCampaignBoard(mailerId, mailerName) {
+  // Try to detect primary ZIP from mailer data
+  const mailer = state.mailers?.find(m => (m.Mailer_ID || m.id) === mailerId);
+  const primaryZip = mailer?.zipCode || mailer?.zip || mailer?.ZIP || '';
+
   const board = {
     mailerId: mailerId,
     name: mailerName || `Campaign ${mailerId}`,
@@ -16262,7 +16266,8 @@ function createCampaignBoard(mailerId, mailerName) {
       channelPriority: ['sms', 'email', 'facebook', 'call'],
       templates: {},
       daysBetweenAttempts: 3,
-      maxAttempts: 4
+      maxAttempts: 4,
+      targetZips: primaryZip ? [primaryZip] : [] // Primary ZIP(s) for this campaign
     },
     columns: {
       'queued': [],
@@ -16518,37 +16523,51 @@ function renderCampaignBoard() {
     return;
   }
 
+  // Helper to normalize ZIP to 5 digits
+  const normalizeZip = (zip) => {
+    if (!zip) return '';
+    const zipStr = String(zip).trim();
+    // Extract first 5 digits (handles both "14072" and "14072-1248" formats)
+    return zipStr.split('-')[0].substring(0, 5);
+  };
+
+  // Collect ALL ZIPs across ALL columns for global filter
+  const allZipsSet = new Set();
+  columnKeys.forEach(colKey => {
+    const colItems = board.columns[colKey] || [];
+    colItems.forEach(item => {
+      const zip = item.actualZip || item.zipCode || item.zip;
+      const normalized = normalizeZip(zip);
+      if (normalized) allZipsSet.add(normalized);
+    });
+  });
+  const allZipsSorted = Array.from(allZipsSet).sort();
+
+  // Get target ZIPs from campaign config
+  const targetZips = board.config?.targetZips || [];
+
+  // Determine which items pass the global filter
+  const globalFilter = campaignBoardsState.globalZipFilter || 'target';
+  const filterFunction = (item) => {
+    const itemZip = normalizeZip(item.actualZip || item.zipCode || item.zip);
+    if (!itemZip) return true; // Show items without ZIP
+
+    if (globalFilter === 'all') return true;
+    if (globalFilter === 'target') {
+      if (targetZips.length === 0) return true; // No target set, show all
+      return targetZips.includes(itemZip);
+    }
+    // Specific ZIP selected
+    return itemZip === globalFilter;
+  };
+
   // Build columns HTML
   const columnsHTML = columnKeys.map(colKey => {
     const colDef = campaignBoardColumns[colKey];
     const allItems = board.columns[colKey] || [];
 
-    // Helper to normalize ZIP to 5 digits
-    const normalizeZip = (zip) => {
-      if (!zip) return '';
-      const zipStr = String(zip).trim();
-      // Extract first 5 digits (handles both "14072" and "14072-1248" formats)
-      return zipStr.split('-')[0].substring(0, 5);
-    };
-
-    // Collect ZIPs for filter (normalized to 5 digits)
-    const columnZips = new Set();
-    allItems.forEach(item => {
-      const zip = item.actualZip || item.zipCode || item.zip;
-      const normalized = normalizeZip(zip);
-      if (normalized) columnZips.add(normalized);
-    });
-    const sortedZips = Array.from(columnZips).sort();
-
-    // Apply ZIP filter (match on 5-digit prefix)
-    const currentZipFilter = campaignBoardsState.zipFilters[colKey] || '';
-    const items = currentZipFilter
-      ? allItems.filter(item => {
-          const itemZip = item.actualZip || item.zipCode || item.zip;
-          const normalized = normalizeZip(itemZip);
-          return normalized === currentZipFilter;
-        })
-      : allItems;
+    // Apply global ZIP filter
+    const items = allItems.filter(filterFunction);
 
     // Phase separator styling
     const isFirstSalesPhase = colKey === 'negotiating';
@@ -16742,16 +16761,9 @@ function renderCampaignBoard() {
       `;
     }).join('');
 
-    // ZIP filter dropdown with selected state
-    const zipFilterHTML = sortedZips.length > 0 ? `
-      <select onchange="setCampaignBoardZipFilter('${colKey}', this.value)" class="text-xs px-1 py-0.5 border rounded bg-white">
-        <option value="" ${!currentZipFilter ? 'selected' : ''}>📍 All (${allItems.length})</option>
-        ${sortedZips.map(zip => `<option value="${zip}" ${currentZipFilter === zip ? 'selected' : ''}>${zip}</option>`).join('')}
-      </select>
-    ` : '';
-
-    // Show filtered count if filtering
-    const countDisplay = currentZipFilter
+    // Show count (filtered/total if filtering is active)
+    const isFiltering = globalFilter !== 'all' && (globalFilter === 'target' ? targetZips.length > 0 : true);
+    const countDisplay = isFiltering && items.length !== allItems.length
       ? `${items.length}/${allItems.length}`
       : `${items.length}`;
 
@@ -16761,9 +16773,8 @@ function renderCampaignBoard() {
 
     return `
       <div class="kanban-column campaign-board-column ${phaseSeparator}" data-column="${colKey}" style="${columnWidth} flex: 1;">
-        <div class="flex flex-wrap justify-between items-center mb-2 gap-1">
+        <div class="flex justify-between items-center mb-2">
           <div class="font-semibold text-sm text-${colDef.color}-600">${colDef.icon} ${colDef.title} (${countDisplay})</div>
-          <div class="flex gap-1">${zipFilterHTML}</div>
         </div>
         ${items.length === 0 ? emptyStates[colKey] : ''}
         ${cardsHTML}
@@ -16787,7 +16798,31 @@ function renderCampaignBoard() {
     return `<option value="${esc(mailerId)}" ${selected}>${esc(name)}</option>`;
   }).join('');
 
-  // Campaign info bar with dropdown
+  // Build global ZIP filter options
+  const targetZipLabel = targetZips.length > 0 ? targetZips.join(', ') : 'Not set';
+  const targetZipCount = targetZips.length > 0
+    ? columnKeys.reduce((sum, col) => sum + (board.columns[col] || []).filter(item => {
+        const z = normalizeZip(item.actualZip || item.zipCode || item.zip);
+        return targetZips.includes(z);
+      }).length, 0)
+    : 0;
+  const allItemsCount = columnKeys.reduce((sum, col) => sum + (board.columns[col] || []).length, 0);
+
+  const zipFilterOptions = `
+    <option value="target" ${globalFilter === 'target' ? 'selected' : ''}>📍 Target: ${targetZipLabel} (${targetZipCount})</option>
+    <option value="all" ${globalFilter === 'all' ? 'selected' : ''}>🌍 All ZIPs (${allItemsCount})</option>
+    ${allZipsSorted.length > 0 ? '<option disabled>──────────</option>' : ''}
+    ${allZipsSorted.map(zip => {
+      const zipCount = columnKeys.reduce((sum, col) => sum + (board.columns[col] || []).filter(item => {
+        const z = normalizeZip(item.actualZip || item.zipCode || item.zip);
+        return z === zip;
+      }).length, 0);
+      const isTarget = targetZips.includes(zip);
+      return `<option value="${zip}" ${globalFilter === zip ? 'selected' : ''}>${zip}${isTarget ? ' ★' : ''} (${zipCount})</option>`;
+    }).join('')}
+  `;
+
+  // Campaign info bar with dropdown and global ZIP filter
   const viewToggle = `
     <div class="flex items-center gap-3 mb-3 flex-wrap">
       <div class="flex items-center gap-2">
@@ -16797,8 +16832,18 @@ function renderCampaignBoard() {
           ${campaignOptions}
         </select>
       </div>
+      <div class="flex items-center gap-2">
+        <label class="text-xs font-medium text-gray-600">ZIP:</label>
+        <select onchange="setGlobalZipFilter(this.value)"
+                class="px-2 py-1 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+          ${zipFilterOptions}
+        </select>
+      </div>
       <button onclick="openCampaignConfigModal()" class="px-3 py-1 text-xs font-medium rounded bg-blue-100 text-blue-700 hover:bg-blue-200">
-        ⚙️ Campaign Config
+        ⚙️ Config
+      </button>
+      <button onclick="openLogReplyModal()" class="px-3 py-1 text-xs font-medium rounded bg-green-100 text-green-700 hover:bg-green-200">
+        📬 Log a Reply
       </button>
     </div>
   `;
@@ -17678,9 +17723,16 @@ async function deleteCampaignBoardItem(leadId, columnKey) {
 }
 
 // Set ZIP filter for campaign board column
+// Legacy per-column filter (kept for backwards compatibility)
 function setCampaignBoardZipFilter(columnKey, zip) {
-  campaignBoardsState.zipFilters[columnKey] = zip || '';
-  console.log(`📍 ZIP filter set: ${columnKey} = "${zip || 'All'}"`);
+  // Redirect to global filter
+  setGlobalZipFilter(zip || 'all');
+}
+
+// Set global ZIP filter for entire Campaign Board
+function setGlobalZipFilter(filter) {
+  campaignBoardsState.globalZipFilter = filter || 'target';
+  console.log(`📍 Global ZIP filter set: "${filter}"`);
   renderCampaignBoard();
 }
 
@@ -17728,15 +17780,58 @@ function openCampaignConfigModal() {
   }
 
   const config = board.config;
+  const targetZips = config.targetZips || [];
   const channelOptions = ['sms', 'email', 'facebook', 'instagram', 'linkedin', 'call'];
 
+  // Get all available ZIPs from the board data
+  const columnKeys = ['queued', 'attempting', 'negotiating', 'invoice-sent', 'proof-approved', 'paid-in-full'];
+  const availableZips = new Set();
+  columnKeys.forEach(colKey => {
+    const items = board.columns[colKey] || [];
+    items.forEach(item => {
+      const zip = item.actualZip || item.zipCode || item.zip;
+      if (zip) {
+        const normalized = String(zip).split('-')[0].substring(0, 5);
+        if (normalized) availableZips.add(normalized);
+      }
+    });
+  });
+  const sortedAvailableZips = Array.from(availableZips).sort();
+
   const modalHTML = `
-    <div id="campaignConfigModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
+    <div id="campaignConfigModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target === this) closeCampaignConfigModal()">
+      <div class="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
         <h3 class="text-xl font-bold mb-4">⚙️ Campaign Configuration</h3>
         <p class="text-sm text-gray-500 mb-4">Campaign: <strong>${esc(board.name)}</strong></p>
 
         <div class="space-y-4">
+          <!-- Target ZIP Codes -->
+          <div class="p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <label class="block text-sm font-medium text-blue-800 mb-2">📍 Target ZIP Codes</label>
+            <p class="text-xs text-blue-600 mb-2">Filter the board to show only businesses in these ZIPs</p>
+            <div id="targetZipsList" class="flex flex-wrap gap-2 mb-2">
+              ${targetZips.length > 0 ? targetZips.map(zip => `
+                <span class="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                  ${zip}
+                  <button onclick="removeTargetZip('${zip}')" class="text-blue-600 hover:text-blue-800 font-bold">×</button>
+                </span>
+              `).join('') : '<span class="text-xs text-gray-500">No target ZIPs set (showing all)</span>'}
+            </div>
+            <div class="flex gap-2">
+              <select id="addTargetZipSelect" class="flex-1 px-2 py-1 text-sm border rounded-lg">
+                <option value="">Add ZIP code...</option>
+                ${sortedAvailableZips.filter(z => !targetZips.includes(z)).map(zip => `
+                  <option value="${zip}">${zip}</option>
+                `).join('')}
+              </select>
+              <button onclick="addTargetZipFromSelect()" class="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Add</button>
+            </div>
+            <div class="mt-2">
+              <input type="text" id="manualZipInput" placeholder="Or type ZIP code" maxlength="5"
+                     class="w-full px-2 py-1 text-sm border rounded-lg" onkeypress="if(event.key==='Enter') addManualTargetZip()">
+            </div>
+          </div>
+
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">Channel Priority (drag to reorder)</label>
             <div id="channelPriorityList" class="space-y-1">
@@ -17848,6 +17943,60 @@ function closeCampaignConfigModal() {
   if (modal) modal.remove();
 }
 
+// Add target ZIP from dropdown
+function addTargetZipFromSelect() {
+  const select = document.getElementById('addTargetZipSelect');
+  const zip = select?.value;
+  if (zip) {
+    addTargetZip(zip);
+    select.value = '';
+  }
+}
+
+// Add target ZIP from manual input
+function addManualTargetZip() {
+  const input = document.getElementById('manualZipInput');
+  const zip = input?.value?.trim();
+  if (zip && /^\d{5}$/.test(zip)) {
+    addTargetZip(zip);
+    input.value = '';
+  } else if (zip) {
+    toast('Please enter a valid 5-digit ZIP code', false);
+  }
+}
+
+// Add a target ZIP
+function addTargetZip(zip) {
+  const board = getCurrentCampaignBoard();
+  if (!board) return;
+
+  if (!board.config.targetZips) board.config.targetZips = [];
+  if (!board.config.targetZips.includes(zip)) {
+    board.config.targetZips.push(zip);
+    board.config.targetZips.sort();
+    // Refresh the modal to show the new ZIP
+    closeCampaignConfigModal();
+    openCampaignConfigModal();
+    toast(`Added ${zip} to target ZIPs`);
+  }
+}
+
+// Remove a target ZIP
+function removeTargetZip(zip) {
+  const board = getCurrentCampaignBoard();
+  if (!board) return;
+
+  if (!board.config.targetZips) return;
+  const idx = board.config.targetZips.indexOf(zip);
+  if (idx !== -1) {
+    board.config.targetZips.splice(idx, 1);
+    // Refresh the modal
+    closeCampaignConfigModal();
+    openCampaignConfigModal();
+    toast(`Removed ${zip} from target ZIPs`);
+  }
+}
+
 // Save campaign configuration
 async function saveCampaignConfig() {
   const board = getCurrentCampaignBoard();
@@ -17869,6 +18018,260 @@ async function saveCampaignConfig() {
   if (!campaignBoardsState.useLegacyKanban) {
     renderCampaignBoard();
   }
+}
+
+// ========= LOG A REPLY MODAL =========
+
+// Open the Log a Reply modal
+function openLogReplyModal() {
+  const board = getCurrentCampaignBoard();
+  if (!board) {
+    toast('No campaign selected');
+    return;
+  }
+
+  // Get businesses from Attempting column (Column 2) - these are the ones waiting for replies
+  const attemptingItems = board.columns['attempting'] || [];
+
+  if (attemptingItems.length === 0) {
+    toast('No businesses waiting for replies');
+    return;
+  }
+
+  const modalHTML = `
+    <div id="logReplyModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target === this) closeLogReplyModal()">
+      <div class="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4" onclick="event.stopPropagation()">
+        <h3 class="text-xl font-bold mb-4">📬 Log a Reply</h3>
+        <p class="text-sm text-gray-500 mb-4">Record when a business responds to move them to Negotiating</p>
+
+        <div class="space-y-4">
+          <!-- Business Search -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Who replied?</label>
+            <input type="text" id="logReplySearch" placeholder="Start typing business name..."
+                   oninput="filterLogReplyResults(this.value)"
+                   class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+            <div id="logReplySearchResults" class="mt-2 max-h-40 overflow-y-auto border rounded-lg hidden">
+              <!-- Results will be populated here -->
+            </div>
+            <div id="logReplySelected" class="mt-2 hidden">
+              <div class="flex items-center justify-between p-2 bg-green-100 border border-green-300 rounded-lg">
+                <span id="logReplySelectedName" class="font-medium text-green-800"></span>
+                <button onclick="clearLogReplySelection()" class="text-green-600 hover:text-green-800">×</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Channel Selection -->
+          <div id="logReplyChannelSection" class="hidden">
+            <label class="block text-sm font-medium text-gray-700 mb-2">How did they reply?</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button onclick="selectLogReplyChannel('sms')" class="log-reply-channel px-3 py-2 bg-gray-100 hover:bg-green-100 border-2 border-gray-200 rounded-lg text-sm font-medium" data-channel="sms">
+                📱 SMS
+              </button>
+              <button onclick="selectLogReplyChannel('email')" class="log-reply-channel px-3 py-2 bg-gray-100 hover:bg-green-100 border-2 border-gray-200 rounded-lg text-sm font-medium" data-channel="email">
+                📧 Email
+              </button>
+              <button onclick="selectLogReplyChannel('call')" class="log-reply-channel px-3 py-2 bg-gray-100 hover:bg-green-100 border-2 border-gray-200 rounded-lg text-sm font-medium" data-channel="call">
+                📞 Call
+              </button>
+              <button onclick="selectLogReplyChannel('facebook')" class="log-reply-channel px-3 py-2 bg-gray-100 hover:bg-green-100 border-2 border-gray-200 rounded-lg text-sm font-medium" data-channel="facebook">
+                📘 Facebook
+              </button>
+              <button onclick="selectLogReplyChannel('instagram')" class="log-reply-channel px-3 py-2 bg-gray-100 hover:bg-green-100 border-2 border-gray-200 rounded-lg text-sm font-medium" data-channel="instagram">
+                📷 Instagram
+              </button>
+              <button onclick="selectLogReplyChannel('linkedin')" class="log-reply-channel px-3 py-2 bg-gray-100 hover:bg-green-100 border-2 border-gray-200 rounded-lg text-sm font-medium" data-channel="linkedin">
+                💼 LinkedIn
+              </button>
+            </div>
+          </div>
+
+          <!-- Submit Button -->
+          <div id="logReplySubmitSection" class="hidden">
+            <button onclick="submitLogReply()" class="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium text-lg">
+              ✅ Move to Negotiating
+            </button>
+          </div>
+        </div>
+
+        <div class="flex gap-3 mt-6">
+          <button onclick="closeLogReplyModal()" class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium">Cancel</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Store attempting items for search
+  window._logReplyItems = attemptingItems;
+  window._logReplySelectedId = null;
+  window._logReplySelectedChannel = null;
+
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+  // Focus the search input
+  setTimeout(() => document.getElementById('logReplySearch')?.focus(), 100);
+}
+
+// Filter search results for Log Reply
+function filterLogReplyResults(query) {
+  const resultsContainer = document.getElementById('logReplySearchResults');
+  const items = window._logReplyItems || [];
+
+  if (!query || query.length < 2) {
+    resultsContainer.classList.add('hidden');
+    return;
+  }
+
+  const queryLower = query.toLowerCase();
+  const matches = items.filter(item => {
+    const name = (item.businessName || item.name || '').toLowerCase();
+    return name.includes(queryLower);
+  }).slice(0, 10); // Limit to 10 results
+
+  if (matches.length === 0) {
+    resultsContainer.innerHTML = '<div class="p-2 text-gray-500 text-sm">No matches found</div>';
+  } else {
+    resultsContainer.innerHTML = matches.map(item => {
+      const id = item.id || item._id || item.place_id || item.businessName;
+      const name = item.businessName || item.name || 'Unknown';
+      const zip = item.actualZip || item.zipCode || item.zip || '';
+      return `
+        <div onclick="selectLogReplyBusiness('${esc(String(id))}')"
+             class="p-2 hover:bg-gray-100 cursor-pointer border-b last:border-b-0">
+          <div class="font-medium text-sm">${esc(name)}</div>
+          ${zip ? `<div class="text-xs text-gray-500">📍 ${esc(zip)}</div>` : ''}
+        </div>
+      `;
+    }).join('');
+  }
+
+  resultsContainer.classList.remove('hidden');
+}
+
+// Select a business from search results
+function selectLogReplyBusiness(businessId) {
+  const items = window._logReplyItems || [];
+  const business = items.find(item => {
+    const id = item.id || item._id || item.place_id || item.businessName;
+    return String(id) === String(businessId);
+  });
+
+  if (!business) return;
+
+  window._logReplySelectedId = businessId;
+
+  // Hide search, show selected
+  document.getElementById('logReplySearchResults').classList.add('hidden');
+  document.getElementById('logReplySearch').classList.add('hidden');
+
+  const selectedDiv = document.getElementById('logReplySelected');
+  document.getElementById('logReplySelectedName').textContent = business.businessName || business.name || 'Unknown';
+  selectedDiv.classList.remove('hidden');
+
+  // Show channel selection
+  document.getElementById('logReplyChannelSection').classList.remove('hidden');
+}
+
+// Clear business selection
+function clearLogReplySelection() {
+  window._logReplySelectedId = null;
+  window._logReplySelectedChannel = null;
+
+  document.getElementById('logReplySearch').value = '';
+  document.getElementById('logReplySearch').classList.remove('hidden');
+  document.getElementById('logReplySelected').classList.add('hidden');
+  document.getElementById('logReplyChannelSection').classList.add('hidden');
+  document.getElementById('logReplySubmitSection').classList.add('hidden');
+
+  // Reset channel buttons
+  document.querySelectorAll('.log-reply-channel').forEach(btn => {
+    btn.classList.remove('bg-green-200', 'border-green-500');
+    btn.classList.add('bg-gray-100', 'border-gray-200');
+  });
+
+  document.getElementById('logReplySearch').focus();
+}
+
+// Select reply channel
+function selectLogReplyChannel(channel) {
+  window._logReplySelectedChannel = channel;
+
+  // Update button styles
+  document.querySelectorAll('.log-reply-channel').forEach(btn => {
+    if (btn.dataset.channel === channel) {
+      btn.classList.remove('bg-gray-100', 'border-gray-200');
+      btn.classList.add('bg-green-200', 'border-green-500');
+    } else {
+      btn.classList.remove('bg-green-200', 'border-green-500');
+      btn.classList.add('bg-gray-100', 'border-gray-200');
+    }
+  });
+
+  // Show submit button
+  document.getElementById('logReplySubmitSection').classList.remove('hidden');
+}
+
+// Submit the logged reply
+async function submitLogReply() {
+  const businessId = window._logReplySelectedId;
+  const channel = window._logReplySelectedChannel;
+
+  if (!businessId || !channel) {
+    toast('Please select a business and channel', false);
+    return;
+  }
+
+  const board = getCurrentCampaignBoard();
+  if (!board) return;
+
+  // Find the business in attempting column
+  const attemptingItems = board.columns['attempting'] || [];
+  const idx = attemptingItems.findIndex(item => {
+    const id = item.id || item._id || item.place_id || item.businessName;
+    return String(id) === String(businessId);
+  });
+
+  if (idx === -1) {
+    toast('Business not found in Attempting column', false);
+    return;
+  }
+
+  const business = attemptingItems[idx];
+
+  // Record the response channel
+  business.respondedChannel = channel;
+  if (business.attemptTracking?.attemptHistory) {
+    // Mark the channel as responded
+    const historyEntry = business.attemptTracking.attemptHistory.find(h => h.channel === channel);
+    if (historyEntry) {
+      historyEntry.responded = true;
+      historyEntry.respondedDate = new Date().toISOString();
+    }
+  }
+
+  // Move to negotiating
+  attemptingItems.splice(idx, 1);
+  if (!board.columns['negotiating']) board.columns['negotiating'] = [];
+  board.columns['negotiating'].push(business);
+
+  await saveCampaignBoards();
+  closeLogReplyModal();
+  renderCampaignBoard();
+
+  const name = business.businessName || business.name || 'Business';
+  toast(`✅ ${name} moved to Negotiating!`);
+}
+
+// Close Log Reply modal
+function closeLogReplyModal() {
+  const modal = document.getElementById('logReplyModal');
+  if (modal) modal.remove();
+
+  // Clean up
+  delete window._logReplyItems;
+  delete window._logReplySelectedId;
+  delete window._logReplySelectedChannel;
 }
 
 // Data migration from legacy kanban to campaign boards
@@ -18098,8 +18501,13 @@ async function loadCampaignBoards() {
           board.config = {
             channelPriority: ['sms', 'email', 'facebook', 'call'],
             maxAttempts: 4,
-            daysBetweenAttempts: 3
+            daysBetweenAttempts: 3,
+            targetZips: []
           };
+        }
+        // Ensure targetZips exists
+        if (!board.config.targetZips) {
+          board.config.targetZips = [];
         }
 
         // Repair items in "attempting" column that have currentAttempt: 0
@@ -18844,6 +19252,18 @@ window.migrateToCampaignBoards = migrateToCampaignBoards;
 window.openCampaignBoardQuickAction = openCampaignBoardQuickAction;
 window.deleteCampaignBoardItem = deleteCampaignBoardItem;
 window.setCampaignBoardZipFilter = setCampaignBoardZipFilter;
+window.setGlobalZipFilter = setGlobalZipFilter;
+window.addTargetZipFromSelect = addTargetZipFromSelect;
+window.addManualTargetZip = addManualTargetZip;
+window.addTargetZip = addTargetZip;
+window.removeTargetZip = removeTargetZip;
+window.openLogReplyModal = openLogReplyModal;
+window.filterLogReplyResults = filterLogReplyResults;
+window.selectLogReplyBusiness = selectLogReplyBusiness;
+window.clearLogReplySelection = clearLogReplySelection;
+window.selectLogReplyChannel = selectLogReplyChannel;
+window.submitLogReply = submitLogReply;
+window.closeLogReplyModal = closeLogReplyModal;
 
 function openLeadModal(column = null, leadId = null) {
   const modal = document.getElementById("leadModal");
