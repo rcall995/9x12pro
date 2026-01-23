@@ -1157,6 +1157,21 @@ function isInCampaignBoard(placeId) {
   return false;
 }
 
+// Find a prospect by ID in Campaign Board (returns {item, column} or null)
+function findProspectInCampaignBoard(prospectId) {
+  const board = getCurrentCampaignBoard();
+  if (!board || !board.columns) return null;
+
+  for (const colKey of Object.keys(board.columns)) {
+    const items = board.columns[colKey] || [];
+    const item = items.find(i => i && typeof i === 'object' && String(i.id) === String(prospectId));
+    if (item) {
+      return { item, column: colKey };
+    }
+  }
+  return null;
+}
+
 // Get all placeIds that are in Campaign Board (for "In System" checks)
 function getCampaignBoardPlaceIds() {
   const placeIds = new Set();
@@ -20153,18 +20168,25 @@ function handleCommunicating(leadId, event) {
 }
 
 // Toggle contact tracking status (emailed, dmed, texted)
+// Uses Campaign Board as single source of truth
 async function toggleContactTracking(leadId, method, event) {
   if (event) {
     event.stopPropagation();
     event.preventDefault();
   }
 
-  // Find lead in any column
+  // Find lead in Campaign Board (single source of truth)
+  const board = getCurrentCampaignBoard();
+  if (!board || !board.columns) {
+    console.warn('Contact tracking: No Campaign Board found');
+    return;
+  }
+
   let foundItem = null;
   let foundColumn = null;
 
-  for (const colKey of Object.keys(kanbanState.columns)) {
-    const items = kanbanState.columns[colKey] || [];
+  for (const colKey of Object.keys(board.columns)) {
+    const items = board.columns[colKey] || [];
     const item = items.find(i => i && typeof i === 'object' && String(i.id) === String(leadId));
     if (item) {
       foundItem = item;
@@ -20174,7 +20196,7 @@ async function toggleContactTracking(leadId, method, event) {
   }
 
   if (!foundItem) {
-    console.warn('Contact tracking: Lead not found', leadId);
+    console.warn('Contact tracking: Lead not found in Campaign Board', leadId);
     return;
   }
 
@@ -20597,22 +20619,14 @@ function hideContactStatusExpanded() {
 
 // Contact a business again via the same channel
 function contactAgain(prospectId, channelKey) {
-  // Find prospect
-  let prospect = null;
-  let columnKey = null;
-  for (const colKey of Object.keys(kanbanState.columns)) {
-    const found = kanbanState.columns[colKey].find(p => p && String(p.id) === String(prospectId));
-    if (found) {
-      prospect = found;
-      columnKey = colKey;
-      break;
-    }
-  }
-
-  if (!prospect) {
+  // Find prospect in Campaign Board
+  const result = findProspectInCampaignBoard(prospectId);
+  if (!result) {
     toast('Prospect not found', false);
     return;
   }
+  const prospect = result.item;
+  const columnKey = result.column;
 
   // Open appropriate channel
   switch (channelKey) {
@@ -20829,17 +20843,10 @@ function quickCall(phone) {
 
 // Quick action: email a prospect
 function quickEmail(prospectId) {
-  // Find prospect in kanban
-  let prospect = null;
-  for (const colKey of Object.keys(kanbanState.columns)) {
-    const found = kanbanState.columns[colKey].find(p => p && String(p.id) === String(prospectId));
-    if (found) {
-      prospect = found;
-      break;
-    }
-  }
-  if (prospect && prospect.email) {
-    window.open(`mailto:${prospect.email}`, '_blank');
+  // Find prospect in Campaign Board
+  const result = findProspectInCampaignBoard(prospectId);
+  if (result && result.item.email) {
+    window.open(`mailto:${result.item.email}`, '_blank');
   }
 }
 
@@ -20957,19 +20964,16 @@ function closeSequenceProcessModal() {
 
 // Execute a step and advance the sequence
 async function executeAndAdvanceStep(prospectId, stepIndex) {
-  // Find the prospect
-  let prospect = null;
-  let columnKey = null;
-  for (const colKey of Object.keys(kanbanState.columns)) {
-    const found = kanbanState.columns[colKey].find(p => p && String(p.id) === String(prospectId));
-    if (found) {
-      prospect = found;
-      columnKey = colKey;
-      break;
-    }
+  // Find the prospect in Campaign Board
+  const result = findProspectInCampaignBoard(prospectId);
+  if (!result) {
+    toast('Prospect not found', false);
+    return;
   }
+  const prospect = result.item;
+  const columnKey = result.column;
 
-  if (!prospect || !prospect.activeSequence) {
+  if (!prospect.activeSequence) {
     toast('Prospect not found or not in sequence', false);
     return;
   }
@@ -21022,21 +21026,14 @@ async function advanceSequenceFromModal(prospectId) {
 
 // Assign a prospect to a sequence
 function assignSequence(prospectId, sequenceId = null) {
-  // Find prospect
-  let prospect = null;
-  let columnKey = null;
-  for (const colKey of Object.keys(kanbanState.columns)) {
-    const found = kanbanState.columns[colKey].find(p => p && String(p.id) === String(prospectId));
-    if (found) {
-      prospect = found;
-      columnKey = colKey;
-      break;
-    }
-  }
-  if (!prospect) {
+  // Find prospect in Campaign Board
+  const result = findProspectInCampaignBoard(prospectId);
+  if (!result) {
     toast('Prospect not found', false);
     return;
   }
+  const prospect = result.item;
+  const columnKey = result.column;
 
   // If no sequence specified, show selection modal
   if (!sequenceId) {
@@ -21107,21 +21104,14 @@ function closeSequenceSelectionModal() {
 
 // Advance to next sequence step
 async function advanceSequence(prospectId) {
-  // Find prospect
-  let prospect = null;
-  let columnKey = null;
-  for (const colKey of Object.keys(kanbanState.columns)) {
-    const found = kanbanState.columns[colKey].find(p => p && String(p.id) === String(prospectId));
-    if (found) {
-      prospect = found;
-      columnKey = colKey;
-      break;
-    }
-  }
-  if (!prospect || !prospect.activeSequence) {
+  // Find prospect in Campaign Board
+  const result = findProspectInCampaignBoard(prospectId);
+  if (!result || !result.item.activeSequence) {
     toast('Prospect not in a sequence', false);
     return;
   }
+  const prospect = result.item;
+  const columnKey = result.column;
 
   const sequence = outreachSequencesState.sequences[prospect.activeSequence.sequenceId];
   if (!sequence) {
@@ -21174,19 +21164,13 @@ async function advanceSequence(prospectId) {
 
 // Pause an active sequence
 async function pauseSequence(prospectId) {
-  // Find prospect
-  let prospect = null;
-  for (const colKey of Object.keys(kanbanState.columns)) {
-    const found = kanbanState.columns[colKey].find(p => p && String(p.id) === String(prospectId));
-    if (found) {
-      prospect = found;
-      break;
-    }
-  }
-  if (!prospect || !prospect.activeSequence) {
+  // Find prospect in Campaign Board
+  const result = findProspectInCampaignBoard(prospectId);
+  if (!result || !result.item.activeSequence) {
     toast('Prospect not in a sequence', false);
     return;
   }
+  const prospect = result.item;
 
   prospect.activeSequence.paused = true;
   prospect.activeSequence.pausedAt = new Date().toISOString();
@@ -21194,7 +21178,7 @@ async function pauseSequence(prospectId) {
   const sequence = outreachSequencesState.sequences[prospect.activeSequence.sequenceId];
   toast(`⏸ Paused "${sequence?.name || 'sequence'}" for ${prospect.businessName}`, true);
 
-  await saveKanban();
+  await saveCampaignBoards();
   renderKanban();
   refreshFollowUpDashboard();
   refreshContactStatusDashboard();
@@ -21202,19 +21186,13 @@ async function pauseSequence(prospectId) {
 
 // Resume a paused sequence
 async function resumeSequence(prospectId) {
-  // Find prospect
-  let prospect = null;
-  for (const colKey of Object.keys(kanbanState.columns)) {
-    const found = kanbanState.columns[colKey].find(p => p && String(p.id) === String(prospectId));
-    if (found) {
-      prospect = found;
-      break;
-    }
-  }
-  if (!prospect || !prospect.activeSequence) {
+  // Find prospect in Campaign Board
+  const result = findProspectInCampaignBoard(prospectId);
+  if (!result || !result.item.activeSequence) {
     toast('Prospect not in a sequence', false);
     return;
   }
+  const prospect = result.item;
 
   prospect.activeSequence.paused = false;
   delete prospect.activeSequence.pausedAt;
@@ -21222,7 +21200,7 @@ async function resumeSequence(prospectId) {
   const sequence = outreachSequencesState.sequences[prospect.activeSequence.sequenceId];
   toast(`▶️ Resumed "${sequence?.name || 'sequence'}" for ${prospect.businessName}`, true);
 
-  await saveKanban();
+  await saveCampaignBoards();
   renderKanban();
   refreshFollowUpDashboard();
   refreshContactStatusDashboard();
@@ -21230,19 +21208,13 @@ async function resumeSequence(prospectId) {
 
 // Cancel/remove a sequence from a prospect
 async function cancelSequence(prospectId) {
-  // Find prospect
-  let prospect = null;
-  for (const colKey of Object.keys(kanbanState.columns)) {
-    const found = kanbanState.columns[colKey].find(p => p && String(p.id) === String(prospectId));
-    if (found) {
-      prospect = found;
-      break;
-    }
-  }
-  if (!prospect || !prospect.activeSequence) {
+  // Find prospect in Campaign Board
+  const result = findProspectInCampaignBoard(prospectId);
+  if (!result || !result.item.activeSequence) {
     toast('Prospect not in a sequence', false);
     return;
   }
+  const prospect = result.item;
 
   const sequence = outreachSequencesState.sequences[prospect.activeSequence.sequenceId];
   const seqName = sequence?.name || 'sequence';
@@ -21260,19 +21232,13 @@ async function cancelSequence(prospectId) {
 
 // Set sequence to a specific step
 async function setSequenceStep(prospectId, stepNumber) {
-  // Find prospect
-  let prospect = null;
-  for (const colKey of Object.keys(kanbanState.columns)) {
-    const found = kanbanState.columns[colKey].find(p => p && String(p.id) === String(prospectId));
-    if (found) {
-      prospect = found;
-      break;
-    }
-  }
-  if (!prospect || !prospect.activeSequence) {
+  // Find prospect in Campaign Board
+  const result = findProspectInCampaignBoard(prospectId);
+  if (!result || !result.item.activeSequence) {
     toast('Prospect not in a sequence', false);
     return;
   }
+  const prospect = result.item;
 
   const sequence = outreachSequencesState.sequences[prospect.activeSequence.sequenceId];
   if (!sequence) {
@@ -21316,21 +21282,20 @@ async function setQuickFollowUpDate(leadId, columnKey) {
     return;
   }
 
-  // Find the prospect
-  const items = kanbanState.columns[columnKey] || [];
-  const prospect = items.find(item => typeof item === 'object' && String(item.id) === String(leadId));
-
-  if (!prospect) {
+  // Find the prospect in Campaign Board
+  const result = findProspectInCampaignBoard(leadId);
+  if (!result) {
     toast('Prospect not found', false);
     return;
   }
+  const prospect = result.item;
 
   // Set the follow-up date
   prospect.followUpDate = dateInput.value;
 
   toast(`📅 Follow-up set for ${new Date(dateInput.value).toLocaleDateString()}`, true);
 
-  await saveKanban();
+  await saveCampaignBoards();
   renderKanban();
   refreshFollowUpDashboard();
   refreshContactStatusDashboard();
@@ -21339,21 +21304,20 @@ async function setQuickFollowUpDate(leadId, columnKey) {
 
 // Clear follow-up date from quick action popup
 async function clearFollowUpDate(leadId, columnKey) {
-  // Find the prospect
-  const items = kanbanState.columns[columnKey] || [];
-  const prospect = items.find(item => typeof item === 'object' && String(item.id) === String(leadId));
-
-  if (!prospect) {
+  // Find the prospect in Campaign Board
+  const result = findProspectInCampaignBoard(leadId);
+  if (!result) {
     toast('Prospect not found', false);
     return;
   }
+  const prospect = result.item;
 
   // Clear the follow-up date
   delete prospect.followUpDate;
 
   toast(`📅 Follow-up date cleared`, true);
 
-  await saveKanban();
+  await saveCampaignBoards();
   renderKanban();
   refreshFollowUpDashboard();
   refreshContactStatusDashboard();
@@ -21531,33 +21495,10 @@ async function toggleDoNotContact(leadId, columnKey, event) {
     event.preventDefault();
   }
 
-  // Find lead in the specified column or any column
-  let foundItem = null;
-  let foundColumn = columnKey;
-  let foundIndex = -1;
-
-  // First check the specified column
-  if (columnKey && kanbanState.columns[columnKey]) {
-    const items = kanbanState.columns[columnKey] || [];
-    foundIndex = items.findIndex(i => i && typeof i === 'object' && String(i.id) === String(leadId));
-    if (foundIndex !== -1) {
-      foundItem = items[foundIndex];
-    }
-  }
-
-  // If not found, search all columns
-  if (!foundItem) {
-    for (const colKey of Object.keys(kanbanState.columns)) {
-      const items = kanbanState.columns[colKey] || [];
-      const idx = items.findIndex(i => i && typeof i === 'object' && String(i.id) === String(leadId));
-      if (idx !== -1) {
-        foundItem = items[idx];
-        foundColumn = colKey;
-        foundIndex = idx;
-        break;
-      }
-    }
-  }
+  // Find lead in Campaign Board
+  const result = findProspectInCampaignBoard(leadId);
+  let foundItem = result?.item || null;
+  let foundColumn = result?.column || columnKey;
 
   if (!foundItem) {
     // Check prospect pool
