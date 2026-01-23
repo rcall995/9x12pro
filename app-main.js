@@ -16867,6 +16867,111 @@ function openCampaignBoardQuickAction(leadId, columnKey) {
   openCampaignBoardBusinessModal(prospect, columnKey, board);
 }
 
+// Build outreach history HTML for modal
+function buildOutreachHistoryHTML(prospect) {
+  const tracking = prospect.attemptTracking;
+  const contactTracking = prospect.contactTracking || {};
+  const channelStatus = prospect.channelStatus || {};
+
+  // Collect all outreach activity
+  const activities = [];
+
+  // From attemptTracking.attemptHistory (new system)
+  if (tracking?.attemptHistory?.length > 0) {
+    tracking.attemptHistory.forEach(attempt => {
+      const channelIcons = { sms: '📱', email: '📧', facebook: '📘', instagram: '📷', linkedin: '💼', call: '📞' };
+      const icon = channelIcons[attempt.channel] || '📤';
+      const date = attempt.date ? new Date(attempt.date).toLocaleDateString() : 'Unknown date';
+      const responded = attempt.responded ? ' <span class="text-green-600 font-medium">✓ Responded</span>' : '';
+      activities.push({
+        date: attempt.date || '',
+        html: `<div class="flex items-center gap-2 text-sm"><span>${icon}</span><span class="font-medium capitalize">${attempt.channel}</span><span class="text-gray-500">- ${date}</span>${responded}</div>`
+      });
+    });
+  }
+
+  // From channelStatus (shows sent status)
+  Object.entries(channelStatus).forEach(([channel, status]) => {
+    if (status?.sent && status?.sentDate && !tracking?.attemptHistory?.some(a => a.channel === channel)) {
+      const channelIcons = { sms: '📱', email: '📧', facebook: '📘', instagram: '📷', linkedin: '💼', call: '📞' };
+      const icon = channelIcons[channel] || '📤';
+      const date = new Date(status.sentDate).toLocaleDateString();
+      activities.push({
+        date: status.sentDate,
+        html: `<div class="flex items-center gap-2 text-sm"><span>${icon}</span><span class="font-medium capitalize">${channel}</span><span class="text-gray-500">- ${date}</span></div>`
+      });
+    }
+  });
+
+  // From legacy contactTracking
+  const legacyChannels = [
+    { key: 'emailed', icon: '📧', label: 'Email' },
+    { key: 'texted', icon: '📱', label: 'SMS' },
+    { key: 'called', icon: '📞', label: 'Call' },
+    { key: 'facebookMessaged', icon: '📘', label: 'Facebook' },
+    { key: 'linkedinMessaged', icon: '💼', label: 'LinkedIn' },
+    { key: 'dmed', icon: '📷', label: 'Instagram DM' }
+  ];
+
+  legacyChannels.forEach(({ key, icon, label }) => {
+    if (contactTracking[key] && activities.length === 0) {
+      activities.push({
+        date: '',
+        html: `<div class="flex items-center gap-2 text-sm"><span>${icon}</span><span class="font-medium">${label}</span><span class="text-green-600">✓ Contacted</span></div>`
+      });
+    }
+  });
+
+  // Sort by date (newest first)
+  activities.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  // Build attempt progress if tracking exists
+  let progressHTML = '';
+  if (tracking) {
+    const current = tracking.currentAttempt || 0;
+    const max = tracking.maxAttempts || 4;
+    const progress = Math.min(100, Math.round((current / max) * 100));
+    const nextChannel = tracking.nextChannel ? `Next: <span class="font-medium capitalize">${tracking.nextChannel}</span>` : '';
+
+    progressHTML = `
+      <div class="mb-3 p-2 bg-purple-50 rounded-lg">
+        <div class="flex justify-between text-xs mb-1">
+          <span>Attempt ${current} of ${max}</span>
+          <span class="text-purple-600 font-medium">${progress}%</span>
+        </div>
+        <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div class="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full" style="width: ${progress}%"></div>
+        </div>
+        ${nextChannel ? `<div class="text-xs text-gray-600 mt-1">${nextChannel}</div>` : ''}
+      </div>
+    `;
+  }
+
+  if (activities.length === 0 && !tracking) {
+    return `
+      <div class="p-4 border-b">
+        <div class="text-xs text-gray-600 mb-2 font-medium">📊 Outreach History</div>
+        <div class="text-center py-3 text-gray-500 text-sm">
+          <span class="text-xl">📭</span>
+          <p class="mt-1">No outreach recorded yet</p>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="p-4 border-b bg-gradient-to-r from-purple-50 to-blue-50">
+      <div class="text-xs text-gray-600 mb-2 font-medium">📊 Outreach History</div>
+      ${progressHTML}
+      ${activities.length > 0 ? `
+        <div class="space-y-2">
+          ${activities.map(a => a.html).join('')}
+        </div>
+      ` : '<div class="text-sm text-gray-500">No outreach sent yet</div>'}
+    </div>
+  `;
+}
+
 // Business modal for Campaign Board items
 function openCampaignBoardBusinessModal(prospect, columnKey, board) {
   const businessName = prospect.businessName || prospect.name || 'Unknown Business';
@@ -16995,6 +17100,40 @@ function openCampaignBoardBusinessModal(prospect, columnKey, board) {
           </div>
         ` : ''}
 
+        <!-- Outreach History -->
+        ${buildOutreachHistoryHTML(prospect)}
+
+        <!-- Mark Outreach Sent -->
+        <div class="p-4 border-b">
+          <div class="text-xs text-gray-600 mb-2 font-medium">📤 Mark Outreach Sent</div>
+          <div class="grid grid-cols-3 gap-2">
+            <button onclick="markCampaignBoardOutreach('${leadId}', '${columnKey}', 'sms')"
+                    class="px-2 py-2 bg-green-100 hover:bg-green-200 border border-green-300 rounded-lg text-xs font-medium">
+              📱 SMS
+            </button>
+            <button onclick="markCampaignBoardOutreach('${leadId}', '${columnKey}', 'email')"
+                    class="px-2 py-2 bg-blue-100 hover:bg-blue-200 border border-blue-300 rounded-lg text-xs font-medium">
+              📧 Email
+            </button>
+            <button onclick="markCampaignBoardOutreach('${leadId}', '${columnKey}', 'call')"
+                    class="px-2 py-2 bg-yellow-100 hover:bg-yellow-200 border border-yellow-300 rounded-lg text-xs font-medium">
+              📞 Call
+            </button>
+            <button onclick="markCampaignBoardOutreach('${leadId}', '${columnKey}', 'facebook')"
+                    class="px-2 py-2 bg-blue-100 hover:bg-blue-200 border border-blue-300 rounded-lg text-xs font-medium">
+              📘 Facebook
+            </button>
+            <button onclick="markCampaignBoardOutreach('${leadId}', '${columnKey}', 'instagram')"
+                    class="px-2 py-2 bg-pink-100 hover:bg-pink-200 border border-pink-300 rounded-lg text-xs font-medium">
+              📷 Instagram
+            </button>
+            <button onclick="markCampaignBoardOutreach('${leadId}', '${columnKey}', 'linkedin')"
+                    class="px-2 py-2 bg-blue-100 hover:bg-blue-200 border border-blue-300 rounded-lg text-xs font-medium">
+              💼 LinkedIn
+            </button>
+          </div>
+        </div>
+
         <!-- Move to Column -->
         <div class="p-4 border-b">
           <div class="text-xs text-gray-600 mb-2 font-medium">Move to Column</div>
@@ -17024,6 +17163,106 @@ function openCampaignBoardBusinessModal(prospect, columnKey, board) {
 function closeCampaignBoardModal() {
   const modal = document.getElementById('campaignBoardModal');
   if (modal) modal.remove();
+}
+
+// Mark outreach sent for a campaign board item
+async function markCampaignBoardOutreach(leadId, columnKey, channel) {
+  const board = getCurrentCampaignBoard();
+  if (!board) return;
+
+  const items = board.columns[columnKey] || [];
+  const business = items.find(item => {
+    const itemId = item.id || item._id || item.place_id || item.businessName;
+    return String(itemId) === String(leadId);
+  });
+
+  if (!business) {
+    toast('Business not found', false);
+    return;
+  }
+
+  const now = new Date().toISOString();
+
+  // Initialize tracking structures if needed
+  if (!business.attemptTracking) {
+    business.attemptTracking = {
+      currentAttempt: 1,
+      maxAttempts: board.config?.maxAttempts || 4,
+      attemptHistory: [],
+      nextChannel: null,
+      nextActionDate: null
+    };
+  }
+
+  if (!business.channelStatus) {
+    business.channelStatus = {
+      sms: { available: !!business.phone, sent: false },
+      email: { available: !!business.email, sent: false },
+      facebook: { available: !!business.facebook, sent: false },
+      instagram: { available: !!business.instagram, sent: false },
+      linkedin: { available: !!business.linkedin, sent: false },
+      call: { available: !!business.phone, sent: false }
+    };
+  }
+
+  // Record the outreach
+  business.channelStatus[channel] = business.channelStatus[channel] || { available: true, sent: false };
+  business.channelStatus[channel].sent = true;
+  business.channelStatus[channel].sentDate = now;
+
+  // Add to attempt history
+  business.attemptTracking.attemptHistory.push({
+    date: now,
+    channel: channel,
+    sent: true,
+    responded: false
+  });
+
+  // Update attempt count if this is a new attempt cycle
+  const attemptsOnThisRound = business.attemptTracking.attemptHistory.filter(h => {
+    const historyDate = new Date(h.date);
+    const daysSinceFirst = business.attemptTracking.attemptHistory.length > 0
+      ? (historyDate - new Date(business.attemptTracking.attemptHistory[0].date)) / (1000 * 60 * 60 * 24)
+      : 0;
+    return daysSinceFirst < (board.config?.daysBetweenAttempts || 3);
+  }).length;
+
+  if (attemptsOnThisRound === 1) {
+    business.attemptTracking.currentAttempt = Math.min(
+      (business.attemptTracking.currentAttempt || 0) + 1,
+      business.attemptTracking.maxAttempts
+    );
+  }
+
+  // Calculate next channel
+  const priority = board.config?.channelPriority || ['sms', 'email', 'facebook', 'call'];
+  const nextChannel = priority.find(ch =>
+    business.channelStatus[ch]?.available && !business.channelStatus[ch]?.sent
+  );
+  business.attemptTracking.nextChannel = nextChannel || null;
+
+  // Move to attempting column if in queued
+  if (columnKey === 'queued') {
+    const queuedItems = board.columns['queued'];
+    const idx = queuedItems.findIndex(item => {
+      const itemId = item.id || item._id || item.place_id || item.businessName;
+      return String(itemId) === String(leadId);
+    });
+    if (idx !== -1) {
+      queuedItems.splice(idx, 1);
+      board.columns['attempting'].push(business);
+    }
+  }
+
+  await saveCampaignBoards();
+  closeCampaignBoardModal();
+  renderCampaignBoard();
+
+  const channelNames = { sms: 'SMS', email: 'Email', call: 'Call', facebook: 'Facebook', instagram: 'Instagram', linkedin: 'LinkedIn' };
+  toast(`✅ ${channelNames[channel] || channel} marked as sent!`);
+
+  // Increment daily goal counter
+  incrementDailyGoal();
 }
 
 // Email reply templates for follow-up
