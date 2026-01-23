@@ -1111,6 +1111,68 @@ const campaignBoardsState = {
 //   }
 // }
 
+// ========== CAMPAIGN BOARD COMPATIBILITY LAYER ==========
+// Maps Campaign Board (6 columns) to legacy kanban view (4 columns)
+// This allows Pipeline tab to read from Campaign Board while keeping existing UI
+
+function getLegacyColumnFromBoard(legacyKey) {
+  const board = getCurrentCampaignBoard();
+  if (!board) return [];
+
+  const mapping = {
+    'prospect-list': board.columns['queued'] || [],
+    'to-contact': board.columns['attempting'] || [],
+    'in-progress': board.columns['negotiating'] || [],
+    'committed': [
+      ...(board.columns['invoice-sent'] || []),
+      ...(board.columns['proof-approved'] || [])
+    ]
+  };
+  return mapping[legacyKey] || [];
+}
+
+// Map legacy column movement to Campaign Board columns
+function mapLegacyColumnToCampaignBoard(legacyColumn) {
+  const mapping = {
+    'prospect-list': 'queued',
+    'to-contact': 'attempting',
+    'in-progress': 'negotiating',
+    'committed': 'invoice-sent' // Default committed maps to invoice-sent
+  };
+  return mapping[legacyColumn] || legacyColumn;
+}
+
+// Check if a business is already in any Campaign Board column
+function isInCampaignBoard(placeId) {
+  if (!placeId) return false;
+  for (const board of Object.values(campaignBoardsState.boards)) {
+    if (!board || !board.columns) continue;
+    for (const column of Object.values(board.columns)) {
+      if (!Array.isArray(column)) continue;
+      if (column.some(item => item && (item.placeId === placeId || item.id === placeId))) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Get all placeIds that are in Campaign Board (for "In System" checks)
+function getCampaignBoardPlaceIds() {
+  const placeIds = new Set();
+  const board = getCurrentCampaignBoard();
+  if (!board || !board.columns) return placeIds;
+
+  Object.values(board.columns).forEach(column => {
+    if (!Array.isArray(column)) return;
+    column.forEach(item => {
+      if (item && item.placeId) placeIds.add(item.placeId);
+      if (item && item.id) placeIds.add(String(item.id));
+    });
+  });
+  return placeIds;
+}
+
 // DAILY OUTREACH GOAL STATE
 const dailyGoalState = {
   dailyGoal: 10,               // Default goal: contact 10 businesses per day
@@ -7651,29 +7713,33 @@ function callSelected() {
 }
 
 // Helper function to move prospect between kanban columns
+// Now uses Campaign Board as single source of truth
 function moveProspectToColumn(prospectId, fromColumn, toColumn) {
-  const fromItems = kanbanState.columns[fromColumn] || [];
-  const index = fromItems.findIndex(item => String(item.id) === String(prospectId));
+  const board = getCurrentCampaignBoard();
+  if (!board) return;
 
-  if (index === -1) return;
+  // Map legacy column names to Campaign Board columns
+  const fromBoardCol = mapLegacyColumnToCampaignBoard(fromColumn);
+  const toBoardCol = mapLegacyColumnToCampaignBoard(toColumn);
 
-  const prospect = fromItems.splice(index, 1)[0];
-  kanbanState.columns[toColumn] = kanbanState.columns[toColumn] || [];
-  kanbanState.columns[toColumn].push(prospect);
+  // Use moveCampaignBoardItem for the actual move
+  const success = moveCampaignBoardItem(prospectId, fromBoardCol, toBoardCol, board);
 
-  saveKanban();
-  renderKanban();
+  if (success) {
+    saveCampaignBoards();
+    renderKanban();
 
-  // Update the selected prospect's column reference
-  if (closeDealsState.selectedProspect?.id === prospectId) {
-    closeDealsState.selectedProspect.kanbanColumn = toColumn;
-    closeDealsState.selectedProspect.closeStatus =
-      toColumn === 'prospect-list' ? 'new' :
-      toColumn === 'to-contact' || toColumn === 'in-progress' ? 'contacted' :
-      'interested';
+    // Update the selected prospect's column reference
+    if (closeDealsState.selectedProspect?.id === prospectId) {
+      closeDealsState.selectedProspect.kanbanColumn = toColumn;
+      closeDealsState.selectedProspect.closeStatus =
+        toColumn === 'prospect-list' ? 'new' :
+        toColumn === 'to-contact' || toColumn === 'in-progress' ? 'contacted' :
+        'interested';
+    }
+
+    renderCloseDealsProspects();
   }
-
-  renderCloseDealsProspects();
 }
 
 // Update prospect status from Close Deals (quick status change)
@@ -9599,10 +9665,11 @@ function toggleProspectingSelection(leadId) {
   renderKanban();
 }
 
-// Select all prospects in the prospect-list column
+// Select all prospects in the prospect-list column (uses Campaign Board)
 function selectAllProspects() {
-  const prospectingColumn = 'prospect-list';
-  const items = kanbanState.columns[prospectingColumn] || [];
+  const board = getCurrentCampaignBoard();
+  // Campaign Board 'queued' = legacy 'prospect-list'
+  const items = board?.columns?.['queued'] || [];
 
   // Clear existing selections first
   prospectingSelectionState.selectedIds.clear();
@@ -9650,9 +9717,11 @@ function toggleToContactSelection(leadId) {
   renderKanban();
 }
 
-// Select all items in To Contact column
+// Select all items in To Contact column (uses Campaign Board)
 function selectAllToContact() {
-  const items = kanbanState.columns['to-contact'] || [];
+  const board = getCurrentCampaignBoard();
+  // Campaign Board 'attempting' = legacy 'to-contact'
+  const items = board?.columns?.['attempting'] || [];
 
   if (items.length === 0) {
     toast('No items in To Contact column', false);
@@ -9694,9 +9763,11 @@ function toggleInProgressSelection(leadId) {
   renderKanban();
 }
 
-// Select all items in In Progress column
+// Select all items in In Progress column (uses Campaign Board)
 function selectAllInProgress() {
-  const items = kanbanState.columns['in-progress'] || [];
+  const board = getCurrentCampaignBoard();
+  // Campaign Board 'negotiating' = legacy 'in-progress'
+  const items = board?.columns?.['negotiating'] || [];
   if (items.length === 0) {
     toast('No items in In Progress column', false);
     return;
@@ -9731,9 +9802,13 @@ function toggleCommittedSelection(leadId) {
   renderKanban();
 }
 
-// Select all items in Committed column
+// Select all items in Committed column (uses Campaign Board)
 function selectAllCommitted() {
-  const items = kanbanState.columns['committed'] || [];
+  const board = getCurrentCampaignBoard();
+  // Campaign Board 'invoice-sent' + 'proof-approved' = legacy 'committed'
+  const invoiceSent = board?.columns?.['invoice-sent'] || [];
+  const proofApproved = board?.columns?.['proof-approved'] || [];
+  const items = [...invoiceSent, ...proofApproved];
   if (items.length === 0) {
     toast('No items in Committed column', false);
     return;
@@ -9758,10 +9833,17 @@ function clearCommittedSelection() {
 }
 
 // Generic function to move selected items between adjacent columns
+// Now uses Campaign Board as single source of truth
 async function moveSelectedBetweenColumns(fromColumn, toColumn, selectionState) {
   const selectedCount = selectionState.selectedIds.size;
   if (selectedCount === 0) {
     toast('No items selected', false);
+    return;
+  }
+
+  const board = getCurrentCampaignBoard();
+  if (!board) {
+    toast('No campaign board found', false);
     return;
   }
 
@@ -9776,46 +9858,30 @@ async function moveSelectedBetweenColumns(fromColumn, toColumn, selectionState) 
     return;
   }
 
-  const fromItems = kanbanState.columns[fromColumn] || [];
-  if (!kanbanState.columns[toColumn]) {
-    kanbanState.columns[toColumn] = [];
+  // Map legacy column names to Campaign Board columns
+  const fromBoardCol = mapLegacyColumnToCampaignBoard(fromColumn);
+  const toBoardCol = mapLegacyColumnToCampaignBoard(toColumn);
+
+  const fromItems = board.columns[fromBoardCol] || [];
+  if (!board.columns[toBoardCol]) {
+    board.columns[toBoardCol] = [];
   }
 
-  const movedItems = [];
+  let movedCount = 0;
 
-  // Collect all selected items
+  // Move each selected item using Campaign Board
   selectionState.selectedIds.forEach(leadId => {
-    const leadIdStr = String(leadId);
-    const leadIndex = fromItems.findIndex(item => typeof item === 'object' && String(item.id) === leadIdStr);
-    if (leadIndex !== -1) {
-      movedItems.push({
-        item: fromItems[leadIndex],
-        index: leadIndex
-      });
-    }
-  });
-
-  // Sort by index descending to safely remove from array
-  movedItems.sort((a, b) => b.index - a.index);
-
-  // Move each item
-  movedItems.forEach(({ item, index }) => {
-    // Add to target column at the beginning
-    kanbanState.columns[toColumn].unshift({
-      ...item,
-      movedDate: new Date().toISOString()
-    });
-    // Remove from source column
-    kanbanState.columns[fromColumn].splice(index, 1);
+    const success = moveCampaignBoardItem(leadId, fromBoardCol, toBoardCol, board);
+    if (success) movedCount++;
   });
 
   // Clear selections
   selectionState.selectedIds.clear();
 
-  await saveKanban();
+  await saveCampaignBoards();
   renderKanban();
 
-  toast(`✅ Moved ${selectedCount} item${selectedCount === 1 ? '' : 's'} to ${columnTitles[toColumn]}`, true);
+  toast(`✅ Moved ${movedCount} item${movedCount === 1 ? '' : 's'} to ${columnTitles[toColumn]}`, true);
 }
 
 // Move selected in-progress items left (to to-contact)
@@ -9844,6 +9910,8 @@ async function moveSelectedProspectListRight() {
 }
 
 // Move selected items from To Contact back to Prospect List (column 2 -> column 1)
+// Move selected items from To Contact back to Prospect List
+// Now uses Campaign Board as single source of truth
 async function moveSelectedToProspectList() {
   console.log('🔵 moveSelectedToProspectList CALLED - Starting');
   const selectedCount = toContactSelectionState.selectedIds.size;
@@ -9858,63 +9926,34 @@ async function moveSelectedToProspectList() {
     return;
   }
 
-  const fromColumn = 'to-contact';
-  const toColumn = 'prospect-list';
-  const fromItems = kanbanState.columns[fromColumn] || [];
-  const toItems = kanbanState.columns[toColumn] || [];
+  const board = getCurrentCampaignBoard();
+  if (!board) {
+    toast('No campaign board found', false);
+    return;
+  }
 
-  console.log(`🔵 moveSelectedToProspectList - to-contact has ${fromItems.length} items before move`);
+  // Map: to-contact -> attempting, prospect-list -> queued
+  let movedCount = 0;
 
-  const movedItems = [];
-
-  // Collect all selected items
+  // Move each selected item using Campaign Board
   toContactSelectionState.selectedIds.forEach(leadId => {
-    const leadIdStr = String(leadId);
-    const leadIndex = fromItems.findIndex(item => typeof item === 'object' && String(item.id) === leadIdStr);
-    console.log(`🔵 Looking for leadId: ${leadIdStr}, found at index: ${leadIndex}`);
-    if (leadIndex !== -1) {
-      movedItems.push({
-        item: fromItems[leadIndex],
-        index: leadIndex
-      });
+    const success = moveCampaignBoardItem(leadId, 'attempting', 'queued', board);
+    if (success) {
+      movedCount++;
+      console.log(`✅ Moved to queued (Prospect List)`);
     }
-  });
-
-  // Sort by index descending to safely remove from array
-  movedItems.sort((a, b) => b.index - a.index);
-
-  // Move each item
-  movedItems.forEach(({ item, index }) => {
-    // Check if item already exists in prospect-list (prevent duplicates)
-    const existingIndex = toItems.findIndex(p =>
-      String(p.id) === String(item.id) ||
-      (p.placeId && p.placeId === item.placeId) ||
-      (p.businessName && p.businessName.toLowerCase() === item.businessName.toLowerCase())
-    );
-
-    if (existingIndex === -1) {
-      // Add to prospect-list at the beginning
-      kanbanState.columns[toColumn].unshift({
-        ...item,
-        movedBackDate: new Date().toISOString()
-      });
-    }
-
-    // Remove from to-contact
-    kanbanState.columns[fromColumn].splice(index, 1);
   });
 
   // Clear selections
   toContactSelectionState.selectedIds.clear();
 
-  console.log(`🔵 moveSelectedToProspectList - to-contact now has ${kanbanState.columns[fromColumn].length} items`);
-  console.log(`🔵 moveSelectedToProspectList - prospect-list now has ${kanbanState.columns[toColumn].length} items`);
+  console.log(`🔵 moveSelectedToProspectList - Moved ${movedCount} items`);
 
-  await saveKanban();
+  await saveCampaignBoards();
   updateBulkSendSection();
   renderKanban();
 
-  toast(`✅ Moved ${selectedCount} item${selectedCount === 1 ? '' : 's'} back to Prospect List`, true);
+  toast(`✅ Moved ${movedCount} item${movedCount === 1 ? '' : 's'} back to Prospect List`, true);
   console.log('🔵 moveSelectedToProspectList - COMPLETE');
 }
 
@@ -9964,6 +10003,7 @@ function updateMoveToPoolButton() {
 }
 
 // Move all selected prospects to Prospect Pool (bulk operation)
+// Now uses Campaign Board as single source of truth
 async function moveSelectedToPool() {
   console.log('🔵 moveSelectedToPool CALLED - Starting');
   const selectedCount = prospectingSelectionState.selectedIds.size;
@@ -9978,9 +10018,15 @@ async function moveSelectedToPool() {
     return;
   }
 
-  const prospectingColumn = 'prospect-list';
-  const items = kanbanState.columns[prospectingColumn] || [];
-  console.log(`🔵 moveSelectedToPool - prospect-list has ${items.length} items before removal`);
+  const board = getCurrentCampaignBoard();
+  if (!board) {
+    toast('No campaign board found', false);
+    return;
+  }
+
+  // Campaign Board 'queued' = legacy 'prospect-list'
+  const items = board.columns['queued'] || [];
+  console.log(`🔵 moveSelectedToPool - queued has ${items.length} items before removal`);
   const movedProspects = [];
 
   // Collect all selected prospects
@@ -10086,20 +10132,20 @@ async function moveSelectedToPool() {
       });
     }
 
-    // Remove from prospecting
-    kanbanState.columns[prospectingColumn].splice(index, 1);
+    // Remove from Campaign Board 'queued' column
+    board.columns['queued'].splice(index, 1);
   });
 
   // Clear selections
   prospectingSelectionState.selectedIds.clear();
 
-  console.log(`🔵 moveSelectedToPool - prospect-list has ${kanbanState.columns[prospectingColumn].length} items after removal`);
+  console.log(`🔵 moveSelectedToPool - queued has ${board.columns['queued'].length} items after removal`);
   console.log('🔵 moveSelectedToPool - About to save');
 
   await saveManualProspects(); // AWAIT to ensure data is saved before continuing
-  await saveKanban(); // AWAIT to prevent race condition
+  await saveCampaignBoards(); // Save Campaign Board (single source of truth)
 
-  console.log(`🔵 moveSelectedToPool - After saveKanban, prospect-list has ${kanbanState.columns[prospectingColumn]?.length} items`);
+  console.log(`🔵 moveSelectedToPool - After saveCampaignBoards, queued has ${board.columns['queued']?.length} items`);
   console.log('🔵 moveSelectedToPool - About to renderKanban');
   renderKanban();
 
@@ -10108,6 +10154,7 @@ async function moveSelectedToPool() {
 }
 
 // Move all selected prospects from Prospect List (column 1) to To Contact (column 2)
+// Now uses Campaign Board as single source of truth
 async function moveSelectedToContact() {
   console.log('🔵 moveSelectedToContact CALLED - Starting');
   const selectedCount = prospectingSelectionState.selectedIds.size;
@@ -10117,58 +10164,51 @@ async function moveSelectedToContact() {
     return;
   }
 
-  const fromColumn = 'prospect-list';
-  const toColumn = 'to-contact';
-  const fromItems = kanbanState.columns[fromColumn] || [];
-  const movedItems = [];
+  const board = getCurrentCampaignBoard();
+  if (!board) {
+    toast('No campaign board found', false);
+    return;
+  }
 
-  // Collect all selected items
+  // Map: prospect-list -> queued, to-contact -> attempting
+  let movedCount = 0;
+
+  // Move each selected item using Campaign Board
   prospectingSelectionState.selectedIds.forEach(leadId => {
-    const leadIdStr = String(leadId);
-    const leadIndex = fromItems.findIndex(item => typeof item === 'object' && String(item.id) === leadIdStr);
-    if (leadIndex !== -1) {
-      movedItems.push({
-        item: fromItems[leadIndex],
-        index: leadIndex
-      });
+    const success = moveCampaignBoardItem(leadId, 'queued', 'attempting', board);
+    if (success) {
+      movedCount++;
+      console.log(`✅ Moved to attempting (To Contact)`);
     }
-  });
-
-  // Sort by index descending to safely remove from array
-  movedItems.sort((a, b) => b.index - a.index);
-
-  // Initialize target column if needed
-  kanbanState.columns[toColumn] = kanbanState.columns[toColumn] || [];
-
-  // Move each item
-  movedItems.forEach(({ item, index }) => {
-    // Remove from source column
-    kanbanState.columns[fromColumn].splice(index, 1);
-    // Add to target column
-    kanbanState.columns[toColumn].push(item);
-    console.log(`✅ Moved ${item.businessName} to To Contact`);
   });
 
   // Clear selection
   prospectingSelectionState.selectedIds.clear();
 
   // Save and re-render
-  await saveKanban();
+  await saveCampaignBoards();
   renderKanban();
 
-  toast(`✅ Moved ${selectedCount} prospect${selectedCount === 1 ? '' : 's'} to To Contact`, true);
+  toast(`✅ Moved ${movedCount} prospect${movedCount === 1 ? '' : 's'} to To Contact`, true);
   console.log('🔵 moveSelectedToContact - COMPLETE');
 }
 
 // Legacy function - kept for backwards compatibility but now uses bulk selection
+// Now uses Campaign Board as single source of truth
 async function moveProspectToPool(leadId, event) {
   if (event) {
     event.stopPropagation();
     event.preventDefault();
   }
 
-  const prospectingColumn = 'prospect-list';
-  const items = kanbanState.columns[prospectingColumn] || [];
+  const board = getCurrentCampaignBoard();
+  if (!board) {
+    toast('No campaign board found', false);
+    return;
+  }
+
+  // Campaign Board 'queued' = legacy 'prospect-list'
+  const items = board.columns['queued'] || [];
   const leadIndex = items.findIndex(item => typeof item === 'object' && item.id === leadId);
 
   if (leadIndex === -1) {
@@ -10204,14 +10244,14 @@ async function moveProspectToPool(leadId, event) {
     });
   }
 
-  // Remove from prospecting
-  kanbanState.columns[prospectingColumn].splice(leadIndex, 1);
+  // Remove from Campaign Board 'queued' column
+  board.columns['queued'].splice(leadIndex, 1);
 
   // Clear this prospect from selection if it was selected
   prospectingSelectionState.selectedIds.delete(leadId);
 
   saveManualProspects();
-  await saveKanban(); // AWAIT to prevent race condition
+  await saveCampaignBoards(); // Save Campaign Board (single source of truth)
   renderKanban();
 
   toast(`"${lead.businessName}" moved to Prospect Pool for ${state.current?.Town || 'current campaign'}`, true);
@@ -10778,9 +10818,10 @@ function renderProspectPool() {
   let totalProspects = 0;
   let alreadyInSystem = 0;
 
-  // Check what's already in the KANBAN (by placeId AND by normalized name)
-  // NOTE: Only check kanban columns, NOT CRM clients - we want to show "In System" only for
-  // prospects that are currently in the kanban pipeline, not for existing CRM clients
+  // Check what's already in the Campaign Board (by placeId AND by normalized name)
+  // NOTE: Only check Campaign Board columns, NOT CRM clients - we want to show "In System" only for
+  // prospects that are currently in the pipeline, not for existing CRM clients
+  // Uses Campaign Board as single source of truth
   const existingPlaceIds = new Set();
   const existingNormalizedNames = new Set();
 
@@ -10795,20 +10836,27 @@ function renderProspectPool() {
       .trim();
   };
 
-  Object.values(kanbanState.columns).forEach(column => {
-    if (Array.isArray(column)) {
-      column.forEach(lead => {
-        if (lead && lead.placeId) {
-          existingPlaceIds.add(lead.placeId);
-        }
-        // Also track by normalized name
-        const leadName = lead?.businessName || lead?.name || lead?.title || '';
-        if (leadName) {
-          existingNormalizedNames.add(normalizeForMatch(leadName));
-        }
-      });
-    }
-  });
+  // Get Campaign Board data (single source of truth)
+  const board = getCurrentCampaignBoard();
+  if (board && board.columns) {
+    Object.values(board.columns).forEach(column => {
+      if (Array.isArray(column)) {
+        column.forEach(lead => {
+          if (lead && lead.placeId) {
+            existingPlaceIds.add(lead.placeId);
+          }
+          if (lead && lead.id) {
+            existingPlaceIds.add(String(lead.id));
+          }
+          // Also track by normalized name
+          const leadName = lead?.businessName || lead?.name || lead?.title || '';
+          if (leadName) {
+            existingNormalizedNames.add(normalizeForMatch(leadName));
+          }
+        });
+      }
+    });
+  }
 
   // DON'T add CRM clients to "In System" check - existing clients should still be
   // available to add to kanban for the current campaign
@@ -11742,17 +11790,22 @@ async function addFromProspectPool() {
 
     console.log('🔵 Total selected businesses:', selectedBusinesses.length, '(deduplicated)');
 
-    // Fetch details and add to kanban
-    const prospectingColumn = 'prospect-list';
-    const existingLeads = kanbanState.columns[prospectingColumn] || [];
-    console.log('🔵 Existing leads in prospect-list:', existingLeads.length);
+    // Fetch details and add to Campaign Board (single source of truth)
+    // Ensure Campaign Board exists for this mailer
+    const board = getCurrentCampaignBoard();
+    if (!board) {
+      toast('No campaign selected. Please select a campaign first.', false);
+      btn.disabled = false;
+      btn.textContent = originalText;
+      return;
+    }
+    if (!board.columns) board.columns = {};
+    if (!board.columns['queued']) board.columns['queued'] = [];
 
-    // Get existing placeIds to prevent duplicates (check all leads, not just current mailer)
-    const existingPlaceIds = new Set(
-      existingLeads
-        .filter(lead => lead.placeId)
-        .map(lead => lead.placeId)
-    );
+    console.log('🔵 Existing leads in Campaign Board queued:', board.columns['queued'].length);
+
+    // Get existing placeIds to prevent duplicates (check Campaign Board - single source of truth)
+    const existingPlaceIds = getCampaignBoardPlaceIds();
 
     let addedCount = 0;
     let skippedCount = 0;
@@ -11928,34 +11981,24 @@ async function addFromProspectPool() {
         };
       }
 
-      kanbanState.columns[prospectingColumn].push(newLead);
+      // Add to Campaign Board (single source of truth)
+      const boardBusinessId = newLead.placeId || newLead.id;
+      const existsInBoard = Object.values(board.columns).some(col =>
+        col.some(item => (item.placeId || item.id) === boardBusinessId)
+      );
 
-      // ALSO add to Campaign Board if one exists for this mailer
-      if (currentMailerId && campaignBoardsState.boards[currentMailerId]) {
-        const board = campaignBoardsState.boards[currentMailerId];
-        if (!board.columns) board.columns = {};
-        if (!board.columns['queued']) board.columns['queued'] = [];
-
-        // Check if not already in Campaign Board
-        const boardBusinessId = newLead.placeId || newLead.id;
-        const existsInBoard = Object.values(board.columns).some(col =>
-          col.some(item => (item.placeId || item.id) === boardBusinessId)
-        );
-
-        if (!existsInBoard) {
-          const enhancedLead = enhanceBusinessForCampaignBoard(newLead, board.config?.maxAttempts || 4);
-          board.columns['queued'].push(enhancedLead);
-          console.log('📊 Also added to Campaign Board queued column:', newLead.businessName);
-        }
+      if (!existsInBoard) {
+        const enhancedLead = enhanceBusinessForCampaignBoard(newLead, board.config?.maxAttempts || 4);
+        board.columns['queued'].push(enhancedLead);
+        console.log('📊 Added to Campaign Board queued column:', newLead.businessName);
+        addedCount++;
+      } else {
+        skippedCount++;
       }
-
-      addedCount++;
     }
 
-    await saveKanban();
-
-    // Save Campaign Boards if we added any
-    if (currentMailerId && campaignBoardsState.boards[currentMailerId] && addedCount > 0) {
+    // Save Campaign Boards (single source of truth)
+    if (addedCount > 0) {
       await saveCampaignBoards();
       console.log('📊 Campaign Boards saved with new prospects');
     }
@@ -12022,16 +12065,10 @@ function selectAllInCategory(category) {
   const hasZipFilter = !allZipsSelected && activeZips.size > 0;
 
   // Build set of IDs already in system (to skip)
-  // NOTE: Only check kanban columns, NOT CRM clients - existing clients should still be
-  // available to add to kanban for the current campaign (matches renderProspectPool behavior)
-  const existingPlaceIds = new Set();
-  Object.values(kanbanState.columns).forEach(column => {
-    if (Array.isArray(column)) {
-      column.forEach(lead => {
-        if (lead && lead.placeId) existingPlaceIds.add(lead.placeId);
-      });
-    }
-  });
+  // NOTE: Only check Campaign Board columns, NOT CRM clients - existing clients should still be
+  // available to add for the current campaign (matches renderProspectPool behavior)
+  // Uses Campaign Board as single source of truth
+  const existingPlaceIds = getCampaignBoardPlaceIds();
 
   // First pass: collect all eligible IDs in this category (respecting ZIP filter)
   const eligibleIds = new Set();
@@ -12479,8 +12516,9 @@ window.filterProspectPool = filterProspectPool;
 /* ========= PROSPECT POOL CSV EXPORT/IMPORT ========= */
 
 function exportProspectListCSV() {
-  // Export ONLY prospects from the "Prospect List" kanban column
-  const prospectList = kanbanState.columns['prospect-list'] || [];
+  // Export ONLY prospects from the "Prospect List" (Campaign Board 'queued')
+  const board = getCurrentCampaignBoard();
+  const prospectList = board?.columns?.['queued'] || [];
 
   if (prospectList.length === 0) {
     toast('⚠️ No prospects in Prospect List to export', false);
@@ -15119,89 +15157,42 @@ window.markProspectNotInterested = markProspectNotInterested;
 
 /* ========= KANBAN FUNCTIONS ========= */
 
+// Load pipeline data - Campaign Board is now the single source of truth
 async function loadKanban() {
-  try {
-    // Try loading from cloud first
-    const cloudData = await loadFromCloud('kanban');
-
-    if (cloudData && typeof cloudData === 'object' && Object.keys(cloudData).length > 0) {
-      kanbanState.columns = cloudData;
-    } else {
-      // Fallback to IndexedDB
-      const saved = await idbGet('mailslot-kanban');
-      if (saved) {
-        kanbanState.columns = saved;
-      }
-      // Sync default/IndexedDB data to cloud if cloud was empty
-      saveToCloud('kanban', kanbanState.columns).catch(e => console.warn('Failed to sync kanban to cloud:', e));
-    }
-
-    // MIGRATION: Move data from old column keys to new keys
-    const columnMigrations = {
-      'new-lead': 'prospect-list',
-      'proposal-sent': 'to-contact',
-      'negotiation': 'in-progress',
-      'closed-won': 'committed'
-    };
-
-    let migrationNeeded = false;
-    Object.keys(columnMigrations).forEach(oldKey => {
-      if (kanbanState.columns[oldKey] && Array.isArray(kanbanState.columns[oldKey]) && kanbanState.columns[oldKey].length > 0) {
-        const newKey = columnMigrations[oldKey];
-        console.log(`🔄 Migrating ${kanbanState.columns[oldKey].length} items from '${oldKey}' to '${newKey}'`);
-
-        // Initialize new column if it doesn't exist
-        if (!kanbanState.columns[newKey]) {
-          kanbanState.columns[newKey] = [];
-        }
-
-        // Move all items from old key to new key
-        kanbanState.columns[newKey].push(...kanbanState.columns[oldKey]);
-
-        // Delete old key
-        delete kanbanState.columns[oldKey];
-        migrationNeeded = true;
-      }
-    });
-
-    // Save if migration occurred
-    if (migrationNeeded) {
-      console.log('✅ Column migration complete, saving to cloud...');
-      await saveToCloud('kanban', kanbanState.columns).catch(e => console.warn('Failed to save migrated kanban:', e));
-      await idbSet('mailslot-kanban', kanbanState.columns);
-    }
-
-    // Ensure all required columns exist
-    const requiredColumns = ['prospect-list', 'to-contact', 'in-progress', 'committed'];
-    requiredColumns.forEach(col => {
-      if (!kanbanState.columns[col]) {
-        kanbanState.columns[col] = [];
-      }
-    });
-
-    // Clean up any null/undefined items from all columns
-    Object.keys(kanbanState.columns).forEach(key => {
-      if (Array.isArray(kanbanState.columns[key])) {
-        kanbanState.columns[key] = kanbanState.columns[key].filter(item => item != null);
-      }
-    });
-
-    // Deduplicate data after loading (clean up any existing duplicates)
-    const duplicatesRemoved = deduplicateKanbanData();
-    if (duplicatesRemoved > 0) {
-      // Save cleaned data back to database
-      await saveToCloud('kanban', kanbanState.columns).catch(e => console.warn('Failed to save deduplicated kanban:', e));
-    }
-
-  } catch(e) {
-    console.error('Error loading kanban:', e);
-  }
-
-  // Also load campaign boards data
+  // Load Campaign Boards data (single source of truth)
   try {
     await loadCampaignBoards();
+    console.log('✅ Campaign Boards loaded');
   } catch (e) {
     console.error('Error loading campaign boards:', e);
+  }
+
+  // Migration: Check if there's legacy kanban data that needs to be migrated
+  // This only runs once - after migration, legacy data is no longer used
+  try {
+    const currentMailerId = state.current?.Mailer_ID;
+    if (currentMailerId && !campaignBoardsState.boards[currentMailerId]) {
+      // No Campaign Board for this mailer - check for legacy data to migrate
+      const legacyData = await loadFromCloud('kanban');
+      if (legacyData && typeof legacyData === 'object') {
+        const hasLegacyData = Object.values(legacyData).some(col =>
+          Array.isArray(col) && col.length > 0
+        );
+        if (hasLegacyData) {
+          console.log('📦 Found legacy kanban data, migrating to Campaign Board...');
+          // Store in kanbanState temporarily for migration function
+          kanbanState.columns = legacyData;
+          await migrateToCampaignBoards();
+          console.log('✅ Legacy data migrated to Campaign Board');
+        } else {
+          // No legacy data, create empty board
+          createCampaignBoard(currentMailerId, state.current?.town || currentMailerId);
+          console.log('📋 Created new Campaign Board for', currentMailerId);
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error checking legacy data:', e);
   }
 
   renderKanban();
@@ -15266,30 +15257,31 @@ function deduplicateKanbanData() {
 }
 
 // Quick save for drag operations - no dedup, no logging, debounced
+// Now redirects to Campaign Board (single source of truth)
 let kanbanSaveTimeout = null;
 function saveKanbanQuick() {
   // Debounce: wait 500ms after last drag before actually saving
   if (kanbanSaveTimeout) clearTimeout(kanbanSaveTimeout);
   kanbanSaveTimeout = setTimeout(() => {
-    saveToCloud('kanban', kanbanState.columns).catch(e => {
-      console.warn('Quick kanban save failed:', e);
+    // Save Campaign Board (single source of truth)
+    saveCampaignBoards().catch(e => {
+      console.warn('Quick save failed:', e);
     });
   }, 500);
 }
 
+// Legacy saveKanban - now redirects to Campaign Board (single source of truth)
 async function saveKanban() {
   try {
-    // Deduplicate before saving (skip verbose logging)
-    deduplicateKanbanData();
-
-    // Save to cloud and localStorage
-    await saveToCloud('kanban', kanbanState.columns);
+    // Save Campaign Board (single source of truth)
+    await saveCampaignBoards();
   } catch(e) {
-    console.warn('Kanban saved to localStorage only (cloud sync failed):', e);
+    console.warn('Save failed:', e);
   }
 }
 
 // CLOUD PROSPECTS SYNC FUNCTIONS
+// Now uses Campaign Board as single source of truth
 async function saveSelectedProspectsToCloud() {
   if (cloudSyncSelection.selectedIds.size === 0) {
     toast('No prospects selected', false);
@@ -15298,10 +15290,16 @@ async function saveSelectedProspectsToCloud() {
 
   try {
     const prospectsToSync = [];
+    const board = getCurrentCampaignBoard();
 
-    // Collect selected prospects from all columns
-    Object.keys(kanbanState.columns).forEach(columnKey => {
-      const items = kanbanState.columns[columnKey];
+    if (!board) {
+      toast('No campaign board found', false);
+      return;
+    }
+
+    // Collect selected prospects from Campaign Board columns
+    Object.keys(board.columns || {}).forEach(columnKey => {
+      const items = board.columns[columnKey];
 
       // Safety check - ensure column is an array
       if (!Array.isArray(items)) {
