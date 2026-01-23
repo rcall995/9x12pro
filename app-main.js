@@ -15606,6 +15606,11 @@ function renderKanban() {
         <button onclick="${clearFunctions[col.key]}()" class="text-xs px-1.5 py-0.5 bg-gray-400 text-white rounded hover:bg-gray-500" title="Clear Selection">
           ✕
         </button>
+        ${col.key === 'prospect-list' ? `
+          <button onclick="moveSelectedToPool()" class="text-xs px-1.5 py-0.5 bg-orange-500 text-white rounded hover:bg-orange-600" title="Move to Prospect Pool">
+            📋 Pool ${selectionState.selectedIds.size}
+          </button>
+        ` : ''}
         ${canMoveLeft && moveLeftFunctions[col.key] ? `
           <button onclick="${moveLeftFunctions[col.key]}()" class="text-xs px-1.5 py-0.5 bg-purple-500 text-white rounded hover:bg-purple-600" title="Move Left">
             ⬅ ${selectionState.selectedIds.size}
