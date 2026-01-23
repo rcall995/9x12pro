@@ -20247,9 +20247,12 @@ function refreshFollowUpDashboard() {
   followUpDashboardState.upcomingWeek = [];
   followUpDashboardState.sequenceActionsDue = [];
 
-  // Scan all kanban columns for follow-ups
-  Object.keys(kanbanState.columns).forEach(columnKey => {
-    const items = kanbanState.columns[columnKey] || [];
+  // Scan all Campaign Board columns for follow-ups (single source of truth)
+  const board = getCurrentCampaignBoard();
+  if (!board || !board.columns) return;
+
+  Object.keys(board.columns).forEach(columnKey => {
+    const items = board.columns[columnKey] || [];
     items.forEach(prospect => {
       if (!prospect || typeof prospect !== 'object') return;
       if (prospect.doNotContact) return; // Skip DNC prospects
@@ -20438,9 +20441,12 @@ function refreshContactStatusDashboard() {
   contactStatusState.called = [];
   contactStatusState.linkedinMessaged = [];
 
-  // Scan all kanban columns
-  Object.keys(kanbanState.columns).forEach(columnKey => {
-    const items = kanbanState.columns[columnKey] || [];
+  // Scan all Campaign Board columns (single source of truth)
+  const board = getCurrentCampaignBoard();
+  if (!board || !board.columns) return;
+
+  Object.keys(board.columns).forEach(columnKey => {
+    const items = board.columns[columnKey] || [];
     items.forEach(prospect => {
       if (!prospect || typeof prospect !== 'object') return;
       const ct = prospect.contactTracking || {};
@@ -20691,38 +20697,41 @@ function refreshAnalytics() {
     return created && created >= cutoffDate;
   }).length;
 
-  // Scan all kanban columns
-  Object.keys(kanbanState.columns).forEach(columnKey => {
-    const items = kanbanState.columns[columnKey] || [];
-    items.forEach(prospect => {
-      if (!prospect || typeof prospect !== 'object') return;
-      const ct = prospect.contactTracking || {};
+  // Scan all Campaign Board columns (single source of truth)
+  const board = getCurrentCampaignBoard();
+  if (board && board.columns) {
+    Object.keys(board.columns).forEach(columnKey => {
+      const items = board.columns[columnKey] || [];
+      items.forEach(prospect => {
+        if (!prospect || typeof prospect !== 'object') return;
+        const ct = prospect.contactTracking || {};
 
-      // Check each channel
-      Object.keys(analyticsState.channelStats).forEach(channel => {
-        if (ct[channel]) {
-          const contactDate = ct[channel + 'Date'] ? new Date(ct[channel + 'Date']) : null;
-          if (!cutoffDate || (contactDate && contactDate >= cutoffDate)) {
-            analyticsState.channelStats[channel].count++;
-            analyticsState.totalOutreach++;
+        // Check each channel
+        Object.keys(analyticsState.channelStats).forEach(channel => {
+          if (ct[channel]) {
+            const contactDate = ct[channel + 'Date'] ? new Date(ct[channel + 'Date']) : null;
+            if (!cutoffDate || (contactDate && contactDate >= cutoffDate)) {
+              analyticsState.channelStats[channel].count++;
+              analyticsState.totalOutreach++;
 
-            if (ct.responded) {
-              analyticsState.channelStats[channel].responses++;
-              analyticsState.totalResponses++;
+              if (ct.responded) {
+                analyticsState.channelStats[channel].responses++;
+                analyticsState.totalResponses++;
+              }
             }
+          }
+        });
+
+        // Count interested
+        if (ct.responseType === 'Interested') {
+          const responseDate = ct.respondedDate ? new Date(ct.respondedDate) : null;
+          if (!cutoffDate || (responseDate && responseDate >= cutoffDate)) {
+            analyticsState.totalInterested++;
           }
         }
       });
-
-      // Count interested
-      if (ct.responseType === 'Interested') {
-        const responseDate = ct.respondedDate ? new Date(ct.respondedDate) : null;
-        if (!cutoffDate || (responseDate && responseDate >= cutoffDate)) {
-          analyticsState.totalInterested++;
-        }
-      }
     });
-  });
+  }
 
   // Update UI
   renderAnalytics();
