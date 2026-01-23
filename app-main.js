@@ -11824,24 +11824,102 @@ async function addFromProspectPool() {
 
       let newLead;
 
-      // Handle manually added businesses (no API fetch needed)
+      // Handle manually added businesses (with enrichment for missing contact info)
       if (business.type === 'manual') {
         console.log('🔵 Processing manual business:', business.businessName);
-        newLead = {
-          id: Date.now() + Math.random(),
-          businessName: business.businessName || business.name || business.title || 'Unknown Business',
-          contactName: business.contactName || '',
+        const manualBusinessName = business.businessName || business.name || business.title || 'Unknown Business';
+        const manualLocation = business.address || business.town || '';
+
+        // Start with existing data from manual entry
+        let manualDetails = {
           phone: business.phone || '',
-          email: business.email || '',
-          estimatedValue: 500,
-          notes: business.notes || `Manually added business\nAddress: ${business.address}\nTown: ${business.town}`,
-          source: 'manual',
-          placeId: business.id || business.placeId, // Use the manual ID or placeId for tracking
           website: business.website || '',
+          email: business.email || '',
           facebook: business.facebook || '',
           instagram: business.instagram || '',
           linkedin: business.linkedin || '',
           twitter: business.twitter || '',
+          contactName: business.contactName || ''
+        };
+
+        // ENRICHMENT: Search for missing contact info
+        btn.textContent = `🔍 Enriching... (${i + 1}/${selectedBusinesses.length})`;
+
+        // Search for website if missing
+        if (!manualDetails.website) {
+          const websiteQuery = `${manualBusinessName} ${manualLocation} official website`;
+          const website = await searchBusinessWebsite(websiteQuery, manualBusinessName);
+          if (website && !website.includes('yelp.com') && !website.includes('facebook.com') && !website.includes('instagram.com')) {
+            manualDetails.website = website;
+          }
+        }
+
+        // Search for Facebook if missing
+        if (!manualDetails.facebook) {
+          const fbQuery = `${manualBusinessName} ${manualLocation} site:facebook.com`;
+          const fbResult = await searchBusinessWebsite(fbQuery, manualBusinessName);
+          if (fbResult && fbResult.includes('facebook.com') && !fbResult.includes('instagram.com')) {
+            let cleanFbUrl = fbResult;
+            if (fbResult.includes('/posts/') || fbResult.includes('/photos/')) {
+              const pageMatch = fbResult.match(/(https?:\/\/[^\/]*facebook\.com\/[^\/\?]+)/);
+              if (pageMatch) cleanFbUrl = pageMatch[1];
+            }
+            manualDetails.facebook = cleanFbUrl;
+          }
+        }
+
+        // Search for Instagram if missing
+        if (!manualDetails.instagram) {
+          const igQuery = `${manualBusinessName} ${manualLocation} site:instagram.com`;
+          const igResult = await searchBusinessWebsite(igQuery, manualBusinessName);
+          if (igResult && igResult.includes('instagram.com') && !igResult.includes('facebook.com')) {
+            let cleanedUrl = igResult;
+            if (igResult.includes('/p/') || igResult.includes('/reel/')) {
+              const match = igResult.match(/instagram\.com\/([^\/\?]+)/);
+              if (match && match[1] && !['p', 'reel', 'stories'].includes(match[1])) {
+                cleanedUrl = `https://instagram.com/${match[1]}`;
+              }
+            }
+            manualDetails.instagram = cleanedUrl;
+          }
+        }
+
+        // Scrape website for email and additional social links if we have a website
+        if (manualDetails.website && !manualDetails.email) {
+          btn.textContent = `📧 Finding email... (${i + 1}/${selectedBusinesses.length})`;
+          const enrichedData = await fetchSmartEnrichment(manualDetails.website, manualBusinessName);
+          manualDetails.email = manualDetails.email || enrichedData.email || '';
+          manualDetails.facebook = manualDetails.facebook || enrichedData.facebook || '';
+          manualDetails.instagram = manualDetails.instagram || enrichedData.instagram || '';
+          manualDetails.linkedin = manualDetails.linkedin || enrichedData.linkedin || '';
+          manualDetails.twitter = manualDetails.twitter || enrichedData.twitter || '';
+          if (enrichedData.contactNames && enrichedData.contactNames.length > 0 && !manualDetails.contactName) {
+            manualDetails.contactName = enrichedData.contactNames[0];
+          }
+        }
+
+        // Build notes for manual business
+        let manualNotes = business.notes || `Manually added business\nAddress: ${business.address || 'N/A'}\nTown: ${business.town || 'N/A'}`;
+        if (manualDetails.website && !business.website) manualNotes += `\n🌐 Website found: ${manualDetails.website}`;
+        if (manualDetails.email && !business.email) manualNotes += `\n📧 Email found: ${manualDetails.email}`;
+        if (manualDetails.facebook && !business.facebook) manualNotes += `\n📘 Facebook found: ${manualDetails.facebook}`;
+        if (manualDetails.instagram && !business.instagram) manualNotes += `\n📷 Instagram found: ${manualDetails.instagram}`;
+
+        newLead = {
+          id: Date.now() + Math.random(),
+          businessName: manualBusinessName,
+          contactName: manualDetails.contactName,
+          phone: manualDetails.phone,
+          email: manualDetails.email,
+          estimatedValue: 500,
+          notes: manualNotes,
+          source: 'manual',
+          placeId: business.id || business.placeId, // Use the manual ID or placeId for tracking
+          website: manualDetails.website,
+          facebook: manualDetails.facebook,
+          instagram: manualDetails.instagram,
+          linkedin: manualDetails.linkedin,
+          twitter: manualDetails.twitter,
           category: business.category || 'other',
           zipCode: business.zipCode || null,
           actualZip: business.actualZip || null,
@@ -11851,9 +11929,10 @@ async function addFromProspectPool() {
           userRatingsTotal: business.userRatingsTotal || 0,
           mailerId: currentMailerId,
           addedDate: new Date().toISOString(),
-          interactions: []
+          interactions: [],
+          enriched: true
         };
-        console.log('🔵 Created newLead:', newLead);
+        console.log('🔵 Created enriched manual newLead:', newLead);
       } else {
         // Handle Google Places businesses
         // IMPORTANT: Use existing data from business object if already available (from cache)
