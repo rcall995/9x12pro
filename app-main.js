@@ -16523,20 +16523,30 @@ function renderCampaignBoard() {
     const colDef = campaignBoardColumns[colKey];
     const allItems = board.columns[colKey] || [];
 
-    // Collect ZIPs for filter (from ALL items, not just filtered)
+    // Helper to normalize ZIP to 5 digits
+    const normalizeZip = (zip) => {
+      if (!zip) return '';
+      const zipStr = String(zip).trim();
+      // Extract first 5 digits (handles both "14072" and "14072-1248" formats)
+      return zipStr.split('-')[0].substring(0, 5);
+    };
+
+    // Collect ZIPs for filter (normalized to 5 digits)
     const columnZips = new Set();
     allItems.forEach(item => {
       const zip = item.actualZip || item.zipCode || item.zip;
-      if (zip) columnZips.add(String(zip));
+      const normalized = normalizeZip(zip);
+      if (normalized) columnZips.add(normalized);
     });
     const sortedZips = Array.from(columnZips).sort();
 
-    // Apply ZIP filter
+    // Apply ZIP filter (match on 5-digit prefix)
     const currentZipFilter = campaignBoardsState.zipFilters[colKey] || '';
     const items = currentZipFilter
       ? allItems.filter(item => {
           const itemZip = item.actualZip || item.zipCode || item.zip;
-          return String(itemZip) === currentZipFilter;
+          const normalized = normalizeZip(itemZip);
+          return normalized === currentZipFilter;
         })
       : allItems;
 
@@ -16716,7 +16726,7 @@ function renderCampaignBoard() {
 
           <div class="flex items-center justify-between gap-1 mt-1.5">
             <div class="text-xs text-gray-500 font-medium">
-              ${(item.zipCode || item.actualZip) ? `<span class="bg-gray-100 px-1.5 py-0.5 rounded">📍 ${esc(item.zipCode || item.actualZip)}</span>` : ''}
+              ${(item.zipCode || item.actualZip) ? `<span class="bg-gray-100 px-1.5 py-0.5 rounded">📍 ${esc(normalizeZip(item.zipCode || item.actualZip))}</span>` : ''}
             </div>
             <div class="flex gap-1 flex-shrink-0">
               <button onclick="event.stopPropagation(); openCampaignBoardQuickAction('${leadId}', '${colKey}')" class="text-indigo-600 hover:text-indigo-800 text-sm" title="View">👁</button>
