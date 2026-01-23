@@ -16568,35 +16568,59 @@ function renderCampaignBoard() {
 
       // Attempt progress for "attempting" column
       let attemptHTML = '';
-      if (colKey === 'attempting' && item.attemptTracking) {
-        const progress = getAttemptProgress(item);
-        const current = item.attemptTracking.currentAttempt || 0;
-        const max = item.attemptTracking.maxAttempts || 4;
+      if (colKey === 'attempting') {
         const channels = item.channelStatus || {};
+        const history = item.attemptTracking?.attemptHistory || [];
+        const contactTracking = item.contactTracking || {};
 
-        // Channel status icons
-        const channelIcons = board.config.channelPriority.map(ch => {
-          const status = channels[ch];
-          if (!status?.available) return '';
-          const icons = { sms: '📱', email: '📧', facebook: '📘', instagram: '📷', linkedin: '💼', call: '📞' };
-          const icon = icons[ch] || '📤';
-          if (status.sent) return `<span class="text-green-600" title="${ch}: sent">${icon}✓</span>`;
-          if (item.attemptTracking.nextChannel === ch) return `<span class="text-blue-600 font-bold" title="${ch}: next">${icon}→</span>`;
-          return `<span class="text-gray-400" title="${ch}: pending">${icon}</span>`;
-        }).filter(Boolean).join(' ');
+        // Find which channels were used (check both new and legacy tracking)
+        const usedChannels = [];
+        const channelLabels = { sms: '📱 SMS', email: '📧 Email', facebook: '📘 FB Msg', instagram: '📷 IG DM', linkedin: '💼 LinkedIn', call: '📞 Call' };
 
-        attemptHTML = `
-          <div class="mt-2 pt-2 border-t border-gray-100">
-            <div class="flex items-center justify-between text-xs mb-1">
-              <span class="text-gray-500">Attempt ${current} of ${max}</span>
-              <span class="text-purple-600 font-medium">${progress}%</span>
+        // Check new channelStatus
+        Object.entries(channels).forEach(([ch, status]) => {
+          if (status?.sent) usedChannels.push({ channel: ch, label: channelLabels[ch] || ch });
+        });
+
+        // Check attemptHistory
+        history.forEach(h => {
+          if (h.sent && !usedChannels.find(u => u.channel === h.channel)) {
+            usedChannels.push({ channel: h.channel, label: channelLabels[h.channel] || h.channel });
+          }
+        });
+
+        // Check legacy contactTracking
+        if (usedChannels.length === 0) {
+          if (contactTracking.texted) usedChannels.push({ channel: 'sms', label: channelLabels.sms });
+          if (contactTracking.emailed) usedChannels.push({ channel: 'email', label: channelLabels.email });
+          if (contactTracking.called) usedChannels.push({ channel: 'call', label: channelLabels.call });
+          if (contactTracking.facebookMessaged) usedChannels.push({ channel: 'facebook', label: channelLabels.facebook });
+          if (contactTracking.linkedinMessaged) usedChannels.push({ channel: 'linkedin', label: channelLabels.linkedin });
+          if (contactTracking.dmed) usedChannels.push({ channel: 'instagram', label: channelLabels.instagram });
+        }
+
+        if (usedChannels.length > 0) {
+          // Show prominent "Contacted via" badge
+          const contactedVia = usedChannels.map(u => u.label).join(', ');
+          attemptHTML = `
+            <div class="mt-2 pt-2 border-t border-gray-100">
+              <div class="bg-green-100 border border-green-300 rounded-lg px-2 py-1.5 text-center">
+                <div class="text-xs text-green-800 font-medium">📬 Contacted via:</div>
+                <div class="text-sm font-bold text-green-700">${contactedVia}</div>
+              </div>
             </div>
-            <div class="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
-              <div class="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full" style="width: ${progress}%"></div>
+          `;
+        } else {
+          // No contact recorded yet - show prompt
+          attemptHTML = `
+            <div class="mt-2 pt-2 border-t border-gray-100">
+              <div class="bg-yellow-50 border border-yellow-200 rounded-lg px-2 py-1.5 text-center">
+                <div class="text-xs text-yellow-700">⚠️ No outreach recorded</div>
+                <div class="text-xs text-yellow-600">Double-click to mark contact method</div>
+              </div>
             </div>
-            <div class="flex gap-1 mt-1.5 justify-center text-sm">${channelIcons}</div>
-          </div>
-        `;
+          `;
+        }
       }
 
       // Sales info for sales pipeline columns
