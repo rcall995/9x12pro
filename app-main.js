@@ -6011,6 +6011,8 @@ let salesToolkitSettings = {
   yourName: '',
   yourCompany: '',
   yourPhone: '',
+  yourEmail: '',
+  yourWebsite: '',
   spotPrice: '$400',
   homesReached: '5,000'
 };
@@ -13652,12 +13654,12 @@ function previewQuickTemplate(clientId, sendType) {
     // Campaign info
     campaign: state.current?.mailerName || '',
 
-    // User info (TODO: Get from user settings)
-    yourName: '',
-    yourPhone: '',
-    yourEmail: '',
-    yourCompany: '',
-    yourWebsite: '',
+    // User info (from Sales Toolkit settings)
+    yourName: salesToolkitSettings.yourName || '',
+    yourPhone: salesToolkitSettings.yourPhone || '',
+    yourEmail: salesToolkitSettings.yourEmail || '',
+    yourCompany: salesToolkitSettings.yourCompany || '',
+    yourWebsite: salesToolkitSettings.yourWebsite || '',
 
     // Date
     date: new Date().toLocaleDateString()
