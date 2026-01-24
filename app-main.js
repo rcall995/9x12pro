@@ -15262,26 +15262,33 @@ async function loadKanban() {
   }
 
   // Migration: Check if there's legacy kanban data that needs to be migrated
-  // This only runs once - after migration, legacy data is no longer used
+  // Run if Campaign Board doesn't exist OR exists but is empty
   try {
     const currentMailerId = state.current?.Mailer_ID;
-    if (currentMailerId && !campaignBoardsState.boards[currentMailerId]) {
-      // No Campaign Board for this mailer - check for legacy data to migrate
-      const legacyData = await loadFromCloud('kanban');
-      if (legacyData && typeof legacyData === 'object') {
-        const hasLegacyData = Object.values(legacyData).some(col =>
-          Array.isArray(col) && col.length > 0
-        );
-        if (hasLegacyData) {
-          console.log('📦 Found legacy kanban data, migrating to Campaign Board...');
-          // Store in kanbanState temporarily for migration function
-          kanbanState.columns = legacyData;
-          await migrateToCampaignBoards();
-          console.log('✅ Legacy data migrated to Campaign Board');
-        } else {
-          // No legacy data, create empty board
-          createCampaignBoard(currentMailerId, state.current?.town || currentMailerId);
-          console.log('📋 Created new Campaign Board for', currentMailerId);
+    if (currentMailerId) {
+      const existingBoard = campaignBoardsState.boards[currentMailerId];
+      const boardIsEmpty = !existingBoard || !existingBoard.columns ||
+        !Object.values(existingBoard.columns).some(col => Array.isArray(col) && col.length > 0);
+
+      if (boardIsEmpty) {
+        // Board is empty or doesn't exist - check for legacy data to migrate
+        const legacyData = await loadFromCloud('kanban');
+        if (legacyData && typeof legacyData === 'object') {
+          const hasLegacyData = Object.values(legacyData).some(col =>
+            Array.isArray(col) && col.length > 0
+          );
+          if (hasLegacyData) {
+            console.log('📦 Found legacy kanban data, migrating to Campaign Board...');
+            // Store in kanbanState temporarily for migration function
+            kanbanState.columns = legacyData;
+            await migrateToCampaignBoards();
+            await saveCampaignBoards();
+            console.log('✅ Legacy data migrated to Campaign Board');
+          } else if (!existingBoard) {
+            // No legacy data and no board, create empty board
+            createCampaignBoard(currentMailerId, state.current?.town || currentMailerId);
+            console.log('📋 Created new Campaign Board for', currentMailerId);
+          }
         }
       }
     }
