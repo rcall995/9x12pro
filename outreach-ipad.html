@@ -1015,7 +1015,7 @@
                 if (category) categories.add(String(category));
             });
 
-            const sortedCategories = Array.from(categories).sort();
+            const sortedCategories = Array.from(categories).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
 
             // Build options
             let options = `<option value="">All Categories (${channelProspects.length})</option>`;
