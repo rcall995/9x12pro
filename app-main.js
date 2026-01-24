@@ -20798,11 +20798,19 @@ function refreshAnalytics() {
   // Scan all Campaign Board columns (single source of truth)
   const board = getCurrentCampaignBoard();
   if (board && board.columns) {
+    // Columns that indicate the prospect has responded/shown interest
+    const respondedColumns = ['negotiating', 'invoice-sent', 'proof-approved', 'paid-in-full'];
+
     Object.keys(board.columns).forEach(columnKey => {
       const items = board.columns[columnKey] || [];
+      const isRespondedColumn = respondedColumns.includes(columnKey);
+
       items.forEach(prospect => {
         if (!prospect || typeof prospect !== 'object') return;
         const ct = prospect.contactTracking || {};
+
+        // Track if this prospect has been counted for response (avoid double-counting)
+        let prospectCounted = false;
 
         // Check each channel
         Object.keys(analyticsState.channelStats).forEach(channel => {
@@ -20813,16 +20821,18 @@ function refreshAnalytics() {
               analyticsState.channelStats[channel].count++;
               analyticsState.totalOutreach++;
 
-              if (ct.responded) {
+              // Count as responded if: explicit responded flag OR in a responded column
+              if ((ct.responded || isRespondedColumn) && !prospectCounted) {
                 analyticsState.channelStats[channel].responses++;
                 analyticsState.totalResponses++;
+                prospectCounted = true;
               }
             }
           }
         });
 
-        // Count interested
-        if (ct.responseType === 'Interested') {
+        // Count interested: explicit responseType OR in negotiating/beyond columns
+        if (ct.responseType === 'Interested' || isRespondedColumn) {
           const responseDate = ct.respondedDate ? new Date(ct.respondedDate) : null;
           // Include if: no date filter, OR no date recorded (legacy), OR date is within range
           if (!cutoffDate || !responseDate || responseDate >= cutoffDate) {
