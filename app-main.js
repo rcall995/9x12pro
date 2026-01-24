@@ -1172,6 +1172,40 @@ function findProspectInCampaignBoard(prospectId) {
   return null;
 }
 
+// DEBUG: Expose state for console debugging
+window.debugData = function() {
+  const mailerId = state.current?.Mailer_ID;
+  console.log('=== DEBUG DATA ===');
+  console.log('Current Mailer ID:', mailerId);
+
+  const board = mailerId ? campaignBoardsState.boards[mailerId] : null;
+  if (board && board.columns) {
+    console.log('\n=== Campaign Board ===');
+    Object.keys(board.columns).forEach(col => {
+      const items = board.columns[col] || [];
+      console.log(`${col}: ${items.length} businesses`);
+      if (items.length > 0) {
+        items.slice(0, 2).forEach(b => {
+          console.log(`  - ${b.businessName || 'Unknown'}`, 'contactTracking:', b.contactTracking || 'NONE');
+        });
+      }
+    });
+  } else {
+    console.log('No Campaign Board found');
+  }
+
+  console.log('\n=== Legacy Kanban ===');
+  Object.keys(kanbanState.columns).forEach(col => {
+    const items = kanbanState.columns[col] || [];
+    console.log(`${col}: ${items.length} businesses`);
+  });
+
+  console.log('\n=== All Campaign Boards ===');
+  console.log('Board IDs:', Object.keys(campaignBoardsState.boards));
+
+  return { state, campaignBoardsState, kanbanState };
+};
+
 // Get all placeIds that are in Campaign Board (for "In System" checks)
 function getCampaignBoardPlaceIds() {
   const placeIds = new Set();
