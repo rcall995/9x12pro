@@ -580,27 +580,6 @@
                     <!-- Daily goal dynamically populated -->
                 </div>
 
-                <!-- SEQUENCE ALERT BANNER (hidden by default) -->
-                <div id="sequenceAlertBanner" class="hidden mb-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl p-4 shadow-lg">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-3">
-                            <span class="text-2xl animate-pulse">📋</span>
-                            <div>
-                                <div class="font-bold">Sequence Steps Due!</div>
-                                <div class="text-sm text-purple-100"><span id="sequenceAlertCount">0</span> outreach steps are ready to execute</div>
-                            </div>
-                        </div>
-                        <div class="flex gap-2">
-                            <button onclick="processAllDueSequences()" class="px-4 py-2 bg-white text-purple-700 rounded-lg font-bold text-sm hover:bg-purple-50">
-                                Process Now
-                            </button>
-                            <button onclick="dismissSequenceAlert()" class="px-3 py-2 bg-purple-500 text-white rounded-lg text-sm hover:bg-purple-400">
-                                Later
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- FOLLOW-UP DASHBOARD -->
                 <div id="followUpDashboardWrapper" class="mb-6" style="display: none;">
                     <div id="followUpDashboard" class="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl p-4 md:p-6">
@@ -617,7 +596,7 @@
                             </button>
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <!-- Overdue Section -->
                             <div class="bg-white rounded-xl p-4 border border-red-200">
                                 <div class="flex items-center gap-2 mb-3">
@@ -637,22 +616,6 @@
                                 </div>
                                 <div id="dueTodayList" class="space-y-2 max-h-48 overflow-y-auto">
                                     <p class="text-sm text-gray-500 italic">Nothing due today</p>
-                                </div>
-                            </div>
-
-                            <!-- Sequence Actions Section -->
-                            <div class="bg-white rounded-xl p-4 border border-purple-200">
-                                <div class="flex items-center justify-between mb-3">
-                                    <div class="flex items-center gap-2">
-                                        <span class="text-purple-600 font-bold text-sm">⏭️ Sequence Steps</span>
-                                        <span id="sequenceActionCount" class="bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full font-bold">0</span>
-                                    </div>
-                                    <button id="btnProcessAllSequences" onclick="processAllDueSequences()" class="hidden px-2 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 font-medium">
-                                        Process All
-                                    </button>
-                                </div>
-                                <div id="sequenceActionsList" class="space-y-2 max-h-48 overflow-y-auto">
-                                    <p class="text-sm text-gray-500 italic">No sequence actions due</p>
                                 </div>
                             </div>
                         </div>

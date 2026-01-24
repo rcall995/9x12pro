@@ -2810,82 +2810,6 @@ function openQuickActionPopup(leadId, columnKey) {
               ` : ''}
             </div>
           </div>
-
-          <!-- Outreach Sequence Section -->
-          <div class="text-xs text-gray-600 mb-2 font-medium">Outreach Sequence</div>
-          ${(() => {
-            const activeSeq = prospect.activeSequence;
-            if (activeSeq && !activeSeq.completedAt) {
-              const seq = outreachSequencesState.sequences[activeSeq.sequenceId];
-              if (seq) {
-                const currentStep = activeSeq.currentStep || 1;
-                const totalSteps = seq.steps.length;
-                const stepDef = seq.steps[currentStep - 1];
-                const isPaused = activeSeq.paused === true;
-                return `
-                  <div class="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-2">
-                    <div class="flex justify-between items-center mb-2">
-                      <span class="font-medium text-purple-700">${esc(seq.name)}</span>
-                      <span class="text-xs ${isPaused ? 'text-orange-600' : 'text-purple-600'}">
-                        ${isPaused ? '⏸ Paused' : `Step ${currentStep}/${totalSteps}`}
-                      </span>
-                    </div>
-                    <div class="text-xs text-gray-600 mb-2">Current: ${stepDef ? esc(stepDef.description) : 'N/A'}</div>
-
-                    <!-- Step selector -->
-                    <div class="mb-3">
-                      <div class="text-xs text-gray-500 mb-1">Jump to step:</div>
-                      <div class="flex gap-1">
-                        ${seq.steps.map((s, i) => {
-                          const stepNum = i + 1;
-                          const isCurrentStep = stepNum === currentStep;
-                          const isCompleted = stepNum < currentStep;
-                          const channelIcons = { email: '✉️', text: '📱', call: '📞', facebook: '📘', instagram: '📷', linkedin: '💼' };
-                          const icon = channelIcons[s.channel] || '📋';
-                          return `
-                            <button onclick="setSequenceStep('${leadId}', ${stepNum})"
-                                    class="flex-1 px-2 py-1.5 text-xs rounded font-medium ${isCurrentStep ? 'bg-purple-600 text-white' : isCompleted ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}"
-                                    title="${s.description}">
-                              ${icon} ${stepNum}
-                            </button>
-                          `;
-                        }).join('')}
-                      </div>
-                    </div>
-
-                    <div class="flex gap-2">
-                      ${isPaused ? `
-                        <button onclick="resumeSequence('${leadId}'); closeQuickActionPopup();" class="flex-1 px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">
-                          ▶️ Resume
-                        </button>
-                      ` : `
-                        <button onclick="advanceSequence('${leadId}'); closeQuickActionPopup();" class="flex-1 px-2 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700">
-                          ✓ Mark Step Done
-                        </button>
-                        <button onclick="pauseSequence('${leadId}'); closeQuickActionPopup();" class="px-2 py-1 bg-gray-400 text-white text-xs rounded hover:bg-gray-500">
-                          ⏸ Pause
-                        </button>
-                      `}
-                      <button onclick="cancelSequence('${leadId}'); closeQuickActionPopup();" class="px-2 py-1 bg-red-400 text-white text-xs rounded hover:bg-red-500">
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-                `;
-              }
-            }
-            // No active sequence - show assignment options
-            const sequences = Object.values(outreachSequencesState.sequences);
-            return `
-              <div class="flex flex-wrap gap-2">
-                ${sequences.map(seq => `
-                  <button onclick="assignSequence('${leadId}', '${seq.id}'); closeQuickActionPopup();" class="px-3 py-1.5 bg-purple-100 text-purple-700 text-xs rounded-lg hover:bg-purple-200 font-medium">
-                    📋 ${esc(seq.name)}
-                  </button>
-                `).join('')}
-              </div>
-            `;
-          })()}
         </div>
 
         <!-- Footer with Edit Button -->
@@ -15875,24 +15799,6 @@ function renderKanban() {
                   ${socialIcons.join('')}
                 </div>
               ` : ''}
-
-              <!-- Sequence Badge (if active) -->
-              ${(() => {
-                if (typeof item !== 'object' || !item.activeSequence || item.activeSequence.completedAt) return '';
-                const seq = outreachSequencesState.sequences[item.activeSequence.sequenceId];
-                if (!seq) return '';
-                const step = item.activeSequence.currentStep || 1;
-                const isPaused = item.activeSequence.paused === true;
-                return `
-                  <div class="mt-1.5 pt-1.5 border-t border-gray-100 relative z-20">
-                    <div class="flex items-center justify-center">
-                      <span class="px-2 py-0.5 ${isPaused ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'} text-xs rounded-full font-medium">
-                        📋 ${isPaused ? '⏸' : `${step}/${seq.steps.length}`} ${esc(seq.name.split(' ')[0])}
-                      </span>
-                    </div>
-                  </div>
-                `;
-              })()}
             </div>
           `;
         }).join('')}
@@ -20369,27 +20275,6 @@ function refreshFollowUpDashboard() {
         }
       }
 
-      // Check sequence actions due
-      if (prospect.activeSequence && !prospect.activeSequence.paused) {
-        const sequence = outreachSequencesState.sequences[prospect.activeSequence.sequenceId];
-        if (sequence && prospect.activeSequence.currentStep <= sequence.steps.length) {
-          const currentStepDef = sequence.steps[prospect.activeSequence.currentStep - 1];
-          const startDate = new Date(prospect.activeSequence.startedAt);
-          const dueDate = new Date(startDate);
-          dueDate.setDate(dueDate.getDate() + currentStepDef.day - 1);
-          dueDate.setHours(0, 0, 0, 0);
-
-          if (dueDate <= today) {
-            followUpDashboardState.sequenceActionsDue.push({
-              ...prospect,
-              column: columnKey,
-              sequence: sequence,
-              step: currentStepDef,
-              stepNumber: prospect.activeSequence.currentStep
-            });
-          }
-        }
-      }
     });
   });
 
@@ -20408,17 +20293,14 @@ function renderFollowUpDashboard() {
 
   const overdueCount = followUpDashboardState.overdueFollowUps.length;
   const todayCount = followUpDashboardState.dueToday.length;
-  const sequenceCount = followUpDashboardState.sequenceActionsDue.length;
-  const totalActions = overdueCount + todayCount + sequenceCount;
+  const totalActions = overdueCount + todayCount;
 
   // Update counts
   const overdueCountEl = document.getElementById('overdueCount');
   const dueTodayCountEl = document.getElementById('dueTodayCount');
-  const sequenceActionCountEl = document.getElementById('sequenceActionCount');
 
   if (overdueCountEl) overdueCountEl.textContent = overdueCount;
   if (dueTodayCountEl) dueTodayCountEl.textContent = todayCount;
-  if (sequenceActionCountEl) sequenceActionCountEl.textContent = sequenceCount;
 
   // Render overdue list
   const overdueList = document.getElementById('overdueList');
@@ -20461,41 +20343,6 @@ function renderFollowUpDashboard() {
           </div>
         </div>
       `).join('');
-    }
-  }
-
-  // Render sequence actions list
-  const sequenceActionsList = document.getElementById('sequenceActionsList');
-  if (sequenceActionsList) {
-    if (sequenceCount === 0) {
-      sequenceActionsList.innerHTML = '<p class="text-sm text-gray-500 italic">No sequence actions due</p>';
-    } else {
-      sequenceActionsList.innerHTML = followUpDashboardState.sequenceActionsDue.slice(0, 5).map(p => {
-        // Channel icon mapping
-        const channelIcons = {
-          'email': '✉️',
-          'text': '📱',
-          'call': '📞',
-          'linkedin': '💼',
-          'facebook': '📘',
-          'instagram': '📷'
-        };
-        const channelIcon = channelIcons[p.step.channel] || '📋';
-
-        return `
-          <div class="bg-white border border-purple-200 rounded-lg p-2 shadow-sm mb-2">
-            <div class="flex items-center justify-between gap-2">
-              <div class="flex-1 min-w-0">
-                <div class="font-semibold text-gray-900 text-sm truncate">${esc(p.businessName || 'Unknown')}</div>
-                <div class="text-xs text-purple-600 mt-0.5">${channelIcon} Step ${p.stepNumber}</div>
-              </div>
-              <button onclick="window.open('outreach-ipad.html', '_blank', 'noopener,noreferrer')" class="flex-shrink-0 px-3 py-1.5 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 font-medium">
-                Open Hub
-              </button>
-            </div>
-          </div>
-        `;
-      }).join('');
     }
   }
 
@@ -20958,46 +20805,26 @@ function scrollToProspect(prospectId, columnKey) {
 }
 
 // ============================================
-// SEQUENCE AUTO-SCHEDULING FUNCTIONS
+// SEQUENCE FUNCTIONS (DISABLED - Feature removed)
 // ============================================
 
-// Check for due sequences on app load
-function checkSequencesDue() {
-  const dueCount = followUpDashboardState.sequenceActionsDue?.length || 0;
+// Stub functions to prevent errors if called
+function checkSequencesDue() { /* Sequences disabled */ }
+function dismissSequenceAlert() { /* Sequences disabled */ }
+function processAllDueSequences() { /* Sequences disabled */ }
+function assignSequence() { /* Sequences disabled */ }
+function showSequenceSelectionModal() { /* Sequences disabled */ }
+function advanceSequence() { /* Sequences disabled */ }
+function pauseSequence() { /* Sequences disabled */ }
+function resumeSequence() { /* Sequences disabled */ }
+function cancelSequence() { /* Sequences disabled */ }
+function setSequenceStep() { /* Sequences disabled */ }
+function advanceSequenceFromModal() { /* Sequences disabled */ }
+function executeAndAdvanceStep() { /* Sequences disabled */ }
+function executeSequenceStep() { /* Sequences disabled */ }
 
-  // Update alert banner
-  const banner = document.getElementById('sequenceAlertBanner');
-  const alertCount = document.getElementById('sequenceAlertCount');
-  const btnProcessAll = document.getElementById('btnProcessAllSequences');
-
-  if (dueCount > 0) {
-    // Show alert banner if not dismissed today
-    const dismissedToday = localStorage.getItem('sequenceAlertDismissed');
-    const today = new Date().toDateString();
-
-    if (dismissedToday !== today && banner) {
-      banner.classList.remove('hidden');
-    }
-
-    if (alertCount) alertCount.textContent = dueCount;
-    if (btnProcessAll) btnProcessAll.classList.remove('hidden');
-  } else {
-    if (banner) banner.classList.add('hidden');
-    if (btnProcessAll) btnProcessAll.classList.add('hidden');
-  }
-}
-
-// Dismiss the sequence alert banner for today
-function dismissSequenceAlert() {
-  const banner = document.getElementById('sequenceAlertBanner');
-  if (banner) banner.classList.add('hidden');
-
-  // Remember dismissal for today
-  localStorage.setItem('sequenceAlertDismissed', new Date().toDateString());
-}
-
-// Process all due sequences - opens Outreach Hub
-function processAllDueSequences() {
+// Original sequence modal code below - functions stubbed above
+function processAllDueSequences_DISABLED() {
   const dueCount = followUpDashboardState.sequenceActionsDue?.length || 0;
 
   if (dueCount === 0) {
@@ -21059,7 +20886,7 @@ function closeSequenceProcessModal() {
 }
 
 // Execute a step and advance the sequence
-async function executeAndAdvanceStep(prospectId, stepIndex) {
+async function executeAndAdvanceStep_DISABLED(prospectId, stepIndex) {
   // Find the prospect in Campaign Board
   const result = findProspectInCampaignBoard(prospectId);
   if (!result) {
@@ -21104,7 +20931,7 @@ async function executeAndAdvanceStep(prospectId, stepIndex) {
 }
 
 // Advance sequence after executing step from modal
-async function advanceSequenceFromModal(prospectId) {
+async function advanceSequenceFromModal_DISABLED(prospectId) {
   await advanceSequence(prospectId);
   toast('✅ Step completed! Sequence advanced.', true);
 
@@ -21117,11 +20944,11 @@ async function advanceSequenceFromModal(prospectId) {
 }
 
 // ============================================
-// OUTREACH SEQUENCE FUNCTIONS
+// OUTREACH SEQUENCE FUNCTIONS (DISABLED)
 // ============================================
 
 // Assign a prospect to a sequence
-function assignSequence(prospectId, sequenceId = null) {
+function assignSequence_DISABLED(prospectId, sequenceId = null) {
   // Find prospect in Campaign Board
   const result = findProspectInCampaignBoard(prospectId);
   if (!result) {
@@ -21161,7 +20988,7 @@ function assignSequence(prospectId, sequenceId = null) {
 }
 
 // Show sequence selection modal
-function showSequenceSelectionModal(prospectId) {
+function showSequenceSelectionModal_DISABLED(prospectId) {
   const sequences = Object.values(outreachSequencesState.sequences);
 
   const modal = document.createElement('div');
@@ -21199,7 +21026,7 @@ function closeSequenceSelectionModal() {
 }
 
 // Advance to next sequence step
-async function advanceSequence(prospectId) {
+async function advanceSequence_DISABLED(prospectId) {
   // Find prospect in Campaign Board
   const result = findProspectInCampaignBoard(prospectId);
   if (!result || !result.item.activeSequence) {
@@ -21259,7 +21086,7 @@ async function advanceSequence(prospectId) {
 }
 
 // Pause an active sequence
-async function pauseSequence(prospectId) {
+async function pauseSequence_DISABLED(prospectId) {
   // Find prospect in Campaign Board
   const result = findProspectInCampaignBoard(prospectId);
   if (!result || !result.item.activeSequence) {
@@ -21281,7 +21108,7 @@ async function pauseSequence(prospectId) {
 }
 
 // Resume a paused sequence
-async function resumeSequence(prospectId) {
+async function resumeSequence_DISABLED(prospectId) {
   // Find prospect in Campaign Board
   const result = findProspectInCampaignBoard(prospectId);
   if (!result || !result.item.activeSequence) {
@@ -21303,7 +21130,7 @@ async function resumeSequence(prospectId) {
 }
 
 // Cancel/remove a sequence from a prospect
-async function cancelSequence(prospectId) {
+async function cancelSequence_DISABLED(prospectId) {
   // Find prospect in Campaign Board
   const result = findProspectInCampaignBoard(prospectId);
   if (!result || !result.item.activeSequence) {
@@ -21327,7 +21154,7 @@ async function cancelSequence(prospectId) {
 }
 
 // Set sequence to a specific step
-async function setSequenceStep(prospectId, stepNumber) {
+async function setSequenceStep_DISABLED(prospectId, stepNumber) {
   // Find prospect in Campaign Board
   const result = findProspectInCampaignBoard(prospectId);
   if (!result || !result.item.activeSequence) {
@@ -21500,7 +21327,7 @@ async function clearResponse(leadId, columnKey) {
 }
 
 // Execute a specific sequence step (open the appropriate channel)
-async function executeSequenceStep(prospect, stepDef) {
+async function executeSequenceStep_DISABLED(prospect, stepDef) {
   const businessName = prospect.businessName || 'Unknown';
 
   switch (stepDef.channel) {
