@@ -1206,6 +1206,36 @@ window.debugData = function() {
   return { state, campaignBoardsState, kanbanState };
 };
 
+// DEBUG: Check DOM elements for Contact Status
+window.checkContactStatusDOM = function() {
+  const elements = {
+    textedCount: document.getElementById('textedCount'),
+    emailedCount: document.getElementById('emailedCount'),
+    facebookCount: document.getElementById('facebookCount'),
+    instagramCount: document.getElementById('instagramCount')
+  };
+
+  console.log('=== Contact Status DOM Elements ===');
+  Object.keys(elements).forEach(key => {
+    const el = elements[key];
+    if (el) {
+      console.log(`${key}: FOUND, current value: "${el.textContent}"`);
+    } else {
+      console.log(`${key}: NOT FOUND`);
+    }
+  });
+
+  return elements;
+};
+
+// DEBUG: Manually refresh contact status dashboard
+window.refreshContactStatus = function() {
+  console.log('=== Manual Contact Status Refresh ===');
+  refreshContactStatusDashboard();
+  console.log('contactStatusState:', contactStatusState);
+  window.checkContactStatusDOM();
+};
+
 // Get all placeIds that are in Campaign Board (for "In System" checks)
 function getCampaignBoardPlaceIds() {
   const placeIds = new Set();
@@ -20553,6 +20583,19 @@ function refreshContactStatusDashboard() {
   const emailedCount = document.getElementById('emailedCount');
   const facebookCount = document.getElementById('facebookCount');
   const instagramCount = document.getElementById('instagramCount');
+
+  console.log('📊 Contact Status Update:', {
+    texted: contactStatusState.texted.length,
+    emailed: contactStatusState.emailed.length,
+    facebook: contactStatusState.facebookMessaged.length,
+    instagram: contactStatusState.dmed.length,
+    elements: {
+      textedCount: !!textedCount,
+      emailedCount: !!emailedCount,
+      facebookCount: !!facebookCount,
+      instagramCount: !!instagramCount
+    }
+  });
 
   if (textedCount) textedCount.textContent = contactStatusState.texted.length;
   if (emailedCount) emailedCount.textContent = contactStatusState.emailed.length;
