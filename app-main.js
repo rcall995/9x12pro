@@ -24460,8 +24460,11 @@ function pickCampaign(e){
   const m = state.mailers[i];
   state.current = m;
 
-  // Immediately re-render kanban to show Campaign Board now that we have a Mailer_ID
+  // Immediately re-render kanban and dashboards now that we have a Mailer_ID
   renderKanban();
+  refreshFollowUpDashboard();
+  refreshContactStatusDashboard();
+  refreshAnalytics();
 
   // Save selected campaign to localStorage for page refresh persistence
   if (m.Mailer_ID) {
