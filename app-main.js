@@ -20808,7 +20808,8 @@ function refreshAnalytics() {
         Object.keys(analyticsState.channelStats).forEach(channel => {
           if (ct[channel]) {
             const contactDate = ct[channel + 'Date'] ? new Date(ct[channel + 'Date']) : null;
-            if (!cutoffDate || (contactDate && contactDate >= cutoffDate)) {
+            // Include if: no date filter, OR contact has no date (legacy), OR date is within range
+            if (!cutoffDate || !contactDate || contactDate >= cutoffDate) {
               analyticsState.channelStats[channel].count++;
               analyticsState.totalOutreach++;
 
@@ -20823,7 +20824,8 @@ function refreshAnalytics() {
         // Count interested
         if (ct.responseType === 'Interested') {
           const responseDate = ct.respondedDate ? new Date(ct.respondedDate) : null;
-          if (!cutoffDate || (responseDate && responseDate >= cutoffDate)) {
+          // Include if: no date filter, OR no date recorded (legacy), OR date is within range
+          if (!cutoffDate || !responseDate || responseDate >= cutoffDate) {
             analyticsState.totalInterested++;
           }
         }
