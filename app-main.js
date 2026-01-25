@@ -21414,9 +21414,19 @@ function openTemplatePicker() {
     }
 
     async function saveEdit(channelKey, templateId, hasSubject) {
-      const body = document.getElementById('editBody').value;
-      const edits = { body: body };
-      if (hasSubject) edits.subject = document.getElementById('editSubject').value;
+      const bodyEl = document.getElementById('editBody');
+      const subjectEl = document.getElementById('editSubject');
+
+      if (!bodyEl) {
+        alert('Error: Could not find message body field');
+        console.error('editBody element not found');
+        return;
+      }
+
+      const edits = { body: bodyEl.value };
+      if (hasSubject && subjectEl) {
+        edits.subject = subjectEl.value;
+      }
 
       showToast('💾 Saving...');
       const success = await saveTemplateViaMain(channelKey, templateId, edits);
@@ -21618,7 +21628,7 @@ function editTemplate(channelKey, templateId) {
                 class="px-4 py-2 text-gray-600 hover:text-gray-800">
           Cancel
         </button>
-        <button onclick="saveTemplateEdit('${channelKey}', '${templateId}', ${hasSubject})"
+        <button onclick="saveMainAppTemplateEdit('${channelKey}', '${templateId}', ${hasSubject})"
                 class="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">
           Save Changes
         </button>
@@ -21635,8 +21645,8 @@ function editTemplate(channelKey, templateId) {
   }, 100);
 }
 
-// Save template edit
-function saveTemplateEdit(channelKey, templateId, hasSubject) {
+// Save template edit from main app's modal (different from cloud saveTemplateEdit)
+function saveMainAppTemplateEdit(channelKey, templateId, hasSubject) {
   const bodyInput = document.getElementById('editTemplateBody');
   const subjectInput = document.getElementById('editTemplateSubject');
 
