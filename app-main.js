@@ -10105,13 +10105,17 @@ async function moveSelectedToPool() {
       });
     } else {
       // Add new prospect to pool
+      // Clear contact tracking so they start fresh when re-added
       const newProspect = {
         ...lead,
         movedToPoolDate: new Date().toISOString(),
         mailerId: state.current?.Mailer_ID || null,
         // Preserve enriched status if lead has contact data
         isEnriched: hasEnrichedData,
-        enriched: hasEnrichedData
+        enriched: hasEnrichedData,
+        contactTracking: null,  // Clear so they show as not contacted when re-added
+        attemptTracking: null,  // Reset attempt tracking
+        channelStatus: null     // Reset channel status
       };
       prospectPoolState.manualProspects.push(newProspect);
       console.log('🔵 Added new prospect:', {
@@ -10217,20 +10221,26 @@ async function moveProspectToPool(leadId, event) {
 
   if (existingIndex !== -1) {
     // Update existing prospect instead of creating duplicate
+    // Clear contact tracking so they start fresh when re-added
     prospectPoolState.manualProspects[existingIndex] = {
       ...prospectPoolState.manualProspects[existingIndex],
       ...lead,
       movedToPoolDate: new Date().toISOString(),
-      mailerId: state.current?.Mailer_ID || null
-      // DON'T overwrite town - keep the original town from the lead
+      mailerId: state.current?.Mailer_ID || null,
+      contactTracking: null,  // Clear so they show as not contacted when re-added
+      attemptTracking: null,
+      channelStatus: null
     };
   } else {
     // Add new prospect to pool
+    // Clear contact tracking so they start fresh when re-added
     prospectPoolState.manualProspects.push({
       ...lead,
       movedToPoolDate: new Date().toISOString(),
-      mailerId: state.current?.Mailer_ID || null // Tag with current postcard
-      // DON'T set town to campaign name - keep the original town from the lead
+      mailerId: state.current?.Mailer_ID || null,
+      contactTracking: null,  // Clear so they show as not contacted when re-added
+      attemptTracking: null,
+      channelStatus: null
     });
   }
 
@@ -18064,11 +18074,15 @@ async function sendQueuedSelectionToPool() {
       const item = queuedItems[idx];
 
       // Add to manual prospects (pool)
+      // Clear contact tracking so they start fresh when re-added
       const poolItem = {
         ...item,
         id: item.id || item.placeId || `pool_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         source: 'returned-from-pipeline',
-        returnedAt: new Date().toISOString()
+        returnedAt: new Date().toISOString(),
+        contactTracking: null,  // Clear so they show as not contacted when re-added
+        attemptTracking: null,  // Reset attempt tracking too
+        channelStatus: null     // Reset channel status
       };
 
       if (!prospectPoolState.manualProspects) {
@@ -20003,11 +20017,15 @@ async function moveProspectBackToPool(leadId, event) {
   });
 
   // Create the prospect object to add to pool (preserving doNotContact)
+  // Clear contact tracking so they start fresh when re-added
   const poolProspect = {
     ...prospect,
     isEnriched: false, // Reset styling
     enriched: false, // Reset so it can be re-enriched when added to kanban again
-    doNotContact: prospect.doNotContact || false // Explicitly preserve doNotContact
+    doNotContact: prospect.doNotContact || false, // Explicitly preserve doNotContact
+    contactTracking: null,  // Clear so they show as not contacted when re-added
+    attemptTracking: null,
+    channelStatus: null
   };
 
   if (!alreadyInPool) {
