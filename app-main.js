@@ -20235,59 +20235,17 @@ function parseLocalDate(dateStr) {
   return new Date(dateStr);
 }
 
-// Refresh follow-up dashboard data
+// Follow-Up Dashboard removed - stub functions to prevent errors
 function refreshFollowUpDashboard() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayStr = today.toDateString();
-
-  followUpDashboardState.overdueFollowUps = [];
-  followUpDashboardState.dueToday = [];
-  followUpDashboardState.upcomingWeek = [];
-  followUpDashboardState.sequenceActionsDue = [];
-
-  // Scan all Campaign Board columns for follow-ups (single source of truth)
-  const board = getCurrentCampaignBoard();
-  if (!board || !board.columns) return;
-
-  Object.keys(board.columns).forEach(columnKey => {
-    const items = board.columns[columnKey] || [];
-    items.forEach(prospect => {
-      if (!prospect || typeof prospect !== 'object') return;
-      if (prospect.doNotContact) return; // Skip DNC prospects
-
-      // Check follow-up dates
-      if (prospect.followUpDate) {
-        const followUp = parseLocalDate(prospect.followUpDate);
-        if (!followUp) return;
-        followUp.setHours(0, 0, 0, 0);
-
-        if (followUp.toDateString() === todayStr) {
-          followUpDashboardState.dueToday.push({ ...prospect, column: columnKey });
-        } else if (followUp < today) {
-          const daysOverdue = Math.floor((today - followUp) / (1000 * 60 * 60 * 24));
-          followUpDashboardState.overdueFollowUps.push({ ...prospect, column: columnKey, daysOverdue });
-        } else {
-          const daysUntil = Math.floor((followUp - today) / (1000 * 60 * 60 * 24));
-          if (daysUntil <= 7) {
-            followUpDashboardState.upcomingWeek.push({ ...prospect, column: columnKey, daysUntil });
-          }
-        }
-      }
-
-    });
-  });
-
-  // Sort overdue by most overdue first
-  followUpDashboardState.overdueFollowUps.sort((a, b) => b.daysOverdue - a.daysOverdue);
-  followUpDashboardState.upcomingWeek.sort((a, b) => a.daysUntil - b.daysUntil);
-
-  followUpDashboardState.lastRefreshed = new Date();
-  renderFollowUpDashboard();
+  // Dashboard removed - no-op
 }
 
-// Render follow-up dashboard
 function renderFollowUpDashboard() {
+  // Dashboard removed - no-op
+}
+
+/* Original Follow-Up Dashboard code removed
+function renderFollowUpDashboard_DISABLED() {
   const container = document.getElementById('followUpDashboard');
   if (!container) return;
 
@@ -20355,6 +20313,7 @@ function renderFollowUpDashboard() {
   // Check for due sequences and show alert if needed
   checkSequencesDue();
 }
+End of disabled Follow-Up Dashboard code */
 
 // ============================================
 // CONTACT STATUS DASHBOARD FUNCTIONS
@@ -20455,63 +20414,54 @@ function refreshContactStatusDashboard() {
   }
 }
 
-// Show businesses contacted by a specific channel
+// Show businesses contacted by a specific channel (legacy - now shows all)
 function showContactedByChannel(channelKey) {
-  contactStatusState.currentChannel = channelKey;
+  // Now just toggles the expanded view showing all channels
+  toggleContactStatusExpanded();
+}
 
-  const channelConfig = {
-    texted: { title: '📱 Texted Businesses', color: 'green', data: contactStatusState.texted },
-    emailed: { title: '✉️ Emailed Businesses', color: 'blue', data: contactStatusState.emailed },
-    facebookMessaged: { title: '📘 FB Messaged Businesses', color: 'indigo', data: contactStatusState.facebookMessaged },
-    dmed: { title: '📷 IG DM\'d Businesses', color: 'pink', data: contactStatusState.dmed },
-    called: { title: '📞 Called Businesses', color: 'orange', data: contactStatusState.called },
-    linkedinMessaged: { title: '💼 LinkedIn Messaged', color: 'sky', data: contactStatusState.linkedinMessaged }
-  };
-
-  const config = channelConfig[channelKey];
-  if (!config) return;
-
-  // Show expanded section
-  const expandedSection = document.getElementById('contactStatusExpanded');
-  if (expandedSection) expandedSection.classList.remove('hidden');
-
-  // Update title
-  const title = document.getElementById('contactStatusTitle');
-  if (title) title.textContent = config.title;
-
-  // Render list
-  const list = document.getElementById('contactStatusList');
+// Render a single channel's list of businesses
+function renderChannelList(listId, data, channelKey, colorClass) {
+  const list = document.getElementById(listId);
   if (!list) return;
 
-  if (config.data.length === 0) {
-    list.innerHTML = `<p class="text-sm text-gray-500 italic">No businesses ${channelKey === 'dmed' ? 'DM\'d' : channelKey} yet</p>`;
+  if (data.length === 0) {
+    const emptyText = {
+      texted: 'No texted businesses',
+      emailed: 'No emailed businesses',
+      facebookMessaged: 'No FB messaged businesses',
+      dmed: 'No IG DM\'d businesses'
+    };
+    list.innerHTML = `<p class="text-xs text-gray-400 italic">${emptyText[channelKey] || 'None'}</p>`;
     return;
   }
 
-  list.innerHTML = config.data.map(p => {
-    const dateStr = p.contactDate ? new Date(p.contactDate).toLocaleDateString() : 'Unknown date';
-    const hasResponse = p.contactTracking?.responded;
-
+  list.innerHTML = data.map(p => {
+    const dateStr = p.contactDate ? new Date(p.contactDate).toLocaleDateString() : 'No date';
     return `
-      <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 hover:bg-gray-100 cursor-pointer" onclick="openQuickActionPopup('${p.id}', '${p.column}')">
-        <div class="flex items-center justify-between gap-2">
+      <div class="bg-gray-50 border border-gray-100 rounded-lg p-2 text-xs">
+        <div class="flex items-center justify-between gap-1">
           <div class="flex-1 min-w-0">
-            <div class="font-semibold text-gray-900 text-sm truncate">${esc(p.businessName || 'Unknown')}</div>
-            <div class="text-xs text-gray-500 mt-0.5">${dateStr} ${hasResponse ? '<span class="text-green-600 font-medium">✓ Replied</span>' : ''}</div>
+            <div class="font-semibold text-gray-800 truncate">${esc(p.businessName || 'Unknown')}</div>
+            <div class="text-gray-400">${dateStr}</div>
           </div>
-          <div class="flex gap-2 flex-shrink-0">
-            <button onclick="event.stopPropagation(); contactAgain('${p.id}', '${channelKey}')" class="px-2 py-1 bg-${config.color}-100 text-${config.color}-700 text-xs rounded hover:bg-${config.color}-200 font-medium">
-              Contact Again
-            </button>
-          </div>
+          <button onclick="removeContactTracking('${p.id}', '${channelKey}')"
+                  class="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded"
+                  title="Remove from ${channelKey}">
+            ✕
+          </button>
         </div>
       </div>
     `;
   }).join('');
+}
 
-  // Update toggle button
-  const toggleBtn = document.getElementById('btnContactStatusToggle');
-  if (toggleBtn) toggleBtn.textContent = '➖ Collapse';
+// Render all 4 channel columns
+function renderAllContactStatusColumns() {
+  renderChannelList('textedList', contactStatusState.texted, 'texted', 'green');
+  renderChannelList('emailedList', contactStatusState.emailed, 'emailed', 'blue');
+  renderChannelList('facebookList', contactStatusState.facebookMessaged, 'facebookMessaged', 'indigo');
+  renderChannelList('instagramList', contactStatusState.dmed, 'dmed', 'pink');
 }
 
 // Toggle expanded section
@@ -20520,18 +20470,9 @@ function toggleContactStatusExpanded() {
   const toggleBtn = document.getElementById('btnContactStatusToggle');
 
   if (expandedSection && expandedSection.classList.contains('hidden')) {
-    // Show first channel with data
-    if (contactStatusState.texted.length > 0) {
-      showContactedByChannel('texted');
-    } else if (contactStatusState.emailed.length > 0) {
-      showContactedByChannel('emailed');
-    } else if (contactStatusState.facebookMessaged.length > 0) {
-      showContactedByChannel('facebookMessaged');
-    } else if (contactStatusState.dmed.length > 0) {
-      showContactedByChannel('dmed');
-    } else {
-      showContactedByChannel('texted'); // Default
-    }
+    // Show and render all columns
+    expandedSection.classList.remove('hidden');
+    renderAllContactStatusColumns();
     if (toggleBtn) toggleBtn.textContent = '➖ Collapse';
   } else {
     hideContactStatusExpanded();
@@ -20545,7 +20486,43 @@ function hideContactStatusExpanded() {
 
   if (expandedSection) expandedSection.classList.add('hidden');
   if (toggleBtn) toggleBtn.textContent = '➕ Expand';
-  contactStatusState.currentChannel = null;
+}
+
+// Remove contact tracking for a specific channel
+async function removeContactTracking(prospectId, channelKey) {
+  const result = findProspectInCampaignBoard(prospectId);
+  if (!result) {
+    toast('Prospect not found', false);
+    return;
+  }
+
+  const prospect = result.item;
+  if (!prospect.contactTracking) {
+    toast('No contact tracking to remove', false);
+    return;
+  }
+
+  // Map channelKey to contactTracking properties
+  const trackingMap = {
+    'texted': ['texted', 'textedDate'],
+    'emailed': ['emailed', 'emailedDate'],
+    'facebookMessaged': ['facebookMessaged', 'facebookMessagedDate'],
+    'dmed': ['dmed', 'dmedDate'],
+    'called': ['called', 'calledDate'],
+    'linkedinMessaged': ['linkedinMessaged', 'linkedinMessagedDate']
+  };
+
+  const props = trackingMap[channelKey];
+  if (props) {
+    delete prospect.contactTracking[props[0]];
+    delete prospect.contactTracking[props[1]];
+  }
+
+  // Save and refresh
+  await saveCampaignBoards();
+  refreshContactStatusDashboard();
+  renderAllContactStatusColumns();
+  toast(`Removed ${channelKey} tracking for ${prospect.businessName}`, true);
 }
 
 // Contact a business again via the same channel

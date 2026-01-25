@@ -580,48 +580,6 @@
                     <!-- Daily goal dynamically populated -->
                 </div>
 
-                <!-- FOLLOW-UP DASHBOARD -->
-                <div id="followUpDashboardWrapper" class="mb-6" style="display: none;">
-                    <div id="followUpDashboard" class="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl p-4 md:p-6">
-                        <div class="flex items-center justify-between mb-4">
-                            <div class="flex items-center gap-3">
-                                <span class="text-3xl">📅</span>
-                                <div>
-                                    <h4 class="text-lg md:text-xl font-bold text-gray-900">Follow-Up Dashboard</h4>
-                                    <p class="text-xs md:text-sm text-gray-600">Who needs attention today</p>
-                                </div>
-                            </div>
-                            <button onclick="refreshFollowUpDashboard()" class="text-sm text-amber-600 hover:text-amber-800 font-medium">
-                                🔄 Refresh
-                            </button>
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <!-- Overdue Section -->
-                            <div class="bg-white rounded-xl p-4 border border-red-200">
-                                <div class="flex items-center gap-2 mb-3">
-                                    <span class="text-red-600 font-bold text-sm">🚨 Overdue</span>
-                                    <span id="overdueCount" class="bg-red-600 text-white text-xs px-2 py-0.5 rounded-full font-bold">0</span>
-                                </div>
-                                <div id="overdueList" class="space-y-2 max-h-48 overflow-y-auto">
-                                    <p class="text-sm text-gray-500 italic">No overdue follow-ups</p>
-                                </div>
-                            </div>
-
-                            <!-- Due Today Section -->
-                            <div class="bg-white rounded-xl p-4 border border-amber-200">
-                                <div class="flex items-center gap-2 mb-3">
-                                    <span class="text-amber-600 font-bold text-sm">📌 Due Today</span>
-                                    <span id="dueTodayCount" class="bg-amber-600 text-white text-xs px-2 py-0.5 rounded-full font-bold">0</span>
-                                </div>
-                                <div id="dueTodayList" class="space-y-2 max-h-48 overflow-y-auto">
-                                    <p class="text-sm text-gray-500 italic">Nothing due today</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- CONTACT STATUS DASHBOARD -->
                 <div id="contactStatusDashboardWrapper" class="mb-6">
                     <div class="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-2xl p-4 md:p-6">
@@ -675,15 +633,48 @@
                             </div>
                         </div>
 
-                        <!-- Expanded Detail Section (hidden by default) -->
+                        <!-- Expanded Detail Section - 4 columns showing all channels -->
                         <div id="contactStatusExpanded" class="hidden">
-                            <div class="bg-white rounded-xl p-4 border border-gray-200">
-                                <div class="flex items-center justify-between mb-3">
-                                    <h5 id="contactStatusTitle" class="font-bold text-gray-900">📱 Texted Businesses</h5>
-                                    <button onclick="hideContactStatusExpanded()" class="text-gray-400 hover:text-gray-600">✕</button>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <!-- Texted Column -->
+                                <div class="bg-white rounded-xl p-3 border border-green-200">
+                                    <div class="flex items-center gap-2 mb-2 pb-2 border-b border-green-100">
+                                        <span class="text-lg">📱</span>
+                                        <span class="font-bold text-green-700 text-sm">Texted</span>
+                                    </div>
+                                    <div id="textedList" class="space-y-2 max-h-64 overflow-y-auto">
+                                        <p class="text-xs text-gray-400 italic">No texted businesses</p>
+                                    </div>
                                 </div>
-                                <div id="contactStatusList" class="space-y-2 max-h-64 overflow-y-auto">
-                                    <p class="text-sm text-gray-500 italic">Click a channel above to view businesses</p>
+                                <!-- Emailed Column -->
+                                <div class="bg-white rounded-xl p-3 border border-blue-200">
+                                    <div class="flex items-center gap-2 mb-2 pb-2 border-b border-blue-100">
+                                        <span class="text-lg">✉️</span>
+                                        <span class="font-bold text-blue-700 text-sm">Emailed</span>
+                                    </div>
+                                    <div id="emailedList" class="space-y-2 max-h-64 overflow-y-auto">
+                                        <p class="text-xs text-gray-400 italic">No emailed businesses</p>
+                                    </div>
+                                </div>
+                                <!-- FB Messaged Column -->
+                                <div class="bg-white rounded-xl p-3 border border-indigo-200">
+                                    <div class="flex items-center gap-2 mb-2 pb-2 border-b border-indigo-100">
+                                        <span class="text-lg">📘</span>
+                                        <span class="font-bold text-indigo-700 text-sm">FB Messaged</span>
+                                    </div>
+                                    <div id="facebookList" class="space-y-2 max-h-64 overflow-y-auto">
+                                        <p class="text-xs text-gray-400 italic">No FB messaged businesses</p>
+                                    </div>
+                                </div>
+                                <!-- IG DM'd Column -->
+                                <div class="bg-white rounded-xl p-3 border border-pink-200">
+                                    <div class="flex items-center gap-2 mb-2 pb-2 border-b border-pink-100">
+                                        <span class="text-lg">📷</span>
+                                        <span class="font-bold text-pink-700 text-sm">IG DM'd</span>
+                                    </div>
+                                    <div id="instagramList" class="space-y-2 max-h-64 overflow-y-auto">
+                                        <p class="text-xs text-gray-400 italic">No IG DM'd businesses</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
