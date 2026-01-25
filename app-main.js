@@ -436,79 +436,6 @@ async function retryQueuedSyncs() {
 const GOOGLE_PLACES_API_KEY = "YOUR_GOOGLE_PLACES_API_KEY_HERE";
 
 // Message Templates - For outreach to prospects
-const MESSAGE_TEMPLATES = {
-  messenger: {
-    name: "Facebook Messenger - First Contact",
-    subject: "",
-    body: `Hi there! 👋
-
-I noticed [BUSINESS_NAME] on Facebook and wanted to reach out about a local advertising opportunity.
-
-We help local businesses like yours reach thousands of households in [TOWN] through our shared mailer program. Your business would be featured alongside other quality local services.
-
-Would you be open to a quick chat about how this could work for you?
-
-Looking forward to hearing from you!
-
-Best regards,
-[YOUR_NAME]
-[YOUR_PHONE]`
-  },
-  email: {
-    name: "Email - First Contact",
-    subject: "Local Advertising Opportunity for [BUSINESS_NAME]",
-    body: `Hi,
-
-I hope this email finds you well. I'm reaching out regarding a cost-effective advertising opportunity for [BUSINESS_NAME] in [TOWN].
-
-We publish a shared mailer that goes directly to thousands of local households. Your business would be featured alongside other quality local services, giving you exposure to potential customers in your area.
-
-Here's what makes this different:
-• Direct mail to targeted local households
-• Professional design included
-• Shared cost model makes it affordable
-• Proven results for local businesses
-
-Would you be interested in learning more? I'd be happy to send over some details and pricing.
-
-Best regards,
-[YOUR_NAME]
-[YOUR_PHONE]
-[YOUR_EMAIL]`
-  },
-  instagram: {
-    name: "Instagram DM - First Contact",
-    subject: "",
-    body: `Hey! 👋
-
-Love what [BUSINESS_NAME] is doing! I wanted to reach out about a local advertising opportunity that might interest you.
-
-We help businesses in [TOWN] reach thousands of local households through our shared mailer program.
-
-Would you be open to a quick chat? I think this could be a great fit for you!
-
-[YOUR_NAME]
-[YOUR_PHONE]`
-  },
-  followup: {
-    name: "Follow-up - After Initial Contact",
-    subject: "Following up - [BUSINESS_NAME]",
-    body: `Hi,
-
-I wanted to follow up on my message from [DATE] about the local advertising opportunity.
-
-I know you're busy, but I wanted to make sure this didn't get lost in your inbox.
-
-We're putting together our next mailer for [TOWN] and I'd love to include [BUSINESS_NAME] if you're interested.
-
-Do you have 5 minutes to chat this week?
-
-Thanks!
-[YOUR_NAME]
-[YOUR_PHONE]`
-  }
-};
-
 // User Templates State (editable, synced to cloud)
 const userTemplatesState = {
   templates: {} // { templateId: { id, name, category, type, subject, body, variables, createdAt, lastUsed } }
@@ -3734,7 +3661,7 @@ function migrateTemplates() {
 }
 
 function initializeDefaultTemplates() {
-  // Convert hardcoded MESSAGE_TEMPLATES to user templates
+  // Initialize default user templates
   const defaultTemplates = {
     'default_messenger': {
       id: 'default_messenger',
@@ -3742,7 +3669,19 @@ function initializeDefaultTemplates() {
       category: 'prospect',
       type: 'messenger',
       subject: '',
-      body: MESSAGE_TEMPLATES.messenger.body,
+      body: `Hi there!
+
+I noticed {businessName} and wanted to reach out about a local advertising opportunity.
+
+We help local businesses like yours reach thousands of households in {town} through our shared mailer program. Your business would be featured alongside other quality local services.
+
+Would you be open to a quick chat about how this could work for you?
+
+Looking forward to hearing from you!
+
+Best regards,
+{yourName}
+{yourPhone}`,
       variables: ['businessName', 'town', 'yourName', 'yourPhone'],
       createdAt: new Date().toISOString(),
       usageCount: 0,
@@ -3753,8 +3692,25 @@ function initializeDefaultTemplates() {
       name: 'Email - First Contact',
       category: 'prospect',
       type: 'email',
-      subject: MESSAGE_TEMPLATES.email.subject,
-      body: MESSAGE_TEMPLATES.email.body,
+      subject: 'Local Advertising Opportunity for {businessName}',
+      body: `Hi,
+
+I hope this email finds you well. I'm reaching out regarding a cost-effective advertising opportunity for {businessName} in {town}.
+
+We publish a shared mailer that goes directly to thousands of local households. Your business would be featured alongside other quality local services, giving you exposure to potential customers in your area.
+
+Here's what makes this different:
+• Direct mail to targeted local households
+• Professional design included
+• Shared cost model makes it affordable
+• Proven results for local businesses
+
+Would you be interested in learning more? I'd be happy to send over some details and pricing.
+
+Best regards,
+{yourName}
+{yourPhone}
+{yourEmail}`,
       variables: ['businessName', 'town', 'yourName', 'yourPhone', 'yourEmail'],
       createdAt: new Date().toISOString(),
       usageCount: 0,
@@ -3766,7 +3722,16 @@ function initializeDefaultTemplates() {
       category: 'prospect',
       type: 'instagram',
       subject: '',
-      body: MESSAGE_TEMPLATES.instagram.body,
+      body: `Hey!
+
+Love what {businessName} is doing! I wanted to reach out about a local advertising opportunity that might interest you.
+
+We help businesses in {town} reach thousands of local households through our shared mailer program.
+
+Would you be open to a quick chat? I think this could be a great fit for you!
+
+{yourName}
+{yourPhone}`,
       variables: ['businessName', 'town', 'yourName', 'yourPhone'],
       createdAt: new Date().toISOString(),
       usageCount: 0,
@@ -3777,8 +3742,20 @@ function initializeDefaultTemplates() {
       name: 'Follow-up - After Initial Contact',
       category: 'followup',
       type: 'email',
-      subject: MESSAGE_TEMPLATES.followup.subject,
-      body: MESSAGE_TEMPLATES.followup.body,
+      subject: 'Following up - {businessName}',
+      body: `Hi,
+
+I wanted to follow up on my message from {date} about the local advertising opportunity.
+
+I know you're busy, but I wanted to make sure this didn't get lost in your inbox.
+
+We're putting together our next mailer for {town} and I'd love to include {businessName} if you're interested.
+
+Do you have 5 minutes to chat this week?
+
+Thanks!
+{yourName}
+{yourPhone}`,
       variables: ['businessName', 'town', 'date', 'yourName', 'yourPhone'],
       createdAt: new Date().toISOString(),
       usageCount: 0,
@@ -14676,39 +14653,6 @@ function addNewInteraction() {
   toast('✅ Interaction logged!', true);
 }
 
-let currentTemplate = null;
-
-function showMessageTemplate(templateType) {
-  if (!MESSAGE_TEMPLATES[templateType]) return;
-
-  const template = MESSAGE_TEMPLATES[templateType];
-  currentTemplate = template;
-
-  // Populate template with prospect data
-  let body = template.body;
-  if (currentProspectDetail) {
-    body = body.replace(/\[BUSINESS_NAME\]/g, currentProspectDetail.businessName || '[BUSINESS_NAME]');
-    body = body.replace(/\[TOWN\]/g, currentProspectDetail.zipCode || currentProspectDetail.town || '[TOWN]');
-    body = body.replace(/\[DATE\]/g, new Date().toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }));
-  }
-
-  // Show template preview
-  document.getElementById('templateTitle').textContent = template.name;
-  document.getElementById('templateSubject').textContent = template.subject ? `Subject: ${template.subject}` : '';
-  document.getElementById('templateBody').textContent = body;
-  document.getElementById('templatePreview').classList.remove('hidden');
-}
-
-function copyTemplate() {
-  const body = document.getElementById('templateBody').textContent;
-
-  navigator.clipboard.writeText(body).then(() => {
-    toast('✅ Template copied to clipboard!', true);
-  }).catch(err => {
-    console.error('Failed to copy:', err);
-    toast('⚠️ Failed to copy template', false);
-  });
-}
 
 /* ========= TEMPLATE MANAGER UI FUNCTIONS ========= */
 
@@ -15242,8 +15186,6 @@ window.openProspectDetailModal = openProspectDetailModal;
 window.closeProspectDetailModal = closeProspectDetailModal;
 window.quickAction = quickAction;
 window.addNewInteraction = addNewInteraction;
-window.showMessageTemplate = showMessageTemplate;
-window.copyTemplate = copyTemplate;
 window.markNotInterested = markNotInterested;
 window.markProspectNotInterested = markProspectNotInterested;
 
