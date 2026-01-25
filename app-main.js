@@ -20372,10 +20372,11 @@ function refreshContactStatusDashboard() {
   });
 
   // Sort each by most recent first
+  // Sort oldest first (needs follow-up sooner)
   const sortByDate = (a, b) => {
-    if (!a.contactDate) return 1;
-    if (!b.contactDate) return -1;
-    return new Date(b.contactDate) - new Date(a.contactDate);
+    if (!a.contactDate) return -1; // No date = oldest
+    if (!b.contactDate) return 1;
+    return new Date(a.contactDate) - new Date(b.contactDate);
   };
   contactStatusState.texted.sort(sortByDate);
   contactStatusState.emailed.sort(sortByDate);
@@ -20420,6 +20421,18 @@ function showContactedByChannel(channelKey) {
   toggleContactStatusExpanded();
 }
 
+// Calculate days ago from date
+function getDaysAgo(dateStr) {
+  if (!dateStr) return null;
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffTime = now - date;
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return '1 day ago';
+  return `${diffDays} days ago`;
+}
+
 // Render a single channel's list of businesses
 function renderChannelList(listId, data, channelKey, colorClass) {
   const list = document.getElementById(listId);
@@ -20436,20 +20449,37 @@ function renderChannelList(listId, data, channelKey, colorClass) {
     return;
   }
 
+  // Color mapping for buttons
+  const colorMap = {
+    texted: 'green',
+    emailed: 'blue',
+    facebookMessaged: 'indigo',
+    dmed: 'pink'
+  };
+  const btnColor = colorMap[channelKey] || 'gray';
+
   list.innerHTML = data.map(p => {
-    const dateStr = p.contactDate ? new Date(p.contactDate).toLocaleDateString() : 'No date';
+    const daysAgo = getDaysAgo(p.contactDate);
+    const daysNum = p.contactDate ? Math.floor((new Date() - new Date(p.contactDate)) / (1000 * 60 * 60 * 24)) : 999;
+    const urgencyClass = daysNum >= 7 ? 'text-red-500 font-medium' : daysNum >= 3 ? 'text-amber-500' : 'text-gray-400';
+
     return `
-      <div class="bg-gray-50 border border-gray-100 rounded-lg p-2 text-xs">
+      <div class="bg-gray-50 border border-gray-100 rounded-lg p-2 text-xs mb-1">
+        <div class="font-semibold text-gray-800 truncate mb-1">${esc(p.businessName || 'Unknown')}</div>
         <div class="flex items-center justify-between gap-1">
-          <div class="flex-1 min-w-0">
-            <div class="font-semibold text-gray-800 truncate">${esc(p.businessName || 'Unknown')}</div>
-            <div class="text-gray-400">${dateStr}</div>
+          <span class="${urgencyClass}">${daysAgo || 'No date'}</span>
+          <div class="flex gap-1">
+            <button onclick="followUpContact('${p.id}', '${channelKey}')"
+                    class="px-2 py-0.5 bg-${btnColor}-100 text-${btnColor}-700 rounded hover:bg-${btnColor}-200 font-medium"
+                    title="Follow up via ${channelKey}">
+              Follow Up
+            </button>
+            <button onclick="removeContactTracking('${p.id}', '${channelKey}')"
+                    class="px-1 py-0.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded"
+                    title="Remove">
+              ✕
+            </button>
           </div>
-          <button onclick="removeContactTracking('${p.id}', '${channelKey}')"
-                  class="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded"
-                  title="Remove from ${channelKey}">
-            ✕
-          </button>
         </div>
       </div>
     `;
@@ -20525,57 +20555,84 @@ async function removeContactTracking(prospectId, channelKey) {
   toast(`Removed ${channelKey} tracking for ${prospect.businessName}`, true);
 }
 
-// Contact a business again via the same channel
-function contactAgain(prospectId, channelKey) {
-  // Find prospect in Campaign Board
+// Follow up with a business - opens channel and updates contact date
+async function followUpContact(prospectId, channelKey) {
   const result = findProspectInCampaignBoard(prospectId);
   if (!result) {
     toast('Prospect not found', false);
     return;
   }
   const prospect = result.item;
-  const columnKey = result.column;
+  const businessName = prospect.businessName || 'Unknown';
 
-  // Open appropriate channel
-  switch (channelKey) {
-    case 'texted':
-      if (prospect.phone) {
+  // Channel config
+  const channelConfig = {
+    texted: {
+      icon: '📱',
+      name: 'Text',
+      hasContact: !!prospect.phone,
+      open: () => {
         const cleanPhone = prospect.phone.replace(/\D/g, '');
         window.open(`https://voice.google.com/u/0/messages?itemId=t.+1${cleanPhone}`, '_blank');
-        toast('📱 Google Voice opened', true);
-      }
-      break;
-    case 'emailed':
-      if (prospect.email) {
-        window.open(`mailto:${prospect.email}`, '_blank');
-        toast('✉️ Email opened', true);
-      }
-      break;
-    case 'facebookMessaged':
-      if (prospect.facebook) {
-        window.open(ensureHttps(prospect.facebook), '_blank');
-        toast('📘 Facebook opened', true);
-      }
-      break;
-    case 'dmed':
-      if (prospect.instagram) {
-        window.open(ensureHttps(prospect.instagram), '_blank');
-        toast('📷 Instagram opened', true);
-      }
-      break;
-    case 'called':
-      if (prospect.phone) {
-        window.open(`tel:${prospect.phone}`, '_blank');
-        toast('📞 Calling...', true);
-      }
-      break;
-    case 'linkedinMessaged':
-      if (prospect.linkedin) {
-        window.open(ensureHttps(prospect.linkedin), '_blank');
-        toast('💼 LinkedIn opened', true);
-      }
-      break;
+      },
+      dateKey: 'textedDate'
+    },
+    emailed: {
+      icon: '✉️',
+      name: 'Email',
+      hasContact: !!prospect.email,
+      open: () => window.open(`mailto:${prospect.email}?subject=Following up - ${encodeURIComponent(businessName)}`, '_blank'),
+      dateKey: 'emailedDate'
+    },
+    facebookMessaged: {
+      icon: '📘',
+      name: 'Facebook',
+      hasContact: !!prospect.facebook,
+      open: () => window.open(ensureHttps(prospect.facebook), '_blank'),
+      dateKey: 'facebookMessagedDate'
+    },
+    dmed: {
+      icon: '📷',
+      name: 'Instagram',
+      hasContact: !!prospect.instagram,
+      open: () => window.open(ensureHttps(prospect.instagram), '_blank'),
+      dateKey: 'dmedDate'
+    }
+  };
+
+  const config = channelConfig[channelKey];
+  if (!config) {
+    toast('Unknown channel', false);
+    return;
   }
+
+  if (!config.hasContact) {
+    toast(`No ${config.name} contact info for ${businessName}`, false);
+    return;
+  }
+
+  // Open the channel
+  config.open();
+
+  // Update the contact date
+  if (!prospect.contactTracking) {
+    prospect.contactTracking = {};
+  }
+  prospect.contactTracking[channelKey] = true;
+  prospect.contactTracking[config.dateKey] = new Date().toISOString();
+  prospect.lastContacted = new Date().toISOString();
+
+  // Save and refresh
+  await saveCampaignBoards();
+  refreshContactStatusDashboard();
+  renderAllContactStatusColumns();
+
+  toast(`${config.icon} Following up with ${businessName}`, true);
+}
+
+// Contact a business again via the same channel (legacy - use followUpContact)
+function contactAgain(prospectId, channelKey) {
+  followUpContact(prospectId, channelKey);
 }
 
 // ============================================
