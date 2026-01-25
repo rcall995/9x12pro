@@ -20802,47 +20802,81 @@ We're putting together the next card and I still have your spot open. Any questi
   ]
 };
 
-// User-edited templates storage key
-const TEMPLATES_STORAGE_KEY = 'mailslot-user-templates';
+// Template edits state (synced to cloud)
+let templateEditsState = {};
 
-// Load user-edited templates from localStorage
-function loadUserTemplates() {
+// Storage key for localStorage fallback
+const TEMPLATE_EDITS_STORAGE_KEY = 'mailslot-template-edits';
+
+// Load template edits from cloud (called on app startup)
+async function loadTemplateEdits() {
   try {
-    const saved = localStorage.getItem(TEMPLATES_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : {};
+    // Try loading from cloud first
+    const cloudData = await loadFromCloud('templateEdits');
+    if (cloudData && cloudData.edits) {
+      templateEditsState = cloudData.edits;
+      console.log('✅ Loaded template edits from cloud');
+    } else {
+      // Fallback to localStorage
+      const saved = safeGetItem(TEMPLATE_EDITS_STORAGE_KEY);
+      if (saved) {
+        templateEditsState = JSON.parse(saved);
+        console.log('✅ Loaded template edits from localStorage');
+        // Migrate to cloud
+        saveTemplateEditsToCloud();
+      }
+    }
   } catch (e) {
-    console.error('Error loading user templates:', e);
-    return {};
+    console.error('Error loading template edits:', e);
+    // Try localStorage as fallback
+    const saved = safeGetItem(TEMPLATE_EDITS_STORAGE_KEY);
+    if (saved) {
+      templateEditsState = JSON.parse(saved);
+    }
   }
 }
 
-// Save user-edited template to localStorage
-function saveUserTemplate(channelKey, templateId, edits) {
+// Save template edits to cloud
+async function saveTemplateEditsToCloud() {
   try {
-    const userTemplates = loadUserTemplates();
-    if (!userTemplates[channelKey]) {
-      userTemplates[channelKey] = {};
+    await saveToCloud('templateEdits', { edits: templateEditsState });
+    safeSetItem(TEMPLATE_EDITS_STORAGE_KEY, JSON.stringify(templateEditsState));
+    console.log('✅ Saved template edits to cloud');
+  } catch (e) {
+    console.warn('Template edits saved to localStorage only:', e);
+    safeSetItem(TEMPLATE_EDITS_STORAGE_KEY, JSON.stringify(templateEditsState));
+  }
+}
+
+// Get current template edits
+function getTemplateEdits() {
+  return templateEditsState;
+}
+
+// Save a single template edit
+async function saveTemplateEdit(channelKey, templateId, edits) {
+  try {
+    if (!templateEditsState[channelKey]) {
+      templateEditsState[channelKey] = {};
     }
-    userTemplates[channelKey][templateId] = edits;
-    localStorage.setItem(TEMPLATES_STORAGE_KEY, JSON.stringify(userTemplates));
+    templateEditsState[channelKey][templateId] = edits;
+    await saveTemplateEditsToCloud();
     return true;
   } catch (e) {
-    console.error('Error saving user template:', e);
+    console.error('Error saving template edit:', e);
     return false;
   }
 }
 
 // Reset a template to default
-function resetUserTemplate(channelKey, templateId) {
+async function resetTemplateEdit(channelKey, templateId) {
   try {
-    const userTemplates = loadUserTemplates();
-    if (userTemplates[channelKey] && userTemplates[channelKey][templateId]) {
-      delete userTemplates[channelKey][templateId];
-      // Clean up empty channel objects
-      if (Object.keys(userTemplates[channelKey]).length === 0) {
-        delete userTemplates[channelKey];
+    if (templateEditsState[channelKey] && templateEditsState[channelKey][templateId]) {
+      delete templateEditsState[channelKey][templateId];
+      if (Object.keys(templateEditsState[channelKey]).length === 0) {
+        delete templateEditsState[channelKey];
       }
-      localStorage.setItem(TEMPLATES_STORAGE_KEY, JSON.stringify(userTemplates));
+      await saveTemplateEditsToCloud();
     }
     return true;
   } catch (e) {
@@ -20854,7 +20888,7 @@ function resetUserTemplate(channelKey, templateId) {
 // Get merged templates (defaults + user edits)
 function getTemplates(channelKey) {
   const defaults = DEFAULT_TEMPLATES[channelKey] || [];
-  const userEdits = loadUserTemplates()[channelKey] || {};
+  const userEdits = templateEditsState[channelKey] || {};
 
   return defaults.map(template => {
     const userEdit = userEdits[template.id];
@@ -20872,7 +20906,7 @@ function getTemplates(channelKey) {
 
 // Check if a template has been edited
 function isTemplateEdited(channelKey, templateId) {
-  const userEdits = loadUserTemplates()[channelKey] || {};
+  const userEdits = templateEditsState[channelKey] || {};
   return !!userEdits[templateId];
 }
 
@@ -20933,7 +20967,10 @@ function openTemplatePicker() {
 <body class="bg-gray-100">
   <div class="flex flex-col h-screen">
     <div class="p-4 bg-white border-b shadow-sm">
-      <h1 class="text-xl font-bold text-gray-900">📋 Message Templates</h1>
+      <div class="flex items-center justify-between">
+        <h1 class="text-xl font-bold text-gray-900">📋 Message Templates</h1>
+        <span id="syncStatus" class="text-xs px-2 py-1 rounded"></span>
+      </div>
       <p class="text-xs text-gray-500 mt-1">Copy a template, then Follow Up on a business in the main app</p>
     </div>
 
@@ -20955,45 +20992,48 @@ function openTemplatePicker() {
   <script>
     // Template data from main app
     const DEFAULT_TEMPLATES = ${templatesJson};
-    const TEMPLATES_STORAGE_KEY = 'mailslot-user-templates';
 
     function esc(str) {
       if (!str) return '';
       return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
-    function loadUserTemplates() {
+    // Get template edits from main app (cloud-synced)
+    function getTemplateEditsFromMain() {
       try {
-        const saved = localStorage.getItem(TEMPLATES_STORAGE_KEY);
-        return saved ? JSON.parse(saved) : {};
-      } catch (e) { return {}; }
-    }
-
-    function saveUserTemplate(channelKey, templateId, edits) {
-      try {
-        const userTemplates = loadUserTemplates();
-        if (!userTemplates[channelKey]) userTemplates[channelKey] = {};
-        userTemplates[channelKey][templateId] = edits;
-        localStorage.setItem(TEMPLATES_STORAGE_KEY, JSON.stringify(userTemplates));
-        return true;
-      } catch (e) { return false; }
-    }
-
-    function resetUserTemplate(channelKey, templateId) {
-      try {
-        const userTemplates = loadUserTemplates();
-        if (userTemplates[channelKey] && userTemplates[channelKey][templateId]) {
-          delete userTemplates[channelKey][templateId];
-          if (Object.keys(userTemplates[channelKey]).length === 0) delete userTemplates[channelKey];
-          localStorage.setItem(TEMPLATES_STORAGE_KEY, JSON.stringify(userTemplates));
+        if (window.opener && window.opener.getTemplateEdits) {
+          return window.opener.getTemplateEdits();
         }
-        return true;
-      } catch (e) { return false; }
+      } catch (e) { console.warn('Cannot access main app:', e); }
+      return {};
+    }
+
+    // Save template edit via main app (cloud-synced)
+    async function saveTemplateViaMain(channelKey, templateId, edits) {
+      try {
+        if (window.opener && window.opener.saveTemplateEdit) {
+          const result = await window.opener.saveTemplateEdit(channelKey, templateId, edits);
+          return result;
+        }
+      } catch (e) { console.warn('Cannot save via main app:', e); }
+      return false;
+    }
+
+    // Reset template via main app (cloud-synced)
+    async function resetTemplateViaMain(channelKey, templateId) {
+      try {
+        if (window.opener && window.opener.resetTemplateEdit) {
+          const result = await window.opener.resetTemplateEdit(channelKey, templateId);
+          return result;
+        }
+      } catch (e) { console.warn('Cannot reset via main app:', e); }
+      return false;
     }
 
     function getTemplates(channelKey) {
       const defaults = DEFAULT_TEMPLATES[channelKey] || [];
-      const userEdits = loadUserTemplates()[channelKey] || {};
+      const allEdits = getTemplateEditsFromMain();
+      const userEdits = allEdits[channelKey] || {};
       return defaults.map(template => {
         const userEdit = userEdits[template.id];
         if (userEdit) {
@@ -21092,25 +21132,31 @@ function openTemplatePicker() {
       document.body.appendChild(modal);
     }
 
-    function saveEdit(channelKey, templateId, hasSubject) {
+    async function saveEdit(channelKey, templateId, hasSubject) {
       const body = document.getElementById('editBody').value;
       const edits = { body: body };
       if (hasSubject) edits.subject = document.getElementById('editSubject').value;
 
-      if (saveUserTemplate(channelKey, templateId, edits)) {
-        showToast('✅ Template saved!');
+      showToast('💾 Saving to cloud...');
+      const success = await saveTemplateViaMain(channelKey, templateId, edits);
+      if (success) {
+        showToast('✅ Template saved to cloud!');
         document.getElementById('editModal').remove();
         showTemplateChannel(channelKey);
       } else {
-        alert('Failed to save');
+        alert('Failed to save - make sure main app is open');
       }
     }
 
-    function resetTemplate(channelKey, templateId) {
+    async function resetTemplate(channelKey, templateId) {
       if (!confirm('Reset this template to default?')) return;
-      if (resetUserTemplate(channelKey, templateId)) {
+      showToast('💾 Resetting...');
+      const success = await resetTemplateViaMain(channelKey, templateId);
+      if (success) {
         showToast('✅ Reset to default');
         showTemplateChannel(channelKey);
+      } else {
+        alert('Failed to reset - make sure main app is open');
       }
     }
 
@@ -21126,8 +21172,27 @@ function openTemplatePicker() {
       setTimeout(() => toast.remove(), 2000);
     }
 
-    // Initialize with email templates
+    // Check connection to main app
+    function checkMainAppConnection() {
+      const statusEl = document.getElementById('syncStatus');
+      try {
+        if (window.opener && window.opener.getTemplateEdits) {
+          statusEl.textContent = '☁️ Cloud Synced';
+          statusEl.className = 'text-xs px-2 py-1 rounded bg-green-100 text-green-700';
+          return true;
+        }
+      } catch (e) {}
+      statusEl.textContent = '⚠️ Not Connected';
+      statusEl.className = 'text-xs px-2 py-1 rounded bg-yellow-100 text-yellow-700';
+      return false;
+    }
+
+    // Initialize
+    checkMainAppConnection();
     showTemplateChannel('email');
+
+    // Re-check connection periodically
+    setInterval(checkMainAppConnection, 5000);
   </script>
 </body>
 </html>`;
@@ -23708,7 +23773,8 @@ async function loadAllData() {
     loadManualProspects(),
     loadBusinessCategories(),
     loadUserTemplates(),
-    loadDailyGoalState()
+    loadDailyGoalState(),
+    loadTemplateEdits()
   ]).then(results => {
     const succeeded = results.filter(r => r.status === 'fulfilled').length;
     const failed = results.filter(r => r.status === 'rejected').length;
@@ -23716,7 +23782,7 @@ async function loadAllData() {
     if (failed > 0) {
       console.warn(`⚠️ ${succeeded} data types loaded, ${failed} failed (using localStorage cache)`);
       const failedTypes = results
-        .map((r, i) => r.status === 'rejected' ? ['expenses', 'pricing', 'revenueGoals', 'spotPricing', 'clients', 'kanban', 'tasks', 'notInterested', 'manualProspects', 'businessCategories', 'userTemplates', 'dailyGoal'][i] : null)
+        .map((r, i) => r.status === 'rejected' ? ['expenses', 'pricing', 'revenueGoals', 'spotPricing', 'clients', 'kanban', 'tasks', 'notInterested', 'manualProspects', 'businessCategories', 'userTemplates', 'dailyGoal', 'templateEdits'][i] : null)
         .filter(t => t !== null);
       console.warn('Failed types:', failedTypes.join(', '));
 
