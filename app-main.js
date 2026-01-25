@@ -21307,18 +21307,41 @@ function openTemplatePicker() {
       modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 
       modal.innerHTML = \`
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-xl mx-4 max-h-[80vh] flex flex-col">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl mx-4 max-h-[85vh] flex flex-col">
           <div class="p-4 border-b flex items-center justify-between">
             <h3 class="text-lg font-bold text-gray-900">✏️ Edit: \${esc(template.name)}</h3>
             <button onclick="document.getElementById('editModal').remove()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
           </div>
-          <div class="flex-1 overflow-y-auto p-4 space-y-4">
-            \${hasSubject ? \`<div><label class="block text-sm font-medium text-gray-700 mb-1">Subject Line</label><input type="text" id="editSubject" value="\${esc(template.subject)}" class="w-full px-3 py-2 border border-gray-300 rounded-lg"></div>\` : ''}
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Message Body</label>
-              <textarea id="editBody" rows="12" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono">\${esc(template.body)}</textarea>
+          <div class="flex-1 flex overflow-hidden">
+            <!-- Editor Section -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-4">
+              \${hasSubject ? \`<div><label class="block text-sm font-medium text-gray-700 mb-1">Subject Line</label><input type="text" id="editSubject" value="\${esc(template.subject)}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"></div>\` : ''}
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Message Body</label>
+                <textarea id="editBody" rows="14" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-purple-500 focus:border-purple-500">\${esc(template.body)}</textarea>
+              </div>
             </div>
-            <div class="text-xs text-gray-500"><strong>Placeholders:</strong> {BUSINESS}, {YOUR_NAME}, {YOUR_PHONE}</div>
+            <!-- Variables Panel -->
+            <div class="w-48 bg-purple-50 border-l overflow-y-auto">
+              <div class="p-2 bg-purple-100 border-b sticky top-0">
+                <div class="font-bold text-purple-800 text-xs">📝 Insert Variable</div>
+                <div class="text-xs text-purple-600">Click to insert at cursor</div>
+              </div>
+              <div class="p-2 space-y-2">
+                <div class="text-xs font-semibold text-gray-500 uppercase">Business</div>
+                <button onclick="insertVariable('{BUSINESS}')" class="w-full text-left px-2 py-1 bg-white hover:bg-purple-200 rounded text-xs border border-purple-200"><code class="text-purple-700">{BUSINESS}</code></button>
+                <button onclick="insertVariable('{ZIP}')" class="w-full text-left px-2 py-1 bg-white hover:bg-purple-200 rounded text-xs border border-purple-200"><code class="text-purple-700">{ZIP}</code></button>
+                <button onclick="insertVariable('{CITY}')" class="w-full text-left px-2 py-1 bg-white hover:bg-purple-200 rounded text-xs border border-purple-200"><code class="text-purple-700">{CITY}</code></button>
+                <button onclick="insertVariable('{CATEGORY}')" class="w-full text-left px-2 py-1 bg-white hover:bg-purple-200 rounded text-xs border border-purple-200"><code class="text-purple-700">{CATEGORY}</code></button>
+                <div class="text-xs font-semibold text-gray-500 uppercase mt-3">Your Info</div>
+                <button onclick="insertVariable('{YOUR_NAME}')" class="w-full text-left px-2 py-1 bg-white hover:bg-purple-200 rounded text-xs border border-purple-200"><code class="text-purple-700">{YOUR_NAME}</code></button>
+                <button onclick="insertVariable('{YOUR_PHONE}')" class="w-full text-left px-2 py-1 bg-white hover:bg-purple-200 rounded text-xs border border-purple-200"><code class="text-purple-700">{YOUR_PHONE}</code></button>
+                <button onclick="insertVariable('{YOUR_EMAIL}')" class="w-full text-left px-2 py-1 bg-white hover:bg-purple-200 rounded text-xs border border-purple-200"><code class="text-purple-700">{YOUR_EMAIL}</code></button>
+                <div class="text-xs font-semibold text-gray-500 uppercase mt-3">Campaign</div>
+                <button onclick="insertVariable('{MAILER_DATE}')" class="w-full text-left px-2 py-1 bg-white hover:bg-purple-200 rounded text-xs border border-purple-200"><code class="text-purple-700">{MAILER_DATE}</code></button>
+                <button onclick="insertVariable('{DEADLINE}')" class="w-full text-left px-2 py-1 bg-white hover:bg-purple-200 rounded text-xs border border-purple-200"><code class="text-purple-700">{DEADLINE}</code></button>
+              </div>
+            </div>
           </div>
           <div class="p-4 border-t flex items-center justify-between bg-gray-50">
             <button onclick="document.getElementById('editModal').remove()" class="px-4 py-2 text-gray-600 hover:text-gray-800">Cancel</button>
@@ -21327,6 +21350,21 @@ function openTemplatePicker() {
         </div>
       \`;
       document.body.appendChild(modal);
+    }
+
+    // Insert variable at cursor position in textarea
+    function insertVariable(variable) {
+      const textarea = document.getElementById('editBody');
+      if (!textarea) return;
+
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const text = textarea.value;
+
+      textarea.value = text.substring(0, start) + variable + text.substring(end);
+      textarea.focus();
+      textarea.selectionStart = textarea.selectionEnd = start + variable.length;
+      showToast('Inserted: ' + variable);
     }
 
     async function saveEdit(channelKey, templateId, hasSubject) {
