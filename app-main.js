@@ -129,8 +129,13 @@ async function forceAppRefresh() {
   console.log('🔄 Force refreshing app...');
 
   try {
+    // Save the current version so banner doesn't show after refresh
+    const currentVersion = window.APP_CONFIG?.app?.version;
+    if (currentVersion) {
+      localStorage.setItem(LAST_VERSION_KEY, currentVersion);
+    }
+
     // Set "don't show banner until" timestamp (60 seconds from now)
-    // This survives page reload and any double-load issues
     localStorage.setItem(BANNER_SUPPRESS_UNTIL_KEY, (Date.now() + 60000).toString());
     console.log('✅ Banner suppression set for 60 seconds');
 
@@ -154,12 +159,16 @@ async function forceAppRefresh() {
       console.log('✅ Service workers unregistered');
     }
 
-    // Hard reload
-    window.location.reload(true);
+    // Force reload by navigating with cache-busting parameter
+    // This is more reliable than reload(true) which is deprecated
+    const url = new URL(window.location.href);
+    url.searchParams.set('_refresh', Date.now().toString());
+    window.location.href = url.toString();
   } catch (err) {
     console.error('Error during force refresh:', err);
     localStorage.setItem(BANNER_SUPPRESS_UNTIL_KEY, (Date.now() + 60000).toString());
-    window.location.reload(true);
+    // Fallback: navigate with cache buster
+    window.location.href = window.location.pathname + '?_refresh=' + Date.now();
   }
 }
 
