@@ -21195,36 +21195,82 @@ function openTemplatePicker() {
       return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
-    // Get template edits from main app (cloud-synced)
+    const LOCAL_STORAGE_KEY = 'mailslot-template-edits';
+
+    // Get template edits - try main app first, fall back to localStorage
     function getTemplateEditsFromMain() {
+      // Try main app first (for cloud sync)
       try {
-        if (window.opener && window.opener.getTemplateEdits) {
+        if (window.opener && !window.opener.closed && window.opener.getTemplateEdits) {
           return window.opener.getTemplateEdits();
         }
       } catch (e) { console.warn('Cannot access main app:', e); }
-      return {};
+
+      // Fall back to localStorage
+      try {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        return saved ? JSON.parse(saved) : {};
+      } catch (e) { return {}; }
     }
 
-    // Save template edit via main app (cloud-synced)
+    // Save template edit - try main app first, fall back to localStorage
     async function saveTemplateViaMain(channelKey, templateId, edits) {
+      console.log('saveTemplateViaMain called:', channelKey, templateId);
+
+      // Try main app first (for cloud sync)
       try {
-        if (window.opener && window.opener.saveTemplateEdit) {
-          const result = await window.opener.saveTemplateEdit(channelKey, templateId, edits);
-          return result;
+        console.log('Checking window.opener:', !!window.opener, window.opener ? !window.opener.closed : 'N/A');
+        if (window.opener && !window.opener.closed) {
+          console.log('Has saveTemplateEdit?', typeof window.opener.saveTemplateEdit);
+          if (window.opener.saveTemplateEdit) {
+            console.log('Calling saveTemplateEdit...');
+            const result = await window.opener.saveTemplateEdit(channelKey, templateId, edits);
+            console.log('saveTemplateEdit result:', result);
+            if (result) return true;
+          }
         }
-      } catch (e) { console.warn('Cannot save via main app:', e); }
-      return false;
+      } catch (e) {
+        console.warn('Cannot save via main app:', e.message, e);
+      }
+
+      // Fall back to localStorage
+      console.log('Falling back to localStorage...');
+      try {
+        const allEdits = getTemplateEditsFromMain();
+        if (!allEdits[channelKey]) allEdits[channelKey] = {};
+        allEdits[channelKey][templateId] = edits;
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(allEdits));
+        console.log('Saved to localStorage successfully');
+        return true;
+      } catch (e) {
+        console.error('Failed to save to localStorage:', e);
+        return false;
+      }
     }
 
-    // Reset template via main app (cloud-synced)
+    // Reset template - try main app first, fall back to localStorage
     async function resetTemplateViaMain(channelKey, templateId) {
+      // Try main app first (for cloud sync)
       try {
-        if (window.opener && window.opener.resetTemplateEdit) {
+        if (window.opener && !window.opener.closed && window.opener.resetTemplateEdit) {
           const result = await window.opener.resetTemplateEdit(channelKey, templateId);
-          return result;
+          if (result) return true;
         }
       } catch (e) { console.warn('Cannot reset via main app:', e); }
-      return false;
+
+      // Fall back to localStorage
+      try {
+        const allEdits = getTemplateEditsFromMain();
+        if (allEdits[channelKey] && allEdits[channelKey][templateId]) {
+          delete allEdits[channelKey][templateId];
+          if (Object.keys(allEdits[channelKey]).length === 0) delete allEdits[channelKey];
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(allEdits));
+        }
+        return true;
+      } catch (e) {
+        console.error('Failed to reset in localStorage:', e);
+        return false;
+      }
     }
 
     function getTemplates(channelKey) {
@@ -21372,14 +21418,15 @@ function openTemplatePicker() {
       const edits = { body: body };
       if (hasSubject) edits.subject = document.getElementById('editSubject').value;
 
-      showToast('💾 Saving to cloud...');
+      showToast('💾 Saving...');
       const success = await saveTemplateViaMain(channelKey, templateId, edits);
       if (success) {
-        showToast('✅ Template saved to cloud!');
+        const isConnected = checkMainAppConnection();
+        showToast(isConnected ? '✅ Saved to cloud!' : '✅ Saved locally!');
         document.getElementById('editModal').remove();
         showTemplateChannel(channelKey);
       } else {
-        alert('Failed to save - make sure main app is open');
+        alert('Failed to save');
       }
     }
 
@@ -21388,10 +21435,11 @@ function openTemplatePicker() {
       showToast('💾 Resetting...');
       const success = await resetTemplateViaMain(channelKey, templateId);
       if (success) {
-        showToast('✅ Reset to default');
+        const isConnected = checkMainAppConnection();
+        showToast(isConnected ? '✅ Reset (cloud)' : '✅ Reset (local)');
         showTemplateChannel(channelKey);
       } else {
-        alert('Failed to reset - make sure main app is open');
+        alert('Failed to reset');
       }
     }
 
@@ -21419,14 +21467,15 @@ function openTemplatePicker() {
     function checkMainAppConnection() {
       const statusEl = document.getElementById('syncStatus');
       try {
-        if (window.opener && window.opener.getTemplateEdits) {
+        if (window.opener && !window.opener.closed && window.opener.getTemplateEdits) {
           statusEl.textContent = '☁️ Cloud Synced';
           statusEl.className = 'text-xs px-2 py-1 rounded bg-green-100 text-green-700';
           return true;
         }
       } catch (e) {}
-      statusEl.textContent = '⚠️ Not Connected';
-      statusEl.className = 'text-xs px-2 py-1 rounded bg-yellow-100 text-yellow-700';
+      statusEl.textContent = '💾 Local Mode';
+      statusEl.className = 'text-xs px-2 py-1 rounded bg-blue-100 text-blue-700';
+      statusEl.title = 'Changes save locally. Open main app to sync to cloud.';
       return false;
     }
 
