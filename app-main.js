@@ -1088,7 +1088,8 @@ const campaignBoardsState = {
   boards: {},           // { mailerId: boardObject }
   activeBoardId: null,
   useLegacyKanban: false, // Campaign Board is now the default (legacy kanban removed)
-  globalZipFilter: 'target' // 'target' = show target ZIPs only, 'all' = show all, or specific ZIP code
+  globalZipFilter: 'target', // 'target' = show target ZIPs only, 'all' = show all, or specific ZIP code
+  queuedSelection: new Set() // Selected item IDs in queued column
 };
 
 // Board structure template (not stored, just documentation):
@@ -16915,13 +16916,24 @@ function renderCampaignBoard() {
       if (item.email) socialIcons.push(`<a href="mailto:${esc(item.email)}" onclick="event.stopPropagation()" class="px-1.5 py-0.5 bg-gray-100 rounded hover:bg-gray-200 text-sm" title="Email">✉️</a>`);
       if (item.facebook) socialIcons.push(`<a href="${esc(ensureHttps(item.facebook))}" onclick="event.stopPropagation()" target="_blank" class="px-1.5 py-0.5 bg-blue-50 rounded hover:bg-blue-100 text-sm" title="Facebook">📘</a>`);
 
+      // Checkbox for queued column selection
+      const isSelected = colKey === 'queued' && campaignBoardsState.queuedSelection.has(leadId);
+      const checkboxHtml = colKey === 'queued' ? `
+        <input type="checkbox" class="queued-item-checkbox w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500 flex-shrink-0 mt-0.5"
+               data-item-id="${leadId}"
+               ${isSelected ? 'checked' : ''}
+               onclick="event.stopPropagation(); toggleQueuedItemSelection('${leadId}')"
+               ondblclick="event.stopPropagation()">
+      ` : '';
+
       return `
-        <div class="kanban-item campaign-board-item text-xs p-2 ${isDoNotContact ? 'bg-red-50' : 'bg-white'} border rounded ${hasBeenContacted ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'} relative ${isDoNotContact ? 'opacity-60' : ''}"
+        <div class="kanban-item campaign-board-item text-xs p-2 ${isDoNotContact ? 'bg-red-50' : isSelected ? 'bg-purple-50 ring-2 ring-purple-300' : 'bg-white'} border rounded ${hasBeenContacted ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'} relative ${isDoNotContact ? 'opacity-60' : ''}"
              data-item-id="${leadId}" data-column="${colKey}"
              ondblclick="openCampaignBoardQuickAction('${leadId}', '${colKey}')">
           ${isDoNotContact ? '<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10"><span class="text-6xl text-red-500 font-bold opacity-40">✕</span></div>' : ''}
 
           <div class="flex items-start gap-2">
+            ${checkboxHtml}
             <div class="flex-1 drag-handle min-w-0">
               <div class="font-medium text-xs break-words ${isDoNotContact ? 'line-through text-gray-500' : ''}">${esc(leadName)}</div>
             </div>
@@ -16955,11 +16967,30 @@ function renderCampaignBoard() {
     const isSalesColumn = ['negotiating', 'invoice-sent', 'proof-approved', 'paid-in-full'].includes(colKey);
     const columnWidth = isSalesColumn ? 'min-width: 150px;' : 'min-width: 180px;';
 
+    // Selection controls for queued column
+    const selectionControls = colKey === 'queued' && items.length > 0 ? `
+      <div class="flex items-center gap-2 mb-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
+        <label class="flex items-center gap-1 cursor-pointer">
+          <input type="checkbox" id="queuedSelectAll" onchange="toggleQueuedSelectAll(this.checked)"
+                 class="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
+                 ${campaignBoardsState.queuedSelection.size === items.length && items.length > 0 ? 'checked' : ''}>
+          <span class="text-xs font-medium text-gray-600">Select All</span>
+        </label>
+        <span id="queuedSelectionCount" class="text-xs text-gray-500">(${campaignBoardsState.queuedSelection.size} selected)</span>
+        <button onclick="sendQueuedSelectionToPool()"
+                class="ml-auto px-2 py-1 text-xs font-medium rounded bg-orange-100 text-orange-700 hover:bg-orange-200 ${campaignBoardsState.queuedSelection.size === 0 ? 'opacity-50 cursor-not-allowed' : ''}"
+                ${campaignBoardsState.queuedSelection.size === 0 ? 'disabled' : ''}>
+          ↩️ Send to Pool
+        </button>
+      </div>
+    ` : '';
+
     return `
       <div class="kanban-column campaign-board-column ${phaseSeparator}" data-column="${colKey}" style="${columnWidth} flex: 1;">
         <div class="flex justify-between items-center mb-2">
           <div class="font-semibold text-sm text-${colDef.color}-600">${colDef.icon} ${colDef.title} (${countDisplay})</div>
         </div>
+        ${selectionControls}
         ${items.length === 0 ? emptyStates[colKey] : ''}
         ${cardsHTML}
       </div>
@@ -18025,6 +18056,100 @@ async function convertCampaignBoardToClient(leadId, columnKey) {
   renderCampaignBoard();
 
   toast(`${newClient.businessName} converted to client!`);
+}
+
+// Toggle selection of a single item in queued column
+function toggleQueuedItemSelection(leadId) {
+  if (campaignBoardsState.queuedSelection.has(leadId)) {
+    campaignBoardsState.queuedSelection.delete(leadId);
+  } else {
+    campaignBoardsState.queuedSelection.add(leadId);
+  }
+  renderCampaignBoard();
+}
+
+// Toggle select all in queued column
+function toggleQueuedSelectAll(checked) {
+  const board = getCurrentCampaignBoard();
+  if (!board) return;
+
+  const items = board.columns['queued'] || [];
+
+  if (checked) {
+    // Select all visible items
+    items.forEach(item => {
+      const id = String(item.id);
+      campaignBoardsState.queuedSelection.add(id);
+    });
+  } else {
+    // Deselect all
+    campaignBoardsState.queuedSelection.clear();
+  }
+  renderCampaignBoard();
+}
+
+// Send selected queued items back to pool
+async function sendQueuedSelectionToPool() {
+  const selectedIds = Array.from(campaignBoardsState.queuedSelection);
+  if (selectedIds.length === 0) {
+    toast('No businesses selected', false);
+    return;
+  }
+
+  if (!confirm(`Send ${selectedIds.length} business${selectedIds.length > 1 ? 'es' : ''} back to the pool?`)) {
+    return;
+  }
+
+  const board = getCurrentCampaignBoard();
+  if (!board) return;
+
+  const queuedItems = board.columns['queued'] || [];
+  let movedCount = 0;
+
+  // Process each selected item
+  for (const leadId of selectedIds) {
+    const idx = queuedItems.findIndex(item => String(item.id) === leadId);
+    if (idx !== -1) {
+      const item = queuedItems[idx];
+
+      // Add to manual prospects (pool)
+      const poolItem = {
+        ...item,
+        id: item.id || item.placeId || `pool_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        source: 'returned-from-pipeline',
+        returnedAt: new Date().toISOString()
+      };
+
+      if (!prospectPoolState.manualProspects) {
+        prospectPoolState.manualProspects = [];
+      }
+
+      // Check if already in pool
+      const existsInPool = prospectPoolState.manualProspects.some(p =>
+        p.placeId === item.placeId || p.id === item.id
+      );
+
+      if (!existsInPool) {
+        prospectPoolState.manualProspects.push(poolItem);
+      }
+
+      // Remove from queued column
+      queuedItems.splice(idx, 1);
+      movedCount++;
+    }
+  }
+
+  // Clear selection
+  campaignBoardsState.queuedSelection.clear();
+
+  // Save changes
+  await saveCampaignBoards();
+  await saveToCloud('manualProspects', prospectPoolState.manualProspects);
+
+  // Refresh UI
+  renderCampaignBoard();
+
+  toast(`✅ Moved ${movedCount} business${movedCount > 1 ? 'es' : ''} back to pool`);
 }
 
 // Delete item from campaign board

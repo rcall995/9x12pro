@@ -943,37 +943,6 @@
                 </div>
             </div>
 
-            <!-- TEMPLATES SECTION (in Pipeline) -->
-            <div class="mt-8 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl p-6">
-                <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
-                    <div class="flex items-center gap-3">
-                        <span class="text-4xl">📧</span>
-                        <div>
-                            <h4 class="text-2xl font-black text-gray-900">Message Templates</h4>
-                            <p class="text-sm text-gray-500">Outreach templates for prospects</p>
-                        </div>
-                    </div>
-                    <button onclick="openCreateTemplateModal()" class="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg text-sm">
-                        + New Template
-                    </button>
-                </div>
-                <div class="space-y-4">
-                    <div class="bg-white rounded-xl p-4 border border-blue-100">
-                        <h5 class="font-bold text-gray-800 mb-2 flex items-center gap-2">
-                            <span>🎯</span> Prospect Templates
-                            <span id="dashboardProspectTemplateCount" class="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">(0)</span>
-                        </h5>
-                        <div id="dashboardProspectTemplatesList" class="space-y-2 text-sm"></div>
-                    </div>
-                    <div class="bg-white rounded-xl p-4 border border-blue-100">
-                        <h5 class="font-bold text-gray-800 mb-2 flex items-center gap-2">
-                            <span>🔄</span> Follow-up Templates
-                            <span id="dashboardFollowupTemplateCount" class="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">(0)</span>
-                        </h5>
-                        <div id="dashboardFollowupTemplatesList" class="space-y-2 text-sm"></div>
-                    </div>
-                </div>
-            </div>
         </div>
 
         <!-- LEAD GENERATION TAB -->
@@ -3269,37 +3238,6 @@
           <button onclick="addNewInteraction()" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium">
             Add Interaction
           </button>
-        </div>
-      </div>
-
-      <!-- Message Templates Section -->
-      <div class="bg-green-50 rounded-lg border border-green-200 p-4 mb-4">
-        <h4 class="font-semibold text-green-900 mb-3">📋 Message Templates</h4>
-
-        <div class="space-y-2">
-          <button onclick="showMessageTemplate('messenger')" class="w-full text-left px-3 py-2 bg-white border rounded-md hover:bg-gray-50 text-sm">
-            <span class="font-medium">Facebook Messenger - First Contact</span>
-          </button>
-          <button onclick="showMessageTemplate('email')" class="w-full text-left px-3 py-2 bg-white border rounded-md hover:bg-gray-50 text-sm">
-            <span class="font-medium">Email - First Contact</span>
-          </button>
-          <button onclick="showMessageTemplate('instagram')" class="w-full text-left px-3 py-2 bg-white border rounded-md hover:bg-gray-50 text-sm">
-            <span class="font-medium">Instagram DM - First Contact</span>
-          </button>
-          <button onclick="showMessageTemplate('followup')" class="w-full text-left px-3 py-2 bg-white border rounded-md hover:bg-gray-50 text-sm">
-            <span class="font-medium">Follow-up After Initial Contact</span>
-          </button>
-        </div>
-
-        <div id="templatePreview" class="hidden mt-3 p-3 bg-white border rounded-md">
-          <div class="flex justify-between items-start mb-2">
-            <h5 id="templateTitle" class="font-semibold text-sm"></h5>
-            <button onclick="copyTemplate()" class="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700">
-              📋 Copy
-            </button>
-          </div>
-          <div id="templateSubject" class="text-xs text-gray-600 mb-2"></div>
-          <pre id="templateBody" class="text-xs text-gray-700 whitespace-pre-wrap font-sans"></pre>
         </div>
       </div>
 
