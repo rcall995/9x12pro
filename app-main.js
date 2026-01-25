@@ -20675,7 +20675,19 @@ async function followUpContact(prospectId, channelKey) {
       icon: '✉️',
       name: 'Email',
       hasContact: !!prospect.email,
-      open: () => window.open(`mailto:${prospect.email}`, '_blank'),
+      open: () => {
+        let subject = localStorage.getItem('followUpSubject') || '';
+        // Replace variables in subject
+        if (subject) {
+          subject = subject.replace(/\{BUSINESS\}/gi, businessName);
+          subject = subject.replace(/\{ZIP\}/gi, prospect.zipCode || prospect.zip || '');
+          subject = subject.replace(/\{CITY\}/gi, prospect.city || prospect.town || '');
+        }
+        const mailtoUrl = subject
+          ? `mailto:${prospect.email}?subject=${encodeURIComponent(subject)}`
+          : `mailto:${prospect.email}`;
+        window.open(mailtoUrl, '_blank');
+      },
       dateKey: 'emailedDate'
     },
     facebookMessaged: {
@@ -21101,6 +21113,11 @@ function openTemplatePicker() {
           <span id="syncStatus" class="text-xs px-2 py-1 rounded"></span>
         </div>
         <p class="text-xs text-gray-500 mt-1">Copy a template, then Follow Up on a business in the main app</p>
+        <div id="selectedSubjectBar" class="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs hidden">
+          <span class="text-green-700 font-medium">📧 Follow Up Subject:</span>
+          <span id="selectedSubjectText" class="text-green-900 font-semibold ml-1"></span>
+          <button onclick="clearFollowUpSubject()" class="ml-2 text-green-600 hover:text-green-800 underline">Clear</button>
+        </div>
       </div>
 
       <!-- Channel Tabs -->
@@ -21237,6 +21254,44 @@ function openTemplatePicker() {
       } catch (e) { console.warn('Error saving My Info:', e); }
     }
 
+    // Set subject line for Follow Up emails
+    function setFollowUpSubject(subject, templateName) {
+      localStorage.setItem('followUpSubject', subject);
+      updateSelectedSubjectDisplay();
+      showToast('✓ Subject set!');
+      // Also notify main app if available
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.localStorage.setItem('followUpSubject', subject);
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    // Clear follow up subject
+    function clearFollowUpSubject() {
+      localStorage.removeItem('followUpSubject');
+      updateSelectedSubjectDisplay();
+      showToast('Subject cleared');
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.localStorage.removeItem('followUpSubject');
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    // Update the selected subject display bar
+    function updateSelectedSubjectDisplay() {
+      const bar = document.getElementById('selectedSubjectBar');
+      const text = document.getElementById('selectedSubjectText');
+      const subject = localStorage.getItem('followUpSubject');
+      if (subject && bar && text) {
+        text.textContent = subject;
+        bar.classList.remove('hidden');
+      } else if (bar) {
+        bar.classList.add('hidden');
+      }
+    }
+
     // Get template edits - try main app first, fall back to localStorage
     function getTemplateEditsFromMain() {
       // Try main app first (for cloud sync)
@@ -21363,7 +21418,13 @@ function openTemplatePicker() {
           </div>
           \${t.subject ? \`
             <div class="mb-2 bg-blue-50 px-2 py-1.5 rounded border border-blue-200">
-              <div class="text-xs text-blue-600 font-medium mb-0.5">Subject Line:</div>
+              <div class="flex items-center justify-between mb-0.5">
+                <span class="text-xs text-blue-600 font-medium">Subject Line:</span>
+                <button onclick="setFollowUpSubject('\${esc(t.subject).replace(/'/g, "\\\\'")}', '\${esc(t.name).replace(/'/g, "\\\\'")}')"
+                        class="px-2 py-0.5 bg-green-600 text-white text-xs rounded hover:bg-green-700">
+                  ✓ Use for Follow Up
+                </button>
+              </div>
               <div class="text-sm text-blue-900 font-semibold select-all cursor-text">\${esc(t.subject)}</div>
             </div>
           \` : ''}
@@ -21557,6 +21618,7 @@ function openTemplatePicker() {
     // Initialize
     checkMainAppConnection();
     loadMyInfo();
+    updateSelectedSubjectDisplay();
     showTemplateChannel('email');
 
     // Re-check connection periodically
