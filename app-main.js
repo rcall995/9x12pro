@@ -20639,10 +20639,10 @@ function contactAgain(prospectId, channelKey) {
 // TEMPLATE PICKER (Consolidated Templates)
 // ============================================
 
-// All templates in one place
-const ALL_TEMPLATES = {
+// Default templates (used if no saved edits)
+const DEFAULT_TEMPLATES = {
   email: [
-    { id: 'email1', name: 'First Contact', subject: 'Quick question about {BUSINESS}', body: `Hi,
+    { id: 'email_initial1', name: 'Initial Contact - Option A', subject: 'Quick question about {BUSINESS}', body: `Hi,
 
 We send out a community postcard that reaches thousands of homes in your area.
 
@@ -20651,39 +20651,29 @@ We're filling spots for our next mailing and {BUSINESS} would be a great fit. Yo
 Interested in the details?
 
 {YOUR_NAME}` },
-    { id: 'email2', name: 'Follow-up #1', subject: 'Re: Quick question about {BUSINESS}', body: `Hi,
+    { id: 'email_initial2', name: 'Initial Contact - Option B', subject: 'Local advertising opportunity for {BUSINESS}', body: `Hi,
 
-Just following up on my note from a few days ago about our community postcard.
+I hope this finds you well. I'm reaching out about a cost-effective advertising opportunity for {BUSINESS}.
 
-I know you're busy - just wanted to make sure this didn't get buried.
+We publish a shared mailer that goes directly to thousands of local households. Your business would be featured alongside other quality local services.
 
-The spot is still open if you're interested.
+Here's what makes this different:
+• Direct mail to targeted local households
+• Professional design included
+• Shared cost model makes it affordable
+• You'd be the ONLY one in your category
+
+Would you be interested in learning more?
+
+{YOUR_NAME}` },
+    { id: 'email_followup', name: 'Follow-up', subject: 'Following up - {BUSINESS}', body: `Hi,
+
+Just following up on my message about the community postcard.
+
+I know you're busy - just wanted to make sure this didn't get buried. The spot is still open if you're interested.
 
 Worth a quick look?
 
-{YOUR_NAME}` },
-    { id: 'email3', name: 'Follow-up #2 (Details)', subject: 'Spot update - Community Postcard', body: `Hi,
-
-Wanted to give you a quick update - we're getting close to sending our postcard to print.
-
-A few things that might help:
-- Your ad reaches thousands of homes in your area
-- You'd be the ONLY business in your category on the card
-- We handle all the design work
-- It's a fraction of the cost of solo mailers
-
-If timing isn't right, no worries at all. Just let me know either way?
-
-{YOUR_NAME}` },
-    { id: 'email4', name: 'Final Follow-up', subject: 'Closing the loop - {BUSINESS}', body: `Hi,
-
-I've reached out a few times about our postcard and haven't heard back, so I'll assume the timing isn't right.
-
-No hard feelings at all - I'll take you off my list.
-
-If things change down the road, feel free to reach out. We do these mailings regularly and would love to have {BUSINESS} on a future card.
-
-All the best,
 {YOUR_NAME}` },
     { id: 'email5', name: 'Renewal', subject: 'Ready for the next postcard?', body: `Hi,
 
@@ -20719,8 +20709,9 @@ Thanks again for advertising with us!
 {YOUR_NAME}` }
   ],
   sms: [
-    { id: 'sms1', name: 'First Contact', body: `Hey! This is {YOUR_NAME}. We do a community postcard that hits thousands of homes in your area and have a spot open for your business category. Interested?` },
-    { id: 'sms2', name: 'Follow-up', body: `Hey just circling back on the postcard - still have your spot if you're interested. Let me know either way!` },
+    { id: 'sms_initial1', name: 'Initial Contact - Option A', body: `Hey! This is {YOUR_NAME}. We do a community postcard that hits thousands of homes in your area and have a spot open for your business category. Interested?` },
+    { id: 'sms_initial2', name: 'Initial Contact - Option B', body: `Hi! {YOUR_NAME} here. Quick question - would {BUSINESS} be interested in being featured on a postcard that goes to every home in your area? You'd be the only one in your category. Let me know!` },
+    { id: 'sms_followup', name: 'Follow-up', body: `Hey just circling back on the postcard - still have your spot if you're interested. Let me know either way!` },
     { id: 'sms3', name: 'Email Follow-up', body: `Hey it's {YOUR_NAME} - sent you an email about our community postcard. Just wanted to make sure it didn't go to spam!` },
     { id: 'sms4', name: 'Deadline Reminder', body: `Hey! Quick heads up - our postcard goes to print Friday. Still have your spot if you want it. Let me know!` },
     { id: 'sms5', name: 'Renewal', body: `Hey! Hope the postcard has been working well for you. We're putting together the next card now - want me to save your spot? Same price, same exclusivity.` },
@@ -20728,28 +20719,43 @@ Thanks again for advertising with us!
     { id: 'sms7', name: 'Hitting Mailboxes', body: `Great news! The postcard was just dropped at the post office and should hit mailboxes tomorrow. Keep an eye out for calls! Thanks again!` }
   ],
   facebook: [
-    { id: 'fb1', name: 'First Contact', body: `Hey! We put out a community postcard that reaches thousands of homes in your area.
+    { id: 'fb_initial1', name: 'Initial Contact - Option A', body: `Hey! We put out a community postcard that reaches thousands of homes in your area.
 
 We're filling spots for the next one and thought {BUSINESS} would be a great fit. You'd be the only one in your category on it.
 
 Would you want to see what it looks like?
 
 - {YOUR_NAME}` },
-    { id: 'fb2', name: 'Follow-up', body: `Hey just bumping this up - your spot is still open on our community postcard if you're interested!
+    { id: 'fb_initial2', name: 'Initial Contact - Option B', body: `Hi there! 👋
+
+I noticed {BUSINESS} and thought you might be interested in this - we're putting together a community postcard that goes to thousands of local homes.
+
+The cool thing is you'd be the ONLY business in your category featured. No competing ads.
+
+Would you like to see a sample?
+
+{YOUR_NAME}` },
+    { id: 'fb_followup', name: 'Follow-up', body: `Hey just bumping this up - your spot is still open on our community postcard if you're interested!
 
 No pressure either way.` }
   ],
   instagram: [
-    { id: 'ig1', name: 'First Contact', body: `Hey! Love what you're doing with {BUSINESS}!
+    { id: 'ig_initial1', name: 'Initial Contact - Option A', body: `Hey! Love what you're doing with {BUSINESS}!
 
 We do a community postcard that reaches thousands of homes in your area - thought you might be interested. You'd be the only one in your category featured.
 
 Want to see it?` },
-    { id: 'ig2', name: 'Follow-up', body: `Hey! Just following up on my message about the postcard. Still have your spot open if you're interested!` }
+    { id: 'ig_initial2', name: 'Initial Contact - Option B', body: `Hi! 👋 Your work looks great!
+
+I run a community mailer that goes to thousands of local homes - {BUSINESS} would be perfect for it. You'd be the only one in your category.
+
+Interested in seeing a sample?` },
+    { id: 'ig_followup', name: 'Follow-up', body: `Hey! Just following up on my message about the postcard. Still have your spot open if you're interested!` }
   ],
   linkedin: [
-    { id: 'li1', name: 'Connection Request', body: `Hi! Fellow local business owner here. I do community postcards that reach thousands of homes in your area. Would love to connect!` },
-    { id: 'li2', name: 'After Connection', body: `Thanks for connecting!
+    { id: 'li_initial1', name: 'Initial Contact - Option A', body: `Hi! Fellow local business owner here. I do community postcards that reach thousands of homes in your area. Would love to connect!` },
+    { id: 'li_initial2', name: 'Initial Contact - Option B', body: `Hi! I help local businesses get in front of thousands of homeowners through shared direct mail. Always looking to connect with quality local businesses like {BUSINESS}.` },
+    { id: 'li_followup1', name: 'After Connection', body: `Thanks for connecting!
 
 I run a community postcard that reaches thousands of homes in your area. We're filling spots for the next mailing and I thought {BUSINESS} would be a great fit.
 
@@ -20758,12 +20764,12 @@ You'd be the only one in your category on the card - no competing ads.
 Would you be interested in seeing what it looks like?
 
 {YOUR_NAME}` },
-    { id: 'li3', name: 'Follow-up', body: `Hey! Just wanted to bump this - still have your spot open on the postcard if you're interested.
+    { id: 'li_followup2', name: 'Follow-up', body: `Hey! Just wanted to bump this - still have your spot open on the postcard if you're interested.
 
 Happy to answer any questions. No pressure either way!` }
   ],
   call: [
-    { id: 'call1', name: 'Cold Call Script', body: `=== OPENER ===
+    { id: 'call_initial1', name: 'Cold Call Script - Option A', body: `=== OPENER ===
 Hi, is this {BUSINESS}? Great! This is {YOUR_NAME}. I do a community postcard that goes out to thousands of homes in your area - got a quick second?
 
 === PITCH (if they say yes) ===
@@ -20776,9 +20782,99 @@ Great! I can email you some info and a sample. What's the best email for you?
 
 === IF NOT INTERESTED ===
 No worries at all. Mind if I ask - is it the timing or just not a fit for your business right now?` },
+    { id: 'call_initial2', name: 'Cold Call Script - Option B', body: `=== OPENER ===
+Hey, is this {BUSINESS}? Hi! I'm {YOUR_NAME} - I put together community postcards for local businesses. Do you have 30 seconds?
+
+=== PITCH ===
+So here's the deal - I mail a big 9x12 postcard to thousands of homes in your area. Each postcard features about 8 local businesses, and you'd be the ONLY one in your category. No competing ads.
+
+=== CLOSE ===
+I've got a spot open on the next one going out. Can I send you some info?
+
+=== HANDLE OBJECTION ===
+Totally understand. Quick question though - have you tried direct mail before, or is it more about the timing right now?` },
+    { id: 'call_followup', name: 'Follow-up Call', body: `=== OPENER ===
+Hi, is this {BUSINESS}? This is {YOUR_NAME} - I reached out last week about the community postcard. Just wanted to follow up real quick.
+
+=== PITCH ===
+We're putting together the next card and I still have your spot open. Any questions I can answer?` },
     { id: 'voicemail1', name: 'Voicemail', body: `Hi, this is {YOUR_NAME} calling about a local advertising opportunity. We do a community postcard that reaches thousands of homes in your area and have a spot open in your category. Give me a call back at {YOUR_PHONE} when you get a chance. Thanks!` }
   ]
 };
+
+// User-edited templates storage key
+const TEMPLATES_STORAGE_KEY = 'mailslot-user-templates';
+
+// Load user-edited templates from localStorage
+function loadUserTemplates() {
+  try {
+    const saved = localStorage.getItem(TEMPLATES_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : {};
+  } catch (e) {
+    console.error('Error loading user templates:', e);
+    return {};
+  }
+}
+
+// Save user-edited template to localStorage
+function saveUserTemplate(channelKey, templateId, edits) {
+  try {
+    const userTemplates = loadUserTemplates();
+    if (!userTemplates[channelKey]) {
+      userTemplates[channelKey] = {};
+    }
+    userTemplates[channelKey][templateId] = edits;
+    localStorage.setItem(TEMPLATES_STORAGE_KEY, JSON.stringify(userTemplates));
+    return true;
+  } catch (e) {
+    console.error('Error saving user template:', e);
+    return false;
+  }
+}
+
+// Reset a template to default
+function resetUserTemplate(channelKey, templateId) {
+  try {
+    const userTemplates = loadUserTemplates();
+    if (userTemplates[channelKey] && userTemplates[channelKey][templateId]) {
+      delete userTemplates[channelKey][templateId];
+      // Clean up empty channel objects
+      if (Object.keys(userTemplates[channelKey]).length === 0) {
+        delete userTemplates[channelKey];
+      }
+      localStorage.setItem(TEMPLATES_STORAGE_KEY, JSON.stringify(userTemplates));
+    }
+    return true;
+  } catch (e) {
+    console.error('Error resetting template:', e);
+    return false;
+  }
+}
+
+// Get merged templates (defaults + user edits)
+function getTemplates(channelKey) {
+  const defaults = DEFAULT_TEMPLATES[channelKey] || [];
+  const userEdits = loadUserTemplates()[channelKey] || {};
+
+  return defaults.map(template => {
+    const userEdit = userEdits[template.id];
+    if (userEdit) {
+      return {
+        ...template,
+        subject: userEdit.subject !== undefined ? userEdit.subject : template.subject,
+        body: userEdit.body !== undefined ? userEdit.body : template.body,
+        isEdited: true
+      };
+    }
+    return { ...template, isEdited: false };
+  });
+}
+
+// Check if a template has been edited
+function isTemplateEdited(channelKey, templateId) {
+  const userEdits = loadUserTemplates()[channelKey] || {};
+  return !!userEdits[templateId];
+}
 
 // Open template picker modal
 function openTemplatePicker() {
@@ -20825,7 +20921,7 @@ function openTemplatePicker() {
       </div>
 
       <div class="p-3 border-t bg-gray-50 text-xs text-gray-500 text-center">
-        Click <strong>Copy</strong> to copy template, then click <strong>Follow Up</strong> on a business to open the channel and paste.
+        Click <strong>Copy</strong> to copy template, then click <strong>Follow Up</strong> on a business. Use <strong>Edit</strong> to customize templates - your changes are saved locally.
       </div>
     </div>
   `;
@@ -20855,19 +20951,34 @@ function showTemplateChannel(channelKey) {
 
 // Render template list for a channel
 function renderTemplateList(channelKey) {
-  const templates = ALL_TEMPLATES[channelKey] || [];
+  const templates = getTemplates(channelKey);
   if (templates.length === 0) {
     return '<p class="text-gray-500 italic">No templates available</p>';
   }
 
   return templates.map(t => `
-    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-3">
+    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-3" id="template_${t.id}">
       <div class="flex items-center justify-between mb-2">
-        <span class="font-semibold text-gray-800">${esc(t.name)}</span>
-        <button onclick="copyTemplate('${channelKey}', '${t.id}')"
-                class="px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 font-medium">
-          Copy
-        </button>
+        <div class="flex items-center gap-2">
+          <span class="font-semibold text-gray-800">${esc(t.name)}</span>
+          ${t.isEdited ? '<span class="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded">Edited</span>' : ''}
+        </div>
+        <div class="flex items-center gap-2">
+          ${t.isEdited ? `
+            <button onclick="resetTemplate('${channelKey}', '${t.id}')"
+                    class="px-2 py-1 text-gray-500 hover:text-gray-700 text-sm" title="Reset to default">
+              ↺ Reset
+            </button>
+          ` : ''}
+          <button onclick="editTemplate('${channelKey}', '${t.id}')"
+                  class="px-2 py-1 text-blue-600 hover:text-blue-800 text-sm font-medium">
+            ✏️ Edit
+          </button>
+          <button onclick="copyTemplate('${channelKey}', '${t.id}')"
+                  class="px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 font-medium">
+            Copy
+          </button>
+        </div>
       </div>
       ${t.subject ? `<div class="text-xs text-gray-500 mb-1"><strong>Subject:</strong> ${esc(t.subject)}</div>` : ''}
       <pre class="text-xs text-gray-600 whitespace-pre-wrap font-sans bg-white p-2 rounded border max-h-32 overflow-y-auto">${esc(t.body)}</pre>
@@ -20877,7 +20988,7 @@ function renderTemplateList(channelKey) {
 
 // Copy template to clipboard
 function copyTemplate(channelKey, templateId) {
-  const templates = ALL_TEMPLATES[channelKey] || [];
+  const templates = getTemplates(channelKey);
   const template = templates.find(t => t.id === templateId);
   if (!template) {
     toast('Template not found', false);
@@ -20894,6 +21005,120 @@ function copyTemplate(channelKey, templateId) {
   }).catch(() => {
     toast('Failed to copy', false);
   });
+}
+
+// Edit template - opens editing modal
+function editTemplate(channelKey, templateId) {
+  const templates = getTemplates(channelKey);
+  const template = templates.find(t => t.id === templateId);
+  if (!template) {
+    toast('Template not found', false);
+    return;
+  }
+
+  // Create edit modal
+  const editModal = document.createElement('div');
+  editModal.id = 'templateEditModal';
+  editModal.className = 'fixed inset-0 bg-black/60 flex items-center justify-center z-[60]';
+  editModal.onclick = (e) => { if (e.target === editModal) editModal.remove(); };
+
+  const hasSubject = template.subject !== undefined;
+
+  editModal.innerHTML = `
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-xl mx-4 max-h-[80vh] flex flex-col">
+      <div class="p-4 border-b flex items-center justify-between">
+        <h3 class="text-lg font-bold text-gray-900">✏️ Edit Template: ${esc(template.name)}</h3>
+        <button onclick="document.getElementById('templateEditModal').remove()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-4 space-y-4">
+        ${hasSubject ? `
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Subject Line</label>
+            <input type="text" id="editTemplateSubject" value="${esc(template.subject)}"
+                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+          </div>
+        ` : ''}
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Message Body</label>
+          <textarea id="editTemplateBody" rows="12"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm font-mono">${esc(template.body)}</textarea>
+        </div>
+        <div class="text-xs text-gray-500">
+          <strong>Available placeholders:</strong> {BUSINESS}, {YOUR_NAME}, {YOUR_PHONE}
+        </div>
+      </div>
+
+      <div class="p-4 border-t flex items-center justify-between bg-gray-50">
+        <button onclick="document.getElementById('templateEditModal').remove()"
+                class="px-4 py-2 text-gray-600 hover:text-gray-800">
+          Cancel
+        </button>
+        <button onclick="saveTemplateEdit('${channelKey}', '${templateId}', ${hasSubject})"
+                class="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">
+          Save Changes
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(editModal);
+
+  // Focus the body textarea
+  setTimeout(() => {
+    const bodyInput = document.getElementById('editTemplateBody');
+    if (bodyInput) bodyInput.focus();
+  }, 100);
+}
+
+// Save template edit
+function saveTemplateEdit(channelKey, templateId, hasSubject) {
+  const bodyInput = document.getElementById('editTemplateBody');
+  const subjectInput = document.getElementById('editTemplateSubject');
+
+  if (!bodyInput) {
+    toast('Error: Could not find template body', false);
+    return;
+  }
+
+  const edits = {
+    body: bodyInput.value
+  };
+
+  if (hasSubject && subjectInput) {
+    edits.subject = subjectInput.value;
+  }
+
+  if (saveUserTemplate(channelKey, templateId, edits)) {
+    toast('✅ Template saved!', true);
+    // Close edit modal
+    document.getElementById('templateEditModal')?.remove();
+    // Refresh the template list
+    const content = document.getElementById('templateContent');
+    if (content) {
+      content.innerHTML = renderTemplateList(channelKey);
+    }
+  } else {
+    toast('Failed to save template', false);
+  }
+}
+
+// Reset template to default
+function resetTemplate(channelKey, templateId) {
+  if (!confirm('Reset this template to default? Your edits will be lost.')) {
+    return;
+  }
+
+  if (resetUserTemplate(channelKey, templateId)) {
+    toast('✅ Template reset to default', true);
+    // Refresh the template list
+    const content = document.getElementById('templateContent');
+    if (content) {
+      content.innerHTML = renderTemplateList(channelKey);
+    }
+  } else {
+    toast('Failed to reset template', false);
+  }
 }
 
 // ============================================
