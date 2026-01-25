@@ -21130,22 +21130,28 @@ function openTemplatePicker() {
           </div>
         </div>
 
-        <!-- Your Info -->
+        <!-- Your Info - Editable -->
         <div>
-          <div class="text-xs font-semibold text-gray-500 uppercase mb-2">Your Info</div>
-          <div class="space-y-1">
-            <button onclick="copyVariable('{YOUR_NAME}')" class="w-full text-left px-2 py-1.5 bg-gray-50 hover:bg-purple-100 rounded text-xs group">
-              <code class="font-mono text-purple-700">{YOUR_NAME}</code>
-              <div class="text-gray-500 group-hover:text-gray-700">Your name</div>
-            </button>
-            <button onclick="copyVariable('{YOUR_PHONE}')" class="w-full text-left px-2 py-1.5 bg-gray-50 hover:bg-purple-100 rounded text-xs group">
-              <code class="font-mono text-purple-700">{YOUR_PHONE}</code>
-              <div class="text-gray-500 group-hover:text-gray-700">Your phone number</div>
-            </button>
-            <button onclick="copyVariable('{YOUR_EMAIL}')" class="w-full text-left px-2 py-1.5 bg-gray-50 hover:bg-purple-100 rounded text-xs group">
-              <code class="font-mono text-purple-700">{YOUR_EMAIL}</code>
-              <div class="text-gray-500 group-hover:text-gray-700">Your email address</div>
-            </button>
+          <div class="text-xs font-semibold text-gray-500 uppercase mb-2">Your Info (edit below)</div>
+          <div class="space-y-2">
+            <div>
+              <label class="text-xs text-gray-500 block mb-0.5">{YOUR_NAME}</label>
+              <input type="text" id="myInfoName" placeholder="Your name"
+                     onchange="saveMyInfo()"
+                     class="w-full px-2 py-1 text-xs border rounded focus:ring-1 focus:ring-purple-500 focus:border-purple-500">
+            </div>
+            <div>
+              <label class="text-xs text-gray-500 block mb-0.5">{YOUR_PHONE}</label>
+              <input type="tel" id="myInfoPhone" placeholder="Your phone"
+                     onchange="saveMyInfo()"
+                     class="w-full px-2 py-1 text-xs border rounded focus:ring-1 focus:ring-purple-500 focus:border-purple-500">
+            </div>
+            <div>
+              <label class="text-xs text-gray-500 block mb-0.5">{YOUR_EMAIL}</label>
+              <input type="email" id="myInfoEmail" placeholder="Your email"
+                     onchange="saveMyInfo()"
+                     class="w-full px-2 py-1 text-xs border rounded focus:ring-1 focus:ring-purple-500 focus:border-purple-500">
+            </div>
           </div>
         </div>
 
@@ -21180,6 +21186,38 @@ function openTemplatePicker() {
     }
 
     const LOCAL_STORAGE_KEY = 'mailslot-template-edits';
+    const MY_INFO_KEY = 'salesToolkitSettings';
+
+    // Load and display My Info on startup
+    function loadMyInfo() {
+      try {
+        const saved = localStorage.getItem(MY_INFO_KEY);
+        if (saved) {
+          const info = JSON.parse(saved);
+          const nameEl = document.getElementById('myInfoName');
+          const phoneEl = document.getElementById('myInfoPhone');
+          const emailEl = document.getElementById('myInfoEmail');
+          if (nameEl) nameEl.value = info.yourName || '';
+          if (phoneEl) phoneEl.value = info.yourPhone || '';
+          if (emailEl) emailEl.value = info.yourEmail || '';
+        }
+      } catch (e) { console.warn('Error loading My Info:', e); }
+    }
+
+    // Save My Info to localStorage (syncs with main app)
+    function saveMyInfo() {
+      try {
+        const existing = JSON.parse(localStorage.getItem(MY_INFO_KEY) || '{}');
+        const updated = {
+          ...existing,
+          yourName: document.getElementById('myInfoName')?.value || '',
+          yourPhone: document.getElementById('myInfoPhone')?.value || '',
+          yourEmail: document.getElementById('myInfoEmail')?.value || ''
+        };
+        localStorage.setItem(MY_INFO_KEY, JSON.stringify(updated));
+        showToast('Saved!');
+      } catch (e) { console.warn('Error saving My Info:', e); }
+    }
 
     // Get template edits - try main app first, fall back to localStorage
     function getTemplateEditsFromMain() {
@@ -21505,6 +21543,7 @@ function openTemplatePicker() {
 
     // Initialize
     checkMainAppConnection();
+    loadMyInfo();
     showTemplateChannel('email');
 
     // Re-check connection periodically
