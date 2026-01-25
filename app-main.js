@@ -21044,7 +21044,7 @@ function openTemplatePicker() {
   }
 
   // Open new window
-  const width = 650;
+  const width = 850;
   const height = 700;
   const left = window.screenX + 100;
   const top = window.screenY + 50;
@@ -21090,27 +21090,99 @@ function openTemplatePicker() {
   </style>
 </head>
 <body class="bg-gray-100">
-  <div class="flex flex-col h-screen">
-    <div class="p-4 bg-white border-b shadow-sm">
-      <div class="flex items-center justify-between">
-        <h1 class="text-xl font-bold text-gray-900">📋 Message Templates</h1>
-        <span id="syncStatus" class="text-xs px-2 py-1 rounded"></span>
+  <div class="flex h-screen">
+    <!-- Main Content -->
+    <div class="flex flex-col flex-1 min-w-0">
+      <div class="p-4 bg-white border-b shadow-sm">
+        <div class="flex items-center justify-between">
+          <h1 class="text-xl font-bold text-gray-900">📋 Message Templates</h1>
+          <span id="syncStatus" class="text-xs px-2 py-1 rounded"></span>
+        </div>
+        <p class="text-xs text-gray-500 mt-1">Copy a template, then Follow Up on a business in the main app</p>
       </div>
-      <p class="text-xs text-gray-500 mt-1">Copy a template, then Follow Up on a business in the main app</p>
+
+      <!-- Channel Tabs -->
+      <div class="flex bg-white border-b overflow-x-auto px-2">
+        ${tabsHtml}
+      </div>
+
+      <!-- Template Content -->
+      <div id="templateContent" class="flex-1 overflow-y-auto p-4">
+        Loading...
+      </div>
+
+      <div class="p-3 border-t bg-gray-50 text-xs text-gray-500 text-center">
+        Click <strong>Copy</strong> to copy template. Use <strong>Edit</strong> to customize - changes sync with main app.
+      </div>
     </div>
 
-    <!-- Channel Tabs -->
-    <div class="flex bg-white border-b overflow-x-auto px-2">
-      ${tabsHtml}
-    </div>
+    <!-- Variables Sidebar -->
+    <div class="w-56 bg-white border-l shadow-lg flex flex-col">
+      <div class="p-3 bg-purple-50 border-b">
+        <h2 class="font-bold text-purple-800 text-sm">📝 Available Variables</h2>
+        <p class="text-xs text-purple-600 mt-1">Click to copy, then paste in template</p>
+      </div>
+      <div class="flex-1 overflow-y-auto p-3 space-y-3">
+        <!-- Business Info -->
+        <div>
+          <div class="text-xs font-semibold text-gray-500 uppercase mb-2">Business Info</div>
+          <div class="space-y-1">
+            <button onclick="copyVariable('{BUSINESS}')" class="w-full text-left px-2 py-1.5 bg-gray-50 hover:bg-purple-100 rounded text-xs group">
+              <code class="font-mono text-purple-700">{BUSINESS}</code>
+              <div class="text-gray-500 group-hover:text-gray-700">Business name</div>
+            </button>
+            <button onclick="copyVariable('{ZIP}')" class="w-full text-left px-2 py-1.5 bg-gray-50 hover:bg-purple-100 rounded text-xs group">
+              <code class="font-mono text-purple-700">{ZIP}</code>
+              <div class="text-gray-500 group-hover:text-gray-700">ZIP code</div>
+            </button>
+            <button onclick="copyVariable('{CITY}')" class="w-full text-left px-2 py-1.5 bg-gray-50 hover:bg-purple-100 rounded text-xs group">
+              <code class="font-mono text-purple-700">{CITY}</code>
+              <div class="text-gray-500 group-hover:text-gray-700">City/Town name</div>
+            </button>
+            <button onclick="copyVariable('{CATEGORY}')" class="w-full text-left px-2 py-1.5 bg-gray-50 hover:bg-purple-100 rounded text-xs group">
+              <code class="font-mono text-purple-700">{CATEGORY}</code>
+              <div class="text-gray-500 group-hover:text-gray-700">Business category</div>
+            </button>
+          </div>
+        </div>
 
-    <!-- Template Content -->
-    <div id="templateContent" class="flex-1 overflow-y-auto p-4">
-      Loading...
-    </div>
+        <!-- Your Info -->
+        <div>
+          <div class="text-xs font-semibold text-gray-500 uppercase mb-2">Your Info</div>
+          <div class="space-y-1">
+            <button onclick="copyVariable('{YOUR_NAME}')" class="w-full text-left px-2 py-1.5 bg-gray-50 hover:bg-purple-100 rounded text-xs group">
+              <code class="font-mono text-purple-700">{YOUR_NAME}</code>
+              <div class="text-gray-500 group-hover:text-gray-700">Your name</div>
+            </button>
+            <button onclick="copyVariable('{YOUR_PHONE}')" class="w-full text-left px-2 py-1.5 bg-gray-50 hover:bg-purple-100 rounded text-xs group">
+              <code class="font-mono text-purple-700">{YOUR_PHONE}</code>
+              <div class="text-gray-500 group-hover:text-gray-700">Your phone number</div>
+            </button>
+            <button onclick="copyVariable('{YOUR_EMAIL}')" class="w-full text-left px-2 py-1.5 bg-gray-50 hover:bg-purple-100 rounded text-xs group">
+              <code class="font-mono text-purple-700">{YOUR_EMAIL}</code>
+              <div class="text-gray-500 group-hover:text-gray-700">Your email address</div>
+            </button>
+          </div>
+        </div>
 
-    <div class="p-3 border-t bg-gray-50 text-xs text-gray-500 text-center">
-      Click <strong>Copy</strong> to copy template. Use <strong>Edit</strong> to customize - changes sync with main app.
+        <!-- Campaign Info -->
+        <div>
+          <div class="text-xs font-semibold text-gray-500 uppercase mb-2">Campaign Info</div>
+          <div class="space-y-1">
+            <button onclick="copyVariable('{MAILER_DATE}')" class="w-full text-left px-2 py-1.5 bg-gray-50 hover:bg-purple-100 rounded text-xs group">
+              <code class="font-mono text-purple-700">{MAILER_DATE}</code>
+              <div class="text-gray-500 group-hover:text-gray-700">Mail date</div>
+            </button>
+            <button onclick="copyVariable('{DEADLINE}')" class="w-full text-left px-2 py-1.5 bg-gray-50 hover:bg-purple-100 rounded text-xs group">
+              <code class="font-mono text-purple-700">{DEADLINE}</code>
+              <div class="text-gray-500 group-hover:text-gray-700">Signup deadline</div>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="p-2 border-t bg-gray-50 text-center">
+        <span class="text-xs text-gray-400">Variables auto-fill when sending</span>
+      </div>
     </div>
   </div>
 
@@ -21283,6 +21355,14 @@ function openTemplatePicker() {
       } else {
         alert('Failed to reset - make sure main app is open');
       }
+    }
+
+    function copyVariable(variable) {
+      navigator.clipboard.writeText(variable).then(() => {
+        showToast('📋 Copied: ' + variable);
+      }).catch(() => {
+        alert('Failed to copy');
+      });
     }
 
     function showToast(msg) {
