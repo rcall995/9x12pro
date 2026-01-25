@@ -20876,18 +20876,29 @@ function isTemplateEdited(channelKey, templateId) {
   return !!userEdits[templateId];
 }
 
-// Open template picker modal
+// Open template picker in a separate window (can be dragged to another screen)
 function openTemplatePicker() {
-  // Remove existing modal
-  const existing = document.getElementById('templatePickerModal');
-  if (existing) existing.remove();
+  // Check if window already exists and is open
+  if (window.templateWindow && !window.templateWindow.closed) {
+    window.templateWindow.focus();
+    return;
+  }
 
-  const modal = document.createElement('div');
-  modal.id = 'templatePickerModal';
-  modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50';
-  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+  // Open new window
+  const width = 650;
+  const height = 700;
+  const left = window.screenX + 100;
+  const top = window.screenY + 50;
 
-  // Build tabs and content
+  window.templateWindow = window.open('', 'TemplatePickerWindow',
+    `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+
+  if (!window.templateWindow) {
+    toast('Popup blocked! Please allow popups for this site.', false);
+    return;
+  }
+
+  // Build the complete HTML for the new window
   const channels = [
     { key: 'email', icon: '✉️', name: 'Email' },
     { key: 'sms', icon: '📱', name: 'Text/SMS' },
@@ -20897,36 +20908,232 @@ function openTemplatePicker() {
     { key: 'call', icon: '📞', name: 'Call Scripts' }
   ];
 
-  modal.innerHTML = `
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col">
-      <div class="p-4 border-b flex items-center justify-between">
-        <h3 class="text-xl font-bold text-gray-900">📋 Message Templates</h3>
-        <button onclick="document.getElementById('templatePickerModal').remove()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
-      </div>
+  const tabsHtml = channels.map((ch, i) => `
+    <button onclick="showTemplateChannel('${ch.key}')"
+            id="templateTab_${ch.key}"
+            class="px-3 py-2 text-sm font-medium whitespace-nowrap ${i === 0 ? 'border-b-2 border-purple-600 text-purple-600' : 'text-gray-500 hover:text-gray-700'}">
+      ${ch.icon} ${ch.name}
+    </button>
+  `).join('');
 
-      <!-- Channel Tabs -->
-      <div class="flex border-b overflow-x-auto px-2">
-        ${channels.map((ch, i) => `
-          <button onclick="showTemplateChannel('${ch.key}')"
-                  id="templateTab_${ch.key}"
-                  class="px-3 py-2 text-sm font-medium whitespace-nowrap ${i === 0 ? 'border-b-2 border-purple-600 text-purple-600' : 'text-gray-500 hover:text-gray-700'}">
-            ${ch.icon} ${ch.name}
-          </button>
-        `).join('')}
-      </div>
+  // Serialize DEFAULT_TEMPLATES for the new window
+  const templatesJson = JSON.stringify(DEFAULT_TEMPLATES);
 
-      <!-- Template Content -->
-      <div id="templateContent" class="flex-1 overflow-y-auto p-4">
-        ${renderTemplateList('email')}
-      </div>
-
-      <div class="p-3 border-t bg-gray-50 text-xs text-gray-500 text-center">
-        Click <strong>Copy</strong> to copy template, then click <strong>Follow Up</strong> on a business. Use <strong>Edit</strong> to customize templates - your changes are saved locally.
-      </div>
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Message Templates - 9x12 Pro</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <div class="flex flex-col h-screen">
+    <div class="p-4 bg-white border-b shadow-sm">
+      <h1 class="text-xl font-bold text-gray-900">📋 Message Templates</h1>
+      <p class="text-xs text-gray-500 mt-1">Copy a template, then Follow Up on a business in the main app</p>
     </div>
-  `;
 
-  document.body.appendChild(modal);
+    <!-- Channel Tabs -->
+    <div class="flex bg-white border-b overflow-x-auto px-2">
+      ${tabsHtml}
+    </div>
+
+    <!-- Template Content -->
+    <div id="templateContent" class="flex-1 overflow-y-auto p-4">
+      Loading...
+    </div>
+
+    <div class="p-3 border-t bg-gray-50 text-xs text-gray-500 text-center">
+      Click <strong>Copy</strong> to copy template. Use <strong>Edit</strong> to customize - changes sync with main app.
+    </div>
+  </div>
+
+  <script>
+    // Template data from main app
+    const DEFAULT_TEMPLATES = ${templatesJson};
+    const TEMPLATES_STORAGE_KEY = 'mailslot-user-templates';
+
+    function esc(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function loadUserTemplates() {
+      try {
+        const saved = localStorage.getItem(TEMPLATES_STORAGE_KEY);
+        return saved ? JSON.parse(saved) : {};
+      } catch (e) { return {}; }
+    }
+
+    function saveUserTemplate(channelKey, templateId, edits) {
+      try {
+        const userTemplates = loadUserTemplates();
+        if (!userTemplates[channelKey]) userTemplates[channelKey] = {};
+        userTemplates[channelKey][templateId] = edits;
+        localStorage.setItem(TEMPLATES_STORAGE_KEY, JSON.stringify(userTemplates));
+        return true;
+      } catch (e) { return false; }
+    }
+
+    function resetUserTemplate(channelKey, templateId) {
+      try {
+        const userTemplates = loadUserTemplates();
+        if (userTemplates[channelKey] && userTemplates[channelKey][templateId]) {
+          delete userTemplates[channelKey][templateId];
+          if (Object.keys(userTemplates[channelKey]).length === 0) delete userTemplates[channelKey];
+          localStorage.setItem(TEMPLATES_STORAGE_KEY, JSON.stringify(userTemplates));
+        }
+        return true;
+      } catch (e) { return false; }
+    }
+
+    function getTemplates(channelKey) {
+      const defaults = DEFAULT_TEMPLATES[channelKey] || [];
+      const userEdits = loadUserTemplates()[channelKey] || {};
+      return defaults.map(template => {
+        const userEdit = userEdits[template.id];
+        if (userEdit) {
+          return {
+            ...template,
+            subject: userEdit.subject !== undefined ? userEdit.subject : template.subject,
+            body: userEdit.body !== undefined ? userEdit.body : template.body,
+            isEdited: true
+          };
+        }
+        return { ...template, isEdited: false };
+      });
+    }
+
+    function showTemplateChannel(channelKey) {
+      document.querySelectorAll('[id^="templateTab_"]').forEach(tab => {
+        tab.classList.remove('border-b-2', 'border-purple-600', 'text-purple-600');
+        tab.classList.add('text-gray-500');
+      });
+      const activeTab = document.getElementById('templateTab_' + channelKey);
+      if (activeTab) {
+        activeTab.classList.add('border-b-2', 'border-purple-600', 'text-purple-600');
+        activeTab.classList.remove('text-gray-500');
+      }
+      document.getElementById('templateContent').innerHTML = renderTemplateList(channelKey);
+    }
+
+    function renderTemplateList(channelKey) {
+      const templates = getTemplates(channelKey);
+      if (templates.length === 0) return '<p class="text-gray-500 italic">No templates available</p>';
+
+      return templates.map(t => \`
+        <div class="bg-white border border-gray-200 rounded-lg p-3 mb-3 shadow-sm" id="template_\${t.id}">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <span class="font-semibold text-gray-800">\${esc(t.name)}</span>
+              \${t.isEdited ? '<span class="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded">Edited</span>' : ''}
+            </div>
+            <div class="flex items-center gap-2">
+              \${t.isEdited ? \`<button onclick="resetTemplate('\${channelKey}', '\${t.id}')" class="px-2 py-1 text-gray-500 hover:text-gray-700 text-sm" title="Reset to default">↺ Reset</button>\` : ''}
+              <button onclick="editTemplate('\${channelKey}', '\${t.id}')" class="px-2 py-1 text-blue-600 hover:text-blue-800 text-sm font-medium">✏️ Edit</button>
+              <button onclick="copyTemplate('\${channelKey}', '\${t.id}')" class="px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 font-medium">Copy</button>
+            </div>
+          </div>
+          \${t.subject ? \`<div class="text-xs text-gray-500 mb-1"><strong>Subject:</strong> \${esc(t.subject)}</div>\` : ''}
+          <pre class="text-xs text-gray-600 whitespace-pre-wrap font-sans bg-gray-50 p-2 rounded border max-h-32 overflow-y-auto">\${esc(t.body)}</pre>
+        </div>
+      \`).join('');
+    }
+
+    function copyTemplate(channelKey, templateId) {
+      const templates = getTemplates(channelKey);
+      const template = templates.find(t => t.id === templateId);
+      if (!template) { alert('Template not found'); return; }
+
+      let text = template.body;
+      if (template.subject) text = 'Subject: ' + template.subject + '\\n\\n' + template.body;
+
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('📋 "' + template.name + '" copied!');
+      }).catch(() => { alert('Failed to copy'); });
+    }
+
+    function editTemplate(channelKey, templateId) {
+      const templates = getTemplates(channelKey);
+      const template = templates.find(t => t.id === templateId);
+      if (!template) { alert('Template not found'); return; }
+
+      const hasSubject = template.subject !== undefined;
+
+      const modal = document.createElement('div');
+      modal.id = 'editModal';
+      modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50';
+      modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+      modal.innerHTML = \`
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-xl mx-4 max-h-[80vh] flex flex-col">
+          <div class="p-4 border-b flex items-center justify-between">
+            <h3 class="text-lg font-bold text-gray-900">✏️ Edit: \${esc(template.name)}</h3>
+            <button onclick="document.getElementById('editModal').remove()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+          </div>
+          <div class="flex-1 overflow-y-auto p-4 space-y-4">
+            \${hasSubject ? \`<div><label class="block text-sm font-medium text-gray-700 mb-1">Subject Line</label><input type="text" id="editSubject" value="\${esc(template.subject)}" class="w-full px-3 py-2 border border-gray-300 rounded-lg"></div>\` : ''}
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Message Body</label>
+              <textarea id="editBody" rows="12" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono">\${esc(template.body)}</textarea>
+            </div>
+            <div class="text-xs text-gray-500"><strong>Placeholders:</strong> {BUSINESS}, {YOUR_NAME}, {YOUR_PHONE}</div>
+          </div>
+          <div class="p-4 border-t flex items-center justify-between bg-gray-50">
+            <button onclick="document.getElementById('editModal').remove()" class="px-4 py-2 text-gray-600 hover:text-gray-800">Cancel</button>
+            <button onclick="saveEdit('\${channelKey}', '\${templateId}', \${hasSubject})" class="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">Save Changes</button>
+          </div>
+        </div>
+      \`;
+      document.body.appendChild(modal);
+    }
+
+    function saveEdit(channelKey, templateId, hasSubject) {
+      const body = document.getElementById('editBody').value;
+      const edits = { body: body };
+      if (hasSubject) edits.subject = document.getElementById('editSubject').value;
+
+      if (saveUserTemplate(channelKey, templateId, edits)) {
+        showToast('✅ Template saved!');
+        document.getElementById('editModal').remove();
+        showTemplateChannel(channelKey);
+      } else {
+        alert('Failed to save');
+      }
+    }
+
+    function resetTemplate(channelKey, templateId) {
+      if (!confirm('Reset this template to default?')) return;
+      if (resetUserTemplate(channelKey, templateId)) {
+        showToast('✅ Reset to default');
+        showTemplateChannel(channelKey);
+      }
+    }
+
+    function showToast(msg) {
+      const existing = document.getElementById('toast');
+      if (existing) existing.remove();
+
+      const toast = document.createElement('div');
+      toast.id = 'toast';
+      toast.className = 'fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg text-sm';
+      toast.textContent = msg;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 2000);
+    }
+
+    // Initialize with email templates
+    showTemplateChannel('email');
+  </script>
+</body>
+</html>`;
+
+  window.templateWindow.document.write(html);
+  window.templateWindow.document.close();
 }
 
 // Show templates for a specific channel
