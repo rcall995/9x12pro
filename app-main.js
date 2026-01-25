@@ -20675,7 +20675,7 @@ async function followUpContact(prospectId, channelKey) {
       icon: '✉️',
       name: 'Email',
       hasContact: !!prospect.email,
-      open: () => window.open(`mailto:${prospect.email}?subject=Following up - ${encodeURIComponent(businessName)}`, '_blank'),
+      open: () => window.open(`mailto:${prospect.email}`, '_blank'),
       dateKey: 'emailedDate'
     },
     facebookMessaged: {
