@@ -5,7 +5,7 @@
  */
 
 // Update this version when you want to force a cache refresh
-const CACHE_VERSION = 'v232';
+const CACHE_VERSION = 'v233';
 const CACHE_NAME = `9x12-pro-${CACHE_VERSION}`;
 
 // Core app files to cache on install
@@ -17,7 +17,6 @@ const urlsToCache = [
   '/auth-root.js',
   '/config.js',
   '/facing-slip.html',
-  '/outreach-scripts.html',
   '/outreach-ipad.html'
 ];
 
