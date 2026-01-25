@@ -20929,6 +20929,39 @@ function getTemplateEdits() {
   return templateEditsState;
 }
 
+// Get variable values for template replacement
+function getTemplateVariables() {
+  // Load salesToolkitSettings from localStorage if not loaded
+  const savedSettings = localStorage.getItem('salesToolkitSettings');
+  const settings = savedSettings ? JSON.parse(savedSettings) : {};
+
+  // Get current prospect data
+  const prospect = currentProspectDetail || {};
+
+  // Get current campaign/mailer data
+  const campaign = state.current || {};
+
+  return {
+    // Business info (from current prospect)
+    BUSINESS: prospect.businessName || prospect.name || '',
+    ZIP: prospect.zipCode || prospect.zip || campaign.ZIP || '',
+    CITY: prospect.city || prospect.town || campaign.Town || '',
+    CATEGORY: prospect.category || prospect.types?.[0] || '',
+
+    // User info (from salesToolkitSettings)
+    YOUR_NAME: settings.yourName || '',
+    YOUR_PHONE: settings.yourPhone || '',
+    YOUR_EMAIL: settings.yourEmail || '',
+    YOUR_COMPANY: settings.yourCompany || '',
+
+    // Campaign info
+    MAILER_DATE: campaign.Mailer_Date || '',
+    DEADLINE: campaign.Deadline || '',
+    SPOT_PRICE: settings.spotPrice || '$399',
+    HOMES_REACHED: settings.homesReached || '5,000'
+  };
+}
+
 // Save a single template edit
 async function saveTemplateEdit(channelKey, templateId, edits) {
   try {
@@ -21283,11 +21316,41 @@ function openTemplatePicker() {
       const template = templates.find(t => t.id === templateId);
       if (!template) { alert('Template not found'); return; }
 
+      // Get variable values from main app
+      let variables = {};
+      try {
+        if (window.opener && !window.opener.closed && window.opener.getTemplateVariables) {
+          variables = window.opener.getTemplateVariables();
+        }
+      } catch (e) { console.warn('Cannot get variables from main app:', e); }
+
+      // Replace variables in template
       let text = template.body;
-      if (template.subject) text = 'Subject: ' + template.subject + '\\n\\n' + template.body;
+      if (template.subject) {
+        let subject = template.subject;
+        // Replace variables in subject
+        Object.entries(variables).forEach(([key, value]) => {
+          if (value) {
+            subject = subject.replace(new RegExp('\\\\{' + key + '\\\\}', 'gi'), value);
+          }
+        });
+        text = 'Subject: ' + subject + '\\n\\n' + template.body;
+      }
+
+      // Replace variables in body
+      Object.entries(variables).forEach(([key, value]) => {
+        if (value) {
+          text = text.replace(new RegExp('\\\\{' + key + '\\\\}', 'gi'), value);
+        }
+      });
 
       navigator.clipboard.writeText(text).then(() => {
-        showToast('📋 "' + template.name + '" copied!');
+        const hasUnfilled = text.match(/\\{[A-Z_]+\\}/);
+        if (hasUnfilled) {
+          showToast('📋 Copied! (Some variables need filling)');
+        } else {
+          showToast('📋 "' + template.name + '" copied!');
+        }
       }).catch(() => { alert('Failed to copy'); });
     }
 
