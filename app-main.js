@@ -21361,7 +21361,12 @@ function openTemplatePicker() {
               <button onclick="copyTemplate('\${channelKey}', '\${t.id}')" class="px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 font-medium">Copy</button>
             </div>
           </div>
-          \${t.subject ? \`<div class="text-xs text-gray-500 mb-1"><strong>Subject:</strong> \${esc(t.subject)}</div>\` : ''}
+          \${t.subject ? \`
+            <div class="mb-2 bg-blue-50 px-2 py-1.5 rounded border border-blue-200">
+              <div class="text-xs text-blue-600 font-medium mb-0.5">Subject Line:</div>
+              <div class="text-sm text-blue-900 font-semibold select-all cursor-text">\${esc(t.subject)}</div>
+            </div>
+          \` : ''}
           <pre class="text-xs text-gray-600 whitespace-pre-wrap font-sans bg-gray-50 p-2 rounded border max-h-32 overflow-y-auto">\${esc(t.body)}</pre>
         </div>
       \`).join('');
@@ -21380,18 +21385,8 @@ function openTemplatePicker() {
         }
       } catch (e) { console.warn('Cannot get variables from main app:', e); }
 
-      // Replace variables in template
+      // Copy only the body (not the subject)
       let text = template.body;
-      if (template.subject) {
-        let subject = template.subject;
-        // Replace variables in subject
-        Object.entries(variables).forEach(([key, value]) => {
-          if (value) {
-            subject = subject.replace(new RegExp('\\\\{' + key + '\\\\}', 'gi'), value);
-          }
-        });
-        text = 'Subject: ' + subject + '\\n\\n' + template.body;
-      }
 
       // Replace variables in body
       Object.entries(variables).forEach(([key, value]) => {
@@ -21405,7 +21400,7 @@ function openTemplatePicker() {
         if (hasUnfilled) {
           showToast('📋 Copied! (Some variables need filling)');
         } else {
-          showToast('📋 "' + template.name + '" copied!');
+          showToast('📋 Copied!');
         }
       }).catch(() => { alert('Failed to copy'); });
     }
