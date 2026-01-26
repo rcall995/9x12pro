@@ -21255,7 +21255,14 @@ function openTemplatePicker() {
     }
 
     // Set subject line for Follow Up emails
-    function setFollowUpSubject(subject, templateName) {
+    function setFollowUpSubject(channelKey, templateId) {
+      const templates = getTemplates(channelKey);
+      const template = templates.find(t => t.id === templateId);
+      if (!template || !template.subject) {
+        showToast('No subject found');
+        return;
+      }
+      const subject = template.subject;
       localStorage.setItem('followUpSubject', subject);
       updateSelectedSubjectDisplay();
       showToast('✓ Subject set!');
@@ -21420,7 +21427,7 @@ function openTemplatePicker() {
             <div class="mb-2 bg-blue-50 px-2 py-1.5 rounded border border-blue-200">
               <div class="flex items-center justify-between mb-0.5">
                 <span class="text-xs text-blue-600 font-medium">Subject Line:</span>
-                <button onclick="setFollowUpSubject('\${esc(t.subject).replace(/'/g, "\\\\'")}', '\${esc(t.name).replace(/'/g, "\\\\'")}')"
+                <button onclick="setFollowUpSubject('\${channelKey}', '\${t.id}')"
                         class="px-2 py-0.5 bg-green-600 text-white text-xs rounded hover:bg-green-700">
                   ✓ Use for Follow Up
                 </button>
