@@ -7,7 +7,8 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { zipCode } = req.body;
+  const { zipCode, radius = 20 } = req.body;
+  const maxRadius = Math.min(Math.max(parseInt(radius) || 20, 1), 50); // Clamp between 1-50 miles
 
   if (!zipCode || !/^\d{5}$/.test(zipCode)) {
     return res.status(400).json({ error: 'Valid 5-digit ZIP code required' });
@@ -77,7 +78,7 @@ export default async function handler(req, res) {
     const batchSize = 20;
     const maxBatches = 8; // Check up to 160 ZIPs
 
-    for (let batchIndex = 0; batchIndex < maxBatches && neighbors.length < 10; batchIndex++) {
+    for (let batchIndex = 0; batchIndex < maxBatches && neighbors.length < 20; batchIndex++) {
       const batchStart = batchIndex * batchSize;
       const batch = allPotentialZips.slice(batchStart, batchStart + batchSize);
 
@@ -96,8 +97,8 @@ export default async function handler(req, res) {
               const testLng = parseFloat(testPlace.longitude);
               const distance = calculateDistance(centerLat, centerLng, testLat, testLng);
 
-              // Only include ZIPs within 20 miles
-              if (distance <= 20) {
+              // Only include ZIPs within specified radius
+              if (distance <= maxRadius) {
                 return {
                   zipCode: testZip,
                   city: testPlace['place name'],
@@ -123,9 +124,9 @@ export default async function handler(req, res) {
       }
     }
 
-    // Sort by distance and return top 5
+    // Sort by distance and return all within radius (up to 20)
     neighbors.sort((a, b) => a.distance - b.distance);
-    const topNeighbors = neighbors.slice(0, 5);
+    const topNeighbors = neighbors.slice(0, 20);
 
     return res.status(200).json({
       centerZip: {

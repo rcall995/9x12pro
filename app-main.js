@@ -8120,15 +8120,98 @@ async function clearAllSearchCaches() {
   }
 }
 
+// ZIP search mode state
+let zipSearchMode = 'zips'; // 'zips' or 'radius'
+
+// Toggle between ZIP search modes
+function setZipSearchMode(mode) {
+  zipSearchMode = mode;
+  const zipModeTab = document.getElementById('zipModeTab');
+  const radiusModeTab = document.getElementById('radiusModeTab');
+  const multipleZipsMode = document.getElementById('multipleZipsMode');
+  const radiusSearchMode = document.getElementById('radiusSearchMode');
+
+  if (mode === 'zips') {
+    zipModeTab.className = 'px-3 py-1 text-sm font-bold rounded-lg bg-white text-purple-600';
+    radiusModeTab.className = 'px-3 py-1 text-sm font-bold rounded-lg bg-white/20 text-white hover:bg-white/30';
+    multipleZipsMode.classList.remove('hidden');
+    radiusSearchMode.classList.add('hidden');
+  } else {
+    radiusModeTab.className = 'px-3 py-1 text-sm font-bold rounded-lg bg-white text-purple-600';
+    zipModeTab.className = 'px-3 py-1 text-sm font-bold rounded-lg bg-white/20 text-white hover:bg-white/30';
+    radiusSearchMode.classList.remove('hidden');
+    multipleZipsMode.classList.add('hidden');
+  }
+}
+
+// Expose to window
+window.setZipSearchMode = setZipSearchMode;
+
+// Get neighboring ZIP codes within a radius
+async function getZipsInRadius(centerZip, radiusMiles) {
+  try {
+    const response = await fetch('/api/zip-neighbors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ zipCode: centerZip, radius: radiusMiles })
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to get neighboring ZIPs');
+    }
+
+    const data = await response.json();
+    // Return center ZIP + all neighbors within radius
+    const zips = [centerZip];
+    if (data.neighbors) {
+      data.neighbors.forEach(n => {
+        if (n.distance <= radiusMiles) {
+          zips.push(n.zipCode);
+        }
+      });
+    }
+    return zips;
+  } catch (error) {
+    console.error('Error getting ZIP neighbors:', error);
+    return [centerZip]; // Fall back to just center ZIP
+  }
+}
+
 // Run bulk auto-populate with multiple categories - shows results in modal
 async function runBulkAutoPopulate() {
-  // Get ZIP codes from the 3 input fields
-  const zip1 = document.getElementById('bulkPopZip1')?.value.trim() || '';
-  const zip2 = document.getElementById('bulkPopZip2')?.value.trim() || '';
-  const zip3 = document.getElementById('bulkPopZip3')?.value.trim() || '';
+  let zipCodes = [];
 
-  // Collect non-empty ZIPs
-  let zipCodes = [zip1, zip2, zip3].filter(z => z.length > 0);
+  // Check which mode we're in
+  if (zipSearchMode === 'radius') {
+    // Radius mode - get center ZIP and radius
+    const centerZip = document.getElementById('radiusCenterZip')?.value.trim() || '';
+    const radiusMiles = parseInt(document.getElementById('radiusMiles')?.value) || 5;
+
+    if (!centerZip || !/^\d{5}$/.test(centerZip)) {
+      toast('Please enter a valid 5-digit ZIP code', false);
+      return;
+    }
+
+    if (radiusMiles < 1 || radiusMiles > 50) {
+      toast('Radius must be between 1 and 50 miles', false);
+      return;
+    }
+
+    // Get neighboring ZIPs within radius
+    const btn = document.getElementById('btnRunBulkPopulate');
+    btn.innerHTML = '⏳ Finding ZIP codes in radius...';
+    btn.disabled = true;
+
+    zipCodes = await getZipsInRadius(centerZip, radiusMiles);
+    toast(`Found ${zipCodes.length} ZIP code${zipCodes.length > 1 ? 's' : ''} within ${radiusMiles} miles`, true);
+
+  } else {
+    // Multiple ZIPs mode
+    const zip1 = document.getElementById('bulkPopZip1')?.value.trim() || '';
+    const zip2 = document.getElementById('bulkPopZip2')?.value.trim() || '';
+    const zip3 = document.getElementById('bulkPopZip3')?.value.trim() || '';
+    zipCodes = [zip1, zip2, zip3].filter(z => z.length > 0);
+  }
 
   // Validation
   if (zipCodes.length === 0) {
