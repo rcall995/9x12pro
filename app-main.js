@@ -8181,6 +8181,9 @@ async function getZipsInRadius(centerZip, radiusMiles) {
 async function runBulkAutoPopulate() {
   let zipCodes = [];
 
+  const btn = document.getElementById('btnRunBulkPopulate');
+  const originalBtnText = btn.innerHTML;
+
   // Check which mode we're in
   if (zipSearchMode === 'radius') {
     // Radius mode - get center ZIP and radius
@@ -8198,12 +8201,24 @@ async function runBulkAutoPopulate() {
     }
 
     // Get neighboring ZIPs within radius
-    const btn = document.getElementById('btnRunBulkPopulate');
     btn.innerHTML = '⏳ Finding ZIP codes in radius...';
     btn.disabled = true;
 
-    zipCodes = await getZipsInRadius(centerZip, radiusMiles);
-    toast(`Found ${zipCodes.length} ZIP code${zipCodes.length > 1 ? 's' : ''} within ${radiusMiles} miles`, true);
+    try {
+      zipCodes = await getZipsInRadius(centerZip, radiusMiles);
+      // Limit to max 10 ZIPs to avoid extremely long searches
+      if (zipCodes.length > 10) {
+        toast(`Found ${zipCodes.length} ZIPs, limiting to closest 10`, true);
+        zipCodes = zipCodes.slice(0, 10);
+      } else {
+        toast(`Found ${zipCodes.length} ZIP code${zipCodes.length > 1 ? 's' : ''} within ${radiusMiles} miles`, true);
+      }
+    } catch (error) {
+      btn.innerHTML = originalBtnText;
+      btn.disabled = false;
+      toast('Error finding ZIP codes. Please try again.', false);
+      return;
+    }
 
   } else {
     // Multiple ZIPs mode
@@ -8254,9 +8269,7 @@ async function runBulkAutoPopulate() {
     return;
   }
 
-  // Disable button during search
-  const btn = document.getElementById('btnRunBulkPopulate');
-  const originalText = btn.innerHTML;
+  // Disable button during search (btn already defined above)
   btn.disabled = true;
   btn.innerHTML = '⏳ Searching...';
 
@@ -8318,7 +8331,7 @@ async function runBulkAutoPopulate() {
     if (allBusinesses.length === 0) {
       toast(`Searched ${selectedCategories.length} categories in ${zipCodes.length} ZIP code${zipCodes.length > 1 ? 's' : ''}. No new businesses found.`, false);
       btn.disabled = false;
-      btn.innerHTML = originalText;
+      btn.innerHTML = originalBtnText;
       updateQuickApiUsage();
 
       // Still switch to Prospect Pool to show existing cached searches
@@ -8447,7 +8460,7 @@ async function runBulkAutoPopulate() {
       progressOverlay.remove();
     }
     btn.disabled = false;
-    btn.innerHTML = originalText;
+    btn.innerHTML = originalBtnText;
   }
 }
 
