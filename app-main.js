@@ -1816,10 +1816,12 @@ async function loadClients() {
   try {
     // Try loading from cloud first
     const cloudData = await loadFromCloud('clients');
+    console.log('📋 loadClients - cloudData:', cloudData);
 
     if (cloudData) {
       crmState.clients = cloudData.clients || {};
       crmState.nextClientId = cloudData.nextClientId || 1;
+      console.log('📋 Loaded', Object.keys(crmState.clients).length, 'clients from cloud');
 
       // Normalize client data to ensure all have required structure
       Object.keys(crmState.clients).forEach(clientId => {
@@ -1847,17 +1849,22 @@ async function loadClients() {
       });
     } else {
       // Fallback to localStorage
+      console.log('📋 No cloud data for clients, checking localStorage...');
       const saved = localStorage.getItem('mailslot-clients');
       if (saved) {
         const data = JSON.parse(saved);
         crmState.clients = data.clients || {};
         crmState.nextClientId = data.nextClientId || 1;
+        console.log('📋 Loaded', Object.keys(crmState.clients).length, 'clients from localStorage');
         // Sync to cloud
         saveToCloud('clients', { clients: crmState.clients, nextClientId: crmState.nextClientId }).catch(e => console.warn('Failed to sync clients to cloud:', e));
+      } else {
+        console.log('📋 No clients found in localStorage either');
       }
     }
 
     // Render client list (inside try-catch to prevent promise rejection)
+    console.log('📋 Rendering client list with', Object.keys(crmState.clients).length, 'clients');
     renderClientList();
   } catch(e) {
     console.error('Error loading clients:', e);
