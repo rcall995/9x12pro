@@ -25311,6 +25311,9 @@ async function loadCampaigns(restoreMailerId = null) {
     console.error('Failed to load campaigns from Supabase:', err);
     toast("⚠️ Failed to load campaigns. Please refresh.", false);
     hideLoadingOverlay(); // Still hide overlay on error
+
+    // Still initialize UI even if campaigns fail to load
+    onCampaignsLoaded([], restoreMailerId);
   }
 }
 
