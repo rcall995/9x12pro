@@ -24289,11 +24289,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Wait for auth to complete before loading user data
   console.log('⏳ Waiting for authentication before loading data...');
+  let authWaitCount = 0;
   var waitForAuth = setInterval(function() {
+    authWaitCount++;
     if (window.authReady && ACTIVE_USER) {
       clearInterval(waitForAuth);
       console.log('✅ Auth ready, loading user data for:', ACTIVE_USER);
       loadAllData();
+    } else if (authWaitCount > 100) { // 10 second timeout
+      clearInterval(waitForAuth);
+      console.warn('⚠️ Auth timeout - authReady:', window.authReady, 'ACTIVE_USER:', ACTIVE_USER);
+      // Try to proceed anyway if we have a user
+      if (ACTIVE_USER || window.currentAuthUser?.email) {
+        ACTIVE_USER = ACTIVE_USER || window.currentAuthUser?.email;
+        console.log('🔄 Proceeding with user:', ACTIVE_USER);
+        loadAllData();
+      } else {
+        console.error('❌ No authenticated user after timeout');
+        hideLoadingOverlay();
+        toast('Authentication timeout. Please refresh the page.', false);
+      }
     }
   }, 100);
 });
