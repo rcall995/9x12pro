@@ -3193,30 +3193,33 @@ function quickAddClient() {
 
 function exportClientsCSV() {
   const clients = Object.values(crmState.clients);
-  if (clients.length === 0) {
-    toast('No clients to export', false);
-    return;
-  }
-  
+
   const headers = ['Business Name', 'Category', 'Contact Name', 'First Name', 'Phone', 'Email', 'Monthly Price', 'Lifetime Spent', 'Cards Bought', 'Notes'];
-  const rows = clients.map(c => [
-    c.businessName,
-    c.category,
-    c.contact.name,
-    c.contact.firstName || '',
-    c.contact.phone,
-    c.contact.email,
-    c.monthlyPrice || 0,
-    c.lifetime.totalSpent,
-    c.lifetime.cardsBought,
-    c.notes
-  ]);
-  
+
+  let rows = [];
+  if (clients.length === 0) {
+    // Export template with example row
+    rows = [['Example Business', 'Restaurant', 'John Smith', 'John', '555-123-4567', 'john@example.com', '150', '0', '0', 'Delete this example row']];
+  } else {
+    rows = clients.map(c => [
+      c.businessName,
+      c.category,
+      c.contact.name,
+      c.contact.firstName || '',
+      c.contact.phone,
+      c.contact.email,
+      c.monthlyPrice || 0,
+      c.lifetime.totalSpent,
+      c.lifetime.cardsBought,
+      c.notes
+    ]);
+  }
+
   let csv = headers.join(',') + '\n';
   rows.forEach(row => {
     csv += row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(',') + '\n';
   });
-  
+
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -3224,8 +3227,8 @@ function exportClientsCSV() {
   a.download = `clients-${new Date().toISOString().split('T')[0]}.csv`;
   a.click();
   URL.revokeObjectURL(url);
-  
-  toast('Clients exported to CSV');
+
+  toast(clients.length === 0 ? 'Template exported - add your clients and import' : 'Clients exported to CSV');
 }
 
 function importClientsCSV(event) {
