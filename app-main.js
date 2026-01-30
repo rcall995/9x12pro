@@ -1827,15 +1827,32 @@ async function loadClients() {
       Object.keys(crmState.clients).forEach(clientId => {
         const client = crmState.clients[clientId];
 
-        // If client is missing expected properties, normalize it
-        if (!client.history || !client.lifetime || !client.contact || typeof client.contact === 'string') {
+        // Always ensure required nested objects exist
+        if (!client.lifetime) {
+          client.lifetime = { cardsBought: 0, totalSpent: 0, avgPrice: 0 };
+        }
+        if (!client.contact || typeof client.contact === 'string') {
+          const contactName = typeof client.contact === 'string' ? client.contact : '';
+          client.contact = {
+            name: contactName || client.contactName || client.contact_name || '',
+            firstName: client.firstName || '',
+            phone: client.phone || '',
+            email: client.email || ''
+          };
+        }
+        if (!client.history) {
+          client.history = [];
+        }
+
+        // If client needs full rebuild, use buildClientObject
+        if (!client.businessName && !client.id) {
           crmState.clients[clientId] = buildClientObject({
             id: client.id || clientId,
             businessName: client.businessName || client.business_name || "",
             category: client.category || "",
-            contactName: client.contactName || client.contact_name || client.contact || "",
-            phone: client.phone || "",
-            email: client.email || "",
+            contactName: client.contact?.name || client.contactName || client.contact_name || "",
+            phone: client.contact?.phone || client.phone || "",
+            email: client.contact?.email || client.email || "",
             address: client.address || "",
             notes: client.notes || "",
             history: client.history || [],
@@ -1929,8 +1946,8 @@ function renderClientList() {
 
             <!-- Revenue Badge in top-right corner -->
             <div class="absolute top-2 right-2 text-right pointer-events-none z-10">
-              <div class="text-sm font-semibold text-green-600">${formatCurrency(client.lifetime.totalSpent)}</div>
-              <div class="text-xs text-gray-500">${client.lifetime.cardsBought} card${client.lifetime.cardsBought === 1 ? '' : 's'}</div>
+              <div class="text-sm font-semibold text-green-600">${formatCurrency((client.lifetime?.totalSpent) || 0)}</div>
+              <div class="text-xs text-gray-500">${(client.lifetime?.cardsBought) || 0} card${(client.lifetime?.cardsBought) === 1 ? '' : 's'}</div>
             </div>
 
             <!-- Main content (clickable to open modal) -->
@@ -2900,9 +2917,9 @@ function openClientModal(clientId = null) {
 
     renderClientHistory(client);
     
-    document.getElementById('clientLifetimeSpent').textContent = formatCurrency(client.lifetime.totalSpent);
-    document.getElementById('clientCardsBought').textContent = client.lifetime.cardsBought;
-    document.getElementById('clientAvgPrice').textContent = formatCurrency(client.lifetime.avgPrice);
+    document.getElementById('clientLifetimeSpent').textContent = formatCurrency(client.lifetime?.totalSpent || 0);
+    document.getElementById('clientCardsBought').textContent = client.lifetime?.cardsBought || 0;
+    document.getElementById('clientAvgPrice').textContent = formatCurrency(client.lifetime?.avgPrice || 0);
 
     // Load contract data
     if (client.contract && client.contract.enabled) {
@@ -3160,10 +3177,14 @@ function linkClientToSpot(clientId, spotNum, campaign, price, status) {
   };
   
   client.history.push(purchase);
-  
+
+  // Ensure lifetime object exists
+  if (!client.lifetime) {
+    client.lifetime = { cardsBought: 0, totalSpent: 0, avgPrice: 0 };
+  }
   client.lifetime.cardsBought = client.history.length;
   client.lifetime.totalSpent = client.history.reduce((sum, p) => sum + (p.price || 0), 0);
-  client.lifetime.avgPrice = client.lifetime.totalSpent / client.lifetime.cardsBought;
+  client.lifetime.avgPrice = client.lifetime.cardsBought > 0 ? client.lifetime.totalSpent / client.lifetime.cardsBought : 0;
   
   saveClients();
 }
@@ -3209,16 +3230,16 @@ function exportClientsCSV() {
     rows = [['Example Business', 'Restaurant', 'John Smith', 'John', '555-123-4567', 'john@example.com', '150', '0', '0', 'Delete this example row']];
   } else {
     rows = clients.map(c => [
-      c.businessName,
-      c.category,
-      c.contact.name,
-      c.contact.firstName || '',
-      c.contact.phone,
-      c.contact.email,
+      c.businessName || '',
+      c.category || '',
+      c.contact?.name || '',
+      c.contact?.firstName || '',
+      c.contact?.phone || '',
+      c.contact?.email || '',
       c.monthlyPrice || 0,
-      c.lifetime.totalSpent,
-      c.lifetime.cardsBought,
-      c.notes
+      c.lifetime?.totalSpent || 0,
+      c.lifetime?.cardsBought || 0,
+      c.notes || ''
     ]);
   }
 
@@ -3509,8 +3530,8 @@ function generateClientValueReport() {
     report += `
       <div class="grid grid-cols-3 gap-2 text-sm py-1">
         <div>${esc(client.businessName)}</div>
-        <div class="text-green-600 font-semibold">${formatCurrency(client.lifetime.totalSpent)}</div>
-        <div>${client.lifetime.cardsBought}</div>
+        <div class="text-green-600 font-semibold">${formatCurrency(client.lifetime?.totalSpent || 0)}</div>
+        <div>${client.lifetime?.cardsBought || 0}</div>
       </div>
     `;
   });
