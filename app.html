@@ -43,7 +43,7 @@
     };
   </script>
   <!-- Core Utilities - Load First (synchronous for dependencies) -->
-  <script src="config.js?v=434"></script>
+  <script src="config.js?v=435"></script>
   <script src="error-handler.js"></script>
   <script src="utils.js"></script>
 
@@ -3284,10 +3284,10 @@
   <script src="performance-loader.js" defer></script>
 
   <!-- Main Application JavaScript (Refactored) -->
-  <script src="app-main.js?v=434" defer></script>
+  <script src="app-main.js?v=435" defer></script>
 
   <!-- Authentication -->
-  <script src="auth-root.js?v=434"></script>
+  <script src="auth-root.js?v=435"></script>
 
   <!-- PWA Service Worker Registration -->
   <script>
@@ -3330,22 +3330,10 @@
           });
       });
 
-      // Handle service worker updates - reload only once per session
-      let refreshing = false;
+      // Handle service worker updates - log only, no auto-reload
+      // Auto-reload was causing issues in incognito and on new deployments
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (refreshing) return;
-
-        // Check if we already reloaded this session
-        const lastReload = sessionStorage.getItem('sw-last-reload');
-        if (lastReload && (Date.now() - parseInt(lastReload)) < 60000) {
-          console.log('⏭️ Skipping auto-reload - already reloaded recently');
-          return;
-        }
-
-        refreshing = true;
-        console.log('🔄 New service worker active - reloading...');
-        sessionStorage.setItem('sw-last-reload', Date.now().toString());
-        window.location.reload();
+        console.log('🔄 New service worker active - refresh manually if needed');
       });
     }
   </script>
