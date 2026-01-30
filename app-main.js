@@ -24289,22 +24289,40 @@ window.selectAllCategoriesHandler = function() {
 
 /* ========= INIT ========= */
 document.addEventListener("DOMContentLoaded", () => {
+  console.log('🔧 DOMContentLoaded fired');
+
   // Initialize offline support (event listeners, sync queue)
-  initOfflineSupport();
+  try {
+    initOfflineSupport();
+    console.log('🔧 initOfflineSupport done');
+  } catch(e) {
+    console.error('❌ initOfflineSupport error:', e);
+  }
 
   try {
     const saved = JSON.parse(safeGetItem("mailslot-sort") || "{}");
     sortOrder = saved.order || [...CANONICAL_STATUSES];
     visibleStatuses = saved.visible || [...CANONICAL_STATUSES];
   } catch(_) {}
-  updateColorMappings();
-  renderLegend();
 
-  stagedColors.Postcard_BG = loadPostcardBg();
-  stagedColors.Banner_BG = loadBannerBg();
-  document.getElementById('pickerPostcard').value = stagedColors.Postcard_BG;
-  document.getElementById('pickerBanner').value = stagedColors.Banner_BG;
-  applyStagedColors();
+  try {
+    updateColorMappings();
+    renderLegend();
+    console.log('🔧 Color mappings done');
+  } catch(e) {
+    console.error('❌ Color/legend error:', e);
+  }
+
+  try {
+    stagedColors.Postcard_BG = loadPostcardBg();
+    stagedColors.Banner_BG = loadBannerBg();
+    document.getElementById('pickerPostcard').value = stagedColors.Postcard_BG;
+    document.getElementById('pickerBanner').value = stagedColors.Banner_BG;
+    applyStagedColors();
+    console.log('🔧 Staged colors done');
+  } catch(e) {
+    console.error('❌ Staged colors error:', e);
+  }
 
   // Daily goal state will be loaded in loadAllData() after auth is ready
 
