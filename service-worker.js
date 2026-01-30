@@ -5,7 +5,7 @@
  */
 
 // Update this version when you want to force a cache refresh
-const CACHE_VERSION = 'v246';
+const CACHE_VERSION = 'v247';
 const CACHE_NAME = `9x12-pro-${CACHE_VERSION}`;
 
 // Core app files to cache on install
@@ -114,6 +114,29 @@ self.addEventListener('fetch', (event) => {
       event.request.url.includes('supabase.co') ||
       event.request.url.includes('maps.googleapis.com')) {
     event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // Always fetch HTML and JS files fresh (network-first) to avoid stale code
+  if (event.request.url.endsWith('.html') || event.request.url.endsWith('.js') ||
+      event.request.url.includes('.js?') || event.request.url.includes('.html?')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          // Cache the fresh response for offline use
+          if (response && response.status === 200) {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return response;
+        })
+        .catch(() => {
+          // Network failed - try cache as fallback
+          return caches.match(event.request);
+        })
+    );
     return;
   }
 
