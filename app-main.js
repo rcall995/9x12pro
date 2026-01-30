@@ -996,6 +996,7 @@ const crmState = {
   clients: {},
   nextClientId: 1
 };
+console.log('🔧 Checkpoint: line ~1000 - crmState defined');
 
 // CLIENT SELECTION STATE (for bulk send)
 const clientSelectionState = {
@@ -29091,3 +29092,5 @@ document.addEventListener('DOMContentLoaded', function() {
   // Delay check to let app fully load
   setTimeout(checkOnboarding, 2000);
 });
+
+console.log('✅ app-main.js fully parsed - script end reached');
