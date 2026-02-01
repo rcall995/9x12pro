@@ -68,6 +68,14 @@
               <option value="">All Categories</option>
             </select>
           </div>
+          <div class="flex-1 min-w-[200px]">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <select id="filter-status" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+              <option value="not-contacted">Not Contacted</option>
+              <option value="contacted">Contacted</option>
+              <option value="all">All</option>
+            </select>
+          </div>
           <div class="flex gap-2">
             <button onclick="applyFilters()" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium">
               Apply Filters
@@ -82,8 +90,8 @@
 
     <!-- Stats & Actions -->
     <div class="max-w-7xl mx-auto px-4 pb-4 no-print">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-6">
+      <div class="flex items-center justify-between flex-wrap gap-4">
+        <div class="flex items-center gap-4 flex-wrap">
           <div class="bg-white rounded-lg shadow px-4 py-2">
             <span class="text-gray-500 text-sm">Total Prospects:</span>
             <span id="stat-total" class="font-bold text-gray-800 ml-1">0</span>
@@ -91,6 +99,14 @@
           <div class="bg-green-50 border border-green-200 rounded-lg px-4 py-2">
             <span class="text-green-700 text-sm">With Emails:</span>
             <span id="stat-emails" class="font-bold text-green-800 ml-1">0</span>
+          </div>
+          <div class="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
+            <span class="text-blue-700 text-sm">Contacted:</span>
+            <span id="stat-contacted" class="font-bold text-blue-800 ml-1">0</span>
+          </div>
+          <div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2">
+            <span class="text-amber-700 text-sm">Showing:</span>
+            <span id="stat-showing" class="font-bold text-amber-800 ml-1">0</span>
           </div>
         </div>
         <div class="flex gap-2">
@@ -120,16 +136,15 @@
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Business Name</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Email</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Phone</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Address</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">ZIP</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Category</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Website</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Social</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider no-print">Actions</th>
               </tr>
             </thead>
             <tbody id="results-body" class="divide-y divide-gray-100">
               <tr>
-                <td colspan="8" class="px-4 py-12 text-center text-gray-500">
+                <td colspan="7" class="px-4 py-12 text-center text-gray-500">
                   Loading prospects...
                 </td>
               </tr>
@@ -139,6 +154,9 @@
       </div>
     </div>
   </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed bottom-4 right-4 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50"></div>
 
   <script>
     // Supabase config (same as main app)
@@ -150,6 +168,7 @@
     let currentUser = null;
     let allProspects = [];
     let filteredProspects = [];
+    let saving = false;
 
     // Initialize app
     async function init() {
@@ -188,6 +207,19 @@
       window.location.href = 'login.html';
     }
 
+    function showToast(message, isSuccess = true) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg transform transition-all duration-300 z-50 ${isSuccess ? 'bg-green-600' : 'bg-red-600'} text-white`;
+      toast.style.transform = 'translateY(0)';
+      toast.style.opacity = '1';
+
+      setTimeout(() => {
+        toast.style.transform = 'translateY(20px)';
+        toast.style.opacity = '0';
+      }, 3000);
+    }
+
     async function loadProspects() {
       try {
         // Load from Supabase app_data table
@@ -214,12 +246,43 @@
         console.error('Error loading prospects:', err);
         document.getElementById('results-body').innerHTML = `
           <tr>
-            <td colspan="8" class="px-4 py-12 text-center text-red-500">
+            <td colspan="7" class="px-4 py-12 text-center text-red-500">
               Error loading prospects. Please try again.
             </td>
           </tr>
         `;
       }
+    }
+
+    async function saveProspects() {
+      if (saving) return;
+      saving = true;
+
+      try {
+        const { error } = await supabaseClient
+          .from('app_data')
+          .upsert({
+            user_email: currentUser.email,
+            data_type: 'manualProspects',
+            data: allProspects
+          }, {
+            onConflict: 'user_email,data_type'
+          });
+
+        if (error) throw error;
+        return true;
+      } catch (err) {
+        console.error('Error saving prospects:', err);
+        showToast('Error saving changes', false);
+        return false;
+      } finally {
+        saving = false;
+      }
+    }
+
+    function isContacted(prospect) {
+      const ct = prospect.contactTracking || {};
+      return !!(ct.emailedAt || ct.textedAt || ct.calledAt);
     }
 
     function populateCategories() {
@@ -246,6 +309,7 @@
     function applyFilters() {
       const zipFilter = document.getElementById('filter-zip').value.trim();
       const categoryFilter = document.getElementById('filter-category').value;
+      const statusFilter = document.getElementById('filter-status').value;
 
       // Filter prospects: must have email
       filteredProspects = allProspects.filter(p => {
@@ -264,13 +328,22 @@
           if (!categories.includes(categoryFilter.toLowerCase())) return false;
         }
 
+        // Status filter
+        const contacted = isContacted(p);
+        if (statusFilter === 'contacted' && !contacted) return false;
+        if (statusFilter === 'not-contacted' && contacted) return false;
+
         return true;
       });
 
       // Update stats
-      const totalWithEmail = allProspects.filter(p => p.email && p.email.trim()).length;
+      const prospectsWithEmail = allProspects.filter(p => p.email && p.email.trim());
+      const contactedCount = prospectsWithEmail.filter(p => isContacted(p)).length;
+
       document.getElementById('stat-total').textContent = allProspects.length;
-      document.getElementById('stat-emails').textContent = totalWithEmail;
+      document.getElementById('stat-emails').textContent = prospectsWithEmail.length;
+      document.getElementById('stat-contacted').textContent = contactedCount;
+      document.getElementById('stat-showing').textContent = filteredProspects.length;
 
       // Render table
       renderTable();
@@ -279,7 +352,12 @@
     function clearFilters() {
       document.getElementById('filter-zip').value = '';
       document.getElementById('filter-category').value = '';
+      document.getElementById('filter-status').value = 'not-contacted';
       applyFilters();
+    }
+
+    function getProspectId(prospect) {
+      return prospect.id || prospect.placeId || prospect.businessName;
     }
 
     function renderTable() {
@@ -288,7 +366,7 @@
       if (filteredProspects.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="8" class="px-4 py-12 text-center text-gray-500">
+            <td colspan="7" class="px-4 py-12 text-center text-gray-500">
               No prospects with email addresses found matching your filters.
             </td>
           </tr>
@@ -296,31 +374,114 @@
         return;
       }
 
-      tbody.innerHTML = filteredProspects.map(p => {
+      tbody.innerHTML = filteredProspects.map((p, index) => {
         const zip = p.zipCode || p.actualZip || p.zip || '';
-        const social = [];
-        if (p.facebook) social.push(`<a href="${escapeHtml(p.facebook)}" target="_blank" class="text-blue-600 hover:underline">FB</a>`);
-        if (p.instagram) social.push(`<a href="${escapeHtml(p.instagram)}" target="_blank" class="text-pink-600 hover:underline">IG</a>`);
-        if (p.linkedin) social.push(`<a href="${escapeHtml(p.linkedin)}" target="_blank" class="text-blue-800 hover:underline">LI</a>`);
-        if (p.twitter) social.push(`<a href="${escapeHtml(p.twitter)}" target="_blank" class="text-sky-500 hover:underline">X</a>`);
+        const contacted = isContacted(p);
+        const prospectId = getProspectId(p);
+        const ct = p.contactTracking || {};
 
         return `
-          <tr class="hover:bg-gray-50">
+          <tr class="hover:bg-gray-50 ${contacted ? 'bg-green-50' : ''}" data-id="${escapeHtml(prospectId)}">
             <td class="px-4 py-3 text-sm font-medium text-gray-900">${escapeHtml(p.businessName || p.name || '')}</td>
             <td class="px-4 py-3 text-sm text-blue-600">
               <a href="mailto:${escapeHtml(p.email)}" class="hover:underline">${escapeHtml(p.email)}</a>
             </td>
             <td class="px-4 py-3 text-sm text-gray-600">${escapeHtml(p.phone || '')}</td>
-            <td class="px-4 py-3 text-sm text-gray-600">${escapeHtml(p.address || '')}</td>
             <td class="px-4 py-3 text-sm text-gray-600">${escapeHtml(zip)}</td>
             <td class="px-4 py-3 text-sm text-gray-600">${escapeHtml(p.category || '')}</td>
             <td class="px-4 py-3 text-sm">
-              ${p.website ? `<a href="${escapeHtml(p.website)}" target="_blank" class="text-blue-600 hover:underline truncate block max-w-[150px]">${escapeHtml(getDomain(p.website))}</a>` : ''}
+              ${contacted
+                ? `<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                     Contacted ${ct.emailedAt ? formatDate(ct.emailedAt) : ''}
+                   </span>`
+                : `<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                     Not Contacted
+                   </span>`
+              }
             </td>
-            <td class="px-4 py-3 text-sm">${social.join(' ')}</td>
+            <td class="px-4 py-3 text-sm no-print">
+              <div class="flex gap-2">
+                ${!contacted
+                  ? `<button onclick="markContacted('${escapeHtml(prospectId)}')"
+                       class="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition">
+                       Mark Contacted
+                     </button>`
+                  : `<button onclick="unmarkContacted('${escapeHtml(prospectId)}')"
+                       class="px-2 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600 transition">
+                       Undo
+                     </button>`
+                }
+                <button onclick="removeEmail('${escapeHtml(prospectId)}')"
+                        class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 transition"
+                        title="Remove invalid email">
+                  Remove Email
+                </button>
+              </div>
+            </td>
           </tr>
         `;
       }).join('');
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '';
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+
+    async function markContacted(prospectId) {
+      const index = allProspects.findIndex(p => getProspectId(p) === prospectId);
+      if (index === -1) return;
+
+      // Update contact tracking
+      if (!allProspects[index].contactTracking) {
+        allProspects[index].contactTracking = {};
+      }
+      allProspects[index].contactTracking.emailedAt = new Date().toISOString();
+
+      // Save and refresh
+      const saved = await saveProspects();
+      if (saved) {
+        showToast('Marked as contacted');
+        applyFilters();
+      }
+    }
+
+    async function unmarkContacted(prospectId) {
+      const index = allProspects.findIndex(p => getProspectId(p) === prospectId);
+      if (index === -1) return;
+
+      // Clear contact tracking
+      if (allProspects[index].contactTracking) {
+        delete allProspects[index].contactTracking.emailedAt;
+      }
+
+      // Save and refresh
+      const saved = await saveProspects();
+      if (saved) {
+        showToast('Contact status cleared');
+        applyFilters();
+      }
+    }
+
+    async function removeEmail(prospectId) {
+      if (!confirm('Remove this email address? This will hide the prospect from this report.')) {
+        return;
+      }
+
+      const index = allProspects.findIndex(p => getProspectId(p) === prospectId);
+      if (index === -1) return;
+
+      // Clear the email
+      allProspects[index].email = '';
+      allProspects[index].invalidEmail = true;
+
+      // Save and refresh
+      const saved = await saveProspects();
+      if (saved) {
+        showToast('Email removed');
+        applyFilters();
+      }
     }
 
     function escapeHtml(text) {
@@ -360,7 +521,8 @@
         'Instagram',
         'LinkedIn',
         'Twitter',
-        'Contact Name'
+        'Contact Name',
+        'Contacted'
       ];
 
       // CSV rows
@@ -378,7 +540,8 @@
         p.instagram || '',
         p.linkedin || '',
         p.twitter || '',
-        p.contactName || ''
+        p.contactName || '',
+        isContacted(p) ? 'Yes' : 'No'
       ]);
 
       // Build CSV content
