@@ -15,7 +15,16 @@
 const SUPABASE_URL = "https://kurhsdvxsgkgnfimfqdo.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1cmhzZHZ4c2drZ25maW1mcWRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4MDk3NDYsImV4cCI6MjA3ODM4NTc0Nn0.nB_GsE89WJ3eAQrgmNKb-fbCktHTHf-987D-G6lscZA";
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let supabaseClient = null;
+
+function initSupabase() {
+  if (!window.supabase) {
+    console.error('Supabase library not loaded');
+    return false;
+  }
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  return true;
+}
 
 // ============================================
 // STATE
@@ -46,20 +55,35 @@ let selectedResults = new Set();
 // ============================================
 
 async function init() {
+  console.log('v2 init starting...');
+
   try {
+    // Initialize Supabase
+    if (!initSupabase()) {
+      console.error('Failed to init Supabase');
+      showLoginScreen();
+      return;
+    }
+    console.log('Supabase initialized');
+
     // Check auth
-    const { data: { session }, error } = await supabase.auth.getSession();
+    const { data: { session }, error } = await supabaseClient.auth.getSession();
+    console.log('Auth check complete', { session: !!session, error });
 
     if (error || !session) {
+      console.log('No session, showing login');
       showLoginScreen();
       return;
     }
 
     currentUser = session.user;
+    console.log('User:', currentUser.email);
     document.getElementById('user-email').textContent = currentUser.email;
 
     // Load data
+    console.log('Loading data...');
     await loadAllData();
+    console.log('Data loaded');
 
     // Show app
     document.getElementById('loading-overlay').classList.add('hidden');
@@ -69,6 +93,7 @@ async function init() {
     renderPipeline();
     loadCampaignTowns();
     updateStats();
+    console.log('v2 init complete');
 
   } catch (err) {
     console.error('Init error:', err);
@@ -82,7 +107,7 @@ function showLoginScreen() {
 }
 
 async function logout() {
-  await supabase.auth.signOut();
+  await supabaseClient.auth.signOut();
   window.location.href = '../login.html';
 }
 
@@ -123,7 +148,7 @@ async function loadAllData() {
 
 async function loadFromCloud(dataType) {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('app_data')
       .select('data')
       .eq('user_email', currentUser.email)
@@ -141,7 +166,7 @@ async function loadFromCloud(dataType) {
 
 async function saveToCloud(dataType, data) {
   try {
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from('app_data')
       .upsert({
         user_email: currentUser.email,
