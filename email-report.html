@@ -3,15 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Email Report Generator | 9x12 Pro</title>
+  <title>Category Outreach Queue | 9x12 Pro</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <style>
     @media print {
       .no-print { display: none !important; }
       body { background: white !important; }
-      table { font-size: 10pt; }
     }
+    .category-section { transition: all 0.3s ease; }
+    .category-content { max-height: 2000px; overflow: hidden; transition: max-height 0.3s ease; }
+    .category-content.collapsed { max-height: 0; }
+    .business-card { transition: all 0.2s ease; }
+    .business-card:hover { transform: translateX(4px); }
+    .business-card.current-target { border-left: 4px solid #6366f1; background: #eef2ff; }
+    .status-badge { font-size: 0.7rem; padding: 2px 8px; border-radius: 9999px; font-weight: 600; }
+    .spot-fill { transition: width 0.5s ease; }
   </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
@@ -37,11 +44,11 @@
   <!-- Main App -->
   <div id="app" class="hidden">
     <!-- Header -->
-    <header class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-lg no-print">
+    <header class="bg-gradient-to-r from-indigo-600 to-purple-700 text-white shadow-lg no-print">
       <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
         <div class="flex items-center gap-4">
           <a href="app.html" class="text-white/80 hover:text-white text-sm">&larr; Back to App</a>
-          <h1 class="text-xl font-bold">Email Report Generator</h1>
+          <h1 class="text-xl font-bold">Category Outreach Queue</h1>
         </div>
         <div class="flex items-center gap-4">
           <span id="user-name" class="text-sm text-white/90"></span>
@@ -52,106 +59,85 @@
       </div>
     </header>
 
-    <!-- Filters -->
-    <div class="max-w-7xl mx-auto px-4 py-6 no-print">
-      <div class="bg-white rounded-xl shadow-md p-6">
-        <h2 class="text-lg font-semibold text-gray-800 mb-4">Filter Prospects</h2>
-
-        <!-- ZIP Code Multi-Select -->
-        <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 mb-2">ZIP Codes</label>
-          <div id="zip-checkboxes" class="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 border border-gray-200 rounded-lg bg-gray-50">
-            <span class="text-gray-400 text-sm">Loading ZIP codes...</span>
-          </div>
-        </div>
-
-        <div class="flex flex-wrap gap-4 items-end">
-          <div class="flex-1 min-w-[200px]">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
-            <select id="filter-category" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" onchange="applyFilters()">
-              <option value="">All Categories</option>
+    <!-- Campaign & Settings Bar -->
+    <div class="max-w-7xl mx-auto px-4 py-4 no-print">
+      <div class="bg-white rounded-xl shadow-md p-4">
+        <div class="flex flex-wrap gap-4 items-center justify-between">
+          <!-- Campaign Selector -->
+          <div class="flex items-center gap-3">
+            <label class="text-sm font-medium text-gray-700">Campaign:</label>
+            <select id="campaign-select" onchange="loadCampaignState()" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-w-[250px]">
+              <option value="">Select a campaign...</option>
             </select>
           </div>
-          <div class="flex-1 min-w-[200px]">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <select id="filter-status" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" onchange="applyFilters()">
-              <option value="not-contacted">Not Contacted</option>
-              <option value="contacted">Contacted</option>
-              <option value="all">All</option>
-            </select>
+
+          <!-- Spot Target -->
+          <div class="flex items-center gap-3">
+            <label class="text-sm font-medium text-gray-700">Target Spots:</label>
+            <input type="number" id="spot-target" value="16" min="1" max="50" onchange="updateSpotTracker()"
+                   class="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
           </div>
+
+          <!-- ZIP Filter -->
+          <div class="flex items-center gap-3">
+            <label class="text-sm font-medium text-gray-700">ZIPs:</label>
+            <div id="zip-select" class="flex flex-wrap gap-1 max-w-md">
+              <span class="text-gray-400 text-sm">Loading...</span>
+            </div>
+          </div>
+
+          <!-- Actions -->
           <div class="flex gap-2">
-            <button onclick="clearFilters()" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium">
-              Clear Filters
+            <button onclick="saveState()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium">
+              Save
+            </button>
+            <button onclick="exportFullCSV()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium">
+              Export All
+            </button>
+            <button onclick="exportContactSheet()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium">
+              Contact Sheet
             </button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Stats & Actions -->
+    <!-- Spot Tracker -->
     <div class="max-w-7xl mx-auto px-4 pb-4 no-print">
-      <div class="flex items-center justify-between flex-wrap gap-4">
-        <div class="flex items-center gap-4 flex-wrap">
-          <div class="bg-white rounded-lg shadow px-4 py-2">
-            <span class="text-gray-500 text-sm">Total Prospects:</span>
-            <span id="stat-total" class="font-bold text-gray-800 ml-1">0</span>
-          </div>
-          <div class="bg-green-50 border border-green-200 rounded-lg px-4 py-2">
-            <span class="text-green-700 text-sm">With Emails:</span>
-            <span id="stat-emails" class="font-bold text-green-800 ml-1">0</span>
-          </div>
-          <div class="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
-            <span class="text-blue-700 text-sm">Contacted:</span>
-            <span id="stat-contacted" class="font-bold text-blue-800 ml-1">0</span>
-          </div>
-          <div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2">
-            <span class="text-amber-700 text-sm">Showing:</span>
-            <span id="stat-showing" class="font-bold text-amber-800 ml-1">0</span>
+      <div class="bg-white rounded-xl shadow-md p-4">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-lg font-bold text-gray-800">
+            <span id="spots-filled">0</span>/<span id="spots-target">16</span> Spots Filled
+          </span>
+          <div class="flex gap-4 text-sm">
+            <span class="text-green-600 font-medium"><span id="stat-sold">0</span> Sold</span>
+            <span class="text-blue-600 font-medium"><span id="stat-attempting">0</span> In Progress</span>
+            <span class="text-gray-600 font-medium"><span id="stat-queue">0</span> In Queue</span>
           </div>
         </div>
-        <div class="flex gap-2">
-          <button onclick="exportCSV()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-            </svg>
-            Export CSV
-          </button>
-          <button onclick="window.print()" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition flex items-center gap-2">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
-            </svg>
-            Print
-          </button>
+        <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+          <div id="spot-progress" class="spot-fill bg-gradient-to-r from-green-500 to-emerald-500 h-4 rounded-full" style="width: 0%"></div>
         </div>
       </div>
     </div>
 
-    <!-- Results Table -->
-    <div class="max-w-7xl mx-auto px-4 pb-8">
-      <div class="bg-white rounded-xl shadow-md overflow-hidden">
-        <div class="overflow-x-auto">
-          <table class="w-full">
-            <thead class="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Business Name</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Email</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Phone</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">ZIP</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Category</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider no-print">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="results-body" class="divide-y divide-gray-100">
-              <tr>
-                <td colspan="7" class="px-4 py-12 text-center text-gray-500">
-                  Loading prospects...
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+    <!-- Category Sections -->
+    <div id="categories-container" class="max-w-7xl mx-auto px-4 pb-8">
+      <div class="text-center py-12 text-gray-500">
+        Select a campaign to view outreach queue...
+      </div>
+    </div>
+  </div>
+
+  <!-- Notes Modal -->
+  <div id="notes-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-2xl p-6 max-w-lg w-full mx-4">
+      <h3 class="text-lg font-bold text-gray-800 mb-4">Edit Notes</h3>
+      <input type="hidden" id="notes-business-id">
+      <textarea id="notes-text" rows="4" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 resize-none" placeholder="Add notes about this business..."></textarea>
+      <div class="flex justify-end gap-2 mt-4">
+        <button onclick="closeNotesModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">Cancel</button>
+        <button onclick="saveNotes()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">Save Notes</button>
       </div>
     </div>
   </div>
@@ -160,57 +146,52 @@
   <div id="toast" class="fixed bottom-4 right-4 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50"></div>
 
   <script>
-    // Supabase config (same as main app)
+    // Supabase config
     const SUPABASE_URL = "https://kurhsdvxsgkgnfimfqdo.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1cmhzZHZ4c2drZ25maW1mcWRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4MDk3NDYsImV4cCI6MjA3ODM4NTc0Nn0.nB_GsE89WJ3eAQrgmNKb-fbCktHTHf-987D-G6lscZA";
-
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     let currentUser = null;
     let allProspects = [];
-    let filteredProspects = [];
-    let saving = false;
+    let campaigns = [];
+    let currentCampaign = null;
 
-    // IndexedDB helpers
-    const IDB_NAME = 'mailslot-db';
-    const IDB_STORE = 'kv';
+    // Outreach state per campaign
+    let outreachState = {
+      campaignId: null,
+      spotTarget: 16,
+      selectedZips: [],
+      categoryOrder: [],
+      businesses: {} // { placeId: { status, attempt1Date, attempt2Date, notes, priority } }
+    };
 
-    function openIDB() {
-      return new Promise((resolve, reject) => {
-        const request = indexedDB.open(IDB_NAME, 1);
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => resolve(request.result);
-        request.onupgradeneeded = (e) => {
-          const db = e.target.result;
-          if (!db.objectStoreNames.contains(IDB_STORE)) {
-            db.createObjectStore(IDB_STORE);
-          }
-        };
-      });
-    }
+    // Preset category priority (most likely to advertise first)
+    const DEFAULT_CATEGORY_PRIORITY = [
+      'restaurant', 'restaurants', 'food', 'pizza', 'italian', 'mexican', 'chinese', 'thai', 'indian', 'japanese', 'sushi', 'american', 'bar', 'grill', 'cafe', 'coffee', 'bakery', 'deli',
+      'hvac', 'heating', 'cooling', 'air conditioning', 'plumber', 'plumbing', 'electrician', 'electrical', 'roofing', 'roofer', 'contractor', 'handyman', 'landscaping', 'lawn', 'tree service', 'cleaning', 'maid', 'pest control',
+      'auto', 'mechanic', 'auto repair', 'car wash', 'tire', 'oil change', 'body shop', 'detailing',
+      'salon', 'hair', 'barber', 'spa', 'massage', 'nails', 'beauty', 'chiropractor', 'dentist', 'dental', 'doctor', 'medical', 'physical therapy', 'optometrist', 'veterinarian', 'vet',
+      'insurance', 'accountant', 'accounting', 'lawyer', 'attorney', 'real estate', 'realtor', 'financial', 'tax',
+      'gym', 'fitness', 'yoga', 'martial arts', 'dance', 'personal trainer',
+      'pet', 'grooming', 'dog', 'cat', 'boarding', 'daycare',
+      'retail', 'store', 'shop', 'boutique', 'florist', 'jewelry', 'gift'
+    ];
 
-    async function idbGet(key) {
-      try {
-        const db = await openIDB();
-        return new Promise((resolve, reject) => {
-          const tx = db.transaction(IDB_STORE, 'readonly');
-          const store = tx.objectStore(IDB_STORE);
-          const request = store.get(key);
-          request.onerror = () => reject(request.error);
-          request.onsuccess = () => resolve(request.result);
-        });
-      } catch (e) {
-        console.warn('IDB get error:', e);
-        return null;
-      }
-    }
+    // Status definitions
+    const STATUSES = {
+      queue: { label: 'In Queue', color: 'gray', bg: 'bg-gray-100 text-gray-700' },
+      attempt1: { label: 'Attempt 1', color: 'blue', bg: 'bg-blue-100 text-blue-700' },
+      attempt2: { label: 'Attempt 2', color: 'orange', bg: 'bg-orange-100 text-orange-700' },
+      sold: { label: 'SOLD', color: 'green', bg: 'bg-green-500 text-white' },
+      declined: { label: 'Declined', color: 'red', bg: 'bg-red-100 text-red-700' },
+      noResponse: { label: 'No Response', color: 'gray', bg: 'bg-gray-300 text-gray-600' },
+      notInterested: { label: 'Not Interested', color: 'red', bg: 'bg-red-200 text-red-800' }
+    };
 
-    // Initialize app
+    // Initialize
     async function init() {
       try {
-        // Check auth
         const { data: { session }, error } = await supabaseClient.auth.getSession();
-
         if (error || !session) {
           showLoginRequired();
           return;
@@ -219,13 +200,11 @@
         currentUser = session.user;
         document.getElementById('user-name').textContent = currentUser.email;
 
-        // Load prospects
         await loadProspects();
+        await loadCampaigns();
 
-        // Show app
         document.getElementById('loading').classList.add('hidden');
         document.getElementById('app').classList.remove('hidden');
-
       } catch (err) {
         console.error('Init error:', err);
         showLoginRequired();
@@ -248,560 +227,585 @@
       toast.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg transform transition-all duration-300 z-50 ${isSuccess ? 'bg-green-600' : 'bg-red-600'} text-white`;
       toast.style.transform = 'translateY(0)';
       toast.style.opacity = '1';
-
       setTimeout(() => {
         toast.style.transform = 'translateY(20px)';
         toast.style.opacity = '0';
       }, 3000);
     }
 
+    // Load prospects from allProspectsFlat
     async function loadProspects() {
       try {
-        // First, try to load the flattened prospect list (synced from main app)
-        // This is the most reliable source as it's specifically for the email report
-        const { data: flatData, error: flatError } = await supabaseClient
+        const { data: flatData, error } = await supabaseClient
           .from('app_data')
           .select('data_type, data')
           .eq('user_email', currentUser.email)
           .like('data_type', 'allProspectsFlat%');
 
-        if (!flatError && flatData && flatData.length > 0) {
-          console.log('Found allProspectsFlat data:', flatData.map(r => r.data_type));
-
-          // Check if it's chunked
+        if (!error && flatData && flatData.length > 0) {
           const meta = flatData.find(r => r.data_type === 'allProspectsFlat_meta');
           if (meta && meta.data?.chunkCount) {
-            // Load all chunks
             const chunks = flatData.filter(r => r.data_type.startsWith('allProspectsFlat_chunk_'));
             let combined = [];
             chunks.forEach(chunk => {
-              if (Array.isArray(chunk.data)) {
-                combined = combined.concat(chunk.data);
-              }
+              if (Array.isArray(chunk.data)) combined = combined.concat(chunk.data);
             });
             allProspects = combined;
-            console.log(`Loaded ${allProspects.length} prospects from ${chunks.length} chunks`);
           } else {
-            // Single flat list
             const flat = flatData.find(r => r.data_type === 'allProspectsFlat');
-            if (flat && Array.isArray(flat.data)) {
-              allProspects = flat.data;
-              console.log(`Loaded ${allProspects.length} prospects from allProspectsFlat`);
-            }
-          }
-
-          if (allProspects.length > 0) {
-            populateZipCheckboxes();
-            updateCategoryOptions();
-            applyFilters();
-            return; // Success! Don't need other sources
+            if (flat && Array.isArray(flat.data)) allProspects = flat.data;
           }
         }
 
-        console.log('No allProspectsFlat found, falling back to other sources...');
-
-        // Fallback: Load from multiple sources in Supabase
-        const { data: allData, error } = await supabaseClient
-          .from('app_data')
-          .select('data_type, data')
-          .eq('user_email', currentUser.email)
-          .in('data_type', ['manualProspects', 'prospectPool', 'categorizedProspects', 'placesCache']);
-
-        if (error) {
-          throw error;
-        }
-
-        // Merge all sources
-        let combined = [];
-        const seenIds = new Set();
-
-        console.log('Supabase returned data_types:', (allData || []).map(r => r.data_type));
-
-        for (const row of (allData || [])) {
-          let prospects = [];
-
-          if (row.data_type === 'manualProspects' && Array.isArray(row.data)) {
-            prospects = row.data;
-            console.log(`Supabase manualProspects: ${prospects.length} items`);
-          } else if (row.data_type === 'prospectPool' && row.data) {
-            // prospectPool is organized by ZIP: { "12345": [...], "12346": [...] }
-            prospects = Object.values(row.data).flat();
-            console.log(`Supabase prospectPool: ${prospects.length} items`);
-          } else if (row.data_type === 'categorizedProspects' && row.data) {
-            // categorizedProspects might be organized by category
-            prospects = Object.values(row.data).flat();
-            console.log(`Supabase categorizedProspects: ${prospects.length} items`);
-          } else if (row.data_type === 'placesCache' && row.data) {
-            // placesCache format: { "zipCode-category": { cachedData: [...], placeIds: [], cachedUntil: "date" } }
-            const keys = Object.keys(row.data);
-            console.log(`Supabase placesCache: ${keys.length} search entries`);
-            for (const key of keys) {
-              if (row.data[key]?.cachedData && Array.isArray(row.data[key].cachedData)) {
-                prospects = prospects.concat(row.data[key].cachedData);
-              } else if (Array.isArray(row.data[key])) {
-                prospects = prospects.concat(row.data[key]);
-              }
-            }
-            console.log(`Supabase placesCache: ${prospects.length} total prospects`);
-          }
-
-          // Add unique prospects
-          for (const p of prospects) {
-            const id = p.id || p.placeId || p.businessName;
-            if (id && !seenIds.has(id)) {
-              seenIds.add(id);
-              combined.push(p);
-            }
-          }
-        }
-
-        allProspects = combined;
-        console.log('Loaded', allProspects.length, 'prospects from Supabase');
-
-        // Also try IndexedDB for data that might not have synced to cloud
-        try {
-          // Note: The main app uses 'mailslot-places-cache' (with hyphen) for the places cache
-          const idbSources = [
-            'mailslot-manualProspects',
-            'mailslot-prospectPool',
-            'mailslot-categorizedProspects',
-            'mailslot-places-cache'  // Correct key with hyphen
-          ];
-
-          for (const key of idbSources) {
-            const idbData = await idbGet(key);
-            if (!idbData) {
-              console.log(`IndexedDB ${key}: no data`);
-              continue;
-            }
-
-            let prospects = [];
-
-            if (Array.isArray(idbData)) {
-              prospects = idbData;
-              console.log(`IndexedDB ${key}: array with ${prospects.length} items`);
-            } else if (typeof idbData === 'object') {
-              // placesCache format: { "zipCode-category": { cachedData: [...], placeIds: [], cachedUntil: "date" } }
-              for (const k in idbData) {
-                if (idbData[k]?.cachedData && Array.isArray(idbData[k].cachedData)) {
-                  // This is the placesCache format
-                  prospects = prospects.concat(idbData[k].cachedData);
-                } else if (Array.isArray(idbData[k])) {
-                  // prospectPool/categorizedProspects format: { "key": [...] }
-                  prospects = prospects.concat(idbData[k]);
-                }
-              }
-              console.log(`IndexedDB ${key}: object with ${prospects.length} total items`);
-            }
-
-            // Add unique prospects not already in combined
-            let added = 0;
-            for (const p of prospects) {
-              const id = p.id || p.placeId || p.businessName;
-              if (id && !seenIds.has(id)) {
-                seenIds.add(id);
-                allProspects.push(p);
-                added++;
-              }
-            }
-            console.log(`IndexedDB ${key}: added ${added} new unique prospects`);
-          }
-
-          console.log('Total after IndexedDB:', allProspects.length, 'prospects');
-        } catch (idbErr) {
-          console.warn('IndexedDB load error:', idbErr);
-        }
-
-        // Populate ZIP checkboxes and category filter
-        populateZipCheckboxes();
-        updateCategoryOptions();
-
-        // Apply initial filter (only show those with emails)
-        applyFilters();
-
+        // Filter to only those with emails
+        allProspects = allProspects.filter(p => p.email && p.email.trim());
+        console.log(`Loaded ${allProspects.length} prospects with emails`);
       } catch (err) {
         console.error('Error loading prospects:', err);
-        document.getElementById('results-body').innerHTML = `
-          <tr>
-            <td colspan="7" class="px-4 py-12 text-center text-red-500">
-              Error loading prospects. Please try again.
-            </td>
-          </tr>
-        `;
       }
     }
 
-    async function saveProspects() {
-      if (saving) return;
-      saving = true;
+    // Load campaigns from campaign-boards
+    async function loadCampaigns() {
+      try {
+        const { data, error } = await supabaseClient
+          .from('app_data')
+          .select('data')
+          .eq('user_email', currentUser.email)
+          .eq('data_type', 'campaign-boards')
+          .single();
+
+        if (!error && data && data.data) {
+          campaigns = Object.entries(data.data).map(([id, board]) => ({
+            id,
+            name: board.name || id
+          }));
+
+          const select = document.getElementById('campaign-select');
+          select.innerHTML = '<option value="">Select a campaign...</option>';
+          campaigns.forEach(c => {
+            select.innerHTML += `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`;
+          });
+        }
+      } catch (err) {
+        console.error('Error loading campaigns:', err);
+      }
+    }
+
+    // Load saved outreach state for campaign
+    async function loadCampaignState() {
+      const campaignId = document.getElementById('campaign-select').value;
+      if (!campaignId) {
+        document.getElementById('categories-container').innerHTML = '<div class="text-center py-12 text-gray-500">Select a campaign to view outreach queue...</div>';
+        return;
+      }
+
+      currentCampaign = campaignId;
+
+      try {
+        const { data, error } = await supabaseClient
+          .from('app_data')
+          .select('data')
+          .eq('user_email', currentUser.email)
+          .eq('data_type', `outreach-${campaignId}`)
+          .single();
+
+        if (!error && data && data.data) {
+          outreachState = { ...outreachState, ...data.data, campaignId };
+          document.getElementById('spot-target').value = outreachState.spotTarget || 16;
+        } else {
+          // Initialize new state
+          outreachState = {
+            campaignId,
+            spotTarget: 16,
+            selectedZips: [],
+            categoryOrder: [],
+            businesses: {}
+          };
+        }
+
+        populateZipFilter();
+        renderCategories();
+        updateSpotTracker();
+      } catch (err) {
+        console.error('Error loading campaign state:', err);
+        outreachState = { campaignId, spotTarget: 16, selectedZips: [], categoryOrder: [], businesses: {} };
+        populateZipFilter();
+        renderCategories();
+      }
+    }
+
+    // Save outreach state
+    async function saveState() {
+      if (!currentCampaign) {
+        showToast('Please select a campaign first', false);
+        return;
+      }
+
+      outreachState.spotTarget = parseInt(document.getElementById('spot-target').value) || 16;
 
       try {
         const { error } = await supabaseClient
           .from('app_data')
           .upsert({
             user_email: currentUser.email,
-            data_type: 'manualProspects',
-            data: allProspects
-          }, {
-            onConflict: 'user_email,data_type'
-          });
+            data_type: `outreach-${currentCampaign}`,
+            data: outreachState
+          }, { onConflict: 'user_email,data_type' });
 
         if (error) throw error;
-        return true;
+        showToast('Saved successfully!');
       } catch (err) {
-        console.error('Error saving prospects:', err);
-        showToast('Error saving changes', false);
-        return false;
-      } finally {
-        saving = false;
+        console.error('Error saving state:', err);
+        showToast('Error saving', false);
       }
     }
 
-    function isContacted(prospect) {
-      const ct = prospect.contactTracking || {};
-      return !!(ct.emailedAt || ct.textedAt || ct.calledAt);
-    }
-
-    // Get all unique ZIP codes from prospects
-    function getAllZipCodes() {
+    // Populate ZIP filter
+    function populateZipFilter() {
       const zips = new Set();
       allProspects.forEach(p => {
         const zip = (p.zipCode || p.actualZip || p.zip || '').toString().substring(0, 5);
-        if (zip && zip.length === 5) {
-          zips.add(zip);
-        }
+        if (zip && zip.length === 5) zips.add(zip);
       });
-      return [...zips].sort();
-    }
 
-    // Get selected ZIP codes from checkboxes
-    function getSelectedZips() {
-      const checkboxes = document.querySelectorAll('#zip-checkboxes input[type="checkbox"]:checked');
-      const selected = [];
-      checkboxes.forEach(cb => {
-        if (cb.value !== 'all') {
-          selected.push(cb.value);
-        }
-      });
-      return selected;
-    }
+      const container = document.getElementById('zip-select');
+      const sortedZips = [...zips].sort();
 
-    // Check if "All" is selected
-    function isAllZipsSelected() {
-      const allCheckbox = document.querySelector('#zip-checkboxes input[value="all"]');
-      return allCheckbox && allCheckbox.checked;
-    }
-
-    // Populate ZIP code checkboxes
-    function populateZipCheckboxes() {
-      const container = document.getElementById('zip-checkboxes');
-      const zips = getAllZipCodes();
-
-      if (zips.length === 0) {
-        container.innerHTML = '<span class="text-gray-400 text-sm">No ZIP codes found</span>';
-        return;
-      }
-
-      let html = `
-        <label class="inline-flex items-center gap-1 px-3 py-1.5 bg-white border-2 rounded-lg cursor-pointer hover:bg-blue-50 hover:border-blue-400 transition-colors border-blue-500 bg-blue-50">
-          <input type="checkbox" value="all" checked onchange="handleAllZipToggle(this)" class="w-4 h-4 text-blue-600 rounded">
-          <span class="text-sm font-bold text-gray-900">ALL</span>
+      container.innerHTML = `
+        <label class="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 border border-blue-300 rounded cursor-pointer hover:bg-blue-200 ${outreachState.selectedZips.length === 0 ? 'ring-2 ring-blue-500' : ''}">
+          <input type="checkbox" ${outreachState.selectedZips.length === 0 ? 'checked' : ''} onchange="toggleAllZips(this)" class="w-3 h-3">
+          <span class="font-medium">ALL</span>
         </label>
       `;
 
-      zips.forEach(zip => {
-        html += `
-          <label class="inline-flex items-center gap-1 px-3 py-1.5 bg-white border-2 border-gray-300 rounded-lg cursor-pointer hover:bg-indigo-50 hover:border-indigo-400 transition-colors">
-            <input type="checkbox" value="${zip}" onchange="handleZipToggle(this)" class="w-4 h-4 text-indigo-600 rounded">
-            <span class="text-sm font-medium text-gray-700">${zip}</span>
+      sortedZips.forEach(zip => {
+        const checked = outreachState.selectedZips.includes(zip);
+        container.innerHTML += `
+          <label class="inline-flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 border border-gray-300 rounded cursor-pointer hover:bg-gray-200 ${checked ? 'ring-2 ring-indigo-500 bg-indigo-50' : ''}">
+            <input type="checkbox" value="${zip}" ${checked ? 'checked' : ''} onchange="toggleZip(this)" class="w-3 h-3">
+            <span>${zip}</span>
           </label>
+        `;
+      });
+    }
+
+    function toggleAllZips(checkbox) {
+      if (checkbox.checked) {
+        outreachState.selectedZips = [];
+        populateZipFilter();
+        renderCategories();
+      }
+    }
+
+    function toggleZip(checkbox) {
+      const zip = checkbox.value;
+      if (checkbox.checked) {
+        if (!outreachState.selectedZips.includes(zip)) {
+          outreachState.selectedZips.push(zip);
+        }
+      } else {
+        outreachState.selectedZips = outreachState.selectedZips.filter(z => z !== zip);
+      }
+      populateZipFilter();
+      renderCategories();
+    }
+
+    // Get filtered prospects
+    function getFilteredProspects() {
+      return allProspects.filter(p => {
+        // Filter by ZIP
+        if (outreachState.selectedZips.length > 0) {
+          const zip = (p.zipCode || p.actualZip || p.zip || '').toString().substring(0, 5);
+          if (!outreachState.selectedZips.includes(zip)) return false;
+        }
+        // Exclude deleted/hidden businesses
+        const state = getBusinessState(getProspectId(p));
+        if (state.hidden || state.status === 'deleted') return false;
+        return true;
+      });
+    }
+
+    // Get business state
+    function getBusinessState(id) {
+      return outreachState.businesses[id] || { status: 'queue', priority: 999 };
+    }
+
+    // Update business state
+    function updateBusinessState(id, updates) {
+      if (!outreachState.businesses[id]) {
+        outreachState.businesses[id] = { status: 'queue', priority: 999 };
+      }
+      Object.assign(outreachState.businesses[id], updates);
+      renderCategories();
+      updateSpotTracker();
+    }
+
+    // Get category priority
+    function getCategoryPriority(category) {
+      const cat = (category || '').toLowerCase();
+      for (let i = 0; i < DEFAULT_CATEGORY_PRIORITY.length; i++) {
+        if (cat.includes(DEFAULT_CATEGORY_PRIORITY[i])) return i;
+      }
+      return 999;
+    }
+
+    // Render categories
+    function renderCategories() {
+      const prospects = getFilteredProspects();
+      const container = document.getElementById('categories-container');
+
+      // Group by category
+      const categoryMap = {};
+      prospects.forEach(p => {
+        const category = p.category || 'Other';
+        if (!categoryMap[category]) categoryMap[category] = [];
+        categoryMap[category].push(p);
+      });
+
+      // Sort categories by priority
+      const sortedCategories = Object.keys(categoryMap).sort((a, b) => {
+        return getCategoryPriority(a) - getCategoryPriority(b);
+      });
+
+      if (sortedCategories.length === 0) {
+        container.innerHTML = '<div class="text-center py-12 text-gray-500">No prospects with emails found for selected filters.</div>';
+        return;
+      }
+
+      let html = '';
+      sortedCategories.forEach((category, catIndex) => {
+        const businesses = categoryMap[category];
+
+        // Sort businesses within category by: status priority, then rating, then reviews
+        businesses.sort((a, b) => {
+          const stateA = getBusinessState(getProspectId(a));
+          const stateB = getBusinessState(getProspectId(b));
+
+          // Sold first, then active attempts, then queue
+          const statusOrder = { sold: 0, attempt2: 1, attempt1: 2, queue: 3, declined: 4, noResponse: 5, notInterested: 6 };
+          const orderA = statusOrder[stateA.status] ?? 3;
+          const orderB = statusOrder[stateB.status] ?? 3;
+          if (orderA !== orderB) return orderA - orderB;
+
+          // Then by rating
+          const ratingA = a.rating || 0;
+          const ratingB = b.rating || 0;
+          if (ratingB !== ratingA) return ratingB - ratingA;
+
+          // Then by review count
+          return (b.userRatingsTotal || 0) - (a.userRatingsTotal || 0);
+        });
+
+        // Count statuses
+        const soldCount = businesses.filter(b => getBusinessState(getProspectId(b)).status === 'sold').length;
+        const attemptingCount = businesses.filter(b => ['attempt1', 'attempt2'].includes(getBusinessState(getProspectId(b)).status)).length;
+
+        // Find current target (first in queue or attempting)
+        const currentTarget = businesses.find(b => {
+          const status = getBusinessState(getProspectId(b)).status;
+          return status === 'queue' || status === 'attempt1' || status === 'attempt2';
+        });
+
+        const categoryStatus = soldCount > 0 ? 'SOLD' : attemptingCount > 0 ? 'CONTACTING' : 'IN QUEUE';
+        const categoryColor = soldCount > 0 ? 'green' : attemptingCount > 0 ? 'blue' : 'gray';
+
+        html += `
+          <div class="category-section bg-white rounded-xl shadow-md mb-4 overflow-hidden">
+            <div class="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-${categoryColor}-50 to-${categoryColor}-100 border-b cursor-pointer" onclick="toggleCategory(${catIndex})">
+              <div class="flex items-center gap-3">
+                <span class="text-xl">${getCategoryEmoji(category)}</span>
+                <span class="font-bold text-gray-800">${escapeHtml(category)}</span>
+                <span class="text-sm text-gray-500">(${businesses.length})</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <span class="status-badge ${soldCount > 0 ? 'bg-green-500 text-white' : attemptingCount > 0 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-600'}">
+                  ${soldCount > 0 ? soldCount + ' SOLD' : categoryStatus}
+                </span>
+                <svg class="w-5 h-5 text-gray-400 transform transition-transform category-chevron-${catIndex}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+              </div>
+            </div>
+            <div class="category-content category-content-${catIndex} p-4 space-y-3">
+              ${businesses.map((b, bIndex) => renderBusinessCard(b, bIndex, currentTarget)).join('')}
+            </div>
+          </div>
         `;
       });
 
       container.innerHTML = html;
     }
 
-    // Handle "All" checkbox toggle
-    function handleAllZipToggle(checkbox) {
-      const allCheckboxes = document.querySelectorAll('#zip-checkboxes input[type="checkbox"]');
+    // Render business card
+    function renderBusinessCard(business, index, currentTarget) {
+      const id = getProspectId(business);
+      const state = getBusinessState(id);
+      const isTarget = currentTarget && getProspectId(currentTarget) === id;
+      const status = STATUSES[state.status] || STATUSES.queue;
 
-      if (checkbox.checked) {
-        // Uncheck all individual ZIPs when "All" is checked
-        allCheckboxes.forEach(cb => {
-          if (cb.value !== 'all') {
-            cb.checked = false;
-            cb.parentElement.classList.remove('border-indigo-500', 'bg-indigo-50');
-            cb.parentElement.classList.add('border-gray-300');
-          }
-        });
-        checkbox.parentElement.classList.add('border-blue-500', 'bg-blue-50');
+      // Check if ready for follow-up (3+ days since attempt1)
+      let readyForFollowup = false;
+      if (state.status === 'attempt1' && state.attempt1Date) {
+        const daysSince = (Date.now() - new Date(state.attempt1Date).getTime()) / (1000 * 60 * 60 * 24);
+        readyForFollowup = daysSince >= 3;
       }
 
-      updateCategoryOptions();
-      applyFilters();
-    }
-
-    // Handle individual ZIP checkbox toggle
-    function handleZipToggle(checkbox) {
-      const allCheckbox = document.querySelector('#zip-checkboxes input[value="all"]');
-
-      // Update styling
-      if (checkbox.checked) {
-        checkbox.parentElement.classList.add('border-indigo-500', 'bg-indigo-50');
-        checkbox.parentElement.classList.remove('border-gray-300');
-        // Uncheck "All" when individual ZIP is selected
-        if (allCheckbox) {
-          allCheckbox.checked = false;
-          allCheckbox.parentElement.classList.remove('border-blue-500', 'bg-blue-50');
-          allCheckbox.parentElement.classList.add('border-gray-300');
-        }
-      } else {
-        checkbox.parentElement.classList.remove('border-indigo-500', 'bg-indigo-50');
-        checkbox.parentElement.classList.add('border-gray-300');
+      // Check if should suggest no response (3+ days since attempt2)
+      let suggestNoResponse = false;
+      if (state.status === 'attempt2' && state.attempt2Date) {
+        const daysSince = (Date.now() - new Date(state.attempt2Date).getTime()) / (1000 * 60 * 60 * 24);
+        suggestNoResponse = daysSince >= 3;
       }
 
-      // If no ZIPs selected, re-check "All"
-      const selectedZips = getSelectedZips();
-      if (selectedZips.length === 0 && allCheckbox) {
-        allCheckbox.checked = true;
-        allCheckbox.parentElement.classList.add('border-blue-500', 'bg-blue-50');
-        allCheckbox.parentElement.classList.remove('border-gray-300');
-      }
+      const isDone = ['sold', 'declined', 'noResponse', 'notInterested'].includes(state.status);
 
-      updateCategoryOptions();
-      applyFilters();
-    }
-
-    // Update category dropdown based on selected ZIPs
-    function updateCategoryOptions() {
-      const select = document.getElementById('filter-category');
-      const currentValue = select.value;
-      const selectedZips = getSelectedZips();
-      const showAll = isAllZipsSelected() || selectedZips.length === 0;
-
-      // Get categories available in selected ZIPs
-      const categories = new Set();
-      allProspects.forEach(p => {
-        if (!p.email || !p.email.trim()) return; // Only count prospects with emails
-
-        const prospectZip = (p.zipCode || p.actualZip || p.zip || '').toString().substring(0, 5);
-
-        if (showAll || selectedZips.includes(prospectZip)) {
-          if (p.category) {
-            const cats = p.category.split(',').map(c => c.trim());
-            cats.forEach(c => categories.add(c));
-          }
-        }
-      });
-
-      // Rebuild options
-      select.innerHTML = '<option value="">All Categories</option>';
-      const sortedCategories = [...categories].sort();
-
-      sortedCategories.forEach(cat => {
-        const option = document.createElement('option');
-        option.value = cat;
-        option.textContent = cat;
-        select.appendChild(option);
-      });
-
-      // Restore previous selection if still valid
-      if (categories.has(currentValue)) {
-        select.value = currentValue;
-      }
-    }
-
-    function applyFilters() {
-      const selectedZips = getSelectedZips();
-      const showAllZips = isAllZipsSelected() || selectedZips.length === 0;
-      const categoryFilter = document.getElementById('filter-category').value;
-      const statusFilter = document.getElementById('filter-status').value;
-
-      // Filter prospects: must have email
-      filteredProspects = allProspects.filter(p => {
-        // Must have email
-        if (!p.email || !p.email.trim()) return false;
-
-        // ZIP filter
-        if (!showAllZips) {
-          const prospectZip = (p.zipCode || p.actualZip || p.zip || '').toString().substring(0, 5);
-          if (!selectedZips.includes(prospectZip)) return false;
-        }
-
-        // Category filter
-        if (categoryFilter) {
-          const categories = (p.category || '').toLowerCase();
-          if (!categories.includes(categoryFilter.toLowerCase())) return false;
-        }
-
-        // Status filter
-        const contacted = isContacted(p);
-        if (statusFilter === 'contacted' && !contacted) return false;
-        if (statusFilter === 'not-contacted' && contacted) return false;
-
-        return true;
-      });
-
-      // Update stats
-      const prospectsWithEmail = allProspects.filter(p => p.email && p.email.trim());
-      const contactedCount = prospectsWithEmail.filter(p => isContacted(p)).length;
-
-      document.getElementById('stat-total').textContent = allProspects.length;
-      document.getElementById('stat-emails').textContent = prospectsWithEmail.length;
-      document.getElementById('stat-contacted').textContent = contactedCount;
-      document.getElementById('stat-showing').textContent = filteredProspects.length;
-
-      // Render table
-      renderTable();
-    }
-
-    function clearFilters() {
-      // Reset ZIP checkboxes - check "All", uncheck others
-      const allCheckboxes = document.querySelectorAll('#zip-checkboxes input[type="checkbox"]');
-      allCheckboxes.forEach(cb => {
-        if (cb.value === 'all') {
-          cb.checked = true;
-          cb.parentElement.classList.add('border-blue-500', 'bg-blue-50');
-          cb.parentElement.classList.remove('border-gray-300');
-        } else {
-          cb.checked = false;
-          cb.parentElement.classList.remove('border-indigo-500', 'bg-indigo-50');
-          cb.parentElement.classList.add('border-gray-300');
-        }
-      });
-
-      document.getElementById('filter-category').value = '';
-      document.getElementById('filter-status').value = 'not-contacted';
-      updateCategoryOptions();
-      applyFilters();
-    }
-
-    function getProspectId(prospect) {
-      return prospect.id || prospect.placeId || prospect.businessName;
-    }
-
-    function renderTable() {
-      const tbody = document.getElementById('results-body');
-
-      if (filteredProspects.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="7" class="px-4 py-12 text-center text-gray-500">
-              No prospects with email addresses found matching your filters.
-            </td>
-          </tr>
-        `;
-        return;
-      }
-
-      tbody.innerHTML = filteredProspects.map((p, index) => {
-        const zip = p.zipCode || p.actualZip || p.zip || '';
-        const contacted = isContacted(p);
-        const prospectId = getProspectId(p);
-        const ct = p.contactTracking || {};
-
-        return `
-          <tr class="hover:bg-gray-50 ${contacted ? 'bg-green-50' : ''}" data-id="${escapeHtml(prospectId)}">
-            <td class="px-4 py-3 text-sm font-medium text-gray-900">${escapeHtml(p.businessName || p.name || '')}</td>
-            <td class="px-4 py-3 text-sm text-blue-600">
-              <a href="mailto:${escapeHtml(p.email)}" class="hover:underline">${escapeHtml(p.email)}</a>
-            </td>
-            <td class="px-4 py-3 text-sm text-gray-600">${escapeHtml(p.phone || '')}</td>
-            <td class="px-4 py-3 text-sm text-gray-600">${escapeHtml(zip)}</td>
-            <td class="px-4 py-3 text-sm text-gray-600">${escapeHtml(p.category || '')}</td>
-            <td class="px-4 py-3 text-sm">
-              ${contacted
-                ? `<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                     Contacted ${ct.emailedAt ? formatDate(ct.emailedAt) : ''}
-                   </span>`
-                : `<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                     Not Contacted
-                   </span>`
-              }
-            </td>
-            <td class="px-4 py-3 text-sm no-print">
-              <div class="flex gap-2">
-                ${!contacted
-                  ? `<button onclick="markContacted('${escapeHtml(prospectId)}')"
-                       class="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition">
-                       Mark Contacted
-                     </button>`
-                  : `<button onclick="unmarkContacted('${escapeHtml(prospectId)}')"
-                       class="px-2 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600 transition">
-                       Undo
-                     </button>`
-                }
-                <button onclick="removeEmail('${escapeHtml(prospectId)}')"
-                        class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 transition"
-                        title="Remove invalid email">
-                  Remove Email
-                </button>
+      return `
+        <div class="business-card ${isTarget && !isDone ? 'current-target' : ''} ${isDone ? 'opacity-60' : ''} p-4 border rounded-lg ${isDone ? 'bg-gray-50' : 'bg-white'} hover:shadow-md">
+          <div class="flex items-start justify-between gap-4">
+            <div class="flex-1">
+              <div class="flex items-center gap-2 mb-1">
+                ${isTarget && !isDone ? '<span class="text-indigo-600 font-bold">→</span>' : `<span class="text-gray-400 text-sm">${index + 1}.</span>`}
+                <span class="font-semibold text-gray-900">${escapeHtml(business.businessName || business.name || '')}</span>
+                ${business.rating ? `<span class="text-yellow-500 text-sm">⭐${business.rating}</span>` : ''}
+                ${business.userRatingsTotal ? `<span class="text-gray-400 text-xs">(${business.userRatingsTotal})</span>` : ''}
               </div>
-            </td>
-          </tr>
-        `;
-      }).join('');
+              <div class="flex items-center gap-3 text-sm">
+                <a href="mailto:${escapeHtml(business.email)}" class="text-blue-600 hover:underline">${escapeHtml(business.email)}</a>
+                <button onclick="copyEmail('${escapeHtml(business.email)}')" class="text-gray-400 hover:text-gray-600" title="Copy email">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                </button>
+                ${business.phone ? `<span class="text-gray-500">${escapeHtml(business.phone)}</span>` : ''}
+              </div>
+              ${state.notes ? `<div class="mt-2 text-sm text-gray-600 italic">"${escapeHtml(state.notes)}"</div>` : ''}
+              ${state.attempt1Date || state.attempt2Date ? `
+                <div class="mt-1 text-xs text-gray-400">
+                  ${state.attempt1Date ? `Attempt 1: ${formatDate(state.attempt1Date)}` : ''}
+                  ${state.attempt2Date ? ` | Attempt 2: ${formatDate(state.attempt2Date)}` : ''}
+                </div>
+              ` : ''}
+              ${readyForFollowup ? '<div class="mt-1 text-xs text-orange-600 font-medium">⏰ Ready for follow-up!</div>' : ''}
+              ${suggestNoResponse ? '<div class="mt-1 text-xs text-red-600 font-medium">⚠️ Consider marking No Response</div>' : ''}
+            </div>
+            <div class="flex flex-col items-end gap-2">
+              <span class="status-badge ${status.bg}">${status.label}</span>
+              <div class="flex flex-wrap gap-1 justify-end">
+                ${!isDone ? `
+                  ${state.status === 'queue' ? `
+                    <button onclick="markAttempt1('${id}')" class="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700">Attempt 1</button>
+                  ` : ''}
+                  ${state.status === 'attempt1' ? `
+                    <button onclick="markAttempt2('${id}')" class="px-2 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700">Attempt 2</button>
+                  ` : ''}
+                  <button onclick="markSold('${id}')" class="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700">Sold</button>
+                  <button onclick="markDeclined('${id}')" class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200">Declined</button>
+                ` : ''}
+                ${state.status === 'attempt2' ? `
+                  <button onclick="markNoResponse('${id}')" class="px-2 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600">No Response</button>
+                ` : ''}
+                <button onclick="openNotesModal('${id}')" class="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200">Notes</button>
+                <button onclick="deleteBusiness('${id}')" class="px-2 py-1 text-xs bg-gray-100 text-gray-500 rounded hover:bg-gray-200" title="Hide from list">🗑️</button>
+                <button onclick="markNotInterested('${id}')" class="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100" title="Never contact">🚫</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
     }
 
-    function formatDate(dateStr) {
-      if (!dateStr) return '';
-      const date = new Date(dateStr);
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    // Action functions
+    function markAttempt1(id) {
+      updateBusinessState(id, { status: 'attempt1', attempt1Date: new Date().toISOString() });
+      showToast('Marked as Attempt 1');
     }
 
-    async function markContacted(prospectId) {
-      const index = allProspects.findIndex(p => getProspectId(p) === prospectId);
-      if (index === -1) return;
-
-      // Update contact tracking
-      if (!allProspects[index].contactTracking) {
-        allProspects[index].contactTracking = {};
-      }
-      allProspects[index].contactTracking.emailedAt = new Date().toISOString();
-
-      // Save and refresh
-      const saved = await saveProspects();
-      if (saved) {
-        showToast('Marked as contacted');
-        applyFilters();
-      }
+    function markAttempt2(id) {
+      updateBusinessState(id, { status: 'attempt2', attempt2Date: new Date().toISOString() });
+      showToast('Marked as Attempt 2');
     }
 
-    async function unmarkContacted(prospectId) {
-      const index = allProspects.findIndex(p => getProspectId(p) === prospectId);
-      if (index === -1) return;
+    function markSold(id) {
+      updateBusinessState(id, { status: 'sold', soldDate: new Date().toISOString() });
+      showToast('Marked as SOLD! 🎉');
+    }
 
-      // Clear contact tracking
-      if (allProspects[index].contactTracking) {
-        delete allProspects[index].contactTracking.emailedAt;
-      }
+    function markDeclined(id) {
+      updateBusinessState(id, { status: 'declined' });
+      showToast('Marked as Declined');
+    }
 
-      // Save and refresh
-      const saved = await saveProspects();
-      if (saved) {
-        showToast('Contact status cleared');
-        applyFilters();
+    function markNoResponse(id) {
+      updateBusinessState(id, { status: 'noResponse' });
+      showToast('Marked as No Response');
+    }
+
+    function markNotInterested(id) {
+      if (confirm('Mark as Not Interested? This will hide the business from ALL future outreach.')) {
+        updateBusinessState(id, { status: 'notInterested' });
+        showToast('Marked as Not Interested');
+        // TODO: Also update main app's notInterested list
       }
     }
 
-    async function removeEmail(prospectId) {
-      if (!confirm('Remove this email address? This will hide the prospect from this report.')) {
+    function deleteBusiness(id) {
+      if (confirm('Hide this business from the list?')) {
+        updateBusinessState(id, { status: 'deleted', hidden: true });
+        renderCategories();
+        showToast('Business hidden');
+      }
+    }
+
+    function copyEmail(email) {
+      navigator.clipboard.writeText(email);
+      showToast('Email copied!');
+    }
+
+    // Notes modal
+    function openNotesModal(id) {
+      const state = getBusinessState(id);
+      document.getElementById('notes-business-id').value = id;
+      document.getElementById('notes-text').value = state.notes || '';
+      document.getElementById('notes-modal').classList.remove('hidden');
+      document.getElementById('notes-modal').classList.add('flex');
+    }
+
+    function closeNotesModal() {
+      document.getElementById('notes-modal').classList.add('hidden');
+      document.getElementById('notes-modal').classList.remove('flex');
+    }
+
+    function saveNotes() {
+      const id = document.getElementById('notes-business-id').value;
+      const notes = document.getElementById('notes-text').value;
+      updateBusinessState(id, { notes });
+      closeNotesModal();
+      showToast('Notes saved');
+    }
+
+    // Toggle category collapse
+    function toggleCategory(index) {
+      const content = document.querySelector(`.category-content-${index}`);
+      const chevron = document.querySelector(`.category-chevron-${index}`);
+      content.classList.toggle('collapsed');
+      chevron.classList.toggle('rotate-180');
+    }
+
+    // Update spot tracker
+    function updateSpotTracker() {
+      const target = parseInt(document.getElementById('spot-target').value) || 16;
+      const soldCount = Object.values(outreachState.businesses).filter(b => b.status === 'sold').length;
+      const attemptingCount = Object.values(outreachState.businesses).filter(b => ['attempt1', 'attempt2'].includes(b.status)).length;
+      const queueCount = getFilteredProspects().filter(p => {
+        const state = getBusinessState(getProspectId(p));
+        return state.status === 'queue';
+      }).length;
+
+      document.getElementById('spots-filled').textContent = soldCount;
+      document.getElementById('spots-target').textContent = target;
+      document.getElementById('stat-sold').textContent = soldCount;
+      document.getElementById('stat-attempting').textContent = attemptingCount;
+      document.getElementById('stat-queue').textContent = queueCount;
+
+      const percent = Math.min((soldCount / target) * 100, 100);
+      document.getElementById('spot-progress').style.width = `${percent}%`;
+    }
+
+    // Export functions
+    function exportFullCSV() {
+      const prospects = getFilteredProspects();
+      if (prospects.length === 0) {
+        showToast('No prospects to export', false);
         return;
       }
 
-      const index = allProspects.findIndex(p => getProspectId(p) === prospectId);
-      if (index === -1) return;
+      const headers = ['Category', 'Business Name', 'Email', 'Phone', 'Rating', 'Status', 'Attempt 1', 'Attempt 2', 'Notes', 'Address', 'Website'];
+      const rows = prospects.map(p => {
+        const state = getBusinessState(getProspectId(p));
+        return [
+          p.category || '',
+          p.businessName || p.name || '',
+          p.email || '',
+          p.phone || '',
+          p.rating || '',
+          STATUSES[state.status]?.label || 'In Queue',
+          state.attempt1Date ? formatDate(state.attempt1Date) : '',
+          state.attempt2Date ? formatDate(state.attempt2Date) : '',
+          state.notes || '',
+          p.address || '',
+          p.website || ''
+        ];
+      });
 
-      // Clear the email
-      allProspects[index].email = '';
-      allProspects[index].invalidEmail = true;
+      downloadCSV(headers, rows, `outreach-full-${currentCampaign || 'export'}`);
+    }
 
-      // Save and refresh
-      const saved = await saveProspects();
-      if (saved) {
-        showToast('Email removed');
-        applyFilters();
+    function exportContactSheet() {
+      const prospects = getFilteredProspects();
+
+      // Group by category and get current target for each
+      const categoryMap = {};
+      prospects.forEach(p => {
+        const category = p.category || 'Other';
+        const state = getBusinessState(getProspectId(p));
+        if (!categoryMap[category]) categoryMap[category] = [];
+        if (['queue', 'attempt1', 'attempt2'].includes(state.status)) {
+          categoryMap[category].push(p);
+        }
+      });
+
+      // Get first (current target) from each category
+      const contactSheet = [];
+      Object.keys(categoryMap).sort((a, b) => getCategoryPriority(a) - getCategoryPriority(b)).forEach(category => {
+        if (categoryMap[category].length > 0) {
+          const target = categoryMap[category][0];
+          const state = getBusinessState(getProspectId(target));
+          contactSheet.push({
+            category,
+            business: target,
+            state
+          });
+        }
+      });
+
+      if (contactSheet.length === 0) {
+        showToast('No active targets to export', false);
+        return;
       }
+
+      const headers = ['Category', 'Business Name', 'Email', 'Phone', 'Status', 'Notes'];
+      const rows = contactSheet.map(c => [
+        c.category,
+        c.business.businessName || c.business.name || '',
+        c.business.email || '',
+        c.business.phone || '',
+        STATUSES[c.state.status]?.label || 'In Queue',
+        c.state.notes || ''
+      ]);
+
+      downloadCSV(headers, rows, `contact-sheet-${currentCampaign || 'export'}`);
+    }
+
+    function downloadCSV(headers, rows, filename) {
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${filename}-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast('CSV exported!');
+    }
+
+    // Helpers
+    function getProspectId(p) {
+      return p.placeId || p.id || p.businessName || '';
     }
 
     function escapeHtml(text) {
@@ -811,85 +815,39 @@
       return div.innerHTML;
     }
 
-    function getDomain(url) {
-      try {
-        const parsed = new URL(url.startsWith('http') ? url : 'https://' + url);
-        return parsed.hostname.replace('www.', '');
-      } catch {
-        return url;
-      }
+    function formatDate(dateStr) {
+      if (!dateStr) return '';
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
-    function exportCSV() {
-      if (filteredProspects.length === 0) {
-        alert('No prospects to export.');
-        return;
-      }
-
-      // CSV headers
-      const headers = [
-        'Business Name',
-        'Email',
-        'Phone',
-        'Address',
-        'City',
-        'State',
-        'ZIP',
-        'Category',
-        'Website',
-        'Facebook',
-        'Instagram',
-        'LinkedIn',
-        'Twitter',
-        'Contact Name',
-        'Contacted'
-      ];
-
-      // CSV rows
-      const rows = filteredProspects.map(p => [
-        p.businessName || p.name || '',
-        p.email || '',
-        p.phone || '',
-        p.address || '',
-        p.city || '',
-        p.state || '',
-        p.zipCode || p.actualZip || p.zip || '',
-        p.category || '',
-        p.website || '',
-        p.facebook || '',
-        p.instagram || '',
-        p.linkedin || '',
-        p.twitter || '',
-        p.contactName || '',
-        isContacted(p) ? 'Yes' : 'No'
-      ]);
-
-      // Build CSV content
-      const csvContent = [
-        headers.join(','),
-        ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-      ].join('\n');
-
-      // Download
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-
-      // Filename with date
-      const date = new Date().toISOString().split('T')[0];
-      const zipFilter = document.getElementById('filter-zip').value.trim();
-      const categoryFilter = document.getElementById('filter-category').value;
-      let filename = `email-leads-${date}`;
-      if (zipFilter) filename += `-${zipFilter}`;
-      if (categoryFilter) filename += `-${categoryFilter.replace(/\s+/g, '-')}`;
-      filename += '.csv';
-
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+    function getCategoryEmoji(category) {
+      const cat = (category || '').toLowerCase();
+      if (cat.includes('pizza') || cat.includes('italian')) return '🍕';
+      if (cat.includes('mexican') || cat.includes('taco')) return '🌮';
+      if (cat.includes('chinese') || cat.includes('asian')) return '🥡';
+      if (cat.includes('restaurant') || cat.includes('food') || cat.includes('grill')) return '🍽️';
+      if (cat.includes('bar') || cat.includes('pub')) return '🍺';
+      if (cat.includes('coffee') || cat.includes('cafe')) return '☕';
+      if (cat.includes('bakery')) return '🥐';
+      if (cat.includes('plumb')) return '🔧';
+      if (cat.includes('hvac') || cat.includes('heat') || cat.includes('cool')) return '❄️';
+      if (cat.includes('electric')) return '⚡';
+      if (cat.includes('roof')) return '🏠';
+      if (cat.includes('landscap') || cat.includes('lawn')) return '🌿';
+      if (cat.includes('auto') || cat.includes('mechanic') || cat.includes('car')) return '🚗';
+      if (cat.includes('salon') || cat.includes('hair') || cat.includes('barber')) return '💇';
+      if (cat.includes('spa') || cat.includes('massage')) return '💆';
+      if (cat.includes('dental') || cat.includes('dentist')) return '🦷';
+      if (cat.includes('chiro')) return '🦴';
+      if (cat.includes('vet') || cat.includes('pet')) return '🐾';
+      if (cat.includes('gym') || cat.includes('fitness')) return '💪';
+      if (cat.includes('yoga')) return '🧘';
+      if (cat.includes('insurance')) return '🛡️';
+      if (cat.includes('account') || cat.includes('tax')) return '📊';
+      if (cat.includes('lawyer') || cat.includes('attorney')) return '⚖️';
+      if (cat.includes('real estate')) return '🏡';
+      return '🏢';
     }
 
     // Start app
