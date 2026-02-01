@@ -56,32 +56,33 @@
     <div class="max-w-7xl mx-auto px-4 py-6 no-print">
       <div class="bg-white rounded-xl shadow-md p-6">
         <h2 class="text-lg font-semibold text-gray-800 mb-4">Filter Prospects</h2>
+
+        <!-- ZIP Code Multi-Select -->
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-2">ZIP Codes</label>
+          <div id="zip-checkboxes" class="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 border border-gray-200 rounded-lg bg-gray-50">
+            <span class="text-gray-400 text-sm">Loading ZIP codes...</span>
+          </div>
+        </div>
+
         <div class="flex flex-wrap gap-4 items-end">
           <div class="flex-1 min-w-[200px]">
-            <label class="block text-sm font-medium text-gray-700 mb-1">ZIP Code</label>
-            <input type="text" id="filter-zip" placeholder="All ZIP codes"
-                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-          </div>
-          <div class="flex-1 min-w-[200px]">
             <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
-            <select id="filter-category" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            <select id="filter-category" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" onchange="applyFilters()">
               <option value="">All Categories</option>
             </select>
           </div>
           <div class="flex-1 min-w-[200px]">
             <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <select id="filter-status" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            <select id="filter-status" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" onchange="applyFilters()">
               <option value="not-contacted">Not Contacted</option>
               <option value="contacted">Contacted</option>
               <option value="all">All</option>
             </select>
           </div>
           <div class="flex gap-2">
-            <button onclick="applyFilters()" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium">
-              Apply Filters
-            </button>
             <button onclick="clearFilters()" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium">
-              Clear
+              Clear Filters
             </button>
           </div>
         </div>
@@ -410,8 +411,9 @@
           console.warn('IndexedDB load error:', idbErr);
         }
 
-        // Populate category filter
-        populateCategories();
+        // Populate ZIP checkboxes and category filter
+        populateZipCheckboxes();
+        updateCategoryOptions();
 
         // Apply initial filter (only show those with emails)
         applyFilters();
@@ -459,17 +461,140 @@
       return !!(ct.emailedAt || ct.textedAt || ct.calledAt);
     }
 
-    function populateCategories() {
+    // Get all unique ZIP codes from prospects
+    function getAllZipCodes() {
+      const zips = new Set();
+      allProspects.forEach(p => {
+        const zip = (p.zipCode || p.actualZip || p.zip || '').toString().substring(0, 5);
+        if (zip && zip.length === 5) {
+          zips.add(zip);
+        }
+      });
+      return [...zips].sort();
+    }
+
+    // Get selected ZIP codes from checkboxes
+    function getSelectedZips() {
+      const checkboxes = document.querySelectorAll('#zip-checkboxes input[type="checkbox"]:checked');
+      const selected = [];
+      checkboxes.forEach(cb => {
+        if (cb.value !== 'all') {
+          selected.push(cb.value);
+        }
+      });
+      return selected;
+    }
+
+    // Check if "All" is selected
+    function isAllZipsSelected() {
+      const allCheckbox = document.querySelector('#zip-checkboxes input[value="all"]');
+      return allCheckbox && allCheckbox.checked;
+    }
+
+    // Populate ZIP code checkboxes
+    function populateZipCheckboxes() {
+      const container = document.getElementById('zip-checkboxes');
+      const zips = getAllZipCodes();
+
+      if (zips.length === 0) {
+        container.innerHTML = '<span class="text-gray-400 text-sm">No ZIP codes found</span>';
+        return;
+      }
+
+      let html = `
+        <label class="inline-flex items-center gap-1 px-3 py-1.5 bg-white border-2 rounded-lg cursor-pointer hover:bg-blue-50 hover:border-blue-400 transition-colors border-blue-500 bg-blue-50">
+          <input type="checkbox" value="all" checked onchange="handleAllZipToggle(this)" class="w-4 h-4 text-blue-600 rounded">
+          <span class="text-sm font-bold text-gray-900">ALL</span>
+        </label>
+      `;
+
+      zips.forEach(zip => {
+        html += `
+          <label class="inline-flex items-center gap-1 px-3 py-1.5 bg-white border-2 border-gray-300 rounded-lg cursor-pointer hover:bg-indigo-50 hover:border-indigo-400 transition-colors">
+            <input type="checkbox" value="${zip}" onchange="handleZipToggle(this)" class="w-4 h-4 text-indigo-600 rounded">
+            <span class="text-sm font-medium text-gray-700">${zip}</span>
+          </label>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    // Handle "All" checkbox toggle
+    function handleAllZipToggle(checkbox) {
+      const allCheckboxes = document.querySelectorAll('#zip-checkboxes input[type="checkbox"]');
+
+      if (checkbox.checked) {
+        // Uncheck all individual ZIPs when "All" is checked
+        allCheckboxes.forEach(cb => {
+          if (cb.value !== 'all') {
+            cb.checked = false;
+            cb.parentElement.classList.remove('border-indigo-500', 'bg-indigo-50');
+            cb.parentElement.classList.add('border-gray-300');
+          }
+        });
+        checkbox.parentElement.classList.add('border-blue-500', 'bg-blue-50');
+      }
+
+      updateCategoryOptions();
+      applyFilters();
+    }
+
+    // Handle individual ZIP checkbox toggle
+    function handleZipToggle(checkbox) {
+      const allCheckbox = document.querySelector('#zip-checkboxes input[value="all"]');
+
+      // Update styling
+      if (checkbox.checked) {
+        checkbox.parentElement.classList.add('border-indigo-500', 'bg-indigo-50');
+        checkbox.parentElement.classList.remove('border-gray-300');
+        // Uncheck "All" when individual ZIP is selected
+        if (allCheckbox) {
+          allCheckbox.checked = false;
+          allCheckbox.parentElement.classList.remove('border-blue-500', 'bg-blue-50');
+          allCheckbox.parentElement.classList.add('border-gray-300');
+        }
+      } else {
+        checkbox.parentElement.classList.remove('border-indigo-500', 'bg-indigo-50');
+        checkbox.parentElement.classList.add('border-gray-300');
+      }
+
+      // If no ZIPs selected, re-check "All"
+      const selectedZips = getSelectedZips();
+      if (selectedZips.length === 0 && allCheckbox) {
+        allCheckbox.checked = true;
+        allCheckbox.parentElement.classList.add('border-blue-500', 'bg-blue-50');
+        allCheckbox.parentElement.classList.remove('border-gray-300');
+      }
+
+      updateCategoryOptions();
+      applyFilters();
+    }
+
+    // Update category dropdown based on selected ZIPs
+    function updateCategoryOptions() {
+      const select = document.getElementById('filter-category');
+      const currentValue = select.value;
+      const selectedZips = getSelectedZips();
+      const showAll = isAllZipsSelected() || selectedZips.length === 0;
+
+      // Get categories available in selected ZIPs
       const categories = new Set();
       allProspects.forEach(p => {
-        if (p.category) {
-          // Handle comma-separated categories
-          const cats = p.category.split(',').map(c => c.trim());
-          cats.forEach(c => categories.add(c));
+        if (!p.email || !p.email.trim()) return; // Only count prospects with emails
+
+        const prospectZip = (p.zipCode || p.actualZip || p.zip || '').toString().substring(0, 5);
+
+        if (showAll || selectedZips.includes(prospectZip)) {
+          if (p.category) {
+            const cats = p.category.split(',').map(c => c.trim());
+            cats.forEach(c => categories.add(c));
+          }
         }
       });
 
-      const select = document.getElementById('filter-category');
+      // Rebuild options
+      select.innerHTML = '<option value="">All Categories</option>';
       const sortedCategories = [...categories].sort();
 
       sortedCategories.forEach(cat => {
@@ -478,10 +603,16 @@
         option.textContent = cat;
         select.appendChild(option);
       });
+
+      // Restore previous selection if still valid
+      if (categories.has(currentValue)) {
+        select.value = currentValue;
+      }
     }
 
     function applyFilters() {
-      const zipFilter = document.getElementById('filter-zip').value.trim();
+      const selectedZips = getSelectedZips();
+      const showAllZips = isAllZipsSelected() || selectedZips.length === 0;
       const categoryFilter = document.getElementById('filter-category').value;
       const statusFilter = document.getElementById('filter-status').value;
 
@@ -491,9 +622,9 @@
         if (!p.email || !p.email.trim()) return false;
 
         // ZIP filter
-        if (zipFilter) {
+        if (!showAllZips) {
           const prospectZip = (p.zipCode || p.actualZip || p.zip || '').toString().substring(0, 5);
-          if (!prospectZip.includes(zipFilter)) return false;
+          if (!selectedZips.includes(prospectZip)) return false;
         }
 
         // Category filter
@@ -524,9 +655,23 @@
     }
 
     function clearFilters() {
-      document.getElementById('filter-zip').value = '';
+      // Reset ZIP checkboxes - check "All", uncheck others
+      const allCheckboxes = document.querySelectorAll('#zip-checkboxes input[type="checkbox"]');
+      allCheckboxes.forEach(cb => {
+        if (cb.value === 'all') {
+          cb.checked = true;
+          cb.parentElement.classList.add('border-blue-500', 'bg-blue-50');
+          cb.parentElement.classList.remove('border-gray-300');
+        } else {
+          cb.checked = false;
+          cb.parentElement.classList.remove('border-indigo-500', 'bg-indigo-50');
+          cb.parentElement.classList.add('border-gray-300');
+        }
+      });
+
       document.getElementById('filter-category').value = '';
       document.getElementById('filter-status').value = 'not-contacted';
+      updateCategoryOptions();
       applyFilters();
     }
 
