@@ -417,7 +417,9 @@ function renderSearchResults() {
         <div class="text-sm text-gray-500 truncate">${escapeHtml(r.category)}</div>
       </div>
       <div class="text-right text-sm">
-        ${r.email ? `<div class="text-blue-600">${escapeHtml(r.email)}</div>` : '<div class="text-gray-400">No email</div>'}
+        ${r.email ? `<div class="text-blue-600">${escapeHtml(r.email)}</div>` :
+          r.website ? '<div class="text-purple-500">Has website (can enrich)</div>' :
+          '<div class="text-gray-400">No email</div>'}
         ${r.phone ? `<div class="text-gray-600">${escapeHtml(r.phone)}</div>` : ''}
       </div>
     </div>
@@ -470,6 +472,112 @@ async function addSelectedToPipeline() {
   renderSearchResults();
 
   toast(`Added ${toAdd.length} businesses to pipeline`);
+}
+
+// ============================================
+// ENRICHMENT
+// ============================================
+
+async function enrichBusiness(id) {
+  const business = state.businesses.find(b => b.id === id);
+  if (!business) return;
+
+  if (!business.website) {
+    toast('No website to enrich from', false);
+    return;
+  }
+
+  toast('Enriching...');
+
+  try {
+    const response = await fetch('/api/enrich-contact', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        websiteUrl: business.website,
+        businessName: business.name
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      toast('Enrichment failed: ' + data.error, false);
+      return;
+    }
+
+    // Update business with enriched data
+    if (data.email && !business.email) {
+      business.email = data.email;
+    }
+    if (data.facebook && !business.facebook) {
+      business.facebook = data.facebook;
+    }
+    if (data.instagram && !business.instagram) {
+      business.instagram = data.instagram;
+    }
+    if (data.allEmails && data.allEmails.length > 0) {
+      business.allEmails = data.allEmails;
+    }
+    business.enriched = true;
+    business.enrichedAt = new Date().toISOString();
+
+    await saveBusinesses();
+    renderPipeline();
+
+    if (data.email) {
+      toast(`Found email: ${data.email}`);
+    } else {
+      toast('No email found on website', false);
+    }
+
+  } catch (err) {
+    console.error('Enrichment error:', err);
+    toast('Enrichment failed', false);
+  }
+}
+
+async function enrichSelected() {
+  const toEnrich = searchResults.filter(r => selectedResults.has(r.id) && r.website && !r.email);
+
+  if (toEnrich.length === 0) {
+    toast('No businesses with websites to enrich', false);
+    return;
+  }
+
+  toast(`Enriching ${toEnrich.length} businesses...`);
+  let enriched = 0;
+
+  for (const business of toEnrich) {
+    try {
+      const response = await fetch('/api/enrich-contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          websiteUrl: business.website,
+          businessName: business.name
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.email) {
+        business.email = data.email;
+        enriched++;
+      }
+      if (data.facebook) business.facebook = data.facebook;
+      if (data.instagram) business.instagram = data.instagram;
+
+    } catch (err) {
+      console.error('Enrichment error for', business.name, err);
+    }
+
+    // Small delay to not overwhelm the API
+    await new Promise(r => setTimeout(r, 500));
+  }
+
+  renderSearchResults();
+  toast(`Enriched ${enriched}/${toEnrich.length} with emails`);
 }
 
 // ============================================
@@ -556,6 +664,8 @@ function renderPipelineCard(business) {
 
   const hasEmail = business.email && business.email.trim();
   const hasPhone = business.phone && business.phone.trim();
+  const hasWebsite = business.website && business.website.trim();
+  const canEnrich = hasWebsite && !hasEmail && !business.enriched;
   const borderColor = getCardBorderColor(business);
   const daysSince = getDaysSinceContact(business);
 
@@ -593,6 +703,12 @@ function renderPipelineCard(business) {
           <button onclick="quickText('${business.id}')"
                   class="flex-1 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 transition">
             💬 Text
+          </button>
+        ` : ''}
+        ${canEnrich ? `
+          <button onclick="enrichBusiness('${business.id}')"
+                  class="flex-1 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200 transition">
+            🔍 Enrich
           </button>
         ` : ''}
       </div>
