@@ -484,8 +484,16 @@ function renderPipeline() {
     client: []
   };
 
-  // Sort businesses into columns
+  // Get filter settings
+  const hasEmailOnly = document.getElementById('filter-has-email')?.checked || false;
+
+  // Sort businesses into columns (with filtering)
   state.businesses.forEach(b => {
+    // Apply email filter
+    if (hasEmailOnly && (!b.email || !b.email.trim())) {
+      return; // Skip businesses without email
+    }
+
     if (columns[b.status]) {
       columns[b.status].push(b);
     }
@@ -1176,6 +1184,32 @@ function toast(message, success = true) {
     el.style.transform = 'translateY(20px)';
     el.style.opacity = '0';
   }, 3000);
+}
+
+async function clearNoEmail() {
+  const noEmailCount = state.businesses.filter(b => b.status === 'new' && (!b.email || !b.email.trim())).length;
+
+  if (noEmailCount === 0) {
+    toast('No prospects without email in New column');
+    return;
+  }
+
+  if (!confirm(`Remove ${noEmailCount} prospects without email from the New column?`)) {
+    return;
+  }
+
+  state.businesses = state.businesses.filter(b => {
+    // Keep if not in 'new' status
+    if (b.status !== 'new') return true;
+    // Keep if has email
+    if (b.email && b.email.trim()) return true;
+    // Remove (no email and in 'new')
+    return false;
+  });
+
+  await saveBusinesses();
+  renderPipeline();
+  toast(`Removed ${noEmailCount} prospects without email`);
 }
 
 function exportPipelineCSV() {

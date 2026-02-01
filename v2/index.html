@@ -157,15 +157,22 @@
       <!-- PIPELINE TAB -->
       <div id="tab-pipeline" class="tab-pane">
         <!-- Pipeline Header -->
-        <div class="flex items-center justify-between mb-6">
-          <div class="flex items-center gap-4">
+        <div class="flex items-center justify-between mb-6 flex-wrap gap-4">
+          <div class="flex items-center gap-4 flex-wrap">
             <h2 class="text-lg font-semibold text-gray-800">Sales Pipeline</h2>
-            <select id="pipeline-campaign-filter" onchange="filterPipelineByCampaign()"
+            <select id="pipeline-campaign-filter" onchange="renderPipeline()"
                     class="text-sm border border-gray-300 rounded-lg px-3 py-1.5">
               <option value="all">All Campaigns</option>
             </select>
+            <label class="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="checkbox" id="filter-has-email" onchange="renderPipeline()" class="w-4 h-4 rounded">
+              <span class="text-gray-700">Has Email Only</span>
+            </label>
           </div>
-          <div class="flex gap-2">
+          <div class="flex gap-2 flex-wrap">
+            <button onclick="clearNoEmail()" class="px-3 py-1.5 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50">
+              Clear No-Email
+            </button>
             <button onclick="exportPipelineCSV()" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
               Export CSV
             </button>
