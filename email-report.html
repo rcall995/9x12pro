@@ -87,9 +87,12 @@
           </div>
 
           <!-- Actions -->
-          <div class="flex gap-2">
+          <div class="flex gap-2 flex-wrap">
             <button onclick="saveState()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium">
               Save
+            </button>
+            <button onclick="toggleContactedView()" id="contacted-btn" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm font-medium">
+              View Contacted
             </button>
             <button onclick="exportFullCSV()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium">
               Export All
@@ -142,6 +145,20 @@
     </div>
   </div>
 
+  <!-- Edit Email Modal -->
+  <div id="edit-email-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-2xl p-6 max-w-lg w-full mx-4">
+      <h3 class="text-lg font-bold text-gray-800 mb-2">Edit Email Address</h3>
+      <p class="text-sm text-gray-500 mb-4" id="edit-email-business-name"></p>
+      <input type="hidden" id="edit-email-business-id">
+      <input type="email" id="edit-email-input" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="email@example.com">
+      <div class="flex justify-end gap-2 mt-4">
+        <button onclick="closeEditEmailModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">Cancel</button>
+        <button onclick="saveEditedEmail()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">Save Email</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification -->
   <div id="toast" class="fixed bottom-4 right-4 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50"></div>
 
@@ -155,6 +172,7 @@
     let allProspects = [];
     let campaigns = [];
     let currentCampaign = null;
+    let showContactedOnly = false;
 
     // Outreach state per campaign
     let outreachState = {
@@ -571,10 +589,14 @@
                 ${business.userRatingsTotal ? `<span class="text-gray-400 text-xs">(${business.userRatingsTotal})</span>` : ''}
               </div>
               <div class="flex items-center gap-3 text-sm flex-wrap">
-                <a href="mailto:${escapeHtml(business.email)}" class="text-blue-600 hover:underline">${escapeHtml(business.email)}</a>
-                <button onclick="copyEmail('${escapeHtml(business.email)}')" class="text-gray-400 hover:text-gray-600" title="Copy email">
+                <a href="mailto:${escapeHtml(getDisplayEmail(business, state))}" class="text-blue-600 hover:underline">${escapeHtml(getDisplayEmail(business, state))}</a>
+                <button onclick="copyEmail('${escapeHtml(getDisplayEmail(business, state))}')" class="text-gray-400 hover:text-gray-600" title="Copy email">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                 </button>
+                <button onclick="openEditEmailModal('${id}', '${escapeHtml(getDisplayEmail(business, state))}')" class="text-gray-400 hover:text-blue-600" title="Edit email">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                </button>
+                ${state.editedEmail ? '<span class="text-xs text-green-600">(edited)</span>' : ''}
                 ${business.phone ? `<span class="text-gray-500">${escapeHtml(business.phone)}</span>` : ''}
                 ${getBusinessZip(business) ? `<span class="text-gray-400 text-xs bg-gray-100 px-2 py-0.5 rounded">📍 ${getBusinessZip(business)}</span>` : ''}
               </div>
@@ -660,6 +682,126 @@
     function copyEmail(email) {
       navigator.clipboard.writeText(email);
       showToast('Email copied!');
+    }
+
+    // Toggle contacted view
+    function toggleContactedView() {
+      showContactedOnly = !showContactedOnly;
+      const btn = document.getElementById('contacted-btn');
+      if (showContactedOnly) {
+        btn.textContent = 'View All';
+        btn.classList.remove('bg-purple-600', 'hover:bg-purple-700');
+        btn.classList.add('bg-gray-600', 'hover:bg-gray-700');
+        renderContactedView();
+      } else {
+        btn.textContent = 'View Contacted';
+        btn.classList.remove('bg-gray-600', 'hover:bg-gray-700');
+        btn.classList.add('bg-purple-600', 'hover:bg-purple-700');
+        renderCategories();
+      }
+    }
+
+    // Render contacted view (all businesses that have been contacted)
+    function renderContactedView() {
+      const container = document.getElementById('categories-container');
+      const contactedStatuses = ['attempt1', 'attempt2', 'sold', 'declined', 'noResponse', 'notInterested'];
+
+      // Get all contacted businesses
+      const contacted = [];
+      allProspects.forEach(p => {
+        const id = getProspectId(p);
+        const state = getBusinessState(id);
+        if (contactedStatuses.includes(state.status)) {
+          contacted.push({ prospect: p, state, id });
+        }
+      });
+
+      if (contacted.length === 0) {
+        container.innerHTML = '<div class="text-center py-12 text-gray-500">No businesses have been contacted yet.</div>';
+        return;
+      }
+
+      // Sort by status (sold first, then attempting, then others)
+      const statusOrder = { sold: 0, attempt2: 1, attempt1: 2, declined: 3, noResponse: 4, notInterested: 5 };
+      contacted.sort((a, b) => {
+        const orderA = statusOrder[a.state.status] ?? 99;
+        const orderB = statusOrder[b.state.status] ?? 99;
+        if (orderA !== orderB) return orderA - orderB;
+        // Then by most recent activity
+        const dateA = a.state.attempt2Date || a.state.attempt1Date || '';
+        const dateB = b.state.attempt2Date || b.state.attempt1Date || '';
+        return dateB.localeCompare(dateA);
+      });
+
+      // Group by status for display
+      const groups = {};
+      contacted.forEach(c => {
+        const status = c.state.status;
+        if (!groups[status]) groups[status] = [];
+        groups[status].push(c);
+      });
+
+      let html = '<div class="mb-4 p-4 bg-purple-50 rounded-xl border border-purple-200"><h2 class="text-lg font-bold text-purple-800 mb-2">📋 All Contacted Businesses</h2><p class="text-sm text-purple-600">' + contacted.length + ' businesses contacted</p></div>';
+
+      Object.entries(groups).forEach(([status, items]) => {
+        const statusInfo = STATUSES[status] || STATUSES.queue;
+        html += `
+          <div class="bg-white rounded-xl shadow-md mb-4 overflow-hidden">
+            <div class="px-4 py-3 bg-gray-50 border-b">
+              <span class="font-bold text-gray-800">${statusInfo.label}</span>
+              <span class="text-sm text-gray-500 ml-2">(${items.length})</span>
+            </div>
+            <div class="p-4 space-y-3">
+              ${items.map((c, i) => renderBusinessCard(c.prospect, i, null)).join('')}
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    // Edit email modal
+    function openEditEmailModal(id, currentEmail) {
+      const business = allProspects.find(p => getProspectId(p) === id);
+      const name = business ? (business.businessName || business.name || 'Business') : 'Business';
+
+      document.getElementById('edit-email-business-id').value = id;
+      document.getElementById('edit-email-business-name').textContent = name;
+      document.getElementById('edit-email-input').value = currentEmail || '';
+      document.getElementById('edit-email-modal').classList.remove('hidden');
+      document.getElementById('edit-email-modal').classList.add('flex');
+      document.getElementById('edit-email-input').focus();
+    }
+
+    function closeEditEmailModal() {
+      document.getElementById('edit-email-modal').classList.add('hidden');
+      document.getElementById('edit-email-modal').classList.remove('flex');
+    }
+
+    function saveEditedEmail() {
+      const id = document.getElementById('edit-email-business-id').value;
+      const newEmail = document.getElementById('edit-email-input').value.trim();
+
+      // Update the email in allProspects array
+      const business = allProspects.find(p => getProspectId(p) === id);
+      if (business) {
+        business.email = newEmail;
+      }
+
+      // Also store in outreach state for persistence
+      if (!outreachState.businesses[id]) {
+        outreachState.businesses[id] = { status: 'queue', priority: 999 };
+      }
+      outreachState.businesses[id].editedEmail = newEmail;
+
+      closeEditEmailModal();
+      if (showContactedOnly) {
+        renderContactedView();
+      } else {
+        renderCategories();
+      }
+      showToast('Email updated');
     }
 
     // Notes modal
@@ -826,6 +968,11 @@
         clean = clean.substring(0, 35) + '...';
       }
       return clean;
+    }
+
+    function getDisplayEmail(business, state) {
+      // Use edited email if available, otherwise original
+      return state.editedEmail || business.email || '';
     }
 
     function escapeHtml(text) {
