@@ -64,11 +64,14 @@
       <div class="bg-white rounded-xl shadow-md p-4">
         <div class="flex flex-wrap gap-4 items-center justify-between">
           <!-- Campaign Selector -->
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-2">
             <label class="text-sm font-medium text-gray-700">Campaign:</label>
             <select id="campaign-select" onchange="loadCampaignState()" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-w-[250px]">
               <option value="">Select a campaign...</option>
             </select>
+            <button onclick="refreshCampaigns()" class="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title="Refresh campaigns">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            </button>
           </div>
 
           <!-- Spot Target -->
@@ -100,6 +103,36 @@
             <button onclick="exportContactSheet()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium">
               Contact Sheet
             </button>
+          </div>
+        </div>
+
+        <!-- Second Row: Category Filter & Sorting -->
+        <div class="flex flex-wrap gap-4 items-center mt-4 pt-4 border-t border-gray-200">
+          <!-- Category Filter -->
+          <div class="flex items-center gap-2">
+            <label class="text-sm font-medium text-gray-700">Categories:</label>
+            <div id="category-filter" class="flex flex-wrap gap-1 max-w-lg">
+              <span class="text-gray-400 text-sm">Select ZIPs first...</span>
+            </div>
+          </div>
+
+          <!-- Sort Options -->
+          <div class="flex items-center gap-3 ml-auto">
+            <label class="text-sm font-medium text-gray-700">Sort Categories:</label>
+            <select id="category-sort" onchange="renderCategories()" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+              <option value="priority">By Priority (Default)</option>
+              <option value="alpha">Alphabetical</option>
+              <option value="count">By Count (Most First)</option>
+              <option value="sold">By Sold Count</option>
+            </select>
+
+            <label class="text-sm font-medium text-gray-700 ml-4">Sort Businesses:</label>
+            <select id="business-sort" onchange="renderCategories()" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+              <option value="status">By Status</option>
+              <option value="rating">By Rating</option>
+              <option value="reviews">By Reviews</option>
+              <option value="alpha">Alphabetical</option>
+            </select>
           </div>
         </div>
       </div>
@@ -176,6 +209,7 @@
     let autoSaveInterval = null;
     let hasUnsavedChanges = false;
     let lastSaveTime = null;
+    let selectedCategories = []; // Empty means all
 
     // Outreach state per campaign
     let outreachState = {
@@ -349,6 +383,7 @@
         updateSaveIndicator();
         setupAutoSave();
         populateZipFilter();
+        populateCategoryFilter();
         renderCategories();
         updateSpotTracker();
       } catch (err) {
@@ -357,6 +392,7 @@
         hasUnsavedChanges = false;
         setupAutoSave();
         populateZipFilter();
+        populateCategoryFilter();
         renderCategories();
       }
     }
@@ -424,6 +460,7 @@
         outreachState.selectedZips = [];
         markUnsaved();
         populateZipFilter();
+        populateCategoryFilter();
         renderCategories();
       }
     }
@@ -439,6 +476,76 @@
       }
       markUnsaved();
       populateZipFilter();
+      populateCategoryFilter();
+      renderCategories();
+    }
+
+    // Refresh campaigns from database
+    async function refreshCampaigns() {
+      const currentValue = document.getElementById('campaign-select').value;
+      await loadCampaigns();
+      // Restore selection if still exists
+      if (currentValue) {
+        document.getElementById('campaign-select').value = currentValue;
+      }
+      showToast('Campaigns refreshed');
+    }
+
+    // Populate category filter based on current prospects
+    function populateCategoryFilter() {
+      const prospects = getFilteredProspects();
+      const categories = new Map();
+
+      prospects.forEach(p => {
+        const cat = p.category || 'Other';
+        categories.set(cat, (categories.get(cat) || 0) + 1);
+      });
+
+      const container = document.getElementById('category-filter');
+      if (categories.size === 0) {
+        container.innerHTML = '<span class="text-gray-400 text-sm">No categories found</span>';
+        return;
+      }
+
+      const sortedCats = [...categories.entries()].sort((a, b) => getCategoryPriority(a[0]) - getCategoryPriority(b[0]));
+
+      container.innerHTML = `
+        <label class="inline-flex items-center gap-1 px-2 py-1 text-xs bg-indigo-100 border border-indigo-300 rounded cursor-pointer hover:bg-indigo-200 ${selectedCategories.length === 0 ? 'ring-2 ring-indigo-500' : ''}">
+          <input type="checkbox" ${selectedCategories.length === 0 ? 'checked' : ''} onchange="toggleAllCategories(this)" class="w-3 h-3">
+          <span class="font-medium">ALL (${categories.size})</span>
+        </label>
+      `;
+
+      sortedCats.forEach(([cat, count]) => {
+        const checked = selectedCategories.includes(cat);
+        const shortCat = cat.length > 15 ? cat.substring(0, 15) + '...' : cat;
+        container.innerHTML += `
+          <label class="inline-flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 border border-gray-300 rounded cursor-pointer hover:bg-gray-200 ${checked ? 'ring-2 ring-indigo-500 bg-indigo-50' : ''}" title="${escapeHtml(cat)}">
+            <input type="checkbox" value="${escapeHtml(cat)}" ${checked ? 'checked' : ''} onchange="toggleCategory(this)" class="w-3 h-3">
+            <span>${escapeHtml(shortCat)} (${count})</span>
+          </label>
+        `;
+      });
+    }
+
+    function toggleAllCategories(checkbox) {
+      if (checkbox.checked) {
+        selectedCategories = [];
+        populateCategoryFilter();
+        renderCategories();
+      }
+    }
+
+    function toggleCategory(checkbox) {
+      const cat = checkbox.value;
+      if (checkbox.checked) {
+        if (!selectedCategories.includes(cat)) {
+          selectedCategories.push(cat);
+        }
+      } else {
+        selectedCategories = selectedCategories.filter(c => c !== cat);
+      }
+      populateCategoryFilter();
       renderCategories();
     }
 
@@ -495,12 +602,27 @@
       const categoryMap = {};
       prospects.forEach(p => {
         const category = p.category || 'Other';
+        // Filter by selected categories
+        if (selectedCategories.length > 0 && !selectedCategories.includes(category)) return;
         if (!categoryMap[category]) categoryMap[category] = [];
         categoryMap[category].push(p);
       });
 
-      // Sort categories by priority
+      // Get sort preference
+      const categorySort = document.getElementById('category-sort')?.value || 'priority';
+
+      // Sort categories based on selection
       const sortedCategories = Object.keys(categoryMap).sort((a, b) => {
+        if (categorySort === 'alpha') {
+          return a.localeCompare(b);
+        } else if (categorySort === 'count') {
+          return categoryMap[b].length - categoryMap[a].length;
+        } else if (categorySort === 'sold') {
+          const soldA = categoryMap[a].filter(p => getBusinessState(getProspectId(p)).status === 'sold').length;
+          const soldB = categoryMap[b].filter(p => getBusinessState(getProspectId(p)).status === 'sold').length;
+          return soldB - soldA;
+        }
+        // Default: priority
         return getCategoryPriority(a) - getCategoryPriority(b);
       });
 
@@ -509,16 +631,31 @@
         return;
       }
 
+      const businessSort = document.getElementById('business-sort')?.value || 'status';
+
       let html = '';
       sortedCategories.forEach((category, catIndex) => {
         const businesses = categoryMap[category];
 
-        // Sort businesses within category by: status priority, then rating, then reviews
+        // Sort businesses within category based on selection
         businesses.sort((a, b) => {
           const stateA = getBusinessState(getProspectId(a));
           const stateB = getBusinessState(getProspectId(b));
 
-          // Sold first, then active attempts, then queue
+          if (businessSort === 'alpha') {
+            const nameA = (a.businessName || a.name || '').toLowerCase();
+            const nameB = (b.businessName || b.name || '').toLowerCase();
+            return nameA.localeCompare(nameB);
+          } else if (businessSort === 'rating') {
+            const ratingA = a.rating || 0;
+            const ratingB = b.rating || 0;
+            if (ratingB !== ratingA) return ratingB - ratingA;
+            return (b.userRatingsTotal || 0) - (a.userRatingsTotal || 0);
+          } else if (businessSort === 'reviews') {
+            return (b.userRatingsTotal || 0) - (a.userRatingsTotal || 0);
+          }
+
+          // Default: by status
           const statusOrder = { sold: 0, attempt2: 1, attempt1: 2, queue: 3, declined: 4, noResponse: 5, notInterested: 6 };
           const orderA = statusOrder[stateA.status] ?? 3;
           const orderB = statusOrder[stateB.status] ?? 3;
@@ -548,7 +685,7 @@
 
         html += `
           <div class="category-section bg-white rounded-xl shadow-md mb-4 overflow-hidden">
-            <div class="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-${categoryColor}-50 to-${categoryColor}-100 border-b cursor-pointer" onclick="toggleCategory(${catIndex})">
+            <div class="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-${categoryColor}-50 to-${categoryColor}-100 border-b cursor-pointer" onclick="toggleCategoryCollapse(${catIndex})">
               <div class="flex items-center gap-3">
                 <span class="text-xl">${getCategoryEmoji(category)}</span>
                 <span class="font-bold text-gray-800">${escapeHtml(category)}</span>
@@ -846,7 +983,7 @@
     }
 
     // Toggle category collapse
-    function toggleCategory(index) {
+    function toggleCategoryCollapse(index) {
       const content = document.querySelector(`.category-content-${index}`);
       const chevron = document.querySelector(`.category-chevron-${index}`);
       content.classList.toggle('collapsed');
