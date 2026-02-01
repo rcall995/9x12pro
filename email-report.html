@@ -145,7 +145,7 @@
     const SUPABASE_URL = "https://kurhsdvxsgkgnfimfqdo.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1cmhzZHZ4c2drZ25maW1mcWRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4MDk3NDYsImV4cCI6MjA3ODM4NTc0Nn0.nB_GsE89WJ3eAQrgmNKb-fbCktHTHf-987D-G6lscZA";
 
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     let currentUser = null;
     let allProspects = [];
@@ -155,7 +155,7 @@
     async function init() {
       try {
         // Check auth
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const { data: { session }, error } = await supabaseClient.auth.getSession();
 
         if (error || !session) {
           showLoginRequired();
@@ -184,14 +184,14 @@
     }
 
     async function logout() {
-      await supabase.auth.signOut();
+      await supabaseClient.auth.signOut();
       window.location.href = 'login.html';
     }
 
     async function loadProspects() {
       try {
         // Load from Supabase app_data table
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
           .from('app_data')
           .select('data')
           .eq('user_email', currentUser.email)
