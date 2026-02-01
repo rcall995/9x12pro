@@ -497,7 +497,8 @@
       const categories = new Map();
 
       prospects.forEach(p => {
-        const cat = p.category || 'Other';
+        const rawCat = p.category || 'Other';
+        const cat = normalizeCategory(rawCat);
         categories.set(cat, (categories.get(cat) || 0) + 1);
       });
 
@@ -521,7 +522,7 @@
         const shortCat = cat.length > 15 ? cat.substring(0, 15) + '...' : cat;
         container.innerHTML += `
           <label class="inline-flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 border border-gray-300 rounded cursor-pointer hover:bg-gray-200 ${checked ? 'ring-2 ring-indigo-500 bg-indigo-50' : ''}" title="${escapeHtml(cat)}">
-            <input type="checkbox" value="${escapeHtml(cat)}" ${checked ? 'checked' : ''} onchange="toggleCategory(this)" class="w-3 h-3">
+            <input type="checkbox" value="${escapeHtml(cat)}" ${checked ? 'checked' : ''} onchange="toggleCategoryFilter(this)" class="w-3 h-3">
             <span>${escapeHtml(shortCat)} (${count})</span>
           </label>
         `;
@@ -536,7 +537,7 @@
       }
     }
 
-    function toggleCategory(checkbox) {
+    function toggleCategoryFilter(checkbox) {
       const cat = checkbox.value;
       if (checkbox.checked) {
         if (!selectedCategories.includes(cat)) {
@@ -584,6 +585,99 @@
       updateSpotTracker();
     }
 
+    // Category normalization mapping - combine similar categories
+    const CATEGORY_ALIASES = {
+      // Restaurants & Food
+      'restaurant': ['restaurants', 'dining', 'eatery', 'eateries'],
+      'pizza': ['pizzeria', 'pizza place', 'pizza shop'],
+      'mexican restaurant': ['mexican', 'mexican food', 'taqueria', 'tacos'],
+      'italian restaurant': ['italian', 'italian food', 'trattoria'],
+      'chinese restaurant': ['chinese', 'chinese food'],
+      'japanese restaurant': ['japanese', 'japanese food', 'sushi', 'sushi bar', 'sushi restaurant'],
+      'thai restaurant': ['thai', 'thai food'],
+      'indian restaurant': ['indian', 'indian food'],
+      'american restaurant': ['american', 'american food', 'american grill'],
+      'fast food': ['fast food restaurant', 'quick service'],
+      'cafe': ['coffee shop', 'coffee house', 'coffeehouse', 'coffee'],
+      'bakery': ['bakeries', 'bake shop'],
+      'bar': ['bars', 'pub', 'pubs', 'tavern', 'lounge'],
+      'bar & grill': ['bar and grill', 'sports bar'],
+
+      // Home Services
+      'hvac': ['hvac contractor', 'heating and cooling', 'heating & cooling', 'heating and air', 'heating & air', 'air conditioning', 'ac repair', 'hvac service'],
+      'plumber': ['plumbing', 'plumbing contractor', 'plumbing service', 'plumbers'],
+      'electrician': ['electrical', 'electrical contractor', 'electric', 'electrical service'],
+      'roofing': ['roofer', 'roofing contractor', 'roof repair', 'roofing company'],
+      'contractor': ['general contractor', 'construction', 'home improvement'],
+      'landscaping': ['landscaper', 'lawn care', 'lawn service', 'yard service', 'landscape'],
+      'cleaning service': ['house cleaning', 'maid service', 'janitorial', 'cleaning'],
+      'pest control': ['exterminator', 'pest service'],
+      'handyman': ['handyman service', 'home repair'],
+
+      // Auto
+      'auto repair': ['auto mechanic', 'car repair', 'mechanic', 'automotive repair', 'auto service'],
+      'car wash': ['auto detailing', 'car detailing', 'detailing'],
+      'tire shop': ['tire service', 'tires', 'tire dealer'],
+      'auto body shop': ['body shop', 'collision repair'],
+
+      // Health & Beauty
+      'hair salon': ['salon', 'hair stylist', 'hairdresser', 'beauty salon'],
+      'barber shop': ['barber', 'barbershop'],
+      'spa': ['day spa', 'massage spa'],
+      'massage': ['massage therapy', 'massage therapist'],
+      'nail salon': ['nails', 'manicure', 'nail spa'],
+      'dentist': ['dental', 'dental office', 'dental clinic', 'dentistry'],
+      'chiropractor': ['chiropractic', 'chiropractic office'],
+      'doctor': ['physician', 'medical office', 'medical clinic'],
+      'veterinarian': ['vet', 'animal hospital', 'veterinary', 'pet hospital'],
+
+      // Professional Services
+      'insurance': ['insurance agency', 'insurance agent'],
+      'accountant': ['accounting', 'cpa', 'tax service', 'tax preparer'],
+      'lawyer': ['attorney', 'law firm', 'legal'],
+      'real estate': ['realtor', 'real estate agent', 'real estate agency'],
+
+      // Fitness
+      'gym': ['fitness center', 'fitness', 'health club'],
+      'yoga studio': ['yoga'],
+
+      // Retail
+      'florist': ['flower shop', 'flowers'],
+      'jewelry store': ['jeweler', 'jewelry']
+    };
+
+    // Build reverse lookup
+    const categoryNormalizeMap = {};
+    Object.entries(CATEGORY_ALIASES).forEach(([canonical, aliases]) => {
+      categoryNormalizeMap[canonical.toLowerCase()] = canonical;
+      aliases.forEach(alias => {
+        categoryNormalizeMap[alias.toLowerCase()] = canonical;
+      });
+    });
+
+    // Normalize a category name
+    function normalizeCategory(category) {
+      if (!category) return 'Other';
+      const lower = category.toLowerCase().trim();
+
+      // Check exact match first
+      if (categoryNormalizeMap[lower]) {
+        return categoryNormalizeMap[lower];
+      }
+
+      // Check if category contains any known alias
+      for (const [alias, canonical] of Object.entries(categoryNormalizeMap)) {
+        if (lower.includes(alias) || alias.includes(lower)) {
+          return canonical;
+        }
+      }
+
+      // Title case the original if no match
+      return category.split(' ').map(word =>
+        word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+      ).join(' ');
+    }
+
     // Get category priority
     function getCategoryPriority(category) {
       const cat = (category || '').toLowerCase();
@@ -598,12 +692,16 @@
       const prospects = getFilteredProspects();
       const container = document.getElementById('categories-container');
 
-      // Group by category
+      // Group by NORMALIZED category
       const categoryMap = {};
       prospects.forEach(p => {
-        const category = p.category || 'Other';
-        // Filter by selected categories
-        if (selectedCategories.length > 0 && !selectedCategories.includes(category)) return;
+        const rawCategory = p.category || 'Other';
+        const category = normalizeCategory(rawCategory);
+        // Filter by selected categories (also normalize for comparison)
+        if (selectedCategories.length > 0) {
+          const normalizedSelected = selectedCategories.map(c => normalizeCategory(c));
+          if (!normalizedSelected.includes(category)) return;
+        }
         if (!categoryMap[category]) categoryMap[category] = [];
         categoryMap[category].push(p);
       });
@@ -611,10 +709,10 @@
       // Get sort preference
       const categorySort = document.getElementById('category-sort')?.value || 'priority';
 
-      // Sort categories based on selection
+      // Sort categories based on selection (case-insensitive)
       const sortedCategories = Object.keys(categoryMap).sort((a, b) => {
         if (categorySort === 'alpha') {
-          return a.localeCompare(b);
+          return a.toLowerCase().localeCompare(b.toLowerCase());
         } else if (categorySort === 'count') {
           return categoryMap[b].length - categoryMap[a].length;
         } else if (categorySort === 'sold') {
