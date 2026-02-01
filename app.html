@@ -2254,7 +2254,27 @@
             <div class="text-sm text-gray-600 mt-1">Conversion rates by stage</div>
           </button>
         </div>
-        
+
+        <!-- Email Report Section -->
+        <div class="border-t pt-4 mt-4">
+          <h4 class="font-semibold text-gray-800 mb-3">Email Prospect Report</h4>
+          <div class="flex flex-wrap gap-3">
+            <button onclick="syncAllProspectsToCloud()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+              </svg>
+              Sync Prospects to Cloud
+            </button>
+            <a href="email-report.html" target="_blank" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+              </svg>
+              Open Email Report
+            </a>
+          </div>
+          <p class="text-sm text-gray-500 mt-2">Click "Sync Prospects to Cloud" first to ensure all your prospects are available in the Email Report.</p>
+        </div>
+
         <div id="reportOutput" class="border rounded-lg p-4 bg-gray-50 min-h-[200px] hidden">
           <div class="flex justify-between items-center mb-2">
             <h4 class="font-semibold">Report Output</h4>

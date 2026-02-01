@@ -4283,6 +4283,126 @@ async function savePlacesCacheToCloud() {
   }
 }
 
+// Sync all prospects to Supabase as a flattened list for email report
+// This extracts just the prospect data (much smaller than full cache structure)
+async function syncAllProspectsToCloud() {
+  try {
+    toast('🔄 Syncing all prospects to cloud...', true);
+
+    // Collect all prospects from all sources
+    const allProspects = [];
+    const seenIds = new Set();
+
+    // 1. From placesCache.searches
+    Object.keys(placesCache.searches).forEach(cacheKey => {
+      const cached = placesCache.searches[cacheKey];
+      if (cached?.cachedData) {
+        cached.cachedData.forEach(business => {
+          const id = business.placeId || business.id;
+          if (id && !seenIds.has(id)) {
+            seenIds.add(id);
+            // Only keep essential fields to reduce size
+            allProspects.push({
+              placeId: business.placeId,
+              id: business.id,
+              name: business.name,
+              businessName: business.businessName || business.name,
+              email: business.email,
+              phone: business.phone,
+              address: business.address,
+              city: business.city,
+              state: business.state,
+              zipCode: business.zipCode || business.actualZip || business.zip,
+              category: business.category,
+              website: business.website,
+              facebook: business.facebook,
+              instagram: business.instagram,
+              linkedin: business.linkedin,
+              twitter: business.twitter,
+              contactName: business.contactName,
+              contactTracking: business.contactTracking
+            });
+          }
+        });
+      }
+    });
+
+    // 2. From manualProspects
+    prospectPoolState.manualProspects.forEach(p => {
+      const id = p.placeId || p.id || p.businessName;
+      if (id && !seenIds.has(id)) {
+        seenIds.add(id);
+        allProspects.push({
+          placeId: p.placeId,
+          id: p.id,
+          name: p.name,
+          businessName: p.businessName || p.name,
+          email: p.email,
+          phone: p.phone,
+          address: p.address,
+          city: p.city,
+          state: p.state,
+          zipCode: p.zipCode || p.actualZip || p.zip,
+          category: p.category,
+          website: p.website,
+          facebook: p.facebook,
+          instagram: p.instagram,
+          linkedin: p.linkedin,
+          twitter: p.twitter,
+          contactName: p.contactName,
+          contactTracking: p.contactTracking
+        });
+      }
+    });
+
+    console.log(`📊 Total prospects to sync: ${allProspects.length}`);
+
+    // Check size and chunk if needed
+    const dataStr = JSON.stringify(allProspects);
+    const sizeKB = Math.round(dataStr.length / 1024);
+    console.log(`📦 Data size: ${sizeKB} KB`);
+
+    // Supabase limit is about 5MB, use 4MB to be safe
+    const MAX_CHUNK_SIZE = 4 * 1024 * 1024; // 4MB
+
+    if (dataStr.length <= MAX_CHUNK_SIZE) {
+      // Single save
+      await saveToCloud('allProspectsFlat', allProspects);
+      toast(`✅ Synced ${allProspects.length} prospects to cloud!`, true);
+    } else {
+      // Need to chunk
+      const chunkSize = Math.ceil(allProspects.length / Math.ceil(dataStr.length / MAX_CHUNK_SIZE));
+      const chunks = [];
+
+      for (let i = 0; i < allProspects.length; i += chunkSize) {
+        chunks.push(allProspects.slice(i, i + chunkSize));
+      }
+
+      console.log(`📦 Splitting into ${chunks.length} chunks of ~${chunkSize} prospects each`);
+
+      // Save chunk count first
+      await saveToCloud('allProspectsFlat_meta', { chunkCount: chunks.length, totalCount: allProspects.length });
+
+      // Save each chunk
+      for (let i = 0; i < chunks.length; i++) {
+        await saveToCloud(`allProspectsFlat_chunk_${i}`, chunks[i]);
+        console.log(`✅ Saved chunk ${i + 1}/${chunks.length}`);
+      }
+
+      toast(`✅ Synced ${allProspects.length} prospects to cloud in ${chunks.length} chunks!`, true);
+    }
+
+    return allProspects.length;
+  } catch (e) {
+    console.error('Error syncing prospects to cloud:', e);
+    toast('❌ Failed to sync prospects to cloud', false);
+    throw e;
+  }
+}
+
+// Expose globally for console/UI access
+window.syncAllProspectsToCloud = syncAllProspectsToCloud;
+
 function trackApiCall(count = 1) {
   apiQuotaState.callsThisMonth += count;
 

@@ -256,7 +256,49 @@
 
     async function loadProspects() {
       try {
-        // Load from multiple sources in Supabase
+        // First, try to load the flattened prospect list (synced from main app)
+        // This is the most reliable source as it's specifically for the email report
+        const { data: flatData, error: flatError } = await supabaseClient
+          .from('app_data')
+          .select('data_type, data')
+          .eq('user_email', currentUser.email)
+          .like('data_type', 'allProspectsFlat%');
+
+        if (!flatError && flatData && flatData.length > 0) {
+          console.log('Found allProspectsFlat data:', flatData.map(r => r.data_type));
+
+          // Check if it's chunked
+          const meta = flatData.find(r => r.data_type === 'allProspectsFlat_meta');
+          if (meta && meta.data?.chunkCount) {
+            // Load all chunks
+            const chunks = flatData.filter(r => r.data_type.startsWith('allProspectsFlat_chunk_'));
+            let combined = [];
+            chunks.forEach(chunk => {
+              if (Array.isArray(chunk.data)) {
+                combined = combined.concat(chunk.data);
+              }
+            });
+            allProspects = combined;
+            console.log(`Loaded ${allProspects.length} prospects from ${chunks.length} chunks`);
+          } else {
+            // Single flat list
+            const flat = flatData.find(r => r.data_type === 'allProspectsFlat');
+            if (flat && Array.isArray(flat.data)) {
+              allProspects = flat.data;
+              console.log(`Loaded ${allProspects.length} prospects from allProspectsFlat`);
+            }
+          }
+
+          if (allProspects.length > 0) {
+            populateCategories();
+            applyFilters();
+            return; // Success! Don't need other sources
+          }
+        }
+
+        console.log('No allProspectsFlat found, falling back to other sources...');
+
+        // Fallback: Load from multiple sources in Supabase
         const { data: allData, error } = await supabaseClient
           .from('app_data')
           .select('data_type, data')
@@ -271,26 +313,34 @@
         let combined = [];
         const seenIds = new Set();
 
+        console.log('Supabase returned data_types:', (allData || []).map(r => r.data_type));
+
         for (const row of (allData || [])) {
           let prospects = [];
 
           if (row.data_type === 'manualProspects' && Array.isArray(row.data)) {
             prospects = row.data;
+            console.log(`Supabase manualProspects: ${prospects.length} items`);
           } else if (row.data_type === 'prospectPool' && row.data) {
             // prospectPool is organized by ZIP: { "12345": [...], "12346": [...] }
             prospects = Object.values(row.data).flat();
+            console.log(`Supabase prospectPool: ${prospects.length} items`);
           } else if (row.data_type === 'categorizedProspects' && row.data) {
             // categorizedProspects might be organized by category
             prospects = Object.values(row.data).flat();
+            console.log(`Supabase categorizedProspects: ${prospects.length} items`);
           } else if (row.data_type === 'placesCache' && row.data) {
-            // placesCache might have search results
-            for (const key in row.data) {
-              if (row.data[key]?.results) {
-                prospects = prospects.concat(row.data[key].results);
+            // placesCache format: { "zipCode-category": { cachedData: [...], placeIds: [], cachedUntil: "date" } }
+            const keys = Object.keys(row.data);
+            console.log(`Supabase placesCache: ${keys.length} search entries`);
+            for (const key of keys) {
+              if (row.data[key]?.cachedData && Array.isArray(row.data[key].cachedData)) {
+                prospects = prospects.concat(row.data[key].cachedData);
               } else if (Array.isArray(row.data[key])) {
                 prospects = prospects.concat(row.data[key]);
               }
             }
+            console.log(`Supabase placesCache: ${prospects.length} total prospects`);
           }
 
           // Add unique prospects
@@ -308,40 +358,51 @@
 
         // Also try IndexedDB for data that might not have synced to cloud
         try {
+          // Note: The main app uses 'mailslot-places-cache' (with hyphen) for the places cache
           const idbSources = [
             'mailslot-manualProspects',
             'mailslot-prospectPool',
             'mailslot-categorizedProspects',
-            'mailslot-placesCache'
+            'mailslot-places-cache'  // Correct key with hyphen
           ];
 
           for (const key of idbSources) {
             const idbData = await idbGet(key);
-            if (!idbData) continue;
+            if (!idbData) {
+              console.log(`IndexedDB ${key}: no data`);
+              continue;
+            }
 
             let prospects = [];
 
             if (Array.isArray(idbData)) {
               prospects = idbData;
+              console.log(`IndexedDB ${key}: array with ${prospects.length} items`);
             } else if (typeof idbData === 'object') {
-              // Could be organized by ZIP or category
+              // placesCache format: { "zipCode-category": { cachedData: [...], placeIds: [], cachedUntil: "date" } }
               for (const k in idbData) {
-                if (Array.isArray(idbData[k])) {
+                if (idbData[k]?.cachedData && Array.isArray(idbData[k].cachedData)) {
+                  // This is the placesCache format
+                  prospects = prospects.concat(idbData[k].cachedData);
+                } else if (Array.isArray(idbData[k])) {
+                  // prospectPool/categorizedProspects format: { "key": [...] }
                   prospects = prospects.concat(idbData[k]);
-                } else if (idbData[k]?.results) {
-                  prospects = prospects.concat(idbData[k].results);
                 }
               }
+              console.log(`IndexedDB ${key}: object with ${prospects.length} total items`);
             }
 
             // Add unique prospects not already in combined
+            let added = 0;
             for (const p of prospects) {
               const id = p.id || p.placeId || p.businessName;
               if (id && !seenIds.has(id)) {
                 seenIds.add(id);
                 allProspects.push(p);
+                added++;
               }
             }
+            console.log(`IndexedDB ${key}: added ${added} new unique prospects`);
           }
 
           console.log('Total after IndexedDB:', allProspects.length, 'prospects');
