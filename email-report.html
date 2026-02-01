@@ -94,6 +94,9 @@
             <button onclick="saveState()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium">
               Save
             </button>
+            <button onclick="openAddBusinessModal()" class="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition text-sm font-medium">
+              + Add Business
+            </button>
             <button onclick="toggleContactedView()" id="contacted-btn" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm font-medium">
               View Contacted
             </button>
@@ -188,6 +191,78 @@
       <div class="flex justify-end gap-2 mt-4">
         <button onclick="closeEditEmailModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">Cancel</button>
         <button onclick="saveEditedEmail()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">Save Email</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Business Modal -->
+  <div id="add-business-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 overflow-y-auto">
+    <div class="bg-white rounded-xl shadow-2xl p-6 max-w-lg w-full mx-4 my-8">
+      <h3 class="text-lg font-bold text-gray-800 mb-4">Add New Business</h3>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Business Name *</label>
+          <input type="text" id="add-biz-name" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500" placeholder="Business Name" required>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+          <input type="email" id="add-biz-email" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500" placeholder="email@example.com" required>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+            <input type="tel" id="add-biz-phone" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500" placeholder="(555) 123-4567">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">ZIP Code</label>
+            <input type="text" id="add-biz-zip" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500" placeholder="12345" maxlength="5">
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+          <input type="text" id="add-biz-category" list="category-suggestions" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500" placeholder="e.g., Restaurant, HVAC, Dentist">
+          <datalist id="category-suggestions">
+            <option value="Restaurant">
+            <option value="Pizza">
+            <option value="Mexican Restaurant">
+            <option value="Italian Restaurant">
+            <option value="Cafe">
+            <option value="Bar & Grill">
+            <option value="HVAC">
+            <option value="Plumber">
+            <option value="Electrician">
+            <option value="Roofing">
+            <option value="Landscaping">
+            <option value="Auto Repair">
+            <option value="Car Wash">
+            <option value="Hair Salon">
+            <option value="Barber Shop">
+            <option value="Spa">
+            <option value="Dentist">
+            <option value="Chiropractor">
+            <option value="Veterinarian">
+            <option value="Gym">
+            <option value="Insurance">
+            <option value="Accountant">
+            <option value="Real Estate">
+          </datalist>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Website</label>
+          <input type="url" id="add-biz-website" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500" placeholder="https://example.com">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Address</label>
+          <input type="text" id="add-biz-address" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500" placeholder="123 Main St, City, State">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+          <textarea id="add-biz-notes" rows="2" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 resize-none" placeholder="Any notes about this business..."></textarea>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 mt-6">
+        <button onclick="closeAddBusinessModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">Cancel</button>
+        <button onclick="saveNewBusiness()" class="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition">Add Business</button>
       </div>
     </div>
   </div>
@@ -368,6 +443,18 @@
         if (!error && data && data.data) {
           outreachState = { ...outreachState, ...data.data, campaignId };
           document.getElementById('spot-target').value = outreachState.spotTarget || 16;
+
+          // Restore manually added businesses
+          if (outreachState.manualBusinesses && outreachState.manualBusinesses.length > 0) {
+            outreachState.manualBusinesses.forEach(biz => {
+              // Check if already in allProspects (avoid duplicates)
+              const exists = allProspects.some(p => getProspectId(p) === biz.placeId);
+              if (!exists) {
+                allProspects.push(biz);
+              }
+            });
+            console.log(`Restored ${outreachState.manualBusinesses.length} manually added businesses`);
+          }
         } else {
           // Initialize new state
           outreachState = {
@@ -375,7 +462,8 @@
             spotTarget: 16,
             selectedZips: [],
             categoryOrder: [],
-            businesses: {}
+            businesses: {},
+            manualBusinesses: []
           };
         }
 
@@ -1056,6 +1144,95 @@
         renderCategories();
       }
       showToast('Email updated');
+    }
+
+    // Add Business Modal
+    function openAddBusinessModal() {
+      // Clear form
+      document.getElementById('add-biz-name').value = '';
+      document.getElementById('add-biz-email').value = '';
+      document.getElementById('add-biz-phone').value = '';
+      document.getElementById('add-biz-zip').value = '';
+      document.getElementById('add-biz-category').value = '';
+      document.getElementById('add-biz-website').value = '';
+      document.getElementById('add-biz-address').value = '';
+      document.getElementById('add-biz-notes').value = '';
+
+      document.getElementById('add-business-modal').classList.remove('hidden');
+      document.getElementById('add-business-modal').classList.add('flex');
+      document.getElementById('add-biz-name').focus();
+    }
+
+    function closeAddBusinessModal() {
+      document.getElementById('add-business-modal').classList.add('hidden');
+      document.getElementById('add-business-modal').classList.remove('flex');
+    }
+
+    function saveNewBusiness() {
+      const name = document.getElementById('add-biz-name').value.trim();
+      const email = document.getElementById('add-biz-email').value.trim();
+      const phone = document.getElementById('add-biz-phone').value.trim();
+      const zip = document.getElementById('add-biz-zip').value.trim();
+      const category = document.getElementById('add-biz-category').value.trim();
+      const website = document.getElementById('add-biz-website').value.trim();
+      const address = document.getElementById('add-biz-address').value.trim();
+      const notes = document.getElementById('add-biz-notes').value.trim();
+
+      // Validation
+      if (!name) {
+        showToast('Business name is required', false);
+        return;
+      }
+      if (!email) {
+        showToast('Email is required', false);
+        return;
+      }
+      if (!category) {
+        showToast('Category is required', false);
+        return;
+      }
+
+      // Create unique ID
+      const id = 'manual-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+
+      // Create new business object
+      const newBusiness = {
+        placeId: id,
+        businessName: name,
+        name: name,
+        email: email,
+        phone: phone,
+        zipCode: zip,
+        zip: zip,
+        category: category,
+        website: website,
+        address: address,
+        manuallyAdded: true,
+        addedDate: new Date().toISOString()
+      };
+
+      // Add to allProspects
+      allProspects.push(newBusiness);
+
+      // Store in outreach state for persistence (including notes)
+      outreachState.businesses[id] = {
+        status: 'queue',
+        priority: 999,
+        notes: notes,
+        manuallyAdded: true
+      };
+
+      // Also save to manualOutreachBusinesses in state for persistence across reloads
+      if (!outreachState.manualBusinesses) {
+        outreachState.manualBusinesses = [];
+      }
+      outreachState.manualBusinesses.push(newBusiness);
+
+      markUnsaved();
+      closeAddBusinessModal();
+      populateCategoryFilter();
+      renderCategories();
+      showToast('Business added successfully');
     }
 
     // Notes modal
