@@ -4355,7 +4355,69 @@ async function syncAllProspectsToCloud() {
       }
     });
 
-    // 3. From kanbanState.columns (Campaign Board) - enriched data often lives here
+    // 3. From campaignBoardsState.boards (Campaign Boards - main source of pipeline data)
+    if (campaignBoardsState && campaignBoardsState.boards) {
+      let campaignBoardsCount = 0;
+      let campaignBoardsEmails = 0;
+      Object.values(campaignBoardsState.boards).forEach(board => {
+        if (board && board.columns) {
+          Object.values(board.columns).forEach(column => {
+            if (Array.isArray(column)) {
+              column.forEach(lead => {
+                const id = lead.placeId || lead.id || lead.businessName;
+                campaignBoardsCount++;
+                if (lead.email) campaignBoardsEmails++;
+
+                if (id && !seenIds.has(id)) {
+                  seenIds.add(id);
+                  allProspects.push({
+                    placeId: lead.placeId,
+                    id: lead.id,
+                    name: lead.name,
+                    businessName: lead.businessName || lead.name,
+                    email: lead.email,
+                    phone: lead.phone,
+                    address: lead.address,
+                    city: lead.city,
+                    state: lead.state,
+                    zipCode: lead.zipCode || lead.actualZip || lead.zip,
+                    category: lead.category,
+                    website: lead.website,
+                    facebook: lead.facebook,
+                    instagram: lead.instagram,
+                    linkedin: lead.linkedin,
+                    twitter: lead.twitter,
+                    contactName: lead.contactName,
+                    contactTracking: lead.contactTracking,
+                    enriched: lead.enriched
+                  });
+                } else if (id && seenIds.has(id)) {
+                  // Update existing entry with data from campaign boards
+                  const existingIndex = allProspects.findIndex(p => (p.placeId || p.id) === id);
+                  if (existingIndex !== -1) {
+                    if (lead.email && !allProspects[existingIndex].email) {
+                      allProspects[existingIndex].email = lead.email;
+                    }
+                    if (lead.phone && !allProspects[existingIndex].phone) {
+                      allProspects[existingIndex].phone = lead.phone;
+                    }
+                    if (lead.facebook && !allProspects[existingIndex].facebook) {
+                      allProspects[existingIndex].facebook = lead.facebook;
+                    }
+                    if (lead.instagram && !allProspects[existingIndex].instagram) {
+                      allProspects[existingIndex].instagram = lead.instagram;
+                    }
+                  }
+                }
+              });
+            }
+          });
+        }
+      });
+      console.log(`📋 Campaign Boards: ${campaignBoardsCount} items, ${campaignBoardsEmails} with emails`);
+    }
+
+    // 4. From legacy kanbanState.columns (fallback)
     if (kanbanState && kanbanState.columns) {
       Object.values(kanbanState.columns).forEach(column => {
         if (Array.isArray(column)) {
@@ -4381,10 +4443,11 @@ async function syncAllProspectsToCloud() {
                 linkedin: lead.linkedin,
                 twitter: lead.twitter,
                 contactName: lead.contactName,
-                contactTracking: lead.contactTracking
+                contactTracking: lead.contactTracking,
+                enriched: lead.enriched
               });
             } else if (id && seenIds.has(id)) {
-              // Update existing entry with enriched data from kanban (kanban often has more recent data)
+              // Update existing entry with enriched data from kanban
               const existingIndex = allProspects.findIndex(p => (p.placeId || p.id) === id);
               if (existingIndex !== -1 && lead.email && !allProspects[existingIndex].email) {
                 allProspects[existingIndex].email = lead.email;
@@ -4404,7 +4467,7 @@ async function syncAllProspectsToCloud() {
       });
     }
 
-    // 4. Build lookup of enriched data from placesCache by placeId
+    // 5. Build lookup of enriched data from placesCache by placeId
     // Then update any prospects that are missing enriched data
     const enrichedLookup = new Map();
     Object.values(placesCache.searches).forEach(cached => {
@@ -4422,6 +4485,9 @@ async function syncAllProspectsToCloud() {
     allProspects.forEach((prospect, index) => {
       const enriched = enrichedLookup.get(prospect.placeId);
       if (enriched) {
+        // Always copy the enriched flag
+        allProspects[index].enriched = true;
+
         if (enriched.email && !prospect.email) {
           allProspects[index].email = enriched.email;
           enrichedUpdates++;
