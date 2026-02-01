@@ -168,6 +168,9 @@
               <input type="checkbox" id="filter-has-email" onchange="renderPipeline()" class="w-4 h-4 rounded">
               <span class="text-gray-700">Has Email Only</span>
             </label>
+            <input type="text" id="filter-zip" placeholder="Filter by ZIP" maxlength="5"
+                   onchange="renderPipeline()" oninput="renderPipeline()"
+                   class="text-sm border border-gray-300 rounded-lg px-3 py-1.5 w-28">
           </div>
           <div class="flex gap-2 flex-wrap">
             <button onclick="clearNoEmail()" class="px-3 py-1.5 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50">

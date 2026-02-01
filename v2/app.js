@@ -486,12 +486,18 @@ function renderPipeline() {
 
   // Get filter settings
   const hasEmailOnly = document.getElementById('filter-has-email')?.checked || false;
+  const zipFilter = document.getElementById('filter-zip')?.value?.trim() || '';
 
   // Sort businesses into columns (with filtering)
   state.businesses.forEach(b => {
     // Apply email filter
     if (hasEmailOnly && (!b.email || !b.email.trim())) {
-      return; // Skip businesses without email
+      return;
+    }
+
+    // Apply ZIP filter
+    if (zipFilter && !(b.zip || '').toString().startsWith(zipFilter)) {
+      return;
     }
 
     if (columns[b.status]) {
@@ -521,6 +527,28 @@ function renderPipeline() {
   populateCampaignFilter();
 }
 
+function getDaysSinceContact(business) {
+  if (!business.contacts || business.contacts.length === 0) return null;
+  const lastContact = business.contacts[business.contacts.length - 1];
+  if (!lastContact.date) return null;
+  const lastDate = new Date(lastContact.date);
+  const now = new Date();
+  const diffTime = now - lastDate;
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays;
+}
+
+function getCardBorderColor(business) {
+  if (business.status === 'new') return 'border-gray-200';
+  const days = getDaysSinceContact(business);
+  if (days === null) return 'border-gray-200';
+  if (days === 0) return 'border-l-4 border-l-green-500 border-gray-200';
+  if (days <= 2) return 'border-l-4 border-l-green-300 border-gray-200';
+  if (days <= 4) return 'border-l-4 border-l-yellow-400 border-gray-200';
+  if (days <= 7) return 'border-l-4 border-l-orange-400 border-gray-200';
+  return 'border-l-4 border-l-red-500 border-gray-200';
+}
+
 function renderPipelineCard(business) {
   const lastContact = business.contacts.length > 0
     ? business.contacts[business.contacts.length - 1]
@@ -528,9 +556,11 @@ function renderPipelineCard(business) {
 
   const hasEmail = business.email && business.email.trim();
   const hasPhone = business.phone && business.phone.trim();
+  const borderColor = getCardBorderColor(business);
+  const daysSince = getDaysSinceContact(business);
 
   return `
-    <div class="card bg-white rounded-lg p-3 shadow-sm border border-gray-200 cursor-pointer"
+    <div class="card bg-white rounded-lg p-3 shadow-sm border ${borderColor} cursor-pointer"
          draggable="true"
          ondragstart="handleDragStart(event, '${business.id}')"
          ondragend="handleDragEnd(event)"
@@ -586,7 +616,7 @@ function renderPipelineCard(business) {
       <!-- Last Contact -->
       ${lastContact ? `
         <div class="text-xs text-gray-400 truncate">
-          Last: ${lastContact.type} ${formatDate(lastContact.date)}
+          ${daysSince === 0 ? 'Today' : daysSince === 1 ? 'Yesterday' : daysSince + ' days ago'} · ${lastContact.type}
         </div>
       ` : ''}
     </div>
