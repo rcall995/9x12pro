@@ -170,6 +170,40 @@
     let filteredProspects = [];
     let saving = false;
 
+    // IndexedDB helpers
+    const IDB_NAME = 'mailslot-db';
+    const IDB_STORE = 'kv';
+
+    function openIDB() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open(IDB_NAME, 1);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+        request.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(IDB_STORE)) {
+            db.createObjectStore(IDB_STORE);
+          }
+        };
+      });
+    }
+
+    async function idbGet(key) {
+      try {
+        const db = await openIDB();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction(IDB_STORE, 'readonly');
+          const store = tx.objectStore(IDB_STORE);
+          const request = store.get(key);
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+        });
+      } catch (e) {
+        console.warn('IDB get error:', e);
+        return null;
+      }
+    }
+
     // Initialize app
     async function init() {
       try {
@@ -222,19 +256,98 @@
 
     async function loadProspects() {
       try {
-        // Load from Supabase app_data table
-        const { data, error } = await supabaseClient
+        // Load from multiple sources in Supabase
+        const { data: allData, error } = await supabaseClient
           .from('app_data')
-          .select('data')
+          .select('data_type, data')
           .eq('user_email', currentUser.email)
-          .eq('data_type', 'manualProspects')
-          .single();
+          .in('data_type', ['manualProspects', 'prospectPool', 'categorizedProspects', 'placesCache']);
 
-        if (error && error.code !== 'PGRST116') {
+        if (error) {
           throw error;
         }
 
-        allProspects = data?.data || [];
+        // Merge all sources
+        let combined = [];
+        const seenIds = new Set();
+
+        for (const row of (allData || [])) {
+          let prospects = [];
+
+          if (row.data_type === 'manualProspects' && Array.isArray(row.data)) {
+            prospects = row.data;
+          } else if (row.data_type === 'prospectPool' && row.data) {
+            // prospectPool is organized by ZIP: { "12345": [...], "12346": [...] }
+            prospects = Object.values(row.data).flat();
+          } else if (row.data_type === 'categorizedProspects' && row.data) {
+            // categorizedProspects might be organized by category
+            prospects = Object.values(row.data).flat();
+          } else if (row.data_type === 'placesCache' && row.data) {
+            // placesCache might have search results
+            for (const key in row.data) {
+              if (row.data[key]?.results) {
+                prospects = prospects.concat(row.data[key].results);
+              } else if (Array.isArray(row.data[key])) {
+                prospects = prospects.concat(row.data[key]);
+              }
+            }
+          }
+
+          // Add unique prospects
+          for (const p of prospects) {
+            const id = p.id || p.placeId || p.businessName;
+            if (id && !seenIds.has(id)) {
+              seenIds.add(id);
+              combined.push(p);
+            }
+          }
+        }
+
+        allProspects = combined;
+        console.log('Loaded', allProspects.length, 'prospects from Supabase');
+
+        // Also try IndexedDB for data that might not have synced to cloud
+        try {
+          const idbSources = [
+            'mailslot-manualProspects',
+            'mailslot-prospectPool',
+            'mailslot-categorizedProspects',
+            'mailslot-placesCache'
+          ];
+
+          for (const key of idbSources) {
+            const idbData = await idbGet(key);
+            if (!idbData) continue;
+
+            let prospects = [];
+
+            if (Array.isArray(idbData)) {
+              prospects = idbData;
+            } else if (typeof idbData === 'object') {
+              // Could be organized by ZIP or category
+              for (const k in idbData) {
+                if (Array.isArray(idbData[k])) {
+                  prospects = prospects.concat(idbData[k]);
+                } else if (idbData[k]?.results) {
+                  prospects = prospects.concat(idbData[k].results);
+                }
+              }
+            }
+
+            // Add unique prospects not already in combined
+            for (const p of prospects) {
+              const id = p.id || p.placeId || p.businessName;
+              if (id && !seenIds.has(id)) {
+                seenIds.add(id);
+                allProspects.push(p);
+              }
+            }
+          }
+
+          console.log('Total after IndexedDB:', allProspects.length, 'prospects');
+        } catch (idbErr) {
+          console.warn('IndexedDB load error:', idbErr);
+        }
 
         // Populate category filter
         populateCategories();
