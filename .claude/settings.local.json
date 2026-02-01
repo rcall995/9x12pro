@@ -67,7 +67,8 @@
       "Bash(echo:*)",
       "Bash(netsh winhttp show proxy:*)",
       "Bash(npx vercel@latest --prod --yes)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(npm run deploy:*)"
     ],
     "deny": [],
     "ask": []
