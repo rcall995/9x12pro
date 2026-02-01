@@ -173,6 +173,9 @@
     let campaigns = [];
     let currentCampaign = null;
     let showContactedOnly = false;
+    let autoSaveInterval = null;
+    let hasUnsavedChanges = false;
+    let lastSaveTime = null;
 
     // Outreach state per campaign
     let outreachState = {
@@ -342,12 +345,17 @@
           };
         }
 
+        hasUnsavedChanges = false;
+        updateSaveIndicator();
+        setupAutoSave();
         populateZipFilter();
         renderCategories();
         updateSpotTracker();
       } catch (err) {
         console.error('Error loading campaign state:', err);
         outreachState = { campaignId, spotTarget: 16, selectedZips: [], categoryOrder: [], businesses: {} };
+        hasUnsavedChanges = false;
+        setupAutoSave();
         populateZipFilter();
         renderCategories();
       }
@@ -372,6 +380,9 @@
           }, { onConflict: 'user_email,data_type' });
 
         if (error) throw error;
+        hasUnsavedChanges = false;
+        lastSaveTime = new Date();
+        updateSaveIndicator();
         showToast('Saved successfully!');
       } catch (err) {
         console.error('Error saving state:', err);
@@ -411,6 +422,7 @@
     function toggleAllZips(checkbox) {
       if (checkbox.checked) {
         outreachState.selectedZips = [];
+        markUnsaved();
         populateZipFilter();
         renderCategories();
       }
@@ -425,6 +437,7 @@
       } else {
         outreachState.selectedZips = outreachState.selectedZips.filter(z => z !== zip);
       }
+      markUnsaved();
       populateZipFilter();
       renderCategories();
     }
@@ -455,7 +468,12 @@
         outreachState.businesses[id] = { status: 'queue', priority: 999 };
       }
       Object.assign(outreachState.businesses[id], updates);
-      renderCategories();
+      markUnsaved();
+      if (showContactedOnly) {
+        renderContactedView();
+      } else {
+        renderCategories();
+      }
       updateSpotTracker();
     }
 
@@ -795,6 +813,7 @@
       }
       outreachState.businesses[id].editedEmail = newEmail;
 
+      markUnsaved();
       closeEditEmailModal();
       if (showContactedOnly) {
         renderContactedView();
@@ -1016,6 +1035,90 @@
       if (cat.includes('real estate')) return '🏡';
       return '🏢';
     }
+
+    // Auto-save setup
+    function setupAutoSave() {
+      // Clear any existing interval
+      if (autoSaveInterval) clearInterval(autoSaveInterval);
+
+      // Auto-save every 30 seconds if there are unsaved changes
+      autoSaveInterval = setInterval(() => {
+        if (hasUnsavedChanges && currentCampaign) {
+          autoSave();
+        }
+      }, 30000);
+    }
+
+    async function autoSave() {
+      if (!currentCampaign || !hasUnsavedChanges) return;
+
+      try {
+        outreachState.spotTarget = parseInt(document.getElementById('spot-target').value) || 16;
+
+        const { error } = await supabaseClient
+          .from('app_data')
+          .upsert({
+            user_email: currentUser.email,
+            data_type: `outreach-${currentCampaign}`,
+            data: outreachState
+          }, { onConflict: 'user_email,data_type' });
+
+        if (!error) {
+          hasUnsavedChanges = false;
+          lastSaveTime = new Date();
+          updateSaveIndicator();
+          console.log('Auto-saved at', lastSaveTime.toLocaleTimeString());
+        }
+      } catch (err) {
+        console.error('Auto-save error:', err);
+      }
+    }
+
+    function updateSaveIndicator() {
+      const btn = document.querySelector('button[onclick="saveState()"]');
+      if (hasUnsavedChanges) {
+        btn.textContent = 'Save *';
+        btn.classList.add('ring-2', 'ring-yellow-400');
+      } else {
+        btn.textContent = 'Save';
+        btn.classList.remove('ring-2', 'ring-yellow-400');
+      }
+    }
+
+    function markUnsaved() {
+      hasUnsavedChanges = true;
+      updateSaveIndicator();
+    }
+
+    // Save before leaving page
+    window.addEventListener('beforeunload', (e) => {
+      if (hasUnsavedChanges && currentCampaign) {
+        // Try to save synchronously using sendBeacon
+        const data = JSON.stringify({
+          user_email: currentUser?.email,
+          data_type: `outreach-${currentCampaign}`,
+          data: outreachState
+        });
+
+        // Use sendBeacon for reliable save on page unload
+        navigator.sendBeacon && navigator.sendBeacon(
+          `${SUPABASE_URL}/rest/v1/app_data?on_conflict=user_email,data_type`,
+          new Blob([data], { type: 'application/json' })
+        );
+
+        // Also show confirmation dialog
+        e.preventDefault();
+        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+        return e.returnValue;
+      }
+    });
+
+    // Also save on visibility change (when user switches tabs)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden' && hasUnsavedChanges && currentCampaign) {
+        autoSave();
+      }
+    });
 
     // Start app
     init();
