@@ -1067,7 +1067,7 @@
           hasUnsavedChanges = false;
           lastSaveTime = new Date();
           updateSaveIndicator();
-          console.log('Auto-saved at', lastSaveTime.toLocaleTimeString());
+          showToast('Auto-saved');
         }
       } catch (err) {
         console.error('Auto-save error:', err);
