@@ -291,7 +291,8 @@
           }
 
           if (allProspects.length > 0) {
-            populateCategories();
+            populateZipCheckboxes();
+            updateCategoryOptions();
             applyFilters();
             return; // Success! Don't need other sources
           }
