@@ -109,8 +109,23 @@
           </div>
         </div>
 
-        <!-- Second Row: Category Filter & Sorting -->
+        <!-- Second Row: Search & Category Filter -->
         <div class="flex flex-wrap gap-4 items-center mt-4 pt-4 border-t border-gray-200">
+          <!-- Search Bar -->
+          <div class="flex items-center gap-2">
+            <label class="text-sm font-medium text-gray-700">Search:</label>
+            <div class="relative">
+              <input type="text" id="business-search" onkeyup="handleSearch(event)" placeholder="Name, email, phone..."
+                     class="pl-9 pr-8 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 w-48">
+              <svg class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+              <button onclick="clearSearch()" id="clear-search-btn" class="hidden absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+          </div>
+
           <!-- Category Filter -->
           <div class="flex items-center gap-2">
             <label class="text-sm font-medium text-gray-700">Categories:</label>
@@ -285,6 +300,7 @@
     let hasUnsavedChanges = false;
     let lastSaveTime = null;
     let selectedCategories = []; // Empty means all
+    let searchQuery = '';
 
     // Outreach state per campaign
     let outreachState = {
@@ -638,6 +654,42 @@
       renderCategories();
     }
 
+    // Search functionality
+    function handleSearch(event) {
+      searchQuery = event.target.value.toLowerCase().trim();
+      const clearBtn = document.getElementById('clear-search-btn');
+      if (searchQuery) {
+        clearBtn.classList.remove('hidden');
+      } else {
+        clearBtn.classList.add('hidden');
+      }
+      renderCategories();
+    }
+
+    function clearSearch() {
+      document.getElementById('business-search').value = '';
+      searchQuery = '';
+      document.getElementById('clear-search-btn').classList.add('hidden');
+      renderCategories();
+    }
+
+    function businessMatchesSearch(business) {
+      if (!searchQuery) return true;
+      const name = (business.businessName || business.name || '').toLowerCase();
+      const email = (business.email || '').toLowerCase();
+      const phone = (business.phone || '').toLowerCase();
+      const address = (business.address || '').toLowerCase();
+      const website = (business.website || '').toLowerCase();
+      const category = (business.category || '').toLowerCase();
+
+      return name.includes(searchQuery) ||
+             email.includes(searchQuery) ||
+             phone.includes(searchQuery) ||
+             address.includes(searchQuery) ||
+             website.includes(searchQuery) ||
+             category.includes(searchQuery);
+    }
+
     // Get filtered prospects
     function getFilteredProspects() {
       return allProspects.filter(p => {
@@ -783,6 +835,9 @@
       // Group by NORMALIZED category
       const categoryMap = {};
       prospects.forEach(p => {
+        // Apply search filter
+        if (!businessMatchesSearch(p)) return;
+
         const rawCategory = p.category || 'Other';
         const category = normalizeCategory(rawCategory);
         // Filter by selected categories (also normalize for comparison)
@@ -813,13 +868,26 @@
       });
 
       if (sortedCategories.length === 0) {
-        container.innerHTML = '<div class="text-center py-12 text-gray-500">No prospects with emails found for selected filters.</div>';
+        const message = searchQuery
+          ? `No businesses found matching "${escapeHtml(searchQuery)}"`
+          : 'No prospects with emails found for selected filters.';
+        container.innerHTML = `<div class="text-center py-12 text-gray-500">${message}</div>`;
         return;
+      }
+
+      // Show search results count if searching
+      let searchHeader = '';
+      if (searchQuery) {
+        const totalMatches = Object.values(categoryMap).reduce((sum, arr) => sum + arr.length, 0);
+        searchHeader = `<div class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
+          🔍 Found <strong>${totalMatches}</strong> business${totalMatches !== 1 ? 'es' : ''} matching "<strong>${escapeHtml(searchQuery)}</strong>"
+          <button onclick="clearSearch()" class="ml-2 text-yellow-600 hover:text-yellow-800 underline">Clear search</button>
+        </div>`;
       }
 
       const businessSort = document.getElementById('business-sort')?.value || 'status';
 
-      let html = '';
+      let html = searchHeader;
       sortedCategories.forEach((category, catIndex) => {
         const businesses = categoryMap[category];
 
