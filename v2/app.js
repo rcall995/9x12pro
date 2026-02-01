@@ -537,10 +537,22 @@ function renderPipelineCard(business) {
          onclick="openProspectModal('${business.id}')">
 
       <div class="font-medium text-gray-800 text-sm truncate mb-1">${escapeHtml(business.name)}</div>
-      <div class="text-xs text-gray-500 truncate mb-2">${escapeHtml(business.category || business.zip || '')}</div>
+      <div class="text-xs text-gray-500 truncate">${escapeHtml(business.category || '')}</div>
+
+      <!-- Contact Info -->
+      ${hasEmail ? `
+        <div class="text-xs text-blue-600 truncate mt-1" title="${escapeHtml(business.email)}">
+          ${escapeHtml(business.email)}
+        </div>
+      ` : ''}
+      ${hasPhone ? `
+        <div class="text-xs text-gray-600 truncate">
+          ${escapeHtml(business.phone)}
+        </div>
+      ` : ''}
 
       <!-- Quick Contact Buttons -->
-      <div class="flex gap-2 mb-2" onclick="event.stopPropagation()">
+      <div class="flex gap-2 mt-2 mb-2" onclick="event.stopPropagation()">
         ${hasEmail ? `
           <button onclick="quickEmail('${business.id}')"
                   class="flex-1 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition">
@@ -698,6 +710,26 @@ function openProspectModal(id) {
   if (!currentProspect) return;
 
   document.getElementById('modal-prospect-name').textContent = currentProspect.name;
+
+  // Email
+  const emailEl = document.getElementById('modal-prospect-email');
+  if (currentProspect.email) {
+    emailEl.textContent = currentProspect.email;
+    emailEl.href = 'mailto:' + currentProspect.email;
+    emailEl.parentElement.style.display = 'flex';
+  } else {
+    emailEl.parentElement.style.display = 'none';
+  }
+
+  // Phone
+  const phoneEl = document.getElementById('modal-prospect-phone');
+  if (currentProspect.phone) {
+    phoneEl.textContent = currentProspect.phone;
+    phoneEl.parentElement.style.display = 'flex';
+  } else {
+    phoneEl.parentElement.style.display = 'none';
+  }
+
   document.getElementById('modal-prospect-address').textContent = currentProspect.address || currentProspect.zip || 'No address';
   document.getElementById('modal-prospect-category').textContent = currentProspect.category || 'Uncategorized';
   document.getElementById('modal-prospect-notes').value = currentProspect.notes || '';
