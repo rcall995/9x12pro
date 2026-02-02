@@ -1828,6 +1828,14 @@ async function loadClients() {
       Object.keys(crmState.clients).forEach(clientId => {
         const client = crmState.clients[clientId];
 
+        // Normalize ZIP codes to 5 digits
+        if (client.zipCode && client.zipCode.length > 5) {
+          client.zipCode = truncateZipTo5(client.zipCode);
+        }
+        if (client.zip && client.zip.length > 5) {
+          client.zip = truncateZipTo5(client.zip);
+        }
+
         // Always ensure required nested objects exist
         if (!client.lifetime) {
           client.lifetime = { cardsBought: 0, totalSpent: 0, avgPrice: 0 };
@@ -4197,6 +4205,38 @@ async function loadPlacesCache() {
         }
       }
     });
+
+    // Normalize ZIP codes in cached businesses to 5 digits
+    let zipsNormalized = 0;
+    Object.keys(merged).forEach(cacheKey => {
+      const cache = merged[cacheKey];
+      if (cache.cachedData && Array.isArray(cache.cachedData)) {
+        cache.cachedData = cache.cachedData.map(biz => {
+          let updated = biz;
+          let needsUpdate = false;
+
+          if (biz.zipCode && biz.zipCode.length > 5) {
+            updated = { ...updated, zipCode: truncateZipTo5(biz.zipCode) };
+            needsUpdate = true;
+          }
+          if (biz.actualZip && biz.actualZip.length > 5) {
+            updated = { ...updated, actualZip: truncateZipTo5(biz.actualZip) };
+            needsUpdate = true;
+          }
+          if (biz.zip && biz.zip.length > 5) {
+            updated = { ...updated, zip: truncateZipTo5(biz.zip) };
+            needsUpdate = true;
+          }
+
+          if (needsUpdate) zipsNormalized++;
+          return updated;
+        });
+      }
+    });
+
+    if (zipsNormalized > 0) {
+      console.log(`📍 Normalized ${zipsNormalized} ZIP codes in cache to 5-digit format`);
+    }
 
     // Keep FULL data in memory (for cloud sync and search results)
     placesCache.searches = merged;
@@ -9971,6 +10011,15 @@ async function loadManualProspects() {
     } else {
       console.log('⏭️ Cleanup already completed previously.');
     }
+
+    // v5 cleanup: Normalize ZIP codes to 5 digits
+    const hasRunZipCleanup = localStorage.getItem('hasRunZipNormalization_v5');
+    if (!hasRunZipCleanup) {
+      console.log('🔧 Running one-time ZIP code normalization (v5)...');
+      await normalizeAllZipCodes();
+      localStorage.setItem('hasRunZipNormalization_v5', 'true');
+      console.log('✅ ZIP normalization complete. Will not run again.');
+    }
   } catch(err) {
     console.error('Error loading manual prospects:', err);
   }
@@ -10044,6 +10093,62 @@ async function cleanupProspectPoolEnrichment() {
 
 // Expose cleanup function globally (can be called from console)
 window.cleanupProspectPoolEnrichment = cleanupProspectPoolEnrichment;
+
+// One-time cleanup v5: Normalize all ZIP codes to 5 digits
+async function normalizeAllZipCodes() {
+  console.log('🧹 Starting ZIP code normalization (v5)...');
+  console.log(`Total items to process: ${prospectPoolState.manualProspects.length}`);
+
+  let normalized = 0;
+  prospectPoolState.manualProspects = prospectPoolState.manualProspects.map(prospect => {
+    let needsUpdate = false;
+    const updated = { ...prospect };
+
+    // Normalize zipCode field
+    if (prospect.zipCode && prospect.zipCode.length > 5) {
+      updated.zipCode = truncateZipTo5(prospect.zipCode);
+      needsUpdate = true;
+    }
+
+    // Normalize actualZip field
+    if (prospect.actualZip && prospect.actualZip.length > 5) {
+      updated.actualZip = truncateZipTo5(prospect.actualZip);
+      needsUpdate = true;
+    }
+
+    // Normalize zip field
+    if (prospect.zip && prospect.zip.length > 5) {
+      updated.zip = truncateZipTo5(prospect.zip);
+      needsUpdate = true;
+    }
+
+    // Normalize searchedZipCode field
+    if (prospect.searchedZipCode && prospect.searchedZipCode.length > 5) {
+      updated.searchedZipCode = truncateZipTo5(prospect.searchedZipCode);
+      needsUpdate = true;
+    }
+
+    if (needsUpdate) {
+      normalized++;
+      console.log(`📍 Normalized ZIP for: ${prospect.businessName || prospect.name} (${prospect.zipCode} → ${updated.zipCode})`);
+    }
+
+    return needsUpdate ? updated : prospect;
+  });
+
+  console.log(`✅ Normalized ZIP codes for ${normalized} prospects`);
+
+  if (normalized > 0) {
+    // Save to cloud and localStorage
+    await saveManualProspects();
+    toast(`📍 Normalized ${normalized} ZIP codes to 5-digit format`, true);
+  }
+
+  console.log('✅ ZIP normalization complete!');
+}
+
+// Expose ZIP normalization function globally
+window.normalizeAllZipCodes = normalizeAllZipCodes;
 
 // Toggle selection of a prospect in Prospecting column
 function toggleProspectingSelection(leadId) {
@@ -12942,9 +13047,12 @@ function clearCacheByZip(zipCode) {
     return;
   }
 
-  // Check for manual prospects with this ZIP first
+  // Check for manual prospects with this ZIP first (normalize to 5 digits for comparison)
+  const normalizedZip = truncateZipTo5(zipCode);
   const manualMatches = prospectPoolState.manualProspects.filter(p =>
-    (p.actualZip === zipCode) || (p.zipCode === zipCode) || (p.zip === zipCode)
+    truncateZipTo5(p.actualZip) === normalizedZip ||
+    truncateZipTo5(p.zipCode) === normalizedZip ||
+    truncateZipTo5(p.zip) === normalizedZip
   );
   const manualCount = manualMatches.length;
 
@@ -12964,7 +13072,9 @@ function clearCacheByZip(zipCode) {
     const cache = placesCache.searches[key];
     if (cache && cache.cachedData && Array.isArray(cache.cachedData)) {
       const matchingBusinesses = cache.cachedData.filter(b =>
-        (b.actualZip === zipCode) || (b.zipCode === zipCode) || (b.zip === zipCode)
+        truncateZipTo5(b.actualZip) === normalizedZip ||
+        truncateZipTo5(b.zipCode) === normalizedZip ||
+        truncateZipTo5(b.zip) === normalizedZip
       );
       if (matchingBusinesses.length > 0) {
         otherKeysWithMatches.push({ key, count: matchingBusinesses.length });
@@ -19408,6 +19518,30 @@ async function loadCampaignBoards() {
             business.channelStatus = channelStatus;
           }
         });
+
+        // Normalize ZIP codes to 5 digits for all items in all columns
+        Object.keys(board.columns).forEach(colKey => {
+          board.columns[colKey] = board.columns[colKey].map(item => {
+            let updated = item;
+            if (item.zipCode && item.zipCode.length > 5) {
+              updated = { ...updated, zipCode: truncateZipTo5(item.zipCode) };
+            }
+            if (item.actualZip && item.actualZip.length > 5) {
+              updated = { ...updated, actualZip: truncateZipTo5(item.actualZip) };
+            }
+            if (item.zip && item.zip.length > 5) {
+              updated = { ...updated, zip: truncateZipTo5(item.zip) };
+            }
+            return updated;
+          });
+        });
+
+        // Normalize targetZips in config
+        if (board.config.targetZips && Array.isArray(board.config.targetZips)) {
+          board.config.targetZips = board.config.targetZips.map(zip =>
+            zip && zip.length > 5 ? truncateZipTo5(zip) : zip
+          );
+        }
       });
       campaignBoardsState.boards = data;
     }

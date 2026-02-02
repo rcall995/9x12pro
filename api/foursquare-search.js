@@ -110,8 +110,8 @@ export default async function handler(req, res) {
         fullAddress: formatFullAddress(location),
         city: location.locality || location.region || '',
         state: location.region || '',
-        zip: location.postcode || zipCode,
-        zipCode: location.postcode || zipCode,
+        zip: (location.postcode || zipCode || '').substring(0, 5),
+        zipCode: (location.postcode || zipCode || '').substring(0, 5),
         phone: formatPhone(place.tel),
         website: place.website || '',
         email: place.email || '',
@@ -138,7 +138,7 @@ export default async function handler(req, res) {
     // but mark which ones match the exact ZIP
     const zipFiltered = businesses.map(biz => ({
       ...biz,
-      exactZipMatch: biz.zip === zipCode
+      exactZipMatch: biz.zip.substring(0, 5) === zipCode.substring(0, 5)
     }));
 
     // Log enrichment stats

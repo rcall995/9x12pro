@@ -75,7 +75,7 @@ export default async function handler(req, res) {
       address: biz.location?.address1 || '',
       city: biz.location?.city || '',
       state: biz.location?.state || '',
-      zip: biz.location?.zip_code || '',
+      zip: (biz.location?.zip_code || '').substring(0, 5),
       phone: biz.display_phone || biz.phone || '',
       website: biz.url || '', // Yelp URL (not actual business website)
       rating: biz.rating || 0,
