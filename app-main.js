@@ -12747,152 +12747,32 @@ function clearProspectPool() {
 }
 
 // Select all businesses in a category (check their checkboxes)
+// SIMPLIFIED: Uses renderedProspects which already has all filtering/deduplication applied
 function selectAllInCategory(category) {
   console.log('🔍 selectAllInCategory called with:', category);
 
-  // Use existing truncateZipTo5 function (defined elsewhere) for ZIP normalization
-  const normalizeZip = (zip) => truncateZipTo5(zip) || '';
-
-  // Get active ZIP filter (if any) - check both possible containers
-  let zipCheckboxes = document.querySelectorAll('#prospectPoolZipCheckboxes input[type="checkbox"]:checked');
-  if (zipCheckboxes.length === 0) {
-    zipCheckboxes = document.querySelectorAll('#inlineProspectPoolZipCheckboxes input[type="checkbox"]:checked');
-  }
-  const activeZips = new Set();
-  let allZipsSelected = false;
-  zipCheckboxes.forEach(cb => {
-    if (cb.value === 'all') {
-      allZipsSelected = true;
-    } else {
-      // Normalize ZIP to 5 digits when adding to filter set
-      activeZips.add(normalizeZip(cb.value));
-    }
-  });
-  // If "ALL" is checked, don't filter by ZIP
-  const hasZipFilter = !allZipsSelected && activeZips.size > 0;
-  console.log('🔍 ZIP filter active:', hasZipFilter, 'Active ZIPs:', [...activeZips]);
-
-  // Build set of IDs already in system (to skip)
-  // NOTE: Only check Campaign Board columns, NOT CRM clients - existing clients should still be
-  // available to add for the current campaign (matches renderProspectPool behavior)
-  // Uses Campaign Board as single source of truth
-  const existingPlaceIds = getCampaignBoardPlaceIds();
-
-  // First pass: collect all eligible IDs in this category (respecting ZIP filter)
-  // Use same deduplication logic as renderProspectPool: track both placeIds AND normalized names
+  // Use the renderedProspects lookup table - this contains exactly what's displayed
+  // All filtering, deduplication, and ZIP matching is already done by renderProspectPool
   const eligibleIds = new Set();
-  const seenPlaceIds = new Set();
-  const seenNames = new Set();
 
-  // Helper to normalize name for deduplication (same as renderProspectPool uses)
-  const normalizeNameForDedup = (name) => {
-    if (!name) return '';
-    return name.toLowerCase()
-      .replace(/&/g, 'and')
-      .replace(/[''`]/g, '')
-      .replace(/[^a-z0-9]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-  };
-
-  // From manual prospects FIRST (they take priority, same as display)
-  let manualMatched = 0;
-  let manualSkippedCategory = 0;
-  let manualSkippedZip = 0;
-  let manualSkippedExisting = 0;
-
-  prospectPoolState.manualProspects.forEach(prospect => {
-    // Normalize category to canonical form to match display grouping
+  Object.entries(prospectPoolState.renderedProspects || {}).forEach(([id, prospect]) => {
+    // Normalize the prospect's category to match the button's category
     const prospectCategory = normalizeCategory(prospect.category || 'other');
-    if (prospectCategory !== category) {
-      manualSkippedCategory++;
-      return;
+
+    // Only include if:
+    // 1. Category matches
+    // 2. Not already in system (inSystem flag)
+    if (prospectCategory === category && !prospect.inSystem) {
+      eligibleIds.add(id);
     }
-    const prospectId = prospect.placeId || prospect.id;
-    if (existingPlaceIds.has(prospectId)) {
-      manualSkippedExisting++;
-      return;
-    }
-    // ZIP filter check - normalize ZIP to 5 digits for comparison
-    if (hasZipFilter) {
-      const prospectZip = normalizeZip(prospect.actualZip || prospect.zipCode || '');
-      if (!activeZips.has(prospectZip)) {
-        manualSkippedZip++;
-        return;
-      }
-    }
-    manualMatched++;
-    eligibleIds.add(prospectId);
-    // Track for deduplication
-    seenPlaceIds.add(prospectId);
-    const normalizedName = normalizeNameForDedup(prospect.businessName || prospect.name || prospect.title);
-    if (normalizedName) seenNames.add(normalizedName);
   });
-  console.log(`🔍 Manual prospects: ${manualMatched} matched, ${manualSkippedCategory} wrong category, ${manualSkippedZip} wrong ZIP, ${manualSkippedExisting} already in system`);
 
-  // From search cache - use endsWith for robust category matching (handles categories with dashes)
-  // Also check underscore format since cache keys use underscores but UI uses spaces
-  // IMPORTANT: Skip duplicates by placeId OR normalized name (same as display)
-  const categoryWithUnderscores = category.replace(/ /g, '_');
+  console.log(`🔍 Found ${eligibleIds.size} eligible businesses in rendered prospects for category "${category}"`);
 
-  let cacheMatched = 0;
-  let cacheSkippedCategory = 0;
-  let cacheSkippedZip = 0;
-  let cacheSkippedDuplicate = 0;
-  const cacheKeysChecked = Object.keys(placesCache.searches);
-  console.log(`🔍 Checking ${cacheKeysChecked.length} cache keys for category "${category}" or "${categoryWithUnderscores}"`);
-
-  cacheKeysChecked.forEach(cacheKey => {
-    // Check both space and underscore formats for category matching
-    let matchedCategory = null;
-    if (cacheKey.endsWith(`-${category}`)) {
-      matchedCategory = category;
-    } else if (cacheKey.endsWith(`-${categoryWithUnderscores}`)) {
-      matchedCategory = categoryWithUnderscores;
-    } else {
-      cacheSkippedCategory++;
-      return; // No match
-    }
-
-    // Extract ZIP code from cache key (everything before the last dash + category)
-    const searchedZipCode = cacheKey.substring(0, cacheKey.length - matchedCategory.length - 1);
-    const normalizedSearchedZip = normalizeZip(searchedZipCode);
-
-    // ZIP filter: only include cache entries matching active ZIP filter (normalized to 5 digits)
-    if (hasZipFilter && !activeZips.has(normalizedSearchedZip)) {
-      cacheSkippedZip++;
-      return;
-    }
-    cacheMatched++;
-
-    const cached = placesCache.searches[cacheKey];
-    if (!cached.cachedData) return;
-
-    cached.cachedData.forEach(business => {
-      // Skip if already in system
-      if (business.placeId && existingPlaceIds.has(business.placeId)) return;
-      if (notInterestedState?.placeIds?.has(business.placeId)) return;
-
-      // Skip duplicates by placeId (already added from manual prospects)
-      if (business.placeId && seenPlaceIds.has(business.placeId)) {
-        cacheSkippedDuplicate++;
-        return;
-      }
-
-      // Skip duplicates by normalized name (catches "& vs and" variations)
-      const normalizedName = normalizeNameForDedup(business.name || business.businessName || business.title);
-      if (normalizedName && seenNames.has(normalizedName)) {
-        cacheSkippedDuplicate++;
-        return;
-      }
-
-      eligibleIds.add(business.placeId);
-      seenPlaceIds.add(business.placeId);
-      if (normalizedName) seenNames.add(normalizedName);
-    });
-  });
-  console.log(`🔍 Cache search: ${cacheMatched} cache entries matched, ${cacheSkippedCategory} wrong category, ${cacheSkippedZip} wrong ZIP, ${cacheSkippedDuplicate} duplicates skipped`);
-  console.log(`🔍 Total eligible IDs found: ${eligibleIds.size}`);
+  if (eligibleIds.size === 0) {
+    toast('No businesses available in this category', false);
+    return;
+  }
 
   // Check if all eligible are already selected (toggle logic)
   let allSelected = true;
@@ -12905,7 +12785,7 @@ function selectAllInCategory(category) {
   let actionTaken = '';
   let count = 0;
 
-  if (allSelected && eligibleIds.size > 0) {
+  if (allSelected) {
     // UNCHECK all eligible
     eligibleIds.forEach(id => {
       prospectPoolState.selectedIds.delete(id);
@@ -12921,19 +12801,23 @@ function selectAllInCategory(category) {
     actionTaken = 'selected';
   }
 
-  // Update UI
-  renderProspectPool();
+  // Update UI - just update checkboxes and count, don't re-render entire pool
   updatePoolSelectedCount();
 
-  const zipNote = hasZipFilter ? ` (filtered by ZIP)` : '';
-  if (count > 0) {
-    if (actionTaken === 'selected') {
-      toast(`✅ Selected ${count} ${category.replace(/_/g, ' ')} businesses${zipNote}. Click "Start Outreach" to add them.`, true);
-    } else {
-      toast(`☐ Unchecked ${count} ${category.replace(/_/g, ' ')} businesses${zipNote}`, true);
+  // Update checkbox states in DOM
+  eligibleIds.forEach(id => {
+    const checkbox = document.querySelector(`input[type="checkbox"][value="${id}"]`);
+    if (checkbox) {
+      checkbox.checked = (actionTaken === 'selected');
     }
+  });
+
+  // Show toast
+  const categoryDisplay = category.replace(/_/g, ' ');
+  if (actionTaken === 'selected') {
+    toast(`✅ Selected ${count} ${categoryDisplay} businesses. Click "Add to Pipeline" to add them.`, true);
   } else {
-    toast('No businesses available in this category' + zipNote, false);
+    toast(`☐ Unchecked ${count} ${categoryDisplay} businesses`, true);
   }
 }
 window.selectAllInCategory = selectAllInCategory;
