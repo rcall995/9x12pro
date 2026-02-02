@@ -10020,6 +10020,15 @@ async function loadManualProspects() {
       localStorage.setItem('hasRunZipNormalization_v5', 'true');
       console.log('✅ ZIP normalization complete. Will not run again.');
     }
+
+    // v6 cleanup: Normalize categories to canonical form
+    const hasRunCategoryCleanup = localStorage.getItem('hasRunCategoryNormalization_v6');
+    if (!hasRunCategoryCleanup) {
+      console.log('🔧 Running one-time category normalization (v6)...');
+      await normalizeAllCategories();
+      localStorage.setItem('hasRunCategoryNormalization_v6', 'true');
+      console.log('✅ Category normalization complete. Will not run again.');
+    }
   } catch(err) {
     console.error('Error loading manual prospects:', err);
   }
@@ -10149,6 +10158,84 @@ async function normalizeAllZipCodes() {
 
 // Expose ZIP normalization function globally
 window.normalizeAllZipCodes = normalizeAllZipCodes;
+
+// One-time cleanup v6: Normalize all categories to canonical form
+async function normalizeAllCategories() {
+  console.log('🧹 Starting category normalization (v6)...');
+
+  let manualNormalized = 0;
+  let cacheNormalized = 0;
+  const categoryChanges = {}; // Track what changed for logging
+
+  // 1. Normalize manual prospects
+  console.log(`Processing ${prospectPoolState.manualProspects.length} manual prospects...`);
+  prospectPoolState.manualProspects = prospectPoolState.manualProspects.map(prospect => {
+    if (prospect.category) {
+      const original = prospect.category;
+      const normalized = normalizeCategory(original);
+      if (original !== normalized) {
+        manualNormalized++;
+        const key = `${original} → ${normalized}`;
+        categoryChanges[key] = (categoryChanges[key] || 0) + 1;
+        return { ...prospect, category: normalized };
+      }
+    }
+    return prospect;
+  });
+
+  // 2. Normalize places cache
+  const cacheKeys = Object.keys(placesCache.searches);
+  console.log(`Processing ${cacheKeys.length} cache entries...`);
+
+  cacheKeys.forEach(cacheKey => {
+    const cache = placesCache.searches[cacheKey];
+    if (cache.cachedData && Array.isArray(cache.cachedData)) {
+      cache.cachedData = cache.cachedData.map(biz => {
+        if (biz.category) {
+          const original = biz.category;
+          const normalized = normalizeCategory(original);
+          if (original !== normalized) {
+            cacheNormalized++;
+            const key = `${original} → ${normalized}`;
+            categoryChanges[key] = (categoryChanges[key] || 0) + 1;
+            return { ...biz, category: normalized };
+          }
+        }
+        return biz;
+      });
+    }
+  });
+
+  // Log changes
+  console.log(`\n📊 Category normalization summary:`);
+  console.log(`   Manual prospects: ${manualNormalized} normalized`);
+  console.log(`   Cache businesses: ${cacheNormalized} normalized`);
+  if (Object.keys(categoryChanges).length > 0) {
+    console.log(`\n📝 Changes made:`);
+    Object.entries(categoryChanges).sort((a, b) => b[1] - a[1]).forEach(([change, count]) => {
+      console.log(`   ${change}: ${count} items`);
+    });
+  }
+
+  // Save if changes were made
+  if (manualNormalized > 0) {
+    await saveManualProspects();
+  }
+  if (cacheNormalized > 0) {
+    await savePlacesCache();
+  }
+
+  if (manualNormalized > 0 || cacheNormalized > 0) {
+    toast(`📁 Normalized ${manualNormalized + cacheNormalized} categories`, true);
+    // Re-render to show merged categories
+    renderProspectPool();
+  }
+
+  console.log('✅ Category normalization complete!');
+}
+
+// Expose category normalization function globally
+window.normalizeAllCategories = normalizeAllCategories;
 
 // Toggle selection of a prospect in Prospecting column
 function toggleProspectingSelection(leadId) {
@@ -11599,8 +11686,9 @@ function renderProspectPool() {
         return;
       }
 
-      // Normalize category to lowercase and replace underscores with spaces for consistent grouping
-      const category = (prospect.category || 'other').toLowerCase().trim().replace(/_/g, ' ');
+      // Normalize category to canonical form for consistent grouping
+      // This merges "Plumbing", "Plumber", "Plumbing Service" into "plumber"
+      const category = normalizeCategory(prospect.category || 'other');
       if (!unifiedByCategory[category]) {
         unifiedByCategory[category] = [];
       }
@@ -11647,8 +11735,8 @@ function renderProspectPool() {
   let searchProspectsSkipped = 0;
 
   Object.keys(categorizedProspects).forEach(rawCategory => {
-    // Normalize category to lowercase for consistent grouping
-    const category = rawCategory.toLowerCase().trim().replace(/_/g, ' ');
+    // Normalize category to canonical form for consistent grouping
+    const category = normalizeCategory(rawCategory);
     if (!unifiedByCategory[category]) {
       unifiedByCategory[category] = [];
     }
@@ -12714,8 +12802,8 @@ function selectAllInCategory(category) {
   let manualSkippedExisting = 0;
 
   prospectPoolState.manualProspects.forEach(prospect => {
-    // Normalize category to match UI format (lowercase with spaces)
-    const prospectCategory = (prospect.category || 'other').toLowerCase().trim().replace(/_/g, ' ');
+    // Normalize category to canonical form to match display grouping
+    const prospectCategory = normalizeCategory(prospect.category || 'other');
     if (prospectCategory !== category) {
       manualSkippedCategory++;
       return;
@@ -12856,10 +12944,111 @@ function addAllCategoryToKanban(category) {
 }
 window.addAllCategoryToKanban = addAllCategoryToKanban;
 
-// Common business categories for dropdown
+// ========= CATEGORY NORMALIZATION SYSTEM =========
+// Maps various category names to canonical categories
+// This ensures "Plumbing", "Plumber", "Plumbing Service" all become "plumber"
+const CATEGORY_ALIASES = {
+  // Canonical category: [list of aliases that map to it]
+  'accountant': ['accountant', 'accounting', 'cpa', 'bookkeeper', 'bookkeeping', 'tax preparer', 'tax preparation', 'tax service'],
+  'auto_detailing': ['auto detailing', 'car detailing', 'vehicle detailing', 'auto detail', 'car detail', 'detailing', 'mobile detailing'],
+  'auto_repair': ['auto repair', 'car repair', 'mechanic', 'auto mechanic', 'car mechanic', 'automotive repair', 'auto service', 'car service', 'auto shop', 'garage'],
+  'bakery': ['bakery', 'baker', 'bake shop', 'pastry shop', 'cake shop'],
+  'bar': ['bar', 'pub', 'tavern', 'nightclub', 'lounge', 'sports bar', 'wine bar', 'cocktail bar'],
+  'barber': ['barber', 'barbershop', 'barber shop', 'mens haircut', 'mens grooming'],
+  'cafe': ['cafe', 'coffee shop', 'coffee house', 'coffeehouse', 'espresso bar', 'tea house'],
+  'car_wash': ['car wash', 'auto wash', 'car washing', 'auto spa', 'vehicle wash'],
+  'chiropractor': ['chiropractor', 'chiropractic', 'chiropractic clinic', 'spine doctor', 'back doctor'],
+  'contractor': ['contractor', 'general contractor', 'construction', 'builder', 'home builder', 'remodeling', 'renovation'],
+  'dentist': ['dentist', 'dental', 'dental office', 'dental clinic', 'dental practice', 'orthodontist', 'oral surgeon'],
+  'doctor': ['doctor', 'physician', 'medical', 'clinic', 'medical office', 'family medicine', 'primary care', 'healthcare'],
+  'dry_cleaner': ['dry cleaner', 'dry cleaning', 'laundry', 'laundromat', 'cleaners', 'alterations'],
+  'electrician': ['electrician', 'electrical', 'electrical contractor', 'electric', 'electrical service', 'electrical repair'],
+  'florist': ['florist', 'flower shop', 'floral', 'flowers', 'floral design', 'flower delivery'],
+  'funeral_home': ['funeral home', 'funeral', 'mortuary', 'funeral service', 'cremation', 'memorial'],
+  'gift_shop': ['gift shop', 'gift store', 'gifts', 'novelty', 'souvenir', 'card shop'],
+  'groomer': ['groomer', 'pet grooming', 'dog grooming', 'pet groomer', 'dog groomer', 'cat grooming', 'animal grooming'],
+  'gym': ['gym', 'fitness', 'fitness center', 'health club', 'workout', 'exercise', 'crossfit', 'personal training'],
+  'hvac': ['hvac', 'hvac contractor', 'heating', 'air conditioning', 'ac repair', 'heating and cooling', 'furnace', 'heat pump', 'ac service'],
+  'insurance': ['insurance', 'insurance agent', 'insurance agency', 'insurance broker', 'auto insurance', 'home insurance', 'life insurance'],
+  'jewelry': ['jewelry', 'jeweler', 'jewelry store', 'jewelers', 'jewelry repair', 'watch repair', 'gold buyer'],
+  'landscaping': ['landscaping', 'landscaper', 'lawn care', 'lawn service', 'yard work', 'garden', 'gardening', 'lawn maintenance', 'tree service'],
+  'lawyer': ['lawyer', 'attorney', 'law firm', 'legal', 'law office', 'legal service', 'paralegal'],
+  'martial_arts': ['martial arts', 'karate', 'taekwondo', 'jiu jitsu', 'mma', 'boxing', 'kickboxing', 'self defense', 'dojo'],
+  'nail_salon': ['nail salon', 'nails', 'manicure', 'pedicure', 'nail spa', 'nail bar', 'nail tech'],
+  'pet_store': ['pet store', 'pet shop', 'pet supplies', 'pet food', 'aquarium', 'fish store'],
+  'pizza': ['pizza', 'pizzeria', 'pizza shop', 'pizza restaurant', 'pizza delivery'],
+  'plumber': ['plumber', 'plumbing', 'plumbing service', 'plumbing contractor', 'drain cleaning', 'pipe repair', 'water heater'],
+  'real_estate': ['real estate', 'realtor', 'real estate agent', 'real estate broker', 'property', 'realty', 'home sales'],
+  'restaurant': ['restaurant', 'dining', 'eatery', 'food', 'diner', 'bistro', 'grill', 'kitchen'],
+  'roofing': ['roofing', 'roofer', 'roof repair', 'roofing contractor', 'roof replacement', 'roof installation'],
+  'salon': ['salon', 'hair salon', 'beauty salon', 'hairdresser', 'hair stylist', 'beauty shop', 'hair care', 'cosmetology'],
+  'spa': ['spa', 'day spa', 'massage', 'massage therapy', 'wellness', 'relaxation', 'facial', 'body treatment'],
+  'tailor': ['tailor', 'alterations', 'seamstress', 'clothing alterations', 'suit tailor', 'dress alterations'],
+  'tire_shop': ['tire shop', 'tire store', 'tires', 'tire service', 'tire repair', 'wheel alignment', 'tire center'],
+  'veterinarian': ['veterinarian', 'vet', 'veterinary', 'animal hospital', 'pet clinic', 'animal clinic', 'pet hospital', 'vet clinic'],
+  'yoga': ['yoga', 'yoga studio', 'pilates', 'yoga class', 'hot yoga', 'meditation'],
+  'other': ['other', 'miscellaneous', 'general', 'unknown']
+};
+
+// Build reverse lookup: alias -> canonical category
+const CATEGORY_LOOKUP = {};
+Object.keys(CATEGORY_ALIASES).forEach(canonical => {
+  CATEGORY_ALIASES[canonical].forEach(alias => {
+    // Store lowercase version for case-insensitive lookup
+    CATEGORY_LOOKUP[alias.toLowerCase()] = canonical;
+  });
+});
+
+/**
+ * Normalize a category string to its canonical form
+ * "Plumbing Service" -> "plumber"
+ * "HVAC Contractor" -> "hvac"
+ * @param {string} category - Raw category string
+ * @returns {string} - Canonical category (lowercase with underscores)
+ */
+function normalizeCategory(category) {
+  if (!category) return 'other';
+
+  // Clean up the input: lowercase, trim, replace underscores with spaces
+  const cleaned = category.toLowerCase().trim().replace(/_/g, ' ');
+
+  // Direct lookup
+  if (CATEGORY_LOOKUP[cleaned]) {
+    return CATEGORY_LOOKUP[cleaned];
+  }
+
+  // Try partial matching - check if any alias is contained in the category
+  // e.g., "Joe's Plumbing Service LLC" contains "plumbing service"
+  for (const [canonical, aliases] of Object.entries(CATEGORY_ALIASES)) {
+    for (const alias of aliases) {
+      if (cleaned.includes(alias.toLowerCase())) {
+        return canonical;
+      }
+    }
+  }
+
+  // Try matching the other way - category contained in alias
+  // e.g., "hvac" is contained in "hvac contractor"
+  for (const [canonical, aliases] of Object.entries(CATEGORY_ALIASES)) {
+    for (const alias of aliases) {
+      if (alias.toLowerCase().includes(cleaned) && cleaned.length >= 3) {
+        return canonical;
+      }
+    }
+  }
+
+  // No match found - return cleaned version with underscores
+  return cleaned.replace(/ /g, '_') || 'other';
+}
+
+// Expose globally for console access
+window.normalizeCategory = normalizeCategory;
+window.CATEGORY_ALIASES = CATEGORY_ALIASES;
+
+// Common business categories for dropdown (canonical names)
 const BUSINESS_CATEGORIES = [
-  'accountant', 'auto_repair', 'bakery', 'bar', 'barber',
-  'cafe', 'car_wash', 'chiropractor', 'coffee_shop', 'contractor',
+  'accountant', 'auto_detailing', 'auto_repair', 'bakery', 'bar', 'barber',
+  'cafe', 'car_wash', 'chiropractor', 'contractor',
   'dentist', 'doctor', 'dry_cleaner',
   'electrician',
   'florist', 'funeral_home',
@@ -12916,7 +13105,7 @@ function editProspectCategory(placeId, currentCategory) {
 
 function applyProspectCategoryChange(placeId, oldCategory) {
   const select = document.getElementById('categorySelect');
-  const newCategory = select.value;
+  const newCategory = normalizeCategory(select.value);
 
   // Close modal
   document.getElementById('categoryEditModal')?.remove();
@@ -15050,7 +15239,7 @@ document.getElementById('addManualBusinessForm').addEventListener('submit', func
     id: 'manual_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
     name: document.getElementById('manualBusinessName').value.trim(),
     businessName: document.getElementById('manualBusinessName').value.trim(),
-    category: document.getElementById('manualBusinessCategory').value.trim(),
+    category: normalizeCategory(document.getElementById('manualBusinessCategory').value.trim()),
     address: document.getElementById('manualBusinessAddress').value.trim(),
     town: document.getElementById('manualBusinessTown').value.trim(),
     zipCode: truncateZipTo5(document.getElementById('manualBusinessZip').value.trim()) || '',
