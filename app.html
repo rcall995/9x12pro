@@ -43,7 +43,7 @@
     };
   </script>
   <!-- Core Utilities - Load First (synchronous for dependencies) -->
-  <script src="config.js?v=436"></script>
+  <script src="config.js?v=452"></script>
   <script src="error-handler.js"></script>
   <script src="utils.js"></script>
 
@@ -3310,10 +3310,10 @@
   <script src="performance-loader.js" defer></script>
 
   <!-- Main Application JavaScript (Refactored) -->
-  <script src="app-main.js?v=436" defer></script>
+  <script src="app-main.js?v=452" defer>
 
   <!-- Authentication -->
-  <script src="auth-root.js?v=436"></script>
+  <script src="auth-root.js?v=452"></script>
 
   <!-- PWA Service Worker Registration -->
   <script>
@@ -3324,27 +3324,28 @@
           .then((registration) => {
             console.log('✅ Service Worker registered:', registration.scope);
 
-            // Check for updates periodically (not on every load to avoid reload loops)
-            // Only check if we haven't checked in the last 5 minutes
-            const lastCheck = sessionStorage.getItem('sw-last-check');
-            const now = Date.now();
-            if (!lastCheck || (now - parseInt(lastCheck)) > 300000) {
-              sessionStorage.setItem('sw-last-check', now.toString());
-              registration.update();
-            }
+            // Always check for updates on every page load
+            registration.update().then(() => {
+              console.log('🔍 Service Worker update check completed');
+            }).catch(err => {
+              console.log('⚠️ Service Worker update check failed:', err);
+            });
 
-            // When a new service worker is found, let user know (don't auto-reload)
+            // When a new service worker is found
             registration.addEventListener('updatefound', () => {
               const newWorker = registration.installing;
+              console.log('📦 New Service Worker found, installing...');
+
               newWorker.addEventListener('statechange', () => {
+                console.log('📦 New SW state:', newWorker.state);
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                   // Check if we already reloaded recently (prevent loops)
                   const lastReload = sessionStorage.getItem('sw-last-reload');
-                  if (lastReload && (Date.now() - parseInt(lastReload)) < 60000) {
-                    console.log('⏭️ Skipping reload - already reloaded recently');
+                  if (lastReload && (Date.now() - parseInt(lastReload)) < 30000) {
+                    console.log('⏭️ Skipping reload - already reloaded in last 30s');
                     return;
                   }
-                  console.log('🔄 New version available - activating...');
+                  console.log('🔄 New version ready - activating and reloading...');
                   sessionStorage.setItem('sw-last-reload', Date.now().toString());
                   newWorker.postMessage({ type: 'SKIP_WAITING' });
                 }
@@ -3356,10 +3357,13 @@
           });
       });
 
-      // Handle service worker updates - log only, no auto-reload
-      // Auto-reload was causing issues in incognito and on new deployments
+      // Handle service worker controller change - auto-reload to get new version
+      let refreshing = false;
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        console.log('🔄 New service worker active - refresh manually if needed');
+        if (refreshing) return;
+        refreshing = true;
+        console.log('🔄 New service worker active - reloading page...');
+        window.location.reload();
       });
     }
   </script>

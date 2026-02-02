@@ -12538,6 +12538,11 @@ function clearProspectPool() {
 
 // Select all businesses in a category (check their checkboxes)
 function selectAllInCategory(category) {
+  console.log('🔍 selectAllInCategory called with:', category);
+
+  // Use existing truncateZipTo5 function (defined elsewhere) for ZIP normalization
+  const normalizeZip = (zip) => truncateZipTo5(zip) || '';
+
   // Get active ZIP filter (if any) - check both possible containers
   let zipCheckboxes = document.querySelectorAll('#prospectPoolZipCheckboxes input[type="checkbox"]:checked');
   if (zipCheckboxes.length === 0) {
@@ -12549,11 +12554,13 @@ function selectAllInCategory(category) {
     if (cb.value === 'all') {
       allZipsSelected = true;
     } else {
-      activeZips.add(cb.value);
+      // Normalize ZIP to 5 digits when adding to filter set
+      activeZips.add(normalizeZip(cb.value));
     }
   });
   // If "ALL" is checked, don't filter by ZIP
   const hasZipFilter = !allZipsSelected && activeZips.size > 0;
+  console.log('🔍 ZIP filter active:', hasZipFilter, 'Active ZIPs:', [...activeZips]);
 
   // Build set of IDs already in system (to skip)
   // NOTE: Only check Campaign Board columns, NOT CRM clients - existing clients should still be
@@ -12565,29 +12572,68 @@ function selectAllInCategory(category) {
   const eligibleIds = new Set();
 
   // From manual prospects
+  let manualMatched = 0;
+  let manualSkippedCategory = 0;
+  let manualSkippedZip = 0;
+  let manualSkippedExisting = 0;
+
   prospectPoolState.manualProspects.forEach(prospect => {
-    const prospectCategory = prospect.category || 'other';
-    if (prospectCategory !== category) return;
-    const prospectId = prospect.placeId || prospect.id;
-    if (existingPlaceIds.has(prospectId)) return;
-    // ZIP filter check
-    if (hasZipFilter) {
-      const prospectZip = prospect.actualZip || prospect.zipCode || '';
-      if (!activeZips.has(prospectZip)) return;
+    // Normalize category to match UI format (lowercase with spaces)
+    const prospectCategory = (prospect.category || 'other').toLowerCase().trim().replace(/_/g, ' ');
+    if (prospectCategory !== category) {
+      manualSkippedCategory++;
+      return;
     }
+    const prospectId = prospect.placeId || prospect.id;
+    if (existingPlaceIds.has(prospectId)) {
+      manualSkippedExisting++;
+      return;
+    }
+    // ZIP filter check - normalize ZIP to 5 digits for comparison
+    if (hasZipFilter) {
+      const prospectZip = normalizeZip(prospect.actualZip || prospect.zipCode || '');
+      if (!activeZips.has(prospectZip)) {
+        manualSkippedZip++;
+        return;
+      }
+    }
+    manualMatched++;
     eligibleIds.add(prospectId);
   });
+  console.log(`🔍 Manual prospects: ${manualMatched} matched, ${manualSkippedCategory} wrong category, ${manualSkippedZip} wrong ZIP, ${manualSkippedExisting} already in system`);
 
   // From search cache - use endsWith for robust category matching (handles categories with dashes)
-  Object.keys(placesCache.searches).forEach(cacheKey => {
-    // Use endsWith instead of split to handle categories with dashes like 'hvac-contractors'
-    if (!cacheKey.endsWith(`-${category}`)) return;
+  // Also check underscore format since cache keys use underscores but UI uses spaces
+  const categoryWithUnderscores = category.replace(/ /g, '_');
+
+  let cacheMatched = 0;
+  let cacheSkippedCategory = 0;
+  let cacheSkippedZip = 0;
+  const cacheKeysChecked = Object.keys(placesCache.searches);
+  console.log(`🔍 Checking ${cacheKeysChecked.length} cache keys for category "${category}" or "${categoryWithUnderscores}"`);
+
+  cacheKeysChecked.forEach(cacheKey => {
+    // Check both space and underscore formats for category matching
+    let matchedCategory = null;
+    if (cacheKey.endsWith(`-${category}`)) {
+      matchedCategory = category;
+    } else if (cacheKey.endsWith(`-${categoryWithUnderscores}`)) {
+      matchedCategory = categoryWithUnderscores;
+    } else {
+      cacheSkippedCategory++;
+      return; // No match
+    }
 
     // Extract ZIP code from cache key (everything before the last dash + category)
-    const searchedZipCode = cacheKey.substring(0, cacheKey.length - category.length - 1);
+    const searchedZipCode = cacheKey.substring(0, cacheKey.length - matchedCategory.length - 1);
+    const normalizedSearchedZip = normalizeZip(searchedZipCode);
 
-    // ZIP filter: only include cache entries matching active ZIP filter
-    if (hasZipFilter && !activeZips.has(searchedZipCode)) return;
+    // ZIP filter: only include cache entries matching active ZIP filter (normalized to 5 digits)
+    if (hasZipFilter && !activeZips.has(normalizedSearchedZip)) {
+      cacheSkippedZip++;
+      return;
+    }
+    cacheMatched++;
 
     const cached = placesCache.searches[cacheKey];
     if (!cached.cachedData) return;
@@ -12598,6 +12644,8 @@ function selectAllInCategory(category) {
       eligibleIds.add(business.placeId);
     });
   });
+  console.log(`🔍 Cache search: ${cacheMatched} cache entries matched, ${cacheSkippedCategory} wrong category, ${cacheSkippedZip} wrong ZIP`);
+  console.log(`🔍 Total eligible IDs found: ${eligibleIds.size}`);
 
   // Check if all eligible are already selected (toggle logic)
   let allSelected = true;

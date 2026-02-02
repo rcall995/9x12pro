@@ -5,7 +5,7 @@
  */
 
 // Update this version when you want to force a cache refresh
-const CACHE_VERSION = 'v247';
+const CACHE_VERSION = 'v248';
 const CACHE_NAME = `9x12-pro-${CACHE_VERSION}`;
 
 // Core app files to cache on install
@@ -32,39 +32,48 @@ const NEVER_CACHE_RESOURCES = [
   'https://maps.googleapis.com/maps/api/js'
 ];
 
-// Install event - cache resources
+// Install event - cache resources and immediately take over
 self.addEventListener('install', (event) => {
-  console.log('Service Worker: Installing...');
+  console.log('Service Worker: Installing v248...');
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('Service Worker: Caching files');
         return cache.addAll(urlsToCache);
       })
+      .then(() => {
+        console.log('Service Worker: skipWaiting - taking over immediately');
+        return self.skipWaiting();
+      })
       .catch((err) => {
         console.log('Service Worker: Cache failed', err);
+        // Still skip waiting even if caching fails
+        return self.skipWaiting();
       })
   );
-  self.skipWaiting();
 });
 
-// Activate event - clean up old caches
+// Activate event - clean up old caches and take control of all clients
 self.addEventListener('activate', (event) => {
-  console.log('Service Worker: Activated');
+  console.log('Service Worker: Activated v248');
   const currentCaches = [CACHE_NAME, CDN_CACHE_NAME];
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (!currentCaches.includes(cacheName)) {
-            console.log('Service Worker: Clearing old cache:', cacheName);
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
+    caches.keys()
+      .then((cacheNames) => {
+        return Promise.all(
+          cacheNames.map((cacheName) => {
+            if (!currentCaches.includes(cacheName)) {
+              console.log('Service Worker: Clearing old cache:', cacheName);
+              return caches.delete(cacheName);
+            }
+          })
+        );
+      })
+      .then(() => {
+        console.log('Service Worker: Claiming all clients');
+        return self.clients.claim();
+      })
   );
-  return self.clients.claim();
 });
 
 // Fetch event - serve from cache, fallback to network
