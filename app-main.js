@@ -11382,9 +11382,10 @@ function renderProspectPool() {
   const availableZips = new Set();
 
   // Add ZIP codes from manual prospects FIRST (so they appear in filter)
+  // Always normalize to 5 digits for consistent display
   prospectPoolState.manualProspects.forEach(prospect => {
     if (prospect.zipCode) {
-      availableZips.add(prospect.zipCode);
+      availableZips.add(truncateZipTo5(prospect.zipCode));
     }
   });
 
@@ -11432,8 +11433,8 @@ function renderProspectPool() {
         // Use smart ZIP extraction - tries actualZip, zip, address extraction, then searchedZipCode
         const businessZip = getProspectActualZip(business) || searchedZipCode;
 
-        // Track this ZIP as available for filtering
-        availableZips.add(businessZip);
+        // Track this ZIP as available for filtering (normalized to 5 digits)
+        availableZips.add(truncateZipTo5(businessZip));
 
         // Filter by selected ZIP codes (use actualZip, not searched ZIP)
         if (filterByZip && !selectedZips.includes(businessZip)) {
@@ -11476,7 +11477,13 @@ function renderProspectPool() {
 
   // Populate ZIP code checkboxes
   if (zipCheckboxContainer) {
-    const sortedZips = Array.from(availableZips).sort();
+    // Ensure all ZIPs are normalized to 5 digits and deduplicated
+    const normalizedZips = new Set();
+    availableZips.forEach(zip => {
+      const normalized = truncateZipTo5(zip);
+      if (normalized) normalizedZips.add(normalized);
+    });
+    const sortedZips = Array.from(normalizedZips).sort();
 
     // Determine what should be checked
     // Default: ALL is checked
@@ -11589,9 +11596,9 @@ function renderProspectPool() {
       }
       // Get the actual ZIP for this prospect (smart extraction)
       const actualZipForProspect = getProspectActualZip(prospect);
-      // Track this ZIP as available for filtering
+      // Track this ZIP as available for filtering (normalized to 5 digits)
       if (actualZipForProspect) {
-        availableZips.add(actualZipForProspect);
+        availableZips.add(truncateZipTo5(actualZipForProspect));
       }
 
       // Check if prospect has contact data (for enrichment status)
