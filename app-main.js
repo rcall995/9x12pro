@@ -12681,9 +12681,23 @@ function selectAllInCategory(category) {
   const existingPlaceIds = getCampaignBoardPlaceIds();
 
   // First pass: collect all eligible IDs in this category (respecting ZIP filter)
+  // Use same deduplication logic as renderProspectPool: track both placeIds AND normalized names
   const eligibleIds = new Set();
+  const seenPlaceIds = new Set();
+  const seenNames = new Set();
 
-  // From manual prospects
+  // Helper to normalize name for deduplication (same as renderProspectPool uses)
+  const normalizeNameForDedup = (name) => {
+    if (!name) return '';
+    return name.toLowerCase()
+      .replace(/&/g, 'and')
+      .replace(/[''`]/g, '')
+      .replace(/[^a-z0-9]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  // From manual prospects FIRST (they take priority, same as display)
   let manualMatched = 0;
   let manualSkippedCategory = 0;
   let manualSkippedZip = 0;
@@ -12711,16 +12725,22 @@ function selectAllInCategory(category) {
     }
     manualMatched++;
     eligibleIds.add(prospectId);
+    // Track for deduplication
+    seenPlaceIds.add(prospectId);
+    const normalizedName = normalizeNameForDedup(prospect.businessName || prospect.name || prospect.title);
+    if (normalizedName) seenNames.add(normalizedName);
   });
   console.log(`🔍 Manual prospects: ${manualMatched} matched, ${manualSkippedCategory} wrong category, ${manualSkippedZip} wrong ZIP, ${manualSkippedExisting} already in system`);
 
   // From search cache - use endsWith for robust category matching (handles categories with dashes)
   // Also check underscore format since cache keys use underscores but UI uses spaces
+  // IMPORTANT: Skip duplicates by placeId OR normalized name (same as display)
   const categoryWithUnderscores = category.replace(/ /g, '_');
 
   let cacheMatched = 0;
   let cacheSkippedCategory = 0;
   let cacheSkippedZip = 0;
+  let cacheSkippedDuplicate = 0;
   const cacheKeysChecked = Object.keys(placesCache.searches);
   console.log(`🔍 Checking ${cacheKeysChecked.length} cache keys for category "${category}" or "${categoryWithUnderscores}"`);
 
@@ -12751,12 +12771,29 @@ function selectAllInCategory(category) {
     if (!cached.cachedData) return;
 
     cached.cachedData.forEach(business => {
+      // Skip if already in system
       if (business.placeId && existingPlaceIds.has(business.placeId)) return;
       if (notInterestedState?.placeIds?.has(business.placeId)) return;
+
+      // Skip duplicates by placeId (already added from manual prospects)
+      if (business.placeId && seenPlaceIds.has(business.placeId)) {
+        cacheSkippedDuplicate++;
+        return;
+      }
+
+      // Skip duplicates by normalized name (catches "& vs and" variations)
+      const normalizedName = normalizeNameForDedup(business.name || business.businessName || business.title);
+      if (normalizedName && seenNames.has(normalizedName)) {
+        cacheSkippedDuplicate++;
+        return;
+      }
+
       eligibleIds.add(business.placeId);
+      seenPlaceIds.add(business.placeId);
+      if (normalizedName) seenNames.add(normalizedName);
     });
   });
-  console.log(`🔍 Cache search: ${cacheMatched} cache entries matched, ${cacheSkippedCategory} wrong category, ${cacheSkippedZip} wrong ZIP`);
+  console.log(`🔍 Cache search: ${cacheMatched} cache entries matched, ${cacheSkippedCategory} wrong category, ${cacheSkippedZip} wrong ZIP, ${cacheSkippedDuplicate} duplicates skipped`);
   console.log(`🔍 Total eligible IDs found: ${eligibleIds.size}`);
 
   // Check if all eligible are already selected (toggle logic)
