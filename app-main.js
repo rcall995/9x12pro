@@ -11437,9 +11437,14 @@ function renderProspectPool() {
         availableZips.add(truncateZipTo5(businessZip));
 
         // Filter by selected ZIP codes (use actualZip, not searched ZIP)
-        if (filterByZip && !selectedZips.includes(businessZip)) {
-          skippedByZip++;
-          return; // Skip if this business's actual ZIP doesn't match filter
+        // Normalize both sides to 5 digits for comparison
+        if (filterByZip) {
+          const normalizedBusinessZip = truncateZipTo5(businessZip);
+          const matchesFilter = selectedZips.some(sz => truncateZipTo5(sz) === normalizedBusinessZip);
+          if (!matchesFilter) {
+            skippedByZip++;
+            return; // Skip if this business's actual ZIP doesn't match filter
+          }
         }
 
         // Filter by contact data
@@ -11557,9 +11562,14 @@ function renderProspectPool() {
   prospectPoolState.manualProspects
     .filter(prospect => {
       // Filter by selected ZIP codes - use smart ZIP extraction
+      // Normalize both sides to 5 digits for comparison
       const prospectZip = getProspectActualZip(prospect);
-      if (filterByZip && prospectZip && !selectedZips.includes(prospectZip)) {
-        return false; // Skip if ZIP doesn't match filter
+      if (filterByZip && prospectZip) {
+        const normalizedProspectZip = truncateZipTo5(prospectZip);
+        const matchesFilter = selectedZips.some(sz => truncateZipTo5(sz) === normalizedProspectZip);
+        if (!matchesFilter) {
+          return false; // Skip if ZIP doesn't match filter
+        }
       }
       return true;
     })
