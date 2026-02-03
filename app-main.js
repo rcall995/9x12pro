@@ -6260,6 +6260,189 @@ class EnrichmentQueue {
 // Global enrichment queue instance
 const enrichmentQueue = new EnrichmentQueue();
 
+/**
+ * Re-enrich pipeline businesses that are missing contact data
+ * This restores data that may have been lost due to the enrichment bug
+ * Fetches fresh data from Serper (website, FB, IG) and scrapes for email
+ */
+async function reEnrichPipelineBusinesses() {
+  const board = getCurrentCampaignBoard();
+  if (!board) {
+    toast('No campaign board found', false);
+    return;
+  }
+
+  // Collect all businesses from all columns
+  const allBusinesses = [];
+  Object.keys(board.columns || {}).forEach(colKey => {
+    const column = board.columns[colKey];
+    if (Array.isArray(column)) {
+      column.forEach((business, index) => {
+        if (business && business.businessName) {
+          allBusinesses.push({ business, colKey, index });
+        }
+      });
+    }
+  });
+
+  // Find businesses missing contact data (candidates for re-enrichment)
+  const needsEnrichment = allBusinesses.filter(({ business }) => {
+    // Missing email OR missing social media
+    const missingEmail = !business.email;
+    const missingSocial = !business.facebook && !business.instagram;
+    // Has a name we can search for
+    const hasName = business.businessName && business.businessName !== 'Unknown Business';
+    return hasName && (missingEmail || missingSocial);
+  });
+
+  if (needsEnrichment.length === 0) {
+    toast('All businesses already have contact data!', true);
+    return;
+  }
+
+  const confirmMsg = `Found ${needsEnrichment.length} businesses missing contact data.\n\nThis will use Serper API credits to search for:\n- Business websites\n- Facebook pages\n- Instagram profiles\n- Emails (from website scraping)\n\nProceed with re-enrichment?`;
+
+  if (!confirm(confirmMsg)) {
+    return;
+  }
+
+  // Show progress
+  const progressToast = document.createElement('div');
+  progressToast.id = 're-enrich-progress';
+  progressToast.style.cssText = `
+    position: fixed;
+    top: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 16px 24px;
+    border-radius: 12px;
+    font-weight: bold;
+    z-index: 99999;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  `;
+  progressToast.textContent = `Re-enriching 0/${needsEnrichment.length}...`;
+  document.body.appendChild(progressToast);
+
+  let enrichedCount = 0;
+  let foundData = { websites: 0, emails: 0, facebook: 0, instagram: 0 };
+
+  for (let i = 0; i < needsEnrichment.length; i++) {
+    const { business, colKey, index } = needsEnrichment[i];
+    const businessName = business.businessName;
+    const location = business.address ? business.address.split(',').slice(-2).join(',').trim() : (business.town || '');
+
+    progressToast.textContent = `Re-enriching ${i + 1}/${needsEnrichment.length}: ${businessName.substring(0, 30)}...`;
+
+    try {
+      // Search for website if missing
+      if (!business.website) {
+        const websiteQuery = `${businessName} ${location} official website`;
+        const website = await searchBusinessWebsite(websiteQuery, businessName);
+        if (website && !website.includes('yelp.com') && !website.includes('facebook.com') && !website.includes('instagram.com')) {
+          business.website = website;
+          foundData.websites++;
+          console.log(`✅ Found website for ${businessName}: ${website}`);
+        }
+      }
+
+      // Search for Facebook if missing
+      if (!business.facebook) {
+        const fbQuery = `${businessName} ${location} site:facebook.com`;
+        const fbResult = await searchBusinessWebsite(fbQuery, businessName);
+        if (fbResult && fbResult.includes('facebook.com') && !fbResult.includes('instagram.com')) {
+          let cleanFbUrl = fbResult;
+          if (fbResult.includes('/posts/') || fbResult.includes('/photos/')) {
+            const pageMatch = fbResult.match(/(https?:\/\/[^\/]*facebook\.com\/[^\/\?]+)/);
+            if (pageMatch) cleanFbUrl = pageMatch[1];
+          }
+          business.facebook = cleanFbUrl;
+          foundData.facebook++;
+          console.log(`✅ Found Facebook for ${businessName}: ${cleanFbUrl}`);
+        }
+      }
+
+      // Search for Instagram if missing
+      if (!business.instagram) {
+        const igQuery = `${businessName} ${location} site:instagram.com`;
+        const igResult = await searchBusinessWebsite(igQuery, businessName);
+        if (igResult && igResult.includes('instagram.com') && !igResult.includes('facebook.com')) {
+          let cleanedUrl = igResult;
+          if (igResult.includes('/p/') || igResult.includes('/reel/')) {
+            const match = igResult.match(/instagram\.com\/([^\/\?]+)/);
+            if (match && match[1] && !['p', 'reel', 'stories'].includes(match[1])) {
+              cleanedUrl = `https://instagram.com/${match[1]}`;
+            }
+          }
+          business.instagram = cleanedUrl;
+          foundData.instagram++;
+          console.log(`✅ Found Instagram for ${businessName}: ${cleanedUrl}`);
+        }
+      }
+
+      // Scrape website for email if we have a website but no email
+      if (business.website && !business.email) {
+        const enrichedData = await fetchSmartEnrichment(business.website, businessName);
+        if (enrichedData.email) {
+          business.email = enrichedData.email;
+          foundData.emails++;
+          console.log(`✅ Found email for ${businessName}: ${enrichedData.email}`);
+        }
+        // Also grab any social links found on the website
+        if (!business.facebook && enrichedData.facebook) {
+          business.facebook = enrichedData.facebook;
+          foundData.facebook++;
+        }
+        if (!business.instagram && enrichedData.instagram) {
+          business.instagram = enrichedData.instagram;
+          foundData.instagram++;
+        }
+        if (!business.linkedin && enrichedData.linkedin) {
+          business.linkedin = enrichedData.linkedin;
+        }
+        if (!business.twitter && enrichedData.twitter) {
+          business.twitter = enrichedData.twitter;
+        }
+      }
+
+      // Update the business in the board
+      board.columns[colKey][index] = business;
+      enrichedCount++;
+
+      // Small delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+    } catch (err) {
+      console.error(`Failed to re-enrich ${businessName}:`, err);
+    }
+  }
+
+  // Save the updated board
+  await saveCampaignBoards();
+
+  // Remove progress toast
+  progressToast.remove();
+
+  // Show results
+  const resultMsg = `Re-enrichment complete!\n\n` +
+    `Processed: ${enrichedCount} businesses\n` +
+    `Found:\n` +
+    `  🌐 ${foundData.websites} websites\n` +
+    `  📧 ${foundData.emails} emails\n` +
+    `  📘 ${foundData.facebook} Facebook pages\n` +
+    `  📷 ${foundData.instagram} Instagram profiles`;
+
+  alert(resultMsg);
+  toast(`✅ Re-enriched ${enrichedCount} businesses!`, true);
+
+  // Refresh the UI
+  renderKanban();
+}
+
+// Expose globally so it can be called from console or UI
+window.reEnrichPipelineBusinesses = reEnrichPipelineBusinesses;
+
 async function runAutoPopulate() {
   const zipCode = document.getElementById('autoPopZipCode').value.trim();
   const category = document.getElementById('autoPopCategory').value;
