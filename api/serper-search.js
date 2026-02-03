@@ -72,13 +72,15 @@ export default async function handler(req, res) {
       'nextdoor.com', 'linkedin.com/posts', 'twitter.com/search'
     ];
 
-    // For Facebook searches, skip groups and shares
+    // For Facebook searches, ONLY accept business page URLs (reject everything else)
     const isFacebookSearch = query.includes('site:facebook.com');
-    const fbSkipPatterns = ['/groups/', '/share.php', '/events/', '/marketplace/', '/watch/'];
+    // Skip these patterns - they're not business pages
+    const fbSkipPatterns = ['/groups/', '/share.php', '/events/', '/marketplace/', '/watch/', '/posts/', '/photos/', '/videos/', '/story.php', '/permalink.php', '/notes/'];
 
-    // For Instagram searches, skip posts/reels (want profiles only)
+    // For Instagram searches, ONLY accept profile URLs (reject posts/reels)
     const isInstagramSearch = query.includes('site:instagram.com');
-    const igSkipPatterns = ['/p/', '/reel/', '/stories/', '/tv/', '/explore/'];
+    // Skip these patterns - they're posts, not profiles
+    const igSkipPatterns = ['/p/', '/reel/', '/reels/', '/stories/', '/tv/', '/explore/', '/s/', '/live/'];
 
     for (const result of organic) {
       const url = result.link || '';
@@ -86,23 +88,45 @@ export default async function handler(req, res) {
       // Skip directory sites
       if (skipDomains.some(domain => url.includes(domain))) continue;
 
-      // For Facebook: skip groups, shares, events
-      if (isFacebookSearch && fbSkipPatterns.some(p => url.includes(p))) continue;
+      // For Facebook: validate it's a real business page URL
+      if (isFacebookSearch) {
+        // Skip bad patterns
+        if (fbSkipPatterns.some(p => url.includes(p))) continue;
+        // Skip personal profiles
+        if (url.includes('profile.php')) continue;
+        // Must be a simple page URL like facebook.com/businessname
+        // Valid: facebook.com/adamshvac or facebook.com/Adams-Heating-123456
+        const fbMatch = url.match(/facebook\.com\/([^\/\?]+)\/?$/);
+        if (!fbMatch || !fbMatch[1]) continue;
+        // Skip if the "page name" is a generic word
+        const fbPageName = fbMatch[1].toLowerCase();
+        if (['home', 'watch', 'marketplace', 'gaming', 'login', 'help'].includes(fbPageName)) continue;
+        // This looks like a valid business page
+        topUrl = url;
+        break;
+      }
 
-      // For Instagram: skip posts/reels, extract profile URL
+      // For Instagram: validate it's a profile URL, not a post
       if (isInstagramSearch) {
         if (igSkipPatterns.some(p => url.includes(p))) {
           // Try to extract profile from post URL
           const match = url.match(/instagram\.com\/([^\/\?]+)/);
-          if (match && match[1] && !['p', 'reel', 'stories', 'tv', 'explore'].includes(match[1])) {
+          if (match && match[1] && !['p', 'reel', 'reels', 'stories', 'tv', 'explore', 's', 'live', 'accounts'].includes(match[1])) {
             topUrl = `https://www.instagram.com/${match[1]}`;
             break;
           }
           continue;
         }
+        // Validate it's a profile URL (instagram.com/username with no extra path)
+        const igMatch = url.match(/instagram\.com\/([^\/\?]+)\/?$/);
+        if (igMatch && igMatch[1] && !['p', 'reel', 'reels', 'stories', 'tv', 'explore', 's', 'live', 'accounts'].includes(igMatch[1].toLowerCase())) {
+          topUrl = url;
+          break;
+        }
+        continue;
       }
 
-      // Valid result found
+      // Valid result found (for website searches)
       if (url) {
         topUrl = url;
         break;
