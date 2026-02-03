@@ -3,20 +3,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Search Test - HERE API Only</title>
+  <title>Search Test - HERE + Google</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: system-ui, -apple-system, sans-serif; }
+    .from-here { background-color: #d1fae5; }
+    .from-google { background-color: #fef3c7; }
   </style>
 </head>
 <body class="bg-gray-100 min-h-screen p-8">
-  <div class="max-w-2xl mx-auto">
-    <h1 class="text-3xl font-bold mb-2">Search Test</h1>
-    <p class="text-gray-600 mb-6">HERE API only. No caching. No enrichment. No garbage.</p>
+  <div class="max-w-3xl mx-auto">
+    <h1 class="text-3xl font-bold mb-2">Search Test v2</h1>
+    <p class="text-gray-600 mb-6">HERE API + Google enrichment. See exactly where data comes from.</p>
+
+    <!-- Legend -->
+    <div class="flex gap-4 mb-4 text-sm">
+      <span class="from-here px-2 py-1 rounded">Green = FROM HERE</span>
+      <span class="from-google px-2 py-1 rounded">Yellow = FROM GOOGLE</span>
+    </div>
 
     <!-- Search Form -->
     <div class="bg-white rounded-lg shadow p-6 mb-6">
-      <div class="grid grid-cols-2 gap-4 mb-4">
+      <div class="grid grid-cols-3 gap-4 mb-4">
         <div>
           <label class="block text-sm font-medium mb-1">ZIP Code</label>
           <input type="text" id="zipCode" placeholder="14072" maxlength="5"
@@ -37,6 +45,14 @@
             <option value="auto repair">Auto Repair</option>
           </select>
         </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Enrichment</label>
+          <select id="enrichment" class="w-full border rounded px-3 py-2 text-lg">
+            <option value="none">HERE Only (Safe)</option>
+            <option value="website">+ Google Website</option>
+            <option value="all">+ Website + Email Scrape</option>
+          </select>
+        </div>
       </div>
       <button id="searchBtn" onclick="doSearch()"
         class="w-full bg-blue-600 text-white py-3 rounded-lg font-bold text-lg hover:bg-blue-700">
@@ -55,23 +71,23 @@
     async function doSearch() {
       const zipCode = document.getElementById('zipCode').value.trim();
       const category = document.getElementById('category').value;
+      const enrichment = document.getElementById('enrichment').value;
       const statusEl = document.getElementById('status');
       const resultsEl = document.getElementById('results');
       const btn = document.getElementById('searchBtn');
 
-      // Validate
       if (!zipCode || zipCode.length !== 5) {
         statusEl.innerHTML = '<span class="text-red-600">Enter a valid 5-digit ZIP code</span>';
         return;
       }
 
-      // Show loading
       btn.disabled = true;
-      btn.textContent = 'Searching...';
+      btn.textContent = 'Searching HERE...';
       statusEl.textContent = `Searching for "${category}" in ${zipCode}...`;
       resultsEl.innerHTML = '';
 
       try {
+        // Step 1: HERE API
         const response = await fetch('/api/here-search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -79,45 +95,113 @@
         });
 
         const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Search failed');
 
-        if (!response.ok) {
-          throw new Error(data.error || 'Search failed');
+        let businesses = data.businesses || [];
+
+        // Track data sources
+        businesses = businesses.map(biz => ({
+          ...biz,
+          websiteSource: biz.website ? 'here' : null,
+          emailSource: biz.email ? 'here' : null,
+          phoneSource: biz.phone ? 'here' : null
+        }));
+
+        statusEl.innerHTML = `Found ${businesses.length} from HERE`;
+
+        // Step 2: Google enrichment (if enabled)
+        if (enrichment !== 'none' && businesses.length > 0) {
+          const needsWebsite = businesses.filter(b => !b.website);
+
+          if (needsWebsite.length > 0) {
+            statusEl.innerHTML = `Found ${businesses.length} from HERE. Enriching ${needsWebsite.length} with Google...`;
+
+            for (let i = 0; i < needsWebsite.length; i++) {
+              const biz = needsWebsite[i];
+              btn.textContent = `Enriching ${i + 1}/${needsWebsite.length}...`;
+
+              try {
+                // Search for website
+                const query = `${biz.name} ${biz.city || ''} ${biz.state || ''} official website`;
+                const searchResp = await fetch('/api/google-search', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ query, businessName: biz.name })
+                });
+
+                const searchData = await searchResp.json();
+                if (searchData.website) {
+                  biz.website = searchData.website;
+                  biz.websiteSource = 'google';
+                }
+
+                // Scrape for email if we have website and enrichment is 'all'
+                if (enrichment === 'all' && biz.website && !biz.email) {
+                  const enrichResp = await fetch('/api/enrich-contact', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ website: biz.website, businessName: biz.name })
+                  });
+                  const enrichData = await enrichResp.json();
+                  if (enrichData.email) {
+                    biz.email = enrichData.email;
+                    biz.emailSource = 'scrape';
+                  }
+                }
+              } catch (e) {
+                console.warn(`Enrichment failed for ${biz.name}:`, e);
+              }
+
+              // Small delay
+              await new Promise(r => setTimeout(r, 300));
+            }
+          }
         }
 
-        const businesses = data.businesses || [];
+        // Count sources
+        const fromHereWebsite = businesses.filter(b => b.websiteSource === 'here').length;
+        const fromGoogleWebsite = businesses.filter(b => b.websiteSource === 'google').length;
+        const fromHereEmail = businesses.filter(b => b.emailSource === 'here').length;
+        const fromScrapeEmail = businesses.filter(b => b.emailSource === 'scrape').length;
 
-        statusEl.innerHTML = `<span class="text-green-600 font-bold">Found ${businesses.length} businesses</span>`;
+        statusEl.innerHTML = `
+          <div class="text-green-600 font-bold">Found ${businesses.length} businesses</div>
+          <div class="text-sm text-gray-600 mt-1">
+            Websites: ${fromHereWebsite} from HERE, ${fromGoogleWebsite} from Google |
+            Emails: ${fromHereEmail} from HERE, ${fromScrapeEmail} from scraping
+          </div>
+        `;
 
+        // Render results
         if (businesses.length === 0) {
-          resultsEl.innerHTML = '<div class="bg-yellow-50 border border-yellow-200 rounded p-4 text-center">No businesses found in this ZIP code.</div>';
+          resultsEl.innerHTML = '<div class="bg-yellow-50 border border-yellow-200 rounded p-4 text-center">No businesses found.</div>';
         } else {
           resultsEl.innerHTML = businesses.map((biz, i) => `
             <div class="bg-white rounded-lg shadow p-4 mb-3">
               <div class="flex justify-between items-start">
                 <div>
-                  <h3 class="font-bold text-lg">${escapeHtml(biz.name)}</h3>
-                  <p class="text-gray-600 text-sm">${escapeHtml(biz.address || biz.fullAddress || 'No address')}</p>
-                  <p class="text-gray-500 text-sm">${escapeHtml(biz.city || '')}, ${escapeHtml(biz.state || '')} ${escapeHtml(biz.zip || '')}</p>
+                  <h3 class="font-bold text-lg">${esc(biz.name)}</h3>
+                  <p class="text-gray-600 text-sm">${esc(biz.address || biz.fullAddress || 'No address')}</p>
+                  <p class="text-gray-500 text-sm">${esc(biz.city || '')}, ${esc(biz.state || '')} ${esc(biz.zip || '')}</p>
                 </div>
                 <span class="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded">#${i + 1}</span>
               </div>
               <div class="mt-3 grid grid-cols-2 gap-2 text-sm">
-                <div>
+                <div class="${biz.phoneSource === 'here' ? 'from-here' : ''} px-1 rounded">
                   <span class="text-gray-500">Phone:</span>
-                  ${biz.phone ? `<a href="tel:${biz.phone}" class="text-blue-600">${escapeHtml(biz.phone)}</a>` : '<span class="text-gray-400">None</span>'}
+                  ${biz.phone ? `<a href="tel:${biz.phone}" class="text-blue-600">${esc(biz.phone)}</a>` : '<span class="text-gray-400">None</span>'}
                 </div>
-                <div>
+                <div class="${biz.websiteSource === 'here' ? 'from-here' : biz.websiteSource === 'google' ? 'from-google' : ''} px-1 rounded">
                   <span class="text-gray-500">Website:</span>
-                  ${biz.website ? `<a href="${escapeHtml(biz.website)}" target="_blank" class="text-blue-600 truncate block">${escapeHtml(biz.website.replace(/^https?:\/\//, '').substring(0, 30))}...</a>` : '<span class="text-gray-400">None</span>'}
+                  ${biz.website ? `<a href="${esc(biz.website)}" target="_blank" class="text-blue-600">${esc(biz.website.replace(/^https?:\/\//, '').substring(0, 35))}</a>` : '<span class="text-gray-400">None</span>'}
                 </div>
-                <div>
+                <div class="${biz.emailSource === 'here' ? 'from-here' : biz.emailSource === 'scrape' ? 'from-google' : ''} px-1 rounded">
                   <span class="text-gray-500">Email:</span>
-                  ${biz.email ? `<a href="mailto:${biz.email}" class="text-blue-600">${escapeHtml(biz.email)}</a>` : '<span class="text-gray-400">None</span>'}
+                  ${biz.email ? `<a href="mailto:${biz.email}" class="text-blue-600">${esc(biz.email)}</a>` : '<span class="text-gray-400">None</span>'}
                 </div>
                 <div>
                   <span class="text-gray-500">ZIP:</span>
-                  <span class="${biz.zip === zipCode ? 'text-green-600 font-bold' : 'text-red-600 font-bold'}">${escapeHtml(biz.zip || 'Unknown')}</span>
-                  ${biz.zip !== zipCode ? ' (WRONG!)' : ''}
+                  <span class="text-green-600 font-bold">${esc(biz.zip || 'Unknown')}</span>
                 </div>
               </div>
             </div>
@@ -126,21 +210,16 @@
 
       } catch (error) {
         console.error('Search error:', error);
-        statusEl.innerHTML = `<span class="text-red-600">Error: ${escapeHtml(error.message)}</span>`;
-        resultsEl.innerHTML = '';
+        statusEl.innerHTML = `<span class="text-red-600">Error: ${esc(error.message)}</span>`;
       } finally {
         btn.disabled = false;
         btn.textContent = 'Search';
       }
     }
 
-    function escapeHtml(str) {
+    function esc(str) {
       if (!str) return '';
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
   </script>
 </body>
