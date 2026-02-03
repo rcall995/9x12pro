@@ -1,6 +1,44 @@
 // Serper.dev Search API - 2,500 FREE searches/month
 // Fast Google search results without scraping
 // https://serper.dev
+// v2 - Enhanced filtering for business websites
+
+/**
+ * Check if a URL/domain could plausibly belong to the business
+ * Returns true if it looks related, false if clearly unrelated
+ */
+function isPlausiblyRelated(url, businessName) {
+  if (!businessName) return true; // Can't validate without name
+
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    const bizName = businessName.toLowerCase()
+      .replace(/[^a-z0-9]/g, '') // Remove non-alphanumeric
+      .replace(/llc|inc|corp|company|co|ltd/g, ''); // Remove business suffixes
+
+    // Extract meaningful words from business name (ignore short words)
+    const bizWords = businessName.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+
+    // Check if domain contains any significant business name words
+    const domainWithoutTLD = hostname.replace(/\.(com|net|org|biz|us|io|co)$/, '');
+
+    // If domain contains a significant word from business name, it's likely related
+    for (const word of bizWords) {
+      if (domainWithoutTLD.includes(word)) return true;
+    }
+
+    // If the full condensed business name is in the domain
+    if (domainWithoutTLD.includes(bizName.substring(0, 6))) return true;
+
+    // Check if title/snippet mentions the business (passed through result object)
+    // For now, just be permissive for short business names
+    if (bizName.length < 6) return true;
+
+    return false;
+  } catch {
+    return true; // If URL parsing fails, be permissive
+  }
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -66,10 +104,60 @@ export default async function handler(req, res) {
 
     // Skip patterns for all searches
     const skipDomains = [
+      // Directories and review sites
       'yelp.com', 'yellowpages.com', 'bbb.org', 'tripadvisor.com',
       'foursquare.com', 'mapquest.com', 'manta.com', 'chamberofcommerce.com',
       'bizapedia.com', 'dnb.com', 'zoominfo.com', 'angi.com', 'thumbtack.com',
-      'nextdoor.com', 'linkedin.com/posts', 'twitter.com/search'
+      'nextdoor.com', 'linkedin.com/posts', 'twitter.com/search',
+      'hotfrog.com', 'cylex.us', 'brownbook.net', 'spoke.com', 'merchantcircle.com',
+      'superpages.com', 'local.com', 'citysearch.com', 'kudzu.com', 'dexknows.com',
+      'whitepages.com', 'porch.com', 'homeadvisor.com', 'expertise.com',
+      'buildzoom.com', 'alignable.com', 'getfave.com', 'showmelocal.com',
+      'dandb.com', 'buzzfile.com', 'chamberorganizer.com', 'findglocal.com',
+
+      // News and media sites (comprehensive list)
+      'wnypapers.com', 'newspapers.com', 'news.google.com', 'patch.com',
+      'buffalonews.com', 'wivb.com', 'wgrz.com', 'wkbw.com',
+      'cnn.com', 'foxnews.com', 'nbcnews.com', 'abcnews.go.com', 'cbsnews.com',
+      'nytimes.com', 'washingtonpost.com', 'usatoday.com', 'reuters.com',
+      'apnews.com', 'newsweek.com', 'usnews.com', 'thehill.com', 'politico.com',
+      'huffpost.com', 'buzzfeed.com', 'vox.com', 'vice.com', 'slate.com',
+      'msn.com', 'yahoo.com/news', 'aol.com', 'news.yahoo.com',
+      // Local news patterns
+      'localnews', 'gazette', 'tribune', 'herald', 'times', 'journal', 'press',
+      'dispatch', 'register', 'sentinel', 'observer', 'examiner', 'chronicle',
+      'democrat', 'republican', 'post', 'courier', 'daily', 'weekly',
+
+      // Government and education
+      '.gov', '.edu',
+
+      // Search engines
+      'google.com', 'bing.com', 'duckduckgo.com', 'ask.com'
+    ];
+
+    // Skip file extensions that aren't websites
+    const skipExtensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.jpg', '.jpeg', '.png', '.gif', '.mp4', '.mp3', '.wav', '.zip', '.rar'];
+
+    // Skip URL patterns that look like news articles (dates, article paths)
+    const skipUrlPatterns = [
+      /\/\d{4}\/\d{2}\//, // Date patterns like /2024/06/
+      /\/news\//i,
+      /\/article\//i,
+      /\/story\//i,
+      /\/stories\//i,
+      /\/blog\//i,
+      /\/press-release/i,
+      /\/press\//i,
+      /\/media\//i,
+      /\/archive\//i,
+      /-\d{6,}/, // Long numeric IDs typical of articles
+      /\.html\?/, // HTML with query params (usually articles)
+      /\/tag\//i,
+      /\/category\//i,
+      /\/author\//i,
+      /\/search\?/i,
+      /issuu\.com/,
+      /scribd\.com/
     ];
 
     // For Facebook searches, ONLY accept business page URLs (reject everything else)
@@ -84,9 +172,13 @@ export default async function handler(req, res) {
 
     for (const result of organic) {
       const url = result.link || '';
+      const urlLower = url.toLowerCase();
 
       // Skip directory sites
-      if (skipDomains.some(domain => url.includes(domain))) continue;
+      if (skipDomains.some(domain => urlLower.includes(domain))) continue;
+
+      // Skip PDFs and other non-website files
+      if (skipExtensions.some(ext => urlLower.endsWith(ext))) continue;
 
       // For Facebook: validate it's a real business page URL
       if (isFacebookSearch) {
@@ -126,8 +218,27 @@ export default async function handler(req, res) {
         continue;
       }
 
-      // Valid result found (for website searches)
+      // For website searches: additional validation
       if (url) {
+        // Skip URLs that look like news articles or blog posts
+        const isArticle = skipUrlPatterns.some(pattern => pattern.test(url));
+        if (isArticle) {
+          console.log(`🔍 Skipping article-like URL: ${url}`);
+          continue;
+        }
+
+        // Prefer simpler URLs (likely homepages) - count path segments
+        const pathname = new URL(url).pathname;
+        const pathSegments = pathname.split('/').filter(s => s.length > 0);
+
+        // URLs with many path segments are usually articles, not business homepages
+        // Business homepages are typically domain.com/ or domain.com/page
+        if (pathSegments.length > 3) {
+          console.log(`🔍 Skipping deeply nested URL (${pathSegments.length} segments): ${url}`);
+          continue;
+        }
+
+        // This looks like a valid business website
         topUrl = url;
         break;
       }
@@ -197,25 +308,60 @@ async function fallbackToGoogle(req, res, query, businessName) {
       });
     }
 
-    // Filter out directory sites for business searches
-    let topUrl = items[0]?.link || null;
+    // Enhanced filtering (same as Serper path)
+    let topUrl = null;
 
-    if (businessName && !query.includes('site:')) {
-      const skipDomains = [
-        'yelp.com', 'yellowpages.com', 'bbb.org', 'tripadvisor.com',
-        'foursquare.com', 'mapquest.com', 'manta.com'
-      ];
+    // Skip patterns - reuse similar logic to Serper
+    const skipDomains = [
+      'yelp.com', 'yellowpages.com', 'bbb.org', 'tripadvisor.com',
+      'foursquare.com', 'mapquest.com', 'manta.com', 'chamberofcommerce.com',
+      'bizapedia.com', 'dnb.com', 'zoominfo.com', 'angi.com', 'thumbtack.com',
+      'nextdoor.com', 'linkedin.com/posts', 'twitter.com/search',
+      'hotfrog.com', 'cylex.us', 'brownbook.net', 'superpages.com',
+      'wnypapers.com', 'newspapers.com', 'news.google.com', 'patch.com',
+      '.gov', '.edu', 'google.com', 'bing.com'
+    ];
 
-      for (const item of items) {
-        const isSkipDomain = skipDomains.some(domain => item.link?.includes(domain));
-        if (!isSkipDomain && item.link) {
-          topUrl = item.link;
-          break;
-        }
+    const skipExtensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.jpg', '.png', '.gif'];
+
+    const skipUrlPatterns = [
+      /\/\d{4}\/\d{2}\//,
+      /\/news\//i,
+      /\/article\//i,
+      /\/story\//i,
+      /\/blog\//i,
+      /\/press/i,
+      /-\d{6,}/
+    ];
+
+    for (const item of items) {
+      const url = item.link || '';
+      const urlLower = url.toLowerCase();
+
+      // Skip directories and news sites
+      if (skipDomains.some(domain => urlLower.includes(domain))) continue;
+
+      // Skip files
+      if (skipExtensions.some(ext => urlLower.endsWith(ext))) continue;
+
+      // Skip article-like URLs
+      if (skipUrlPatterns.some(pattern => pattern.test(url))) continue;
+
+      // Skip deeply nested URLs
+      try {
+        const pathname = new URL(url).pathname;
+        const pathSegments = pathname.split('/').filter(s => s.length > 0);
+        if (pathSegments.length > 3) continue;
+      } catch {
+        continue;
       }
+
+      // This looks valid
+      topUrl = url;
+      break;
     }
 
-    console.log(`🔍 Google fallback found: ${topUrl}`);
+    console.log(`🔍 Google fallback found: ${topUrl || 'none (all filtered)'}`);
 
     return res.status(200).json({
       success: true,
