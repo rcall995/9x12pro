@@ -9144,6 +9144,7 @@ function markNotInterested(placeId) {
 }
 
 async function addSelectedProspects() {
+  // UPDATED: Now uses proper Serper enrichment like addFromProspectPool
   const { businesses, selectedIds } = prospectsResultsState;
 
   if (selectedIds.size === 0) {
@@ -9155,50 +9156,146 @@ async function addSelectedProspects() {
   const btn = document.getElementById('btnAddSelectedProspects');
   const originalText = btn.textContent;
   btn.disabled = true;
-  btn.textContent = '⏳ Fetching details...';
+  btn.textContent = '⏳ Processing...';
 
-  const prospectingColumn = 'prospect-list';
+  // Use Campaign Board (single source of truth)
+  const board = getCurrentCampaignBoard();
+  if (!board) {
+    toast('No campaign selected. Please select a campaign first.', false);
+    btn.disabled = false;
+    btn.textContent = originalText;
+    return;
+  }
+  if (!board.columns) board.columns = {};
+  if (!board.columns['queued']) board.columns['queued'] = [];
+
+  const existingPlaceIds = getCampaignBoardPlaceIds();
   let addedCount = 0;
+  let skippedCount = 0;
   const selectedBusinesses = businesses.filter(b => selectedIds.has(b.placeId) && !b.alreadyExists);
 
   try {
-    // Fetch details for all selected businesses
     for (let i = 0; i < selectedBusinesses.length; i++) {
       const business = selectedBusinesses[i];
+      const businessId = business.placeId || business.id;
 
-      btn.textContent = `⏳ Fetching details... (${i + 1}/${selectedBusinesses.length})`;
-
-      // Fetch basic details from Google Places API
-      let details = { phone: '', website: '', email: '', facebook: '', instagram: '', source: 'google-places' };
-
-      if (business.placeId) {
-        details = await fetchPlaceDetails(business.placeId);
+      // Skip if already exists
+      if (existingPlaceIds.has(businessId)) {
+        skippedCount++;
+        continue;
       }
+
+      btn.textContent = `🔍 Enriching... (${i + 1}/${selectedBusinesses.length})`;
+
+      // Start with existing data
+      let details = {
+        phone: business.phone || '',
+        website: business.website || '',
+        email: business.email || '',
+        facebook: business.facebook || '',
+        instagram: business.instagram || '',
+        linkedin: business.linkedin || '',
+        twitter: business.twitter || '',
+        source: business.source || 'search'
+      };
+
+      // Fetch basic details if we have a placeId
+      if (business.placeId && !details.phone) {
+        const placeDetails = await fetchPlaceDetails(business.placeId);
+        details.phone = placeDetails.phone || details.phone;
+        details.website = placeDetails.website || details.website;
+      }
+
+      const businessName = business.name || business.businessName || 'Unknown Business';
+      const location = business.address ? business.address.split(',').slice(-2).join(',').trim() : '';
+
+      // SERPER ENRICHMENT: Search for website if missing
+      if (!details.website) {
+        const websiteQuery = `${businessName} ${location} official website`;
+        const website = await searchBusinessWebsite(websiteQuery, businessName);
+        if (website && !website.includes('yelp.com') && !website.includes('facebook.com') && !website.includes('instagram.com')) {
+          details.website = website;
+        }
+      }
+
+      // SERPER ENRICHMENT: Search for Facebook if missing
+      if (!details.facebook) {
+        const fbQuery = `${businessName} ${location} site:facebook.com`;
+        const fbResult = await searchBusinessWebsite(fbQuery, businessName);
+        if (fbResult && fbResult.includes('facebook.com') && !fbResult.includes('instagram.com')) {
+          let cleanFbUrl = fbResult;
+          if (fbResult.includes('/posts/') || fbResult.includes('/photos/')) {
+            const pageMatch = fbResult.match(/(https?:\/\/[^\/]*facebook\.com\/[^\/\?]+)/);
+            if (pageMatch) cleanFbUrl = pageMatch[1];
+          }
+          details.facebook = cleanFbUrl;
+        }
+      }
+
+      // SERPER ENRICHMENT: Search for Instagram if missing
+      if (!details.instagram) {
+        const igQuery = `${businessName} ${location} site:instagram.com`;
+        const igResult = await searchBusinessWebsite(igQuery, businessName);
+        if (igResult && igResult.includes('instagram.com') && !igResult.includes('facebook.com')) {
+          let cleanedUrl = igResult;
+          if (igResult.includes('/p/') || igResult.includes('/reel/')) {
+            const match = igResult.match(/instagram\.com\/([^\/\?]+)/);
+            if (match && match[1] && !['p', 'reel', 'stories'].includes(match[1])) {
+              cleanedUrl = `https://instagram.com/${match[1]}`;
+            }
+          }
+          details.instagram = cleanedUrl;
+        }
+      }
+
+      // WEBSITE SCRAPING: Get email if we have a website
+      if (details.website && !details.email) {
+        btn.textContent = `📧 Finding email... (${i + 1}/${selectedBusinesses.length})`;
+        const enrichedData = await fetchSmartEnrichment(details.website, businessName);
+        details.email = enrichedData.email || details.email || '';
+        details.facebook = details.facebook || enrichedData.facebook || '';
+        details.instagram = details.instagram || enrichedData.instagram || '';
+        details.linkedin = details.linkedin || enrichedData.linkedin || '';
+        details.twitter = details.twitter || enrichedData.twitter || '';
+      }
+
+      // Build notes
+      let notes = `Found via ${details.source}\nAddress: ${business.address}\nRating: ${business.rating} (${business.userRatingsTotal} reviews)\n`;
+      if (details.phone) notes += `Phone: ${details.phone}\n`;
+      if (details.website) notes += `Website: ${details.website}\n`;
+      if (details.email) notes += `📧 Email: ${details.email}\n`;
+      if (details.facebook) notes += `📘 Facebook: ${details.facebook}\n`;
+      if (details.instagram) notes += `📷 Instagram: ${details.instagram}\n`;
 
       const newLead = {
         id: Date.now() + Math.random(),
-        businessName: business.name,
+        businessName: businessName,
         contactName: '',
         phone: details.phone || '',
         email: details.email || '',
         estimatedValue: 500,
-        notes: `Found via Google Places\nAddress: ${business.address}\nRating: ${business.rating} (${business.userRatingsTotal} reviews)\n${details.phone ? `Phone: ${details.phone}\n` : ''}${details.website ? `Website: ${details.website}\n` : ''}Place ID: ${business.placeId}\n\n💡 Use CSV export/import to add Facebook/Instagram URLs`,
-        source: 'google-places',
+        notes: notes,
+        source: details.source,
         placeId: business.placeId,
-        address: business.address || '', // Store address as separate field
-        rating: business.rating || 0, // Store rating as separate field
-        userRatingsTotal: business.userRatingsTotal || 0, // Store review count
+        address: business.address || '',
+        rating: business.rating || 0,
+        userRatingsTotal: business.userRatingsTotal || 0,
         website: details.website || '',
-        facebook: '',
-        instagram: '',
+        facebook: details.facebook || '',
+        instagram: details.instagram || '',
+        linkedin: details.linkedin || '',
+        twitter: details.twitter || '',
         category: business.category || 'other',
-        zipCode: truncateZipTo5(business.zipCode) || null, // Tag with ZIP code from search (5 digits only)
-        mailerId: state.current?.Mailer_ID || null, // Tag with current postcard
+        zipCode: truncateZipTo5(business.zipCode) || null,
+        mailerId: state.current?.Mailer_ID || null,
         addedDate: new Date().toISOString(),
-        interactions: [] // Interaction history: [{date, type, notes, nextFollowUp}]
+        interactions: [],
+        enriched: true
       };
 
-      kanbanState.columns[prospectingColumn].push(newLead);
+      // Add to Campaign Board (single source of truth)
+      const enhancedLead = enhanceBusinessForCampaignBoard(newLead, board.config?.maxAttempts || 4);
+      board.columns['queued'].push(enhancedLead);
       addedCount++;
 
       // Small delay to avoid rate limiting
@@ -9207,20 +9304,25 @@ async function addSelectedProspects() {
       }
     }
 
-    saveKanban();
+    // Save to Campaign Board
+    await saveCampaignBoards();
     renderKanban();
     closeProspectsResultsModal();
 
     // Show success message
-    toast(`✅ Added ${addedCount} new prospect${addedCount === 1 ? '' : 's'}! Go to Close Deals to start reaching out.`, true);
+    let message = `✅ Added ${addedCount} prospect${addedCount === 1 ? '' : 's'}!`;
+    if (skippedCount > 0) {
+      message += ` ${skippedCount} duplicate${skippedCount === 1 ? '' : 's'} skipped.`;
+    }
+    toast(message, true);
 
-    // Switch to Close Deals tab
+    // Switch to Pipeline tab
     setTimeout(() => {
-      switchTab('outreach');
+      switchTab('pipeline');
     }, 100);
   } catch(err) {
     console.error('Error adding prospects:', err);
-    toast('Failed to fetch all details. Some prospects may be incomplete.', false);
+    toast('Failed to add prospects. Please try again.', false);
   } finally {
     btn.disabled = false;
     btn.textContent = originalText;
