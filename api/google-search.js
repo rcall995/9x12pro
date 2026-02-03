@@ -58,17 +58,45 @@ export default async function handler(req, res) {
         const skipDomains = [
           'yelp.com', 'facebook.com', 'instagram.com', 'twitter.com',
           'linkedin.com', 'yellowpages.com', 'google.com', 'maps.google.com',
-          'bbb.org', 'tripadvisor.com', 'foursquare.com',
+          'bbb.org', 'tripadvisor.', 'foursquare.com', // tripadvisor. catches all TLDs
           // Directories
           'mapquest.com', 'superpages.com', 'citysearch.com', 'manta.com',
           'autorepairlocal.com', 'local.com', 'hotfrog.com', 'cylex.us',
           'angieslist.com', 'homeadvisor.com', 'thumbtack.com', 'nextdoor.com',
           'alignable.com', 'chamberofcommerce.com', 'dnb.com', 'zoominfo.com',
-          // News sites
+          'buzzfile.com', 'spoke.com', 'merchantcircle.com', 'brownbook.net',
+          'kudzu.com', 'dexknows.com', 'showmelocal.com', 'dandb.com',
+          'chamberorganizer.com', 'findglocal.com', 'getfave.com', 'salespider.com',
+          'roadtrippers.com', 'judysbook.com',
+          // Menu aggregators (NOT business websites!)
+          'zmenu.com', 'menupix.com', 'allmenus.com', 'menuweb.menu',
+          'restaurantji.com', 'sirved.com', 'menuism.com', 'zomato.com',
+          'wheree.com', 'restaurantguru.com', 'openmenu.com', 'locu.com',
+          'singleplatform.com', 'yext.com', 'menuvenue.com', 'menufy.com',
+          'beyondmenu.com', 'menulog.com',
+          // Food delivery (NOT business websites!)
+          'grubhub.com', 'doordash.com', 'ubereats.com', 'seamless.com',
+          'postmates.com', 'slice.com', 'toasttab.com', 'chownow.com',
+          'eat24.com', 'caviar.com',
+          // Vacation rentals / real estate
+          'vrbo.com', 'airbnb.com', 'booking.com', 'hotels.com', 'expedia.com',
+          'zillow.com', 'realtor.com', 'redfin.com', 'trulia.com',
+          // Tourism directories
+          'iloveny.com', 'visitbuffaloniagara.com', 'tripadvisor.',
+          // Local news / blogs
+          'stepoutbuffalo.com', 'buffalorising.com', 'buffaloeats.org',
           'wnypapers.com', 'newspapers.com', 'patch.com', 'news.google.com',
           'buffalonews.com', 'wivb.com', 'wgrz.com', 'wkbw.com',
+          'thrillist.com', 'eater.com', 'timeout.com', 'onlyinyourstate.com',
+          // Legal
+          'avvo.com', 'findlaw.com', 'justia.com', 'lawyers.com',
+          // Government (not businesses!)
+          '.gov', '.ny.us', '.ca.us', '.tx.us',
           // Other junk
-          'wikipedia.org', 'youtube.com', 'tiktok.com', 'pinterest.com'
+          'wikipedia.org', 'youtube.com', 'tiktok.com', 'pinterest.com',
+          'reddit.com', 'medium.com', 'eventbrite.com', 'meetup.com',
+          'giecom.net', // hosting provider
+          '.com-place.com' // spam domains
         ];
 
         // Skip file extensions

@@ -10,18 +10,20 @@
     .from-here { background-color: #d1fae5; }
     .from-google { background-color: #fef3c7; }
     .from-places { background-color: #dbeafe; }
+    .from-scrape { background-color: #f3e8ff; }
   </style>
 </head>
 <body class="bg-gray-100 min-h-screen p-8">
   <div class="max-w-3xl mx-auto">
-    <h1 class="text-3xl font-bold mb-2">Search Test v3</h1>
-    <p class="text-gray-600 mb-6">HERE API + Google Places enrichment</p>
+    <h1 class="text-3xl font-bold mb-2">Search Test v4</h1>
+    <p class="text-gray-600 mb-6">HERE API + Google Places + Email Scraping</p>
 
     <!-- Legend -->
     <div class="flex gap-4 mb-4 text-sm flex-wrap">
-      <span class="from-here px-2 py-1 rounded">Green = FROM HERE</span>
-      <span class="from-google px-2 py-1 rounded">Yellow = FROM GOOGLE SEARCH</span>
-      <span class="from-places px-2 py-1 rounded">Blue = FROM GOOGLE PLACES API</span>
+      <span class="from-here px-2 py-1 rounded">Green = HERE</span>
+      <span class="from-google px-2 py-1 rounded">Yellow = GOOGLE SEARCH</span>
+      <span class="from-places px-2 py-1 rounded">Blue = PLACES API</span>
+      <span class="from-scrape px-2 py-1 rounded">Purple = EMAIL SCRAPE</span>
     </div>
 
     <!-- Search Form -->
@@ -53,6 +55,7 @@
             <option value="none">HERE Only (Free)</option>
             <option value="google">+ Google Search (Free)</option>
             <option value="places">+ Google Places API ($)</option>
+            <option value="places+email">+ Places + Email Scrape ($)</option>
           </select>
         </div>
       </div>
@@ -176,12 +179,16 @@
 
         statusEl.innerHTML = `Found ${businesses.length} from HERE`;
 
-        // Step 2: Enrichment
-        if (enrichment !== 'none' && businesses.length > 0) {
+        // Step 2: Enrichment (Places API)
+        const usePlaces = enrichment === 'places' || enrichment === 'places+email';
+        const useGoogleSearch = enrichment === 'google';
+        const useEmailScrape = enrichment === 'places+email';
+
+        if ((usePlaces || useGoogleSearch) && businesses.length > 0) {
           const needsEnrichment = businesses.filter(b => !b.website || !b.phone);
 
           if (needsEnrichment.length > 0) {
-            const enrichType = enrichment === 'places' ? 'Google Places API' : 'Google Search';
+            const enrichType = usePlaces ? 'Google Places API' : 'Google Search';
             statusEl.innerHTML = `Found ${businesses.length} from HERE. Enriching ${needsEnrichment.length} with ${enrichType}...`;
 
             for (let i = 0; i < needsEnrichment.length; i++) {
@@ -189,7 +196,7 @@
               btn.textContent = `Enriching ${i + 1}/${needsEnrichment.length}...`;
 
               try {
-                if (enrichment === 'places') {
+                if (usePlaces) {
                   // Google Places API enrichment
                   const placesData = await enrichWithPlaces(biz);
                   if (placesData) {
@@ -209,7 +216,7 @@
                       biz.reviewCount = placesData.reviewCount;
                     }
                   }
-                } else {
+                } else if (useGoogleSearch) {
                   // Google Custom Search enrichment (existing logic)
                   if (!biz.website) {
                     const query = `${biz.name} ${biz.city || ''} ${biz.state || ''} official website`;
@@ -235,6 +242,43 @@
           }
         }
 
+        // Step 3: Email Scraping (for businesses with websites but no email)
+        if (useEmailScrape && businesses.length > 0) {
+          const needsEmail = businesses.filter(b => b.website && !b.email);
+
+          if (needsEmail.length > 0) {
+            statusEl.innerHTML = `Scraping emails from ${needsEmail.length} websites...`;
+
+            for (let i = 0; i < needsEmail.length; i++) {
+              const biz = needsEmail[i];
+              btn.textContent = `Scraping email ${i + 1}/${needsEmail.length}...`;
+
+              try {
+                console.log(`📧 Scraping: ${biz.website}`);
+                const scrapeResp = await fetch('/api/scrape-email', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ website: biz.website, businessName: biz.name })
+                });
+                const scrapeData = await scrapeResp.json();
+
+                if (scrapeData.primaryEmail) {
+                  console.log(`✅ Found email: ${scrapeData.primaryEmail}`);
+                  biz.email = scrapeData.primaryEmail;
+                  biz.emailSource = 'scrape';
+                } else {
+                  console.log(`❌ No email found for ${biz.name}`);
+                }
+              } catch (e) {
+                console.warn(`Email scrape failed for ${biz.name}:`, e);
+              }
+
+              // Small delay to be nice to servers
+              await new Promise(r => setTimeout(r, 300));
+            }
+          }
+        }
+
         // Count sources
         const stats = {
           hereWebsite: businesses.filter(b => b.websiteSource === 'here').length,
@@ -242,7 +286,8 @@
           placesWebsite: businesses.filter(b => b.websiteSource === 'places').length,
           herePhone: businesses.filter(b => b.phoneSource === 'here').length,
           placesPhone: businesses.filter(b => b.phoneSource === 'places').length,
-          hereEmail: businesses.filter(b => b.emailSource === 'here').length
+          hereEmail: businesses.filter(b => b.emailSource === 'here').length,
+          scrapeEmail: businesses.filter(b => b.emailSource === 'scrape').length
         };
 
         statusEl.innerHTML = `
@@ -250,7 +295,7 @@
           <div class="text-sm text-gray-600 mt-1">
             Websites: ${stats.hereWebsite} HERE, ${stats.googleWebsite} Google, ${stats.placesWebsite} Places |
             Phones: ${stats.herePhone} HERE, ${stats.placesPhone} Places |
-            Emails: ${stats.hereEmail} HERE
+            Emails: ${stats.hereEmail} HERE, ${stats.scrapeEmail} Scraped
           </div>
         `;
 
@@ -305,6 +350,7 @@
       if (source === 'here') return 'from-here';
       if (source === 'google') return 'from-google';
       if (source === 'places') return 'from-places';
+      if (source === 'scrape') return 'from-scrape';
       return '';
     }
 

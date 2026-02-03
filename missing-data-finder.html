@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>9x12 Pro - Enrichment Tester (v472)</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 1400px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+    h1 { color: #333; margin-bottom: 5px; }
+    .subtitle { color: #666; margin-bottom: 20px; }
+
+    .controls { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .row { display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; align-items: end; }
+    label { display: block; font-weight: 500; margin-bottom: 5px; color: #555; }
+    input, select { padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+    input[type="text"] { width: 150px; }
+    input[type="number"] { width: 80px; }
+    button { padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 500; }
+    button:hover { background: #45a049; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    button.secondary { background: #2196F3; }
+    button.secondary:hover { background: #1976D2; }
+
+    .stats { background: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 25px; flex-wrap: wrap; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .stat { text-align: center; }
+    .stat-value { font-size: 24px; font-weight: bold; color: #333; }
+    .stat-label { font-size: 11px; color: #666; text-transform: uppercase; }
+    .stat.green .stat-value { color: #4CAF50; }
+    .stat.blue .stat-value { color: #2196F3; }
+    .stat.orange .stat-value { color: #FF9800; }
+    .stat.purple .stat-value { color: #9C27B0; }
+
+    .progress { background: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .progress-bar { height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden; margin-top: 10px; }
+    .progress-fill { height: 100%; background: #4CAF50; transition: width 0.3s; }
+    .progress-text { font-size: 14px; color: #666; }
+
+    table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); font-size: 12px; }
+    th { background: #f8f9fa; padding: 10px 6px; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0; position: sticky; top: 0; }
+    td { padding: 8px 6px; border-bottom: 1px solid #eee; vertical-align: top; }
+    tr:hover { background: #f8f9fa; }
+
+    .business-name { font-weight: 600; color: #333; font-size: 13px; }
+    .business-address { font-size: 10px; color: #888; margin-top: 2px; }
+
+    .data-cell { min-width: 120px; }
+    .source-tag { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 500; margin-bottom: 3px; }
+    .source-tag.here { background: #e3f2fd; color: #1565c0; }
+    .source-tag.scraped { background: #f3e5f5; color: #7b1fa2; }
+    .source-tag.new { background: #e8f5e9; color: #2e7d32; border: 1px solid #4CAF50; }
+
+    .data-value { font-size: 11px; color: #333; word-break: break-all; }
+    .data-value a { color: #1976D2; text-decoration: none; }
+    .data-value a:hover { text-decoration: underline; }
+    .no-data { color: #bbb; font-style: italic; }
+
+    .status { display: inline-block; padding: 3px 8px; border-radius: 3px; font-size: 10px; font-weight: 600; }
+    .status.pending { background: #fff3e0; color: #ef6c00; }
+    .status.enriching { background: #e3f2fd; color: #1565c0; }
+    .status.complete { background: #e8f5e9; color: #2e7d32; }
+    .status.here-only { background: #f5f5f5; color: #666; }
+
+    .legend { background: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .legend-title { font-weight: 600; margin-bottom: 10px; }
+    .legend-items { display: flex; gap: 20px; flex-wrap: wrap; font-size: 12px; }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+  </style>
+</head>
+<body>
+  <h1>9x12 Pro Enrichment Tester</h1>
+  <p class="subtitle">See exactly what HERE provides vs what website scraping adds (v472 fix)</p>
+
+  <div class="controls">
+    <div class="row">
+      <div>
+        <label>ZIP Code</label>
+        <input type="text" id="zipCode" value="14072" placeholder="e.g., 14072">
+      </div>
+      <div>
+        <label>Category</label>
+        <input type="text" id="category" value="restaurant" placeholder="e.g., restaurant">
+      </div>
+      <div>
+        <label>Limit</label>
+        <input type="number" id="limit" value="15" min="5" max="50">
+      </div>
+      <div>
+        <button id="searchBtn" onclick="runSearch()">1. Search HERE</button>
+      </div>
+      <div>
+        <button id="enrichBtn" class="secondary" onclick="runEnrichment()" disabled>2. Enrich All (Scrape Websites)</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-title">Data Sources</div>
+    <div class="legend-items">
+      <div class="legend-item"><span class="source-tag here">HERE</span> Data from HERE API (free, 250k/month)</div>
+      <div class="legend-item"><span class="source-tag scraped">SCRAPED</span> Data scraped from business website</div>
+      <div class="legend-item"><span class="source-tag new">+NEW</span> New data found by scraping (wasn't in HERE)</div>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-value" id="totalCount">0</div>
+      <div class="stat-label">Businesses</div>
+    </div>
+    <div class="stat green">
+      <div class="stat-value" id="hereWebsiteCount">0</div>
+      <div class="stat-label">HERE Websites</div>
+    </div>
+    <div class="stat green">
+      <div class="stat-value" id="hereEmailCount">0</div>
+      <div class="stat-label">HERE Emails</div>
+    </div>
+    <div class="stat blue">
+      <div class="stat-value" id="enrichedCount">0</div>
+      <div class="stat-label">Enriched</div>
+    </div>
+    <div class="stat purple">
+      <div class="stat-value" id="newEmailCount">0</div>
+      <div class="stat-label">+New Emails</div>
+    </div>
+    <div class="stat purple">
+      <div class="stat-value" id="newSocialCount">0</div>
+      <div class="stat-label">+New Social</div>
+    </div>
+  </div>
+
+  <div class="progress" id="progressSection" style="display: none;">
+    <div class="progress-text" id="progressText">Enriching...</div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+    </div>
+  </div>
+
+  <table id="resultsTable">
+    <thead>
+      <tr>
+        <th style="width: 160px;">Business</th>
+        <th style="width: 100px;">Phone</th>
+        <th class="data-cell">Website</th>
+        <th class="data-cell">Email</th>
+        <th class="data-cell">Facebook</th>
+        <th class="data-cell">Instagram</th>
+        <th style="width: 70px;">Status</th>
+      </tr>
+    </thead>
+    <tbody id="resultsBody">
+      <tr><td colspan="7" style="text-align: center; padding: 40px; color: #999;">Enter ZIP code and category, then click "Search HERE"</td></tr>
+    </tbody>
+  </table>
+
+  <script>
+    let businesses = [];
+
+    async function runSearch() {
+      const zipCode = document.getElementById('zipCode').value.trim();
+      const category = document.getElementById('category').value.trim();
+      const limit = parseInt(document.getElementById('limit').value) || 15;
+
+      if (!zipCode || !category) {
+        alert('Please enter ZIP code and category');
+        return;
+      }
+
+      document.getElementById('searchBtn').disabled = true;
+      document.getElementById('searchBtn').textContent = 'Searching...';
+      document.getElementById('enrichBtn').disabled = true;
+
+      businesses = [];
+
+      try {
+        const response = await fetch('/api/here-search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ zipCode, category, limit })
+        });
+
+        const data = await response.json();
+        businesses = (data.businesses || []).map(b => ({
+          ...b,
+          // Track what came from HERE
+          hereData: {
+            phone: b.phone || '',
+            website: b.website || '',
+            email: b.email || ''
+          },
+          // Scraped data will be added during enrichment
+          scrapedData: null,
+          status: 'pending'
+        }));
+
+        updateStats();
+        renderTable();
+
+        document.getElementById('enrichBtn').disabled = businesses.length === 0;
+
+      } catch (error) {
+        console.error('Search error:', error);
+        alert('Search failed: ' + error.message);
+      } finally {
+        document.getElementById('searchBtn').disabled = false;
+        document.getElementById('searchBtn').textContent = '1. Search HERE';
+      }
+    }
+
+    async function runEnrichment() {
+      document.getElementById('enrichBtn').disabled = true;
+      document.getElementById('enrichBtn').textContent = 'Enriching...';
+      document.getElementById('progressSection').style.display = 'block';
+
+      // Only enrich businesses with websites
+      const toEnrich = businesses.filter(b => b.website);
+      let completed = 0;
+
+      for (const biz of toEnrich) {
+        document.getElementById('progressText').textContent = `Scraping: ${biz.name}`;
+        biz.status = 'enriching';
+        renderTable();
+
+        try {
+          // Call the same API the main app uses
+          const response = await fetch('/api/enrich-contact', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              websiteUrl: biz.website,
+              businessName: biz.name
+            })
+          });
+
+          const data = await response.json();
+
+          // Store scraped data separately so we can compare
+          biz.scrapedData = {
+            email: data.email || '',
+            facebook: data.facebook || '',
+            instagram: data.instagram || '',
+            linkedin: data.linkedin || '',
+            twitter: data.twitter || '',
+            contactNames: data.contactNames || [],
+            pagesScraped: data.pagesScraped || 0
+          };
+
+          // Merge data (preserve HERE data, add scraped data)
+          biz.email = biz.email || data.email || '';
+          biz.facebook = biz.facebook || data.facebook || '';
+          biz.instagram = biz.instagram || data.instagram || '';
+          biz.linkedin = biz.linkedin || data.linkedin || '';
+          biz.twitter = biz.twitter || data.twitter || '';
+
+          biz.status = 'complete';
+
+        } catch (err) {
+          console.error('Enrichment failed for', biz.name, err);
+          biz.status = 'failed';
+        }
+
+        completed++;
+        const pct = Math.round((completed / toEnrich.length) * 100);
+        document.getElementById('progressFill').style.width = pct + '%';
+        renderTable();
+        updateStats();
+
+        // Small delay to avoid overwhelming the server
+        await new Promise(r => setTimeout(r, 300));
+      }
+
+      // Mark businesses without websites
+      businesses.filter(b => !b.website).forEach(b => {
+        b.status = 'here-only';
+      });
+
+      document.getElementById('progressText').textContent = 'Enrichment complete!';
+      document.getElementById('enrichBtn').disabled = false;
+      document.getElementById('enrichBtn').textContent = '2. Enrich All (Scrape Websites)';
+
+      renderTable();
+      updateStats();
+    }
+
+    function updateStats() {
+      const total = businesses.length;
+      const hereWebsites = businesses.filter(b => b.hereData?.website).length;
+      const hereEmails = businesses.filter(b => b.hereData?.email).length;
+      const enriched = businesses.filter(b => b.status === 'complete').length;
+
+      // Count NEW data (found by scraping that wasn't in HERE)
+      let newEmails = 0;
+      let newSocial = 0;
+
+      businesses.forEach(b => {
+        if (b.scrapedData) {
+          if (b.scrapedData.email && !b.hereData?.email) newEmails++;
+          if (b.scrapedData.facebook && !b.hereData?.facebook) newSocial++;
+          if (b.scrapedData.instagram && !b.hereData?.instagram) newSocial++;
+        }
+      });
+
+      document.getElementById('totalCount').textContent = total;
+      document.getElementById('hereWebsiteCount').textContent = hereWebsites;
+      document.getElementById('hereEmailCount').textContent = hereEmails;
+      document.getElementById('enrichedCount').textContent = enriched;
+      document.getElementById('newEmailCount').textContent = newEmails;
+      document.getElementById('newSocialCount').textContent = newSocial;
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('resultsBody');
+
+      if (businesses.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px; color: #999;">No results</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = businesses.map(biz => {
+        const here = biz.hereData || {};
+        const scraped = biz.scrapedData || {};
+
+        // Status badge
+        let statusHtml = '';
+        if (biz.status === 'pending') statusHtml = '<span class="status pending">Pending</span>';
+        else if (biz.status === 'enriching') statusHtml = '<span class="status enriching">Enriching...</span>';
+        else if (biz.status === 'complete') statusHtml = '<span class="status complete">Complete</span>';
+        else if (biz.status === 'here-only') statusHtml = '<span class="status here-only">No Website</span>';
+        else if (biz.status === 'failed') statusHtml = '<span class="status pending">Failed</span>';
+
+        return `
+          <tr>
+            <td>
+              <div class="business-name">${biz.name}</div>
+              <div class="business-address">${biz.address || ''}</div>
+            </td>
+            <td class="data-value">${biz.phone || '<span class="no-data">-</span>'}</td>
+            <td class="data-cell">
+              ${here.website ? `<span class="source-tag here">HERE</span><br><a href="${here.website}" target="_blank" class="data-value">${truncateUrl(here.website)}</a>` : '<span class="no-data">No website</span>'}
+            </td>
+            <td class="data-cell">
+              ${renderDataField(here.email, scraped.email, 'email')}
+            </td>
+            <td class="data-cell">
+              ${renderDataField(here.facebook, scraped.facebook, 'facebook')}
+            </td>
+            <td class="data-cell">
+              ${renderDataField(here.instagram, scraped.instagram, 'instagram')}
+            </td>
+            <td>${statusHtml}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderDataField(hereValue, scrapedValue, type) {
+      let html = '';
+
+      if (hereValue) {
+        html += `<span class="source-tag here">HERE</span><br>`;
+        html += formatValue(hereValue, type);
+      }
+
+      if (scrapedValue && scrapedValue !== hereValue) {
+        if (html) html += '<br>';
+        const isNew = !hereValue;
+        html += `<span class="source-tag scraped ${isNew ? 'new' : ''}">${isNew ? '+NEW' : 'SCRAPED'}</span><br>`;
+        html += formatValue(scrapedValue, type);
+      }
+
+      if (!html) {
+        html = '<span class="no-data">-</span>';
+      }
+
+      return html;
+    }
+
+    function formatValue(value, type) {
+      if (!value) return '';
+
+      if (type === 'email') {
+        return `<span class="data-value">${value}</span>`;
+      } else if (type === 'facebook' || type === 'instagram') {
+        const url = value.startsWith('http') ? value : `https://${value}`;
+        const display = value.replace(/https?:\/\/(www\.)?/, '').substring(0, 25);
+        return `<a href="${url}" target="_blank" class="data-value">${display}</a>`;
+      }
+      return `<span class="data-value">${value}</span>`;
+    }
+
+    function truncateUrl(url) {
+      if (!url) return '';
+      try {
+        const u = new URL(url);
+        let display = u.hostname.replace('www.', '');
+        if (u.pathname && u.pathname !== '/') {
+          display += u.pathname.substring(0, 15);
+          if (u.pathname.length > 15) display += '...';
+        }
+        return display;
+      } catch {
+        return url.substring(0, 30);
+      }
+    }
+  </script>
+</body>
+</html>

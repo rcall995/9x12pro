@@ -160,6 +160,11 @@ function extractEmails(html) {
     if (lower.startsWith('youremail@')) return false;
     if (lower.startsWith('yourname@')) return false;
 
+    // Filter out image filenames (retina display naming convention: @2x, @3x)
+    if (/@\d+x\.(png|jpg|jpeg|gif|webp|svg|ico|bmp)$/i.test(lower)) return false;
+    // Filter out any file extensions that aren't emails
+    if (/\.(png|jpg|jpeg|gif|webp|svg|ico|bmp|pdf|doc|docx|zip|mp4|mp3|css|js)$/i.test(lower)) return false;
+
     // Common template/example domains
     return !lower.includes('example.com') &&
            !lower.includes('example.org') &&
@@ -170,9 +175,7 @@ function extractEmails(html) {
            !lower.includes('email.com') &&
            !lower.includes('domain.com') &&
            !lower.includes('sentry.io') &&
-           !lower.includes('wixpress.com') &&
-           !lower.includes('@2x.png') &&
-           !lower.includes('@3x.png');
+           !lower.includes('wixpress.com');
   });
 
   return [...new Set(filtered)]; // Remove duplicates

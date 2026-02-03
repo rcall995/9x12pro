@@ -105,7 +105,7 @@ export default async function handler(req, res) {
     // Skip patterns for all searches
     const skipDomains = [
       // Directories and review sites
-      'yelp.com', 'yellowpages.com', 'bbb.org', 'tripadvisor.com',
+      'yelp.com', 'yellowpages.com', 'bbb.org', 'tripadvisor.', // catches all TLDs
       'foursquare.com', 'mapquest.com', 'manta.com', 'chamberofcommerce.com',
       'bizapedia.com', 'dnb.com', 'zoominfo.com', 'angi.com', 'thumbtack.com',
       'nextdoor.com', 'linkedin.com/posts', 'twitter.com/search',
@@ -115,21 +115,69 @@ export default async function handler(req, res) {
       'buildzoom.com', 'alignable.com', 'getfave.com', 'showmelocal.com',
       'dandb.com', 'buzzfile.com', 'chamberorganizer.com', 'findglocal.com',
 
+      // Menu aggregators (NOT business websites!)
+      'menuweb.menu', 'zmenu.com', 'menupix.com', 'allmenus.com',
+      'restaurantji.com', 'sirved.com', 'menuism.com', 'zomato.com',
+      'wheree.com', 'restaurantguru.com', 'openmenu.com', 'locu.com',
+      'singleplatform.com', 'yext.com', 'roadtrippers.com', 'menuvenue.com',
+      'menufy.com', 'beyondmenu.com', 'clover.com/online-ordering', 'menulog.com',
+
+      // Food delivery / ordering sites (NOT business websites!)
+      'grubhub.com', 'doordash.com', 'ubereats.com', 'postmates.com',
+      'seamless.com', 'eat24.com', 'delivery.com', 'slice.com',
+      'menulog.com', 'justeat.com', 'caviar.com', 'favor.com',
+      'toast.com', 'toasttab.com', 'chownow.com', 'olo.com',
+      'order.online', 'ordering.app',
+
+      // Vacation rentals / real estate (NOT business websites!)
+      'vrbo.com', 'airbnb.com', 'booking.com', 'hotels.com', 'expedia.com',
+      'tripadvisor.com/Hotel', 'zillow.com', 'realtor.com', 'redfin.com',
+      'trulia.com', 'apartments.com', 'rent.com', 'hotpads.com',
+
+      // Local news / blogs (articles about businesses, not the business)
+      'stepoutbuffalo.com', 'buffalorising.com', 'buffaloeats.org',
+      'ediblewny.com', 'buffalonews.com', 'wivb.com', 'wgrz.com', 'wkbw.com',
+      'rochesterfirst.com', 'democratandchronicle.com', 'newyorkupstate.com',
+      'onlyinyourstate.com', 'thrillist.com', 'eater.com', 'timeout.com',
+      'localmagazine', 'citypaper', 'metromix', 'citysearch',
+
       // News and media sites (comprehensive list)
       'wnypapers.com', 'newspapers.com', 'news.google.com', 'patch.com',
-      'buffalonews.com', 'wivb.com', 'wgrz.com', 'wkbw.com',
       'cnn.com', 'foxnews.com', 'nbcnews.com', 'abcnews.go.com', 'cbsnews.com',
       'nytimes.com', 'washingtonpost.com', 'usatoday.com', 'reuters.com',
       'apnews.com', 'newsweek.com', 'usnews.com', 'thehill.com', 'politico.com',
       'huffpost.com', 'buzzfeed.com', 'vox.com', 'vice.com', 'slate.com',
       'msn.com', 'yahoo.com/news', 'aol.com', 'news.yahoo.com',
-      // Local news patterns
-      'localnews', 'gazette', 'tribune', 'herald', 'times', 'journal', 'press',
+
+      // Local news patterns (partial matches)
+      'localnews', 'gazette', 'tribune', 'herald', 'journal',
       'dispatch', 'register', 'sentinel', 'observer', 'examiner', 'chronicle',
-      'democrat', 'republican', 'post', 'courier', 'daily', 'weekly',
+
+      // Social media
+      'facebook.com', 'instagram.com', 'twitter.com', 'tiktok.com',
+      'youtube.com', 'pinterest.com', 'reddit.com', 'tumblr.com',
+
+      // Legal / law firms (often match partial business names)
+      'avvo.com', 'findlaw.com', 'justia.com', 'lawyers.com', 'martindale.com',
+      'law.com', 'nolo.com', 'legalmatch.com',
+
+      // Generic platforms that host businesses but aren't the business
+      'wix.com', 'squarespace.com', 'weebly.com', 'godaddy.com',
+      'wordpress.com', 'blogspot.com', 'medium.com', 'substack.com',
+      'eventbrite.com', 'meetup.com', 'alignable.com',
+
+      // Job sites
+      'indeed.com', 'glassdoor.com', 'ziprecruiter.com', 'monster.com',
+      'careerbuilder.com', 'linkedin.com/jobs',
 
       // Government and education
-      '.gov', '.edu',
+      '.gov', '.edu', '.ny.us', '.ca.us', '.tx.us',
+
+      // Tourism directories
+      'iloveny.com', 'visitbuffaloniagara.com',
+
+      // Hosting providers / spam domains
+      'giecom.net', '.com-place.com',
 
       // Search engines
       'google.com', 'bing.com', 'duckduckgo.com', 'ask.com'
@@ -197,12 +245,29 @@ export default async function handler(req, res) {
         // IMPORTANT: Verify the page name is related to the business name
         // This prevents returning unrelated pages like "DavidCrisafulliMP" for "Wheelfind Auto"
         if (businessName) {
-          const bizWords = businessName.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-          const pageNameLower = fbPageName.replace(/[-_]/g, '').toLowerCase();
-          const hasMatch = bizWords.some(word => pageNameLower.includes(word));
-          if (!hasMatch) {
-            console.log(`🔍 Skipping unrelated FB page "${fbPageName}" for "${businessName}"`);
+          // Skip generic pages
+          if (['groups', 'pages', 'events', 'marketplace', 'gaming', 'watch'].includes(fbPageName)) {
             continue;
+          }
+
+          // Filter out common words that cause false matches
+          const commonWords = ['the', 'and', 'inc', 'llc', 'restaurant', 'cafe', 'pizza', 'bar', 'grill', 'house', 'island', 'grand', 'new', 'york', 'buffalo'];
+          const bizWords = businessName.toLowerCase().split(/\s+/).filter(w => w.length > 3 && !commonWords.includes(w));
+          const pageNameLower = fbPageName.replace(/[-_]/g, '').toLowerCase();
+
+          if (bizWords.length === 0) {
+            // If no meaningful words, require exact match of first word
+            const firstWord = businessName.toLowerCase().split(/\s+/)[0];
+            if (firstWord.length > 3 && !pageNameLower.includes(firstWord)) {
+              console.log(`🔍 Skipping unrelated FB page "${fbPageName}" for "${businessName}" (no match for "${firstWord}")`);
+              continue;
+            }
+          } else {
+            const hasMatch = bizWords.some(word => pageNameLower.includes(word));
+            if (!hasMatch) {
+              console.log(`🔍 Skipping unrelated FB page "${fbPageName}" for "${businessName}"`);
+              continue;
+            }
           }
         }
 
@@ -235,12 +300,24 @@ export default async function handler(req, res) {
 
         // IMPORTANT: Verify the username is related to the business name
         if (igUsername && businessName) {
-          const bizWords = businessName.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-          const usernameLower = igUsername.replace(/[-_\.]/g, '').toLowerCase();
-          const hasMatch = bizWords.some(word => usernameLower.includes(word));
-          if (!hasMatch) {
-            console.log(`🔍 Skipping unrelated IG profile "${igUsername}" for "${businessName}"`);
-            continue;
+          // Filter out common words that cause false matches
+          const commonWords = ['the', 'and', 'inc', 'llc', 'restaurant', 'cafe', 'pizza', 'bar', 'grill', 'house', 'island', 'grand', 'new', 'york', 'buffalo'];
+          const bizWords = businessName.toLowerCase().split(/\s+/).filter(w => w.length > 3 && !commonWords.includes(w));
+
+          if (bizWords.length === 0) {
+            // If no meaningful words, require exact match of first word
+            const firstWord = businessName.toLowerCase().split(/\s+/)[0];
+            if (firstWord.length > 3 && !igUsername.toLowerCase().includes(firstWord)) {
+              console.log(`🔍 Skipping unrelated IG profile "${igUsername}" for "${businessName}" (no match for "${firstWord}")`);
+              continue;
+            }
+          } else {
+            const usernameLower = igUsername.replace(/[-_\.]/g, '').toLowerCase();
+            const hasMatch = bizWords.some(word => usernameLower.includes(word));
+            if (!hasMatch) {
+              console.log(`🔍 Skipping unrelated IG profile "${igUsername}" for "${businessName}"`);
+              continue;
+            }
           }
         }
 
