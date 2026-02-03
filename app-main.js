@@ -5182,8 +5182,8 @@ async function enrichBusinessOnMove(lead) {
       }
     }
 
-    // Scrape website for email if we have a website
-    if (lead.website && !lead.email) {
+    // Scrape website for email AND social links if we have a website
+    if (lead.website) {
       const enrichedData = await fetchSmartEnrichment(lead.website, businessName);
       lead.email = lead.email || enrichedData.email || '';
       lead.facebook = lead.facebook || enrichedData.facebook || '';
@@ -6498,8 +6498,8 @@ async function reEnrichPipelineBusinesses() {
         }
       }
 
-      // Scrape website for email if we have a website but no email
-      if (business.website && !business.email) {
+      // Scrape website for email AND social links if we have a website
+      if (business.website) {
         const enrichedData = await fetchSmartEnrichment(business.website, businessName);
         if (enrichedData.email) {
           business.email = enrichedData.email;
@@ -9365,8 +9365,8 @@ async function addSelectedProspects() {
         }
       }
 
-      // WEBSITE SCRAPING: Get email if we have a website
-      if (details.website && !details.email) {
+      // WEBSITE SCRAPING: Get email AND social links from website
+      if (details.website) {
         btn.textContent = `📧 Finding email... (${i + 1}/${selectedBusinesses.length})`;
         const enrichedData = await fetchSmartEnrichment(details.website, businessName);
         details.email = enrichedData.email || details.email || '';
@@ -12927,8 +12927,8 @@ async function addFromProspectPool() {
           }
         }
 
-        // Scrape website for email and additional social links if we have a website
-        if (manualDetails.website && !manualDetails.email) {
+        // Scrape website for email and social links if we have a website
+        if (manualDetails.website) {
           btn.textContent = `📧 Finding email... (${i + 1}/${selectedBusinesses.length})`;
           const enrichedData = await fetchSmartEnrichment(manualDetails.website, manualBusinessName);
           manualDetails.email = manualDetails.email || enrichedData.email || '';
@@ -13039,9 +13039,9 @@ async function addFromProspectPool() {
           }
         }
 
-        // Scrape website for email if we have a website
-        if (details.website && !details.email) {
-          btn.textContent = `📧 Finding email... (${i + 1}/${selectedBusinesses.length})`;
+        // Scrape website for email AND social links if we have a website
+        if (details.website) {
+          btn.textContent = `📧 Enriching... (${i + 1}/${selectedBusinesses.length})`;
           const enrichedData = await fetchSmartEnrichment(details.website, businessName);
           details.email = details.email || enrichedData.email || '';
           details.facebook = details.facebook || enrichedData.facebook || '';
