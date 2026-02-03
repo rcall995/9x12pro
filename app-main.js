@@ -4879,6 +4879,8 @@ async function searchBusinessWebsite(searchQuery, businessName) {
   try {
     // Use Serper.dev - 2,500 FREE searches/month!
     // Falls back to Google Custom Search (100/day) if Serper unavailable
+    console.log(`🔍 Searching: "${searchQuery}"`);
+
     const response = await fetch('/api/serper-search', {
       method: 'POST',
       headers: {
@@ -4891,17 +4893,44 @@ async function searchBusinessWebsite(searchQuery, businessName) {
     });
 
     if (!response.ok) {
+      console.warn(`🔍 Search API returned ${response.status}`);
       return '';
     }
 
     const data = await response.json();
+    console.log(`🔍 Search result:`, data.topUrl || 'none', data.source || 'unknown');
+
+    if (!data.success && data.error) {
+      console.warn(`🔍 Search API error: ${data.error}`);
+    }
+
     return data.topUrl || '';
 
   } catch (error) {
-    console.warn('Website search failed:', error);
+    console.warn('🔍 Website search failed:', error);
     return '';
   }
 }
+
+// Test function to check if search APIs are working
+async function testSearchAPI() {
+  console.log('🧪 Testing Search API...');
+
+  // Test 1: Simple website search
+  const test1 = await searchBusinessWebsite('Adams Heating Cooling Buffalo NY official website', 'Adams Heating');
+  console.log('Test 1 (website):', test1 || 'FAILED - no result');
+
+  // Test 2: Facebook search
+  const test2 = await searchBusinessWebsite('Adams Heating Cooling Buffalo NY site:facebook.com', 'Adams Heating');
+  console.log('Test 2 (facebook):', test2 || 'FAILED - no result');
+
+  // Test 3: Instagram search
+  const test3 = await searchBusinessWebsite('Adams Heating Cooling Buffalo NY site:instagram.com', 'Adams Heating');
+  console.log('Test 3 (instagram):', test3 || 'FAILED - no result');
+
+  alert(`Search API Test Results:\n\nWebsite: ${test1 || 'NONE'}\nFacebook: ${test2 || 'NONE'}\nInstagram: ${test3 || 'NONE'}\n\nCheck browser console for details.`);
+}
+window.testSearchAPI = testSearchAPI;
 
 /**
  * Enrich a business with website and social media when added to kanban
