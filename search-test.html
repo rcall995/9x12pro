@@ -3,23 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Search Test - HERE + Google</title>
+  <title>Search Test - HERE + Google Places</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: system-ui, -apple-system, sans-serif; }
     .from-here { background-color: #d1fae5; }
     .from-google { background-color: #fef3c7; }
+    .from-places { background-color: #dbeafe; }
   </style>
 </head>
 <body class="bg-gray-100 min-h-screen p-8">
   <div class="max-w-3xl mx-auto">
-    <h1 class="text-3xl font-bold mb-2">Search Test v2</h1>
-    <p class="text-gray-600 mb-6">HERE API + Google enrichment. See exactly where data comes from.</p>
+    <h1 class="text-3xl font-bold mb-2">Search Test v3</h1>
+    <p class="text-gray-600 mb-6">HERE API + Google Places enrichment</p>
 
     <!-- Legend -->
-    <div class="flex gap-4 mb-4 text-sm">
+    <div class="flex gap-4 mb-4 text-sm flex-wrap">
       <span class="from-here px-2 py-1 rounded">Green = FROM HERE</span>
-      <span class="from-google px-2 py-1 rounded">Yellow = FROM GOOGLE</span>
+      <span class="from-google px-2 py-1 rounded">Yellow = FROM GOOGLE SEARCH</span>
+      <span class="from-places px-2 py-1 rounded">Blue = FROM GOOGLE PLACES API</span>
     </div>
 
     <!-- Search Form -->
@@ -39,7 +41,7 @@
             <option value="electrician">Electrician</option>
             <option value="roofing">Roofing</option>
             <option value="landscaping">Landscaping</option>
-            <option value="restaurant">Restaurant</option>
+            <option value="restaurant" selected>Restaurant</option>
             <option value="salon">Salon</option>
             <option value="dentist">Dentist</option>
             <option value="auto repair">Auto Repair</option>
@@ -48,9 +50,9 @@
         <div>
           <label class="block text-sm font-medium mb-1">Enrichment</label>
           <select id="enrichment" class="w-full border rounded px-3 py-2 text-lg">
-            <option value="none">HERE Only (Safe)</option>
-            <option value="website">+ Google Website</option>
-            <option value="all">+ Website + Email Scrape</option>
+            <option value="none">HERE Only (Free)</option>
+            <option value="google">+ Google Search (Free)</option>
+            <option value="places">+ Google Places API ($)</option>
           </select>
         </div>
       </div>
@@ -67,7 +69,71 @@
     <div id="results"></div>
   </div>
 
+  <!-- Google Maps API -->
   <script>
+    let googleMapsLoaded = false;
+    let placesService = null;
+
+    function loadGoogleMaps() {
+      return new Promise((resolve, reject) => {
+        if (googleMapsLoaded) {
+          resolve();
+          return;
+        }
+
+        window.initGoogleMaps = () => {
+          googleMapsLoaded = true;
+          placesService = new google.maps.places.PlacesService(document.createElement('div'));
+          resolve();
+        };
+
+        const script = document.createElement('script');
+        script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyCNzXL-8UT-JI1Dy9wBN14KtH-UDMbeOlo&libraries=places&callback=initGoogleMaps`;
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
+    }
+
+    // Find a place by name and get its details
+    async function enrichWithPlaces(biz) {
+      await loadGoogleMaps();
+
+      return new Promise((resolve) => {
+        const query = `${biz.name} ${biz.city || ''} ${biz.state || ''}`;
+
+        const request = {
+          query: query,
+          fields: ['place_id', 'name', 'formatted_address']
+        };
+
+        placesService.findPlaceFromQuery(request, (results, status) => {
+          if (status === google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
+            const placeId = results[0].place_id;
+
+            // Now get details
+            placesService.getDetails({
+              placeId: placeId,
+              fields: ['formatted_phone_number', 'website', 'url', 'rating', 'user_ratings_total']
+            }, (place, detailStatus) => {
+              if (detailStatus === google.maps.places.PlacesServiceStatus.OK) {
+                resolve({
+                  website: place.website || null,
+                  phone: place.formatted_phone_number || null,
+                  googleMapsUrl: place.url || null,
+                  rating: place.rating || null,
+                  reviewCount: place.user_ratings_total || null
+                });
+              } else {
+                resolve(null);
+              }
+            });
+          } else {
+            resolve(null);
+          }
+        });
+      });
+    }
+
     async function doSearch() {
       const zipCode = document.getElementById('zipCode').value.trim();
       const category = document.getElementById('category').value;
@@ -103,49 +169,59 @@
         businesses = businesses.map(biz => ({
           ...biz,
           websiteSource: biz.website ? 'here' : null,
-          emailSource: biz.email ? 'here' : null,
-          phoneSource: biz.phone ? 'here' : null
+          phoneSource: biz.phone ? 'here' : null,
+          emailSource: biz.email ? 'here' : null
         }));
 
         statusEl.innerHTML = `Found ${businesses.length} from HERE`;
 
-        // Step 2: Google enrichment (if enabled)
+        // Step 2: Enrichment
         if (enrichment !== 'none' && businesses.length > 0) {
-          const needsWebsite = businesses.filter(b => !b.website);
+          const needsEnrichment = businesses.filter(b => !b.website || !b.phone);
 
-          if (needsWebsite.length > 0) {
-            statusEl.innerHTML = `Found ${businesses.length} from HERE. Enriching ${needsWebsite.length} with Google...`;
+          if (needsEnrichment.length > 0) {
+            const enrichType = enrichment === 'places' ? 'Google Places API' : 'Google Search';
+            statusEl.innerHTML = `Found ${businesses.length} from HERE. Enriching ${needsEnrichment.length} with ${enrichType}...`;
 
-            for (let i = 0; i < needsWebsite.length; i++) {
-              const biz = needsWebsite[i];
-              btn.textContent = `Enriching ${i + 1}/${needsWebsite.length}...`;
+            for (let i = 0; i < needsEnrichment.length; i++) {
+              const biz = needsEnrichment[i];
+              btn.textContent = `Enriching ${i + 1}/${needsEnrichment.length}...`;
 
               try {
-                // Search for website
-                const query = `${biz.name} ${biz.city || ''} ${biz.state || ''} official website`;
-                const searchResp = await fetch('/api/google-search', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ query, businessName: biz.name })
-                });
-
-                const searchData = await searchResp.json();
-                if (searchData.website) {
-                  biz.website = searchData.website;
-                  biz.websiteSource = 'google';
-                }
-
-                // Scrape for email if we have website and enrichment is 'all'
-                if (enrichment === 'all' && biz.website && !biz.email) {
-                  const enrichResp = await fetch('/api/enrich-contact', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ website: biz.website, businessName: biz.name })
-                  });
-                  const enrichData = await enrichResp.json();
-                  if (enrichData.email) {
-                    biz.email = enrichData.email;
-                    biz.emailSource = 'scrape';
+                if (enrichment === 'places') {
+                  // Google Places API enrichment
+                  const placesData = await enrichWithPlaces(biz);
+                  if (placesData) {
+                    if (placesData.website && !biz.website) {
+                      biz.website = placesData.website;
+                      biz.websiteSource = 'places';
+                    }
+                    if (placesData.phone && !biz.phone) {
+                      biz.phone = placesData.phone;
+                      biz.phoneSource = 'places';
+                    }
+                    if (placesData.googleMapsUrl) {
+                      biz.googleMapsUrl = placesData.googleMapsUrl;
+                    }
+                    if (placesData.rating) {
+                      biz.rating = placesData.rating;
+                      biz.reviewCount = placesData.reviewCount;
+                    }
+                  }
+                } else {
+                  // Google Custom Search enrichment (existing logic)
+                  if (!biz.website) {
+                    const query = `${biz.name} ${biz.city || ''} ${biz.state || ''} official website`;
+                    const searchResp = await fetch('/api/google-search', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ query, businessName: biz.name })
+                    });
+                    const searchData = await searchResp.json();
+                    if (searchData.website) {
+                      biz.website = searchData.website;
+                      biz.websiteSource = 'google';
+                    }
                   }
                 }
               } catch (e) {
@@ -153,22 +229,27 @@
               }
 
               // Small delay
-              await new Promise(r => setTimeout(r, 300));
+              await new Promise(r => setTimeout(r, 200));
             }
           }
         }
 
         // Count sources
-        const fromHereWebsite = businesses.filter(b => b.websiteSource === 'here').length;
-        const fromGoogleWebsite = businesses.filter(b => b.websiteSource === 'google').length;
-        const fromHereEmail = businesses.filter(b => b.emailSource === 'here').length;
-        const fromScrapeEmail = businesses.filter(b => b.emailSource === 'scrape').length;
+        const stats = {
+          hereWebsite: businesses.filter(b => b.websiteSource === 'here').length,
+          googleWebsite: businesses.filter(b => b.websiteSource === 'google').length,
+          placesWebsite: businesses.filter(b => b.websiteSource === 'places').length,
+          herePhone: businesses.filter(b => b.phoneSource === 'here').length,
+          placesPhone: businesses.filter(b => b.phoneSource === 'places').length,
+          hereEmail: businesses.filter(b => b.emailSource === 'here').length
+        };
 
         statusEl.innerHTML = `
           <div class="text-green-600 font-bold">Found ${businesses.length} businesses</div>
           <div class="text-sm text-gray-600 mt-1">
-            Websites: ${fromHereWebsite} from HERE, ${fromGoogleWebsite} from Google |
-            Emails: ${fromHereEmail} from HERE, ${fromScrapeEmail} from scraping
+            Websites: ${stats.hereWebsite} HERE, ${stats.googleWebsite} Google, ${stats.placesWebsite} Places |
+            Phones: ${stats.herePhone} HERE, ${stats.placesPhone} Places |
+            Emails: ${stats.hereEmail} HERE
           </div>
         `;
 
@@ -183,25 +264,27 @@
                   <h3 class="font-bold text-lg">${esc(biz.name)}</h3>
                   <p class="text-gray-600 text-sm">${esc(biz.address || biz.fullAddress || 'No address')}</p>
                   <p class="text-gray-500 text-sm">${esc(biz.city || '')}, ${esc(biz.state || '')} ${esc(biz.zip || '')}</p>
+                  ${biz.rating ? `<p class="text-yellow-600 text-sm">⭐ ${biz.rating} (${biz.reviewCount} reviews)</p>` : ''}
                 </div>
                 <span class="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded">#${i + 1}</span>
               </div>
               <div class="mt-3 grid grid-cols-2 gap-2 text-sm">
-                <div class="${biz.phoneSource === 'here' ? 'from-here' : ''} px-1 rounded">
+                <div class="${getSourceClass(biz.phoneSource)} px-1 rounded">
                   <span class="text-gray-500">Phone:</span>
                   ${biz.phone ? `<a href="tel:${biz.phone}" class="text-blue-600">${esc(biz.phone)}</a>` : '<span class="text-gray-400">None</span>'}
                 </div>
-                <div class="${biz.websiteSource === 'here' ? 'from-here' : biz.websiteSource === 'google' ? 'from-google' : ''} px-1 rounded">
+                <div class="${getSourceClass(biz.websiteSource)} px-1 rounded">
                   <span class="text-gray-500">Website:</span>
                   ${biz.website ? `<a href="${esc(biz.website)}" target="_blank" class="text-blue-600">${esc(biz.website.replace(/^https?:\/\//, '').substring(0, 35))}</a>` : '<span class="text-gray-400">None</span>'}
                 </div>
-                <div class="${biz.emailSource === 'here' ? 'from-here' : biz.emailSource === 'scrape' ? 'from-google' : ''} px-1 rounded">
+                <div class="${getSourceClass(biz.emailSource)} px-1 rounded">
                   <span class="text-gray-500">Email:</span>
                   ${biz.email ? `<a href="mailto:${biz.email}" class="text-blue-600">${esc(biz.email)}</a>` : '<span class="text-gray-400">None</span>'}
                 </div>
                 <div>
                   <span class="text-gray-500">ZIP:</span>
                   <span class="text-green-600 font-bold">${esc(biz.zip || 'Unknown')}</span>
+                  ${biz.googleMapsUrl ? `<a href="${biz.googleMapsUrl}" target="_blank" class="ml-2 text-blue-500">📍 Map</a>` : ''}
                 </div>
               </div>
             </div>
@@ -215,6 +298,13 @@
         btn.disabled = false;
         btn.textContent = 'Search';
       }
+    }
+
+    function getSourceClass(source) {
+      if (source === 'here') return 'from-here';
+      if (source === 'google') return 'from-google';
+      if (source === 'places') return 'from-places';
+      return '';
     }
 
     function esc(str) {
