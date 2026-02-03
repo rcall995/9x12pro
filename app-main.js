@@ -10021,12 +10021,12 @@ async function loadManualProspects() {
       console.log('✅ ZIP normalization complete. Will not run again.');
     }
 
-    // v6 cleanup: Normalize categories to canonical form
-    const hasRunCategoryCleanup = localStorage.getItem('hasRunCategoryNormalization_v6');
+    // v7 cleanup: Normalize categories with EXPANDED aliases (car wash → auto_detailing, etc.)
+    const hasRunCategoryCleanup = localStorage.getItem('hasRunCategoryNormalization_v7');
     if (!hasRunCategoryCleanup) {
-      console.log('🔧 Running one-time category normalization (v6)...');
+      console.log('🔧 Running category normalization with expanded aliases (v7)...');
       await normalizeAllCategories();
-      localStorage.setItem('hasRunCategoryNormalization_v6', 'true');
+      localStorage.setItem('hasRunCategoryNormalization_v7', 'true');
       console.log('✅ Category normalization complete. Will not run again.');
     }
   } catch(err) {
@@ -12830,48 +12830,85 @@ window.addAllCategoryToKanban = addAllCategoryToKanban;
 
 // ========= CATEGORY NORMALIZATION SYSTEM =========
 // Maps various category names to canonical categories
-// This ensures "Plumbing", "Plumber", "Plumbing Service" all become "plumber"
+// EXPANDED: Includes related business types so you don't miss leads
+// You can always recategorize businesses using the edit pencil icon
 const CATEGORY_ALIASES = {
   // Canonical category: [list of aliases that map to it]
-  'accountant': ['accountant', 'accounting', 'cpa', 'bookkeeper', 'bookkeeping', 'tax preparer', 'tax preparation', 'tax service'],
-  'auto_detailing': ['auto detailing', 'car detailing', 'vehicle detailing', 'auto detail', 'car detail', 'detailing', 'mobile detailing'],
-  'auto_repair': ['auto repair', 'car repair', 'mechanic', 'auto mechanic', 'car mechanic', 'automotive repair', 'auto service', 'car service', 'auto shop', 'garage'],
-  'bakery': ['bakery', 'baker', 'bake shop', 'pastry shop', 'cake shop'],
-  'bar': ['bar', 'pub', 'tavern', 'nightclub', 'lounge', 'sports bar', 'wine bar', 'cocktail bar'],
-  'barber': ['barber', 'barbershop', 'barber shop', 'mens haircut', 'mens grooming'],
-  'cafe': ['cafe', 'coffee shop', 'coffee house', 'coffeehouse', 'espresso bar', 'tea house'],
-  'car_wash': ['car wash', 'auto wash', 'car washing', 'auto spa', 'vehicle wash'],
-  'chiropractor': ['chiropractor', 'chiropractic', 'chiropractic clinic', 'spine doctor', 'back doctor'],
-  'contractor': ['contractor', 'general contractor', 'construction', 'builder', 'home builder', 'remodeling', 'renovation'],
-  'dentist': ['dentist', 'dental', 'dental office', 'dental clinic', 'dental practice', 'orthodontist', 'oral surgeon'],
-  'doctor': ['doctor', 'physician', 'medical', 'clinic', 'medical office', 'family medicine', 'primary care', 'healthcare'],
-  'dry_cleaner': ['dry cleaner', 'dry cleaning', 'laundry', 'laundromat', 'cleaners', 'alterations'],
-  'electrician': ['electrician', 'electrical', 'electrical contractor', 'electric', 'electrical service', 'electrical repair'],
-  'florist': ['florist', 'flower shop', 'floral', 'flowers', 'floral design', 'flower delivery'],
-  'funeral_home': ['funeral home', 'funeral', 'mortuary', 'funeral service', 'cremation', 'memorial'],
-  'gift_shop': ['gift shop', 'gift store', 'gifts', 'novelty', 'souvenir', 'card shop'],
-  'groomer': ['groomer', 'pet grooming', 'dog grooming', 'pet groomer', 'dog groomer', 'cat grooming', 'animal grooming'],
-  'gym': ['gym', 'fitness', 'fitness center', 'health club', 'workout', 'exercise', 'crossfit', 'personal training'],
-  'hvac': ['hvac', 'hvac contractor', 'heating', 'air conditioning', 'ac repair', 'heating and cooling', 'furnace', 'heat pump', 'ac service'],
-  'insurance': ['insurance', 'insurance agent', 'insurance agency', 'insurance broker', 'auto insurance', 'home insurance', 'life insurance'],
-  'jewelry': ['jewelry', 'jeweler', 'jewelry store', 'jewelers', 'jewelry repair', 'watch repair', 'gold buyer'],
-  'landscaping': ['landscaping', 'landscaper', 'lawn care', 'lawn service', 'yard work', 'garden', 'gardening', 'lawn maintenance', 'tree service'],
-  'lawyer': ['lawyer', 'attorney', 'law firm', 'legal', 'law office', 'legal service', 'paralegal'],
-  'martial_arts': ['martial arts', 'karate', 'taekwondo', 'jiu jitsu', 'mma', 'boxing', 'kickboxing', 'self defense', 'dojo'],
-  'nail_salon': ['nail salon', 'nails', 'manicure', 'pedicure', 'nail spa', 'nail bar', 'nail tech'],
-  'pet_store': ['pet store', 'pet shop', 'pet supplies', 'pet food', 'aquarium', 'fish store'],
-  'pizza': ['pizza', 'pizzeria', 'pizza shop', 'pizza restaurant', 'pizza delivery'],
-  'plumber': ['plumber', 'plumbing', 'plumbing service', 'plumbing contractor', 'drain cleaning', 'pipe repair', 'water heater'],
-  'real_estate': ['real estate', 'realtor', 'real estate agent', 'real estate broker', 'property', 'realty', 'home sales'],
-  'restaurant': ['restaurant', 'dining', 'eatery', 'food', 'diner', 'bistro', 'grill', 'kitchen'],
-  'roofing': ['roofing', 'roofer', 'roof repair', 'roofing contractor', 'roof replacement', 'roof installation'],
-  'salon': ['salon', 'hair salon', 'beauty salon', 'hairdresser', 'hair stylist', 'beauty shop', 'hair care', 'cosmetology'],
-  'spa': ['spa', 'day spa', 'massage', 'massage therapy', 'wellness', 'relaxation', 'facial', 'body treatment'],
-  'tailor': ['tailor', 'alterations', 'seamstress', 'clothing alterations', 'suit tailor', 'dress alterations'],
-  'tire_shop': ['tire shop', 'tire store', 'tires', 'tire service', 'tire repair', 'wheel alignment', 'tire center'],
-  'veterinarian': ['veterinarian', 'vet', 'veterinary', 'animal hospital', 'pet clinic', 'animal clinic', 'pet hospital', 'vet clinic'],
-  'yoga': ['yoga', 'yoga studio', 'pilates', 'yoga class', 'hot yoga', 'meditation'],
-  'other': ['other', 'miscellaneous', 'general', 'unknown']
+  'accountant': ['accountant', 'accounting', 'cpa', 'bookkeeper', 'bookkeeping', 'tax preparer', 'tax preparation', 'tax service', 'payroll', 'financial advisor', 'financial planner', 'tax consultant', 'enrolled agent'],
+
+  'auto_detailing': ['auto detailing', 'car detailing', 'vehicle detailing', 'auto detail', 'car detail', 'detailing', 'mobile detailing', 'car wash', 'auto wash', 'auto spa', 'window tinting', 'tint shop', 'tinting', 'ceramic coating', 'paint protection', 'ppf', 'clear bra', 'car care', 'auto appearance', 'vehicle wrap', 'car wrap', 'vinyl wrap', 'paint correction', 'buffing', 'polishing', 'interior detailing', 'headlight restoration'],
+
+  'auto_repair': ['auto repair', 'car repair', 'mechanic', 'auto mechanic', 'car mechanic', 'automotive repair', 'auto service', 'car service', 'auto shop', 'garage', 'transmission', 'brake shop', 'brakes', 'muffler', 'exhaust', 'oil change', 'lube', 'tune up', 'auto body', 'body shop', 'collision', 'dent repair', 'paintless dent', 'auto electric', 'auto glass', 'windshield'],
+
+  'bakery': ['bakery', 'baker', 'bake shop', 'pastry shop', 'cake shop', 'cupcake', 'donut', 'doughnut', 'bagel', 'bread', 'pastry', 'dessert', 'sweet shop', 'confectionery'],
+
+  'bar': ['bar', 'pub', 'tavern', 'nightclub', 'lounge', 'sports bar', 'wine bar', 'cocktail bar', 'brewery', 'taproom', 'beer garden', 'club', 'cantina', 'saloon'],
+
+  'barber': ['barber', 'barbershop', 'barber shop', 'mens haircut', 'mens grooming', 'fade', 'haircut', 'mens salon', 'gentleman'],
+
+  'cafe': ['cafe', 'coffee shop', 'coffee house', 'coffeehouse', 'espresso bar', 'tea house', 'tea room', 'bistro', 'brunch', 'breakfast'],
+
+  'chiropractor': ['chiropractor', 'chiropractic', 'chiropractic clinic', 'spine', 'back doctor', 'spinal', 'adjustment', 'wellness center', 'pain relief', 'physical therapy', 'pt', 'rehab', 'rehabilitation', 'sports medicine', 'acupuncture', 'holistic'],
+
+  'contractor': ['contractor', 'general contractor', 'construction', 'builder', 'home builder', 'remodeling', 'renovation', 'handyman', 'home improvement', 'home repair', 'kitchen remodel', 'bathroom remodel', 'basement', 'addition', 'deck', 'patio', 'concrete', 'masonry', 'framing', 'drywall', 'carpentry', 'carpenter'],
+
+  'dentist': ['dentist', 'dental', 'dental office', 'dental clinic', 'dental practice', 'orthodontist', 'oral surgeon', 'teeth', 'tooth', 'orthodontics', 'braces', 'invisalign', 'implant', 'cosmetic dentist', 'family dentist', 'pediatric dentist', 'endodontist', 'periodontist', 'dentures'],
+
+  'doctor': ['doctor', 'physician', 'medical', 'clinic', 'medical office', 'family medicine', 'primary care', 'healthcare', 'urgent care', 'walk in clinic', 'pediatrician', 'internist', 'dermatologist', 'cardiologist', 'obgyn', 'gynecologist', 'orthopedic', 'podiatrist', 'psychiatrist', 'psychologist', 'therapist', 'counselor', 'mental health'],
+
+  'dry_cleaner': ['dry cleaner', 'dry cleaning', 'laundry', 'laundromat', 'cleaners', 'wash and fold', 'coin laundry', 'laundry service', 'pressing', 'ironing'],
+
+  'electrician': ['electrician', 'electrical', 'electrical contractor', 'electric', 'electrical service', 'electrical repair', 'wiring', 'rewire', 'panel', 'circuit', 'lighting', 'generator', 'solar', 'ev charger', 'smart home'],
+
+  'florist': ['florist', 'flower shop', 'floral', 'flowers', 'floral design', 'flower delivery', 'bouquet', 'arrangement', 'wedding flowers', 'event flowers', 'plant shop', 'nursery', 'garden center'],
+
+  'funeral_home': ['funeral home', 'funeral', 'mortuary', 'funeral service', 'cremation', 'memorial', 'cemetery', 'burial', 'mortician', 'funeral director'],
+
+  'gift_shop': ['gift shop', 'gift store', 'gifts', 'novelty', 'souvenir', 'card shop', 'boutique', 'specialty shop', 'antique', 'collectible', 'home decor', 'candle shop'],
+
+  'groomer': ['groomer', 'pet grooming', 'dog grooming', 'pet groomer', 'dog groomer', 'cat grooming', 'animal grooming', 'pet salon', 'dog wash', 'pet spa', 'mobile grooming', 'pet boarding', 'kennel', 'doggy daycare', 'dog training', 'pet sitting', 'dog walker'],
+
+  'gym': ['gym', 'fitness', 'fitness center', 'health club', 'workout', 'exercise', 'crossfit', 'personal training', 'trainer', 'weight loss', 'boot camp', 'spin', 'cycling', 'barre', 'zumba', 'aerobics', 'strength training', 'bodybuilding', 'athletic club', '24 hour fitness', 'anytime fitness'],
+
+  'hvac': ['hvac', 'hvac contractor', 'heating', 'air conditioning', 'ac repair', 'heating and cooling', 'furnace', 'heat pump', 'ac service', 'air conditioner', 'cooling', 'ductwork', 'ventilation', 'indoor air quality', 'thermostat', 'boiler', 'radiant heat', 'mini split', 'central air'],
+
+  'insurance': ['insurance', 'insurance agent', 'insurance agency', 'insurance broker', 'auto insurance', 'home insurance', 'life insurance', 'health insurance', 'commercial insurance', 'business insurance', 'renters insurance', 'motorcycle insurance', 'boat insurance', 'umbrella insurance'],
+
+  'jewelry': ['jewelry', 'jeweler', 'jewelry store', 'jewelers', 'jewelry repair', 'watch repair', 'gold buyer', 'diamond', 'engagement ring', 'wedding ring', 'custom jewelry', 'pawn shop', 'gold exchange', 'silver', 'gemstone'],
+
+  'landscaping': ['landscaping', 'landscaper', 'lawn care', 'lawn service', 'yard work', 'garden', 'gardening', 'lawn maintenance', 'tree service', 'tree trimming', 'tree removal', 'stump grinding', 'irrigation', 'sprinkler', 'hardscape', 'paver', 'retaining wall', 'sod', 'mulch', 'snow removal', 'leaf removal', 'hedge trimming', 'bush trimming', 'weed control', 'fertilizing', 'aeration'],
+
+  'lawyer': ['lawyer', 'attorney', 'law firm', 'legal', 'law office', 'legal service', 'paralegal', 'personal injury', 'divorce', 'family law', 'criminal defense', 'dui', 'bankruptcy', 'estate planning', 'wills', 'trusts', 'real estate attorney', 'business attorney', 'immigration', 'workers comp'],
+
+  'martial_arts': ['martial arts', 'karate', 'taekwondo', 'jiu jitsu', 'mma', 'boxing', 'kickboxing', 'self defense', 'dojo', 'kung fu', 'aikido', 'judo', 'krav maga', 'muay thai', 'brazilian jiu jitsu', 'bjj', 'wrestling', 'mixed martial arts'],
+
+  'nail_salon': ['nail salon', 'nails', 'manicure', 'pedicure', 'nail spa', 'nail bar', 'nail tech', 'gel nails', 'acrylic nails', 'nail art', 'lash', 'eyelash', 'lash extensions', 'brow', 'eyebrow', 'waxing', 'threading'],
+
+  'pet_store': ['pet store', 'pet shop', 'pet supplies', 'pet food', 'aquarium', 'fish store', 'reptile', 'bird', 'small animal', 'pet accessories', 'dog food', 'cat food', 'pet boutique'],
+
+  'pizza': ['pizza', 'pizzeria', 'pizza shop', 'pizza restaurant', 'pizza delivery', 'italian', 'pasta', 'sub shop', 'sandwich', 'wings', 'calzone', 'stromboli'],
+
+  'plumber': ['plumber', 'plumbing', 'plumbing service', 'plumbing contractor', 'drain cleaning', 'pipe repair', 'water heater', 'sewer', 'septic', 'rooter', 'leak', 'faucet', 'toilet', 'garbage disposal', 'water softener', 'water filtration', 'backflow', 'gas line', 'repiping', 'hydro jetting'],
+
+  'real_estate': ['real estate', 'realtor', 'real estate agent', 'real estate broker', 'property', 'realty', 'home sales', 'homes for sale', 'listing agent', 'buyers agent', 'property management', 'rental', 'apartment', 'commercial real estate', 'land', 'mortgage', 'home loan', 'title company', 'escrow', 'home inspection', 'appraiser'],
+
+  'restaurant': ['restaurant', 'dining', 'eatery', 'food', 'diner', 'bistro', 'grill', 'kitchen', 'steakhouse', 'seafood', 'mexican', 'chinese', 'thai', 'indian', 'japanese', 'sushi', 'korean', 'vietnamese', 'greek', 'mediterranean', 'american', 'bbq', 'barbecue', 'buffet', 'fine dining', 'casual dining', 'family restaurant', 'catering', 'food truck'],
+
+  'roofing': ['roofing', 'roofer', 'roof repair', 'roofing contractor', 'roof replacement', 'roof installation', 'shingle', 'metal roof', 'flat roof', 'gutter', 'siding', 'soffit', 'fascia', 'roof inspection', 'roof leak', 'storm damage', 'hail damage'],
+
+  'salon': ['salon', 'hair salon', 'beauty salon', 'hairdresser', 'hair stylist', 'beauty shop', 'hair care', 'cosmetology', 'color', 'highlights', 'balayage', 'extensions', 'blowout', 'keratin', 'perm', 'relaxer', 'braids', 'weave', 'wig', 'beauty supply'],
+
+  'spa': ['spa', 'day spa', 'massage', 'massage therapy', 'wellness', 'relaxation', 'facial', 'body treatment', 'med spa', 'medical spa', 'botox', 'filler', 'laser', 'skin care', 'esthetician', 'body sculpting', 'coolsculpting', 'microneedling', 'chemical peel', 'dermaplaning', 'hydrafacial', 'sauna', 'float', 'cryotherapy'],
+
+  'tailor': ['tailor', 'alterations', 'seamstress', 'clothing alterations', 'suit tailor', 'dress alterations', 'custom suit', 'bespoke', 'tuxedo', 'formal wear', 'bridal alterations', 'leather repair', 'shoe repair', 'cobbler'],
+
+  'tire_shop': ['tire shop', 'tire store', 'tires', 'tire service', 'tire repair', 'wheel alignment', 'tire center', 'wheel', 'rim', 'flat repair', 'rotation', 'balancing', 'discount tire', 'used tire'],
+
+  'veterinarian': ['veterinarian', 'vet', 'veterinary', 'animal hospital', 'pet clinic', 'animal clinic', 'pet hospital', 'vet clinic', 'emergency vet', 'spay', 'neuter', 'vaccination', 'pet surgery', 'animal care', 'exotic vet', 'equine', 'large animal'],
+
+  'yoga': ['yoga', 'yoga studio', 'pilates', 'yoga class', 'hot yoga', 'meditation', 'mindfulness', 'stretch', 'flexibility', 'vinyasa', 'hatha', 'bikram', 'power yoga', 'restorative yoga', 'yin yoga', 'prenatal yoga'],
+
+  'other': ['other', 'miscellaneous', 'general', 'unknown', 'service', 'business', 'company', 'shop', 'store']
 };
 
 // Build reverse lookup: alias -> canonical category
@@ -12930,9 +12967,10 @@ window.normalizeCategory = normalizeCategory;
 window.CATEGORY_ALIASES = CATEGORY_ALIASES;
 
 // Common business categories for dropdown (canonical names)
+// Note: car_wash is now merged into auto_detailing
 const BUSINESS_CATEGORIES = [
   'accountant', 'auto_detailing', 'auto_repair', 'bakery', 'bar', 'barber',
-  'cafe', 'car_wash', 'chiropractor', 'contractor',
+  'cafe', 'chiropractor', 'contractor',
   'dentist', 'doctor', 'dry_cleaner',
   'electrician',
   'florist', 'funeral_home',
