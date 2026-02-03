@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Data Accuracy Validator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; }
+    .valid { background-color: #d1fae5; }
+    .invalid { background-color: #fee2e2; }
+    .warning { background-color: #fef3c7; }
+    .unknown { background-color: #f3f4f6; }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-6">
+  <div class="max-w-6xl mx-auto">
+    <h1 class="text-3xl font-bold mb-2">Data Accuracy Validator</h1>
+    <p class="text-gray-600 mb-6">Verify emails, websites, and phones from search results</p>
+
+    <!-- Search Config -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+      <div class="grid grid-cols-4 gap-4 mb-4">
+        <div>
+          <label class="block text-sm font-medium mb-1">ZIP Code</label>
+          <input type="text" id="zipCode" value="14150" maxlength="5"
+            class="w-full border rounded px-3 py-2">
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Category</label>
+          <select id="category" class="w-full border rounded px-3 py-2">
+            <option value="plumber">Plumber</option>
+            <option value="auto repair">Auto Repair</option>
+            <option value="restaurant" selected>Restaurant</option>
+            <option value="hvac">HVAC</option>
+            <option value="salon">Salon</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Enrichment</label>
+          <select id="enrichment" class="w-full border rounded px-3 py-2">
+            <option value="serper">Serper (FREE - Best)</option>
+            <option value="places">Google Places ($)</option>
+            <option value="none">HERE Only</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Test Size</label>
+          <select id="testSize" class="w-full border rounded px-3 py-2">
+            <option value="10">10 businesses</option>
+            <option value="20" selected>20 businesses</option>
+            <option value="50">All (up to 50)</option>
+          </select>
+        </div>
+      </div>
+
+      <button id="runBtn" onclick="runAccuracyTest()"
+        class="w-full bg-green-600 text-white py-3 rounded-lg font-bold text-lg hover:bg-green-700">
+        Run Accuracy Test
+      </button>
+    </div>
+
+    <!-- Progress -->
+    <div id="progress" class="bg-white rounded-lg shadow p-4 mb-6 hidden">
+      <div class="flex items-center gap-3">
+        <div class="animate-spin h-5 w-5 border-2 border-green-600 border-t-transparent rounded-full"></div>
+        <span id="progressText">Running...</span>
+      </div>
+      <div class="mt-2 bg-gray-200 rounded-full h-2">
+        <div id="progressBar" class="bg-green-600 h-2 rounded-full transition-all" style="width: 0%"></div>
+      </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div id="summary" class="grid grid-cols-4 gap-4 mb-6 hidden">
+      <div class="bg-white rounded-lg shadow p-4 text-center">
+        <div class="text-3xl font-bold text-blue-600" id="totalCount">0</div>
+        <div class="text-sm text-gray-500">Businesses</div>
+      </div>
+      <div class="bg-white rounded-lg shadow p-4 text-center">
+        <div class="text-3xl font-bold text-green-600" id="emailAccuracy">0%</div>
+        <div class="text-sm text-gray-500">Email Accuracy</div>
+        <div class="text-xs text-gray-400" id="emailDetail"></div>
+      </div>
+      <div class="bg-white rounded-lg shadow p-4 text-center">
+        <div class="text-3xl font-bold text-purple-600" id="websiteAccuracy">0%</div>
+        <div class="text-sm text-gray-500">Website Accuracy</div>
+        <div class="text-xs text-gray-400" id="websiteDetail"></div>
+      </div>
+      <div class="bg-white rounded-lg shadow p-4 text-center">
+        <div class="text-3xl font-bold text-orange-600" id="phoneAccuracy">0%</div>
+        <div class="text-sm text-gray-500">Phone Valid</div>
+        <div class="text-xs text-gray-400" id="phoneDetail"></div>
+      </div>
+    </div>
+
+    <!-- Detailed Results -->
+    <div id="resultsSection" class="bg-white rounded-lg shadow p-6 hidden">
+      <h2 class="font-bold text-lg mb-4">Validation Details</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-gray-100">
+              <th class="px-3 py-2 text-left">Business</th>
+              <th class="px-3 py-2 text-left">Email</th>
+              <th class="px-3 py-2 text-center">Email Check</th>
+              <th class="px-3 py-2 text-left">Website</th>
+              <th class="px-3 py-2 text-center">Website Check</th>
+              <th class="px-3 py-2 text-left">Phone</th>
+              <th class="px-3 py-2 text-center">Phone Check</th>
+            </tr>
+          </thead>
+          <tbody id="resultsTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Issues Found -->
+    <div id="issuesSection" class="bg-white rounded-lg shadow p-6 mt-6 hidden">
+      <h2 class="font-bold text-lg mb-4 text-red-600">Issues Found</h2>
+      <div id="issuesList"></div>
+    </div>
+  </div>
+
+  <script>
+    let googleMapsLoaded = false;
+
+    function loadGoogleMaps() {
+      return new Promise((resolve, reject) => {
+        if (googleMapsLoaded) { resolve(); return; }
+        window.initGoogleMaps = () => { googleMapsLoaded = true; resolve(); };
+        const script = document.createElement('script');
+        script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyB9E1j1s3I-7RkL1AmKWJpMdA6gDoRW6nQ&libraries=places&loading=async&callback=initGoogleMaps`;
+        script.async = true;
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
+    }
+
+    async function runAccuracyTest() {
+      const zipCode = document.getElementById('zipCode').value.trim();
+      const category = document.getElementById('category').value;
+      const enrichment = document.getElementById('enrichment').value;
+      const testSize = parseInt(document.getElementById('testSize').value);
+
+      document.getElementById('progress').classList.remove('hidden');
+      document.getElementById('summary').classList.add('hidden');
+      document.getElementById('resultsSection').classList.add('hidden');
+      document.getElementById('issuesSection').classList.add('hidden');
+      document.getElementById('runBtn').disabled = true;
+
+      const results = [];
+      const issues = [];
+
+      try {
+        // Step 1: Get businesses from HERE
+        updateProgress('Fetching businesses...', 5);
+        const response = await fetch('/api/here-search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ zipCode, category, limit: 50 })
+        });
+        const data = await response.json();
+        let businesses = (data.businesses || []).slice(0, testSize);
+
+        if (businesses.length === 0) {
+          alert('No businesses found');
+          return;
+        }
+
+        // Step 2: Enrich with selected method
+        if (enrichment !== 'none') {
+          updateProgress(`Enriching with ${enrichment}...`, 15);
+
+          for (let i = 0; i < businesses.length; i++) {
+            const biz = businesses[i];
+
+            if (!biz.website) {
+              if (enrichment === 'serper') {
+                try {
+                  const query = `${biz.name} ${biz.city || ''} ${biz.state || ''} official website`;
+                  const resp = await fetch('/api/serper-search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query, businessName: biz.name })
+                  });
+                  const searchData = await resp.json();
+                  if (searchData.topUrl) {
+                    biz.website = searchData.topUrl;
+                    biz.websiteSource = 'serper';
+                  }
+                } catch (e) {}
+              } else if (enrichment === 'places') {
+                try {
+                  await loadGoogleMaps();
+                  const query = `${biz.name} ${biz.city || ''} ${biz.state || ''}`;
+                  const { Place } = await google.maps.importLibrary("places");
+                  const { places } = await Place.searchByText({
+                    textQuery: query,
+                    fields: ['websiteURI'],
+                    maxResultCount: 1
+                  });
+                  if (places?.[0]?.websiteURI) {
+                    biz.website = places[0].websiteURI;
+                    biz.websiteSource = 'places';
+                  }
+                } catch (e) {}
+              }
+            }
+
+            // Email scraping
+            if (biz.website && !biz.email) {
+              try {
+                const scrapeResp = await fetch('/api/scrape-email', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ website: biz.website, businessName: biz.name })
+                });
+                const scrapeData = await scrapeResp.json();
+                if (scrapeData.primaryEmail) {
+                  biz.email = scrapeData.primaryEmail;
+                  biz.emailSource = 'scrape';
+                }
+              } catch (e) {}
+            }
+
+            await new Promise(r => setTimeout(r, 150));
+          }
+        }
+
+        // Step 3: Validate each business
+        for (let i = 0; i < businesses.length; i++) {
+          const biz = businesses[i];
+          const pct = 20 + Math.round((i / businesses.length) * 75);
+          updateProgress(`Validating ${biz.name} (${i + 1}/${businesses.length})...`, pct);
+
+          const result = {
+            name: biz.name,
+            email: biz.email || null,
+            emailValid: null,
+            emailScore: 0,
+            emailReason: '',
+            website: biz.website || null,
+            websiteValid: null,
+            websiteScore: 0,
+            websiteReason: '',
+            phone: biz.phone || null,
+            phoneValid: null
+          };
+
+          // Validate email
+          if (biz.email) {
+            try {
+              const emailResp = await fetch('/api/validate-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: biz.email })
+              });
+              const emailData = await emailResp.json();
+              result.emailValid = emailData.valid;
+              result.emailScore = emailData.score;
+              result.emailReason = emailData.reason;
+              result.emailIsGeneric = emailData.isGeneric;
+
+              if (!emailData.valid) {
+                issues.push({
+                  business: biz.name,
+                  type: 'email',
+                  value: biz.email,
+                  reason: emailData.reason
+                });
+              }
+            } catch (e) {
+              result.emailReason = 'Validation failed';
+            }
+          }
+
+          // Validate website
+          if (biz.website) {
+            try {
+              const webResp = await fetch('/api/validate-website', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ website: biz.website, businessName: biz.name })
+              });
+              const webData = await webResp.json();
+              result.websiteValid = webData.valid;
+              result.websiteScore = webData.score;
+              result.websiteReason = webData.reason;
+              result.businessNameFound = webData.businessNameFound;
+
+              if (!webData.valid) {
+                issues.push({
+                  business: biz.name,
+                  type: 'website',
+                  value: biz.website,
+                  reason: webData.reason
+                });
+              } else if (webData.businessNameFound === false) {
+                issues.push({
+                  business: biz.name,
+                  type: 'website',
+                  value: biz.website,
+                  reason: 'Business name not found on page - may be wrong website'
+                });
+              }
+            } catch (e) {
+              result.websiteReason = 'Validation failed';
+            }
+          }
+
+          // Validate phone (basic format check)
+          if (biz.phone) {
+            const digits = biz.phone.replace(/\D/g, '');
+            // Valid US phone: 10 digits, or 11 starting with 1
+            result.phoneValid = digits.length === 10 || (digits.length === 11 && digits.startsWith('1'));
+            if (!result.phoneValid) {
+              issues.push({
+                business: biz.name,
+                type: 'phone',
+                value: biz.phone,
+                reason: 'Invalid phone format'
+              });
+            }
+          }
+
+          results.push(result);
+          await new Promise(r => setTimeout(r, 100));
+        }
+
+        // Display results
+        displayResults(results, issues);
+
+      } catch (error) {
+        console.error('Accuracy test error:', error);
+        alert('Error: ' + error.message);
+      } finally {
+        document.getElementById('progress').classList.add('hidden');
+        document.getElementById('runBtn').disabled = false;
+      }
+    }
+
+    function updateProgress(text, pct) {
+      document.getElementById('progressText').textContent = text;
+      document.getElementById('progressBar').style.width = `${pct}%`;
+    }
+
+    function displayResults(results, issues) {
+      const total = results.length;
+
+      // Calculate accuracy
+      const withEmail = results.filter(r => r.email);
+      const validEmails = withEmail.filter(r => r.emailValid);
+      const emailAccuracy = withEmail.length > 0 ? Math.round((validEmails.length / withEmail.length) * 100) : 0;
+
+      const withWebsite = results.filter(r => r.website);
+      const validWebsites = withWebsite.filter(r => r.websiteValid);
+      const websiteAccuracy = withWebsite.length > 0 ? Math.round((validWebsites.length / withWebsite.length) * 100) : 0;
+
+      const withPhone = results.filter(r => r.phone);
+      const validPhones = withPhone.filter(r => r.phoneValid);
+      const phoneAccuracy = withPhone.length > 0 ? Math.round((validPhones.length / withPhone.length) * 100) : 0;
+
+      // Update summary
+      document.getElementById('summary').classList.remove('hidden');
+      document.getElementById('totalCount').textContent = total;
+      document.getElementById('emailAccuracy').textContent = emailAccuracy + '%';
+      document.getElementById('emailDetail').textContent = `${validEmails.length}/${withEmail.length} valid`;
+      document.getElementById('websiteAccuracy').textContent = websiteAccuracy + '%';
+      document.getElementById('websiteDetail').textContent = `${validWebsites.length}/${withWebsite.length} valid`;
+      document.getElementById('phoneAccuracy').textContent = phoneAccuracy + '%';
+      document.getElementById('phoneDetail').textContent = `${validPhones.length}/${withPhone.length} valid`;
+
+      // Build results table
+      document.getElementById('resultsSection').classList.remove('hidden');
+      let tableHTML = '';
+
+      for (const r of results) {
+        const emailClass = r.email ? (r.emailValid ? 'valid' : 'invalid') : 'unknown';
+        const webClass = r.website ? (r.websiteValid ? (r.businessNameFound === false ? 'warning' : 'valid') : 'invalid') : 'unknown';
+        const phoneClass = r.phone ? (r.phoneValid ? 'valid' : 'invalid') : 'unknown';
+
+        tableHTML += `
+          <tr class="border-t">
+            <td class="px-3 py-2 font-medium">${r.name}</td>
+            <td class="px-3 py-2 text-xs max-w-32 truncate" title="${r.email || ''}">${r.email || '-'}</td>
+            <td class="px-3 py-2 text-center ${emailClass}">
+              ${r.email ? (r.emailValid ? '✅' + (r.emailIsGeneric ? ' (generic)' : '') : '❌') : '-'}
+            </td>
+            <td class="px-3 py-2 text-xs max-w-40 truncate" title="${r.website || ''}">${r.website ? r.website.replace(/^https?:\/\//, '').substring(0, 30) : '-'}</td>
+            <td class="px-3 py-2 text-center ${webClass}">
+              ${r.website ? (r.websiteValid ? (r.businessNameFound === false ? '⚠️' : '✅') : '❌') : '-'}
+            </td>
+            <td class="px-3 py-2 text-xs">${r.phone || '-'}</td>
+            <td class="px-3 py-2 text-center ${phoneClass}">
+              ${r.phone ? (r.phoneValid ? '✅' : '❌') : '-'}
+            </td>
+          </tr>
+        `;
+      }
+
+      document.getElementById('resultsTable').innerHTML = tableHTML;
+
+      // Show issues
+      if (issues.length > 0) {
+        document.getElementById('issuesSection').classList.remove('hidden');
+        document.getElementById('issuesList').innerHTML = issues.map(issue => `
+          <div class="border-l-4 border-red-400 bg-red-50 p-3 mb-2">
+            <div class="font-medium">${issue.business}</div>
+            <div class="text-sm text-gray-600">
+              <span class="font-medium">${issue.type}:</span> ${issue.value}
+            </div>
+            <div class="text-sm text-red-600">${issue.reason}</div>
+          </div>
+        `).join('');
+      }
+    }
+  </script>
+</body>
+</html>

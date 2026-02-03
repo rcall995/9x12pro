@@ -1385,21 +1385,25 @@ function toggleTaskComplete(checkbox) {
     return;
   }
 
+  // Support both task-row (Tasks tab) and direct data-task-id (Dashboard widget)
   const row = checkbox.closest('.task-row');
-  if (!row) {
-    console.error('Could not find task-row for checkbox');
+  const taskId = row ? row.dataset.taskId : checkbox.dataset.taskId;
+
+  if (!taskId) {
+    console.error('Could not find task ID for checkbox');
     return;
   }
 
-  const taskId = row.dataset.taskId;
   const task = tasksState.tasks.find(t => t.id == taskId);
   if (task) {
     task.completed = checkbox.checked;
     saveTasks();
-    if (checkbox.checked) {
-      row.classList.add('completed');
-    } else {
-      row.classList.remove('completed');
+    if (row) {
+      if (checkbox.checked) {
+        row.classList.add('completed');
+      } else {
+        row.classList.remove('completed');
+      }
     }
     updateTasksDisplay();
   }
@@ -20313,8 +20317,11 @@ function updateTasksDisplay() {
     overdueText.textContent = 'All tasks complete';
     overdueText.className = 'text-sm text-green-600 mb-2';
   }
-  
+
   setupTaskDrag();
+
+  // Also update dashboard widget
+  renderDashboardTasks();
 }
 
 function setupTaskDrag() {
@@ -25774,6 +25781,10 @@ function switchTab(tabName) {
         setTimeout(() => {
             refreshDashboard();
             initializeDashboardTemplatesState();
+            // Load financial data for dashboard widget if not loaded
+            if (!financialState.loaded) {
+                loadFinancialData();
+            }
         }, 100);
     }
 
@@ -25792,8 +25803,8 @@ function switchTab(tabName) {
         setTimeout(() => populateBulkSendTemplates(), 100);
     } else if (tabName === 'clients') {
         renderClientList();
-    } else if (tabName === 'admin') {
-        // Load financial data when Financials tab is opened
+    } else if (tabName === 'admin' || tabName === 'reports') {
+        // Load financial data when Financials/Reports tab is opened
         if (!financialState.loaded) {
             loadFinancialData();
         } else {
@@ -27109,11 +27120,131 @@ function renderDashboardStats() {
   if (statsClients) statsClients.textContent = clientsCount;
 }
 
+// ========== DASHBOARD TASKS WIDGET ==========
+function renderDashboardTasks() {
+  const container = document.getElementById('dashboardTaskList');
+  const statusEl = document.getElementById('dashboardTaskStatus');
+  if (!container) return;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Filter: hide completed tasks that are overdue
+  let visibleTasks = (tasksState.tasks || []).filter(task => {
+    if (task.completed) {
+      const parts = task.dueDate.split('-');
+      const dueDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+      return dueDate >= today;
+    }
+    return true;
+  });
+
+  // Sort by due date and limit to 5
+  visibleTasks.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+  const displayTasks = visibleTasks.slice(0, 5);
+
+  // Update status text
+  const incompleteTasks = visibleTasks.filter(t => !t.completed);
+  const overdueCount = incompleteTasks.filter(t => {
+    const parts = t.dueDate.split('-');
+    const dueDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    return dueDate < today;
+  }).length;
+
+  if (statusEl) {
+    if (overdueCount > 0) {
+      statusEl.textContent = `${overdueCount} overdue, ${incompleteTasks.length} total`;
+      statusEl.className = 'text-sm text-red-500 font-medium';
+    } else if (incompleteTasks.length > 0) {
+      statusEl.textContent = `${incompleteTasks.length} pending`;
+      statusEl.className = 'text-sm text-gray-500';
+    } else {
+      statusEl.textContent = 'All complete!';
+      statusEl.className = 'text-sm text-green-600';
+    }
+  }
+
+  if (displayTasks.length === 0) {
+    container.innerHTML = '<p class="text-sm text-gray-500 text-center py-4">No tasks. Add one to get started!</p>';
+    return;
+  }
+
+  container.innerHTML = displayTasks.map(task => {
+    const parts = task.dueDate.split('-');
+    const dueDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    const isOverdue = dueDate < today && !task.completed;
+    const dateStr = dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+    return `
+      <div class="flex items-center gap-3 p-2 rounded-lg ${task.completed ? 'bg-gray-50 opacity-60' : isOverdue ? 'bg-red-50' : 'bg-gray-50'} hover:bg-gray-100 transition-colors">
+        <input type="checkbox" ${task.completed ? 'checked' : ''} onchange="toggleTaskComplete(this)" data-task-id="${task.id}" class="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
+        <span class="flex-1 text-sm ${task.completed ? 'line-through text-gray-400' : 'text-gray-700'} truncate">${esc(task.text)}</span>
+        <span class="text-xs ${isOverdue ? 'text-red-600 font-bold' : 'text-gray-400'} whitespace-nowrap">${dateStr}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+// ========== DASHBOARD FINANCIAL SUMMARY WIDGET ==========
+function renderDashboardFinancials() {
+  if (!financialState.loaded || !financialState.transactions) return;
+
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
+  let monthRevenue = 0, monthExpenses = 0;
+  let allRevenue = 0, allExpenses = 0;
+
+  financialState.transactions.forEach(trans => {
+    const amount = parseFloat(trans.amount) || 0;
+    const transDate = new Date(trans.date);
+
+    // All time totals
+    if (trans.type === 'revenue') {
+      allRevenue += amount;
+      if (transDate.getMonth() === currentMonth && transDate.getFullYear() === currentYear) {
+        monthRevenue += amount;
+      }
+    } else if (trans.type === 'cogs' || trans.type === 'operating' || trans.type === 'owner_draw') {
+      allExpenses += Math.abs(amount);
+      if (transDate.getMonth() === currentMonth && transDate.getFullYear() === currentYear) {
+        monthExpenses += Math.abs(amount);
+      }
+    }
+  });
+
+  const monthProfit = monthRevenue - monthExpenses;
+  const allProfit = allRevenue - allExpenses;
+
+  // Update DOM elements
+  const formatMoney = (val) => '$' + Math.abs(val).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
+  const updateEl = (id, val, isProfit = false) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.textContent = (isProfit && val < 0 ? '-' : '') + formatMoney(val);
+      if (isProfit) {
+        el.className = el.className.replace(/text-(green|red|blue)-600/g, '') + (val >= 0 ? ' text-blue-600' : ' text-red-600');
+      }
+    }
+  };
+
+  updateEl('dashboardRevenueMonth', monthRevenue);
+  updateEl('dashboardExpensesMonth', monthExpenses);
+  updateEl('dashboardProfitMonth', monthProfit, true);
+  updateEl('dashboardRevenueAll', allRevenue);
+  updateEl('dashboardExpensesAll', allExpenses);
+  updateEl('dashboardProfitAll', allProfit, true);
+}
+
 // Refresh all dashboard widgets
 function refreshDashboard() {
   renderDashboardStats();
   renderGettingStartedChecklist();
   renderContractsExpiring();
+  renderDashboardTasks();
+  renderDashboardFinancials();
 }
 
 // ========== CONTRACTS EXPIRING WIDGET ==========
@@ -28835,6 +28966,7 @@ async function loadFinancialData() {
         // No data yet - this is fine
         financialState.transactions = [];
         financialState.loaded = true;
+        renderDashboardFinancials();
         return;
       }
       throw error;
@@ -28990,6 +29122,9 @@ function renderFinancialRegister() {
   document.getElementById('totalExpenses').textContent = `$${summaries.totalExpenses.toFixed(2)}`;
   document.getElementById('netIncome').textContent = `$${summaries.netIncome.toFixed(2)}`;
   document.getElementById('currentBalance').textContent = `$${summaries.currentBalance.toFixed(2)}`;
+
+  // Also update dashboard widget
+  renderDashboardFinancials();
 
   // Render transactions
   if (sortedTransactions.length === 0) {

@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Enrich Test - Fill Missing Data Only</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 1600px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+    h1 { color: #333; margin-bottom: 5px; }
+    .subtitle { color: #666; margin-bottom: 20px; }
+
+    .controls { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .row { display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; align-items: end; }
+    label { display: block; font-weight: 500; margin-bottom: 5px; color: #555; }
+    input, select { padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+    input[type="text"] { width: 200px; }
+    input[type="number"] { width: 80px; }
+    button { padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 500; }
+    button:hover { background: #45a049; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    button.secondary { background: #2196F3; }
+    button.secondary:hover { background: #1976D2; }
+
+    .stats { background: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 30px; flex-wrap: wrap; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .stat { text-align: center; }
+    .stat-value { font-size: 28px; font-weight: bold; color: #333; }
+    .stat-label { font-size: 12px; color: #666; text-transform: uppercase; }
+    .stat.green .stat-value { color: #4CAF50; }
+    .stat.blue .stat-value { color: #2196F3; }
+    .stat.orange .stat-value { color: #FF9800; }
+
+    .progress { background: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .progress-bar { height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden; margin-top: 10px; }
+    .progress-fill { height: 100%; background: #4CAF50; transition: width 0.3s; }
+    .progress-text { font-size: 14px; color: #666; }
+
+    table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); font-size: 13px; }
+    th { background: #f8f9fa; padding: 12px 8px; text-align: left; font-weight: 600; color: #333; border-bottom: 2px solid #e0e0e0; position: sticky; top: 0; }
+    td { padding: 10px 8px; border-bottom: 1px solid #eee; vertical-align: top; }
+    tr:hover { background: #f8f9fa; }
+
+    .business-name { font-weight: 600; color: #333; }
+    .business-address { font-size: 11px; color: #888; margin-top: 2px; }
+
+    .source-cell { min-width: 180px; }
+    .source-item { margin-bottom: 6px; padding: 4px 6px; border-radius: 4px; font-size: 12px; }
+    .source-item:last-child { margin-bottom: 0; }
+    .source-label { font-weight: 600; color: #666; display: inline-block; width: 55px; }
+    .source-value { color: #333; word-break: break-all; }
+    .source-value a { color: #1976D2; text-decoration: none; }
+    .source-value a:hover { text-decoration: underline; }
+
+    .source-item.here { background: #e3f2fd; }
+    .source-item.serper { background: #fff3e0; }
+    .source-item.brave { background: #fce4ec; }
+    .source-item.google { background: #e8f5e9; }
+    .source-item.scraped { background: #f3e5f5; }
+    .source-item.facebook { background: #e7f3ff; }
+    .source-item.instagram { background: #ffeef8; }
+
+    .source-item.match { border: 2px solid #4CAF50; }
+    .source-item.new { border: 2px solid #2196F3; }
+    .source-item.conflict { border: 2px solid #FF9800; }
+
+    .status { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+    .status.complete { background: #e8f5e9; color: #2e7d32; }
+    .status.missing { background: #fff3e0; color: #ef6c00; }
+    .status.enriched { background: #e3f2fd; color: #1565c0; }
+
+    .legend { background: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .legend-title { font-weight: 600; margin-bottom: 10px; }
+    .legend-items { display: flex; gap: 20px; flex-wrap: wrap; font-size: 13px; }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .legend-color { width: 20px; height: 20px; border-radius: 4px; }
+
+    .no-data { color: #999; font-style: italic; }
+
+    .checkbox-group { display: flex; gap: 15px; align-items: center; }
+    .checkbox-group label { display: flex; align-items: center; gap: 5px; font-weight: normal; }
+  </style>
+</head>
+<body>
+  <h1>Smart Enrich Test</h1>
+  <p class="subtitle">HERE first, then fill missing data only. Shows all sources - no overwriting.</p>
+
+  <div class="controls">
+    <div class="row">
+      <div>
+        <label>ZIP Code</label>
+        <input type="text" id="zipCode" value="14150" placeholder="e.g., 14150">
+      </div>
+      <div>
+        <label>Category</label>
+        <input type="text" id="category" value="restaurant" placeholder="e.g., restaurant">
+      </div>
+      <div>
+        <label>Limit</label>
+        <input type="number" id="limit" value="20" min="5" max="100">
+      </div>
+      <div>
+        <button id="searchBtn" onclick="runSearch()">1. Search HERE</button>
+      </div>
+      <div>
+        <button id="enrichBtn" class="secondary" onclick="runEnrichment()" disabled>2. Enrich Missing</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="checkbox-group">
+        <strong style="margin-right: 10px;">Website:</strong>
+        <label><input type="checkbox" id="useSerper" checked> Serper</label>
+        <label><input type="checkbox" id="useBrave" checked> Brave</label>
+        <label><input type="checkbox" id="useGoogle"> Google</label>
+        <span style="margin: 0 15px; color: #ccc;">|</span>
+        <strong style="margin-right: 10px;">Social:</strong>
+        <label><input type="checkbox" id="useFacebook" checked> Facebook</label>
+        <label><input type="checkbox" id="useInstagram" checked> Instagram</label>
+        <span style="margin: 0 15px; color: #ccc;">|</span>
+        <strong style="margin-right: 10px;">Email:</strong>
+        <label><input type="checkbox" id="useScrape" checked> Scrape</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-title">Source Colors & Borders</div>
+    <div class="legend-items">
+      <div class="legend-item"><div class="legend-color" style="background: #e3f2fd;"></div> HERE</div>
+      <div class="legend-item"><div class="legend-color" style="background: #fff3e0;"></div> Serper</div>
+      <div class="legend-item"><div class="legend-color" style="background: #fce4ec;"></div> Brave</div>
+      <div class="legend-item"><div class="legend-color" style="background: #e8f5e9;"></div> Google</div>
+      <div class="legend-item"><div class="legend-color" style="background: #e7f3ff;"></div> Facebook</div>
+      <div class="legend-item"><div class="legend-color" style="background: #ffeef8;"></div> Instagram</div>
+      <div class="legend-item"><div class="legend-color" style="background: #f3e5f5;"></div> Scraped</div>
+      <div class="legend-item"><div class="legend-color" style="border: 2px solid #4CAF50; background: white;"></div> Match</div>
+      <div class="legend-item"><div class="legend-color" style="border: 2px solid #2196F3; background: white;"></div> New Find</div>
+      <div class="legend-item"><div class="legend-color" style="border: 2px solid #FF9800; background: white;"></div> Conflict</div>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-value" id="totalCount">0</div>
+      <div class="stat-label">Businesses</div>
+    </div>
+    <div class="stat green">
+      <div class="stat-value" id="completeCount">0</div>
+      <div class="stat-label">Complete (HERE)</div>
+    </div>
+    <div class="stat orange">
+      <div class="stat-value" id="missingWebsiteCount">0</div>
+      <div class="stat-label">Missing Website</div>
+    </div>
+    <div class="stat orange">
+      <div class="stat-value" id="missingEmailCount">0</div>
+      <div class="stat-label">Missing Email</div>
+    </div>
+    <div class="stat blue">
+      <div class="stat-value" id="enrichedWebsiteCount">0</div>
+      <div class="stat-label">Websites Found</div>
+    </div>
+    <div class="stat blue">
+      <div class="stat-value" id="enrichedSocialCount">0</div>
+      <div class="stat-label">Social Found</div>
+    </div>
+    <div class="stat blue">
+      <div class="stat-value" id="enrichedEmailCount">0</div>
+      <div class="stat-label">Emails Found</div>
+    </div>
+  </div>
+
+  <div class="progress" id="progressSection" style="display: none;">
+    <div class="progress-text" id="progressText">Enriching...</div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+    </div>
+  </div>
+
+  <table id="resultsTable">
+    <thead>
+      <tr>
+        <th style="width: 180px;">Business</th>
+        <th style="width: 110px;">Phone</th>
+        <th class="source-cell">Website Sources</th>
+        <th class="source-cell">Social Media</th>
+        <th class="source-cell">Email Sources</th>
+        <th style="width: 70px;">Status</th>
+      </tr>
+    </thead>
+    <tbody id="resultsBody">
+      <tr><td colspan="6" style="text-align: center; padding: 40px; color: #999;">Enter ZIP code and category, then click "Search HERE"</td></tr>
+    </tbody>
+  </table>
+
+  <script>
+    let businesses = [];
+    let enrichmentResults = {};
+
+    async function runSearch() {
+      const zipCode = document.getElementById('zipCode').value.trim();
+      const category = document.getElementById('category').value.trim();
+      const limit = parseInt(document.getElementById('limit').value) || 20;
+
+      if (!zipCode || !category) {
+        alert('Please enter ZIP code and category');
+        return;
+      }
+
+      document.getElementById('searchBtn').disabled = true;
+      document.getElementById('searchBtn').textContent = 'Searching...';
+      document.getElementById('enrichBtn').disabled = true;
+
+      businesses = [];
+      enrichmentResults = {};
+
+      try {
+        const response = await fetch('/api/here-search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ zipCode, category, limit })
+        });
+
+        const data = await response.json();
+        businesses = data.businesses || data.results || [];
+
+        updateStats();
+        renderTable();
+
+        document.getElementById('enrichBtn').disabled = businesses.length === 0;
+
+      } catch (error) {
+        console.error('Search error:', error);
+        alert('Search failed: ' + error.message);
+      } finally {
+        document.getElementById('searchBtn').disabled = false;
+        document.getElementById('searchBtn').textContent = '1. Search HERE';
+      }
+    }
+
+    async function runEnrichment() {
+      const useSerper = document.getElementById('useSerper').checked;
+      const useBrave = document.getElementById('useBrave').checked;
+      const useGoogle = document.getElementById('useGoogle').checked;
+      const useFacebook = document.getElementById('useFacebook').checked;
+      const useInstagram = document.getElementById('useInstagram').checked;
+      const useScrape = document.getElementById('useScrape').checked;
+
+      document.getElementById('enrichBtn').disabled = true;
+      document.getElementById('enrichBtn').textContent = 'Enriching...';
+      document.getElementById('progressSection').style.display = 'block';
+
+      // Find businesses that need enrichment
+      const needsWebsite = businesses.filter(b => !b.website);
+      const needsEmail = businesses.filter(b => !b.email);
+      // All businesses could benefit from social media links
+      const needsSocial = (useFacebook || useInstagram) ? businesses : [];
+
+      const totalTasks = needsWebsite.length + needsEmail.length + needsSocial.length;
+      let completedTasks = 0;
+
+      // Enrich missing websites
+      for (const biz of needsWebsite) {
+        const bizKey = biz.name + '|' + biz.address;
+        if (!enrichmentResults[bizKey]) {
+          enrichmentResults[bizKey] = { websites: [], emails: [], social: [] };
+        }
+
+        document.getElementById('progressText').textContent = `Finding website for: ${biz.name}`;
+
+        const searchQuery = `${biz.name} ${biz.city || ''} ${biz.state || ''}`;
+
+        // Run enabled searches in parallel
+        const websitePromises = [];
+
+        if (useSerper) {
+          websitePromises.push(
+            fetch('/api/serper-search', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ query: searchQuery, businessName: biz.name })
+            }).then(r => r.json()).then(data => {
+              if (data.website) {
+                enrichmentResults[bizKey].websites.push({ source: 'serper', url: data.website });
+              }
+            }).catch(() => {})
+          );
+        }
+
+        if (useBrave) {
+          websitePromises.push(
+            fetch('/api/brave-search', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ query: searchQuery, businessName: biz.name })
+            }).then(r => r.json()).then(data => {
+              if (data.website) {
+                enrichmentResults[bizKey].websites.push({ source: 'brave', url: data.website });
+              }
+            }).catch(() => {})
+          );
+        }
+
+        if (useGoogle) {
+          websitePromises.push(
+            fetch('/api/google-search', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ query: searchQuery, businessName: biz.name })
+            }).then(r => r.json()).then(data => {
+              if (data.website) {
+                enrichmentResults[bizKey].websites.push({ source: 'google', url: data.website });
+              }
+            }).catch(() => {})
+          );
+        }
+
+        await Promise.all(websitePromises);
+
+        completedTasks++;
+        updateProgress(completedTasks, totalTasks);
+        renderTable();
+
+        // Small delay to avoid rate limits
+        await new Promise(r => setTimeout(r, 200));
+      }
+
+      // Search for social media
+      for (const biz of needsSocial) {
+        const bizKey = biz.name + '|' + biz.address;
+        if (!enrichmentResults[bizKey]) {
+          enrichmentResults[bizKey] = { websites: [], emails: [], social: [] };
+        }
+
+        document.getElementById('progressText').textContent = `Finding social for: ${biz.name}`;
+
+        const searchQuery = `${biz.name} ${biz.city || ''} ${biz.state || ''}`;
+        const socialPromises = [];
+
+        if (useFacebook) {
+          socialPromises.push(
+            fetch('/api/serper-search', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ query: `site:facebook.com ${searchQuery}`, businessName: biz.name })
+            }).then(r => r.json()).then(data => {
+              if (data.topUrl && data.topUrl.includes('facebook.com')) {
+                // Skip bad FB URLs (groups, posts, photos, etc.)
+                const badPatterns = ['/groups', '/posts/', '/photos/', '/videos/', '/events/', '/share.php'];
+                if (!badPatterns.some(p => data.topUrl.includes(p))) {
+                  enrichmentResults[bizKey].social.push({ source: 'facebook', url: data.topUrl });
+                }
+              }
+            }).catch(() => {})
+          );
+        }
+
+        if (useInstagram) {
+          socialPromises.push(
+            fetch('/api/serper-search', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ query: `site:instagram.com ${searchQuery}`, businessName: biz.name })
+            }).then(r => r.json()).then(data => {
+              if (data.topUrl && data.topUrl.includes('instagram.com')) {
+                // Skip posts and reels - only accept profile URLs
+                const badPatterns = ['/p/', '/reel/', '/reels/', '/stories/', '/tv/'];
+                if (!badPatterns.some(p => data.topUrl.includes(p))) {
+                  enrichmentResults[bizKey].social.push({ source: 'instagram', url: data.topUrl });
+                }
+              }
+            }).catch(() => {})
+          );
+        }
+
+        await Promise.all(socialPromises);
+
+        completedTasks++;
+        updateProgress(completedTasks, totalTasks);
+        renderTable();
+
+        await new Promise(r => setTimeout(r, 200));
+      }
+
+      // Enrich missing emails
+      for (const biz of needsEmail) {
+        const bizKey = biz.name + '|' + biz.address;
+        if (!enrichmentResults[bizKey]) {
+          enrichmentResults[bizKey] = { websites: [], emails: [] };
+        }
+
+        document.getElementById('progressText').textContent = `Finding email for: ${biz.name}`;
+
+        // Get the website to scrape from (HERE data or enriched)
+        const websiteToScrape = biz.website || enrichmentResults[bizKey]?.websites?.[0]?.url;
+
+        const emailPromises = [];
+
+        if (useScrape && websiteToScrape) {
+          emailPromises.push(
+            fetch('/api/scrape-email', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url: websiteToScrape, businessName: biz.name })
+            }).then(r => r.json()).then(data => {
+              if (data.emails && data.emails.length > 0) {
+                data.emails.forEach(email => {
+                  enrichmentResults[bizKey].emails.push({ source: 'scraped', email, fromUrl: websiteToScrape });
+                });
+              }
+            }).catch(() => {})
+          );
+        }
+
+        await Promise.all(emailPromises);
+
+        completedTasks++;
+        updateProgress(completedTasks, totalTasks);
+        renderTable();
+
+        await new Promise(r => setTimeout(r, 200));
+      }
+
+      document.getElementById('progressText').textContent = 'Enrichment complete!';
+      document.getElementById('enrichBtn').disabled = false;
+      document.getElementById('enrichBtn').textContent = '2. Enrich Missing';
+
+      updateStats();
+    }
+
+    function updateProgress(completed, total) {
+      const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+      document.getElementById('progressFill').style.width = pct + '%';
+    }
+
+    function updateStats() {
+      const total = businesses.length;
+      const hereComplete = businesses.filter(b => b.website && b.email).length;
+      const missingWebsite = businesses.filter(b => !b.website).length;
+      const missingEmail = businesses.filter(b => !b.email).length;
+
+      // Count enrichment finds
+      let websitesFound = 0;
+      let emailsFound = 0;
+      let socialFound = 0;
+
+      for (const biz of businesses) {
+        const bizKey = biz.name + '|' + biz.address;
+        const enriched = enrichmentResults[bizKey];
+        if (enriched) {
+          if (!biz.website && enriched.websites.length > 0) websitesFound++;
+          if (!biz.email && enriched.emails.length > 0) emailsFound++;
+          if (enriched.social && enriched.social.length > 0) socialFound++;
+        }
+      }
+
+      document.getElementById('totalCount').textContent = total;
+      document.getElementById('completeCount').textContent = hereComplete;
+      document.getElementById('missingWebsiteCount').textContent = missingWebsite;
+      document.getElementById('missingEmailCount').textContent = missingEmail;
+      document.getElementById('enrichedWebsiteCount').textContent = websitesFound;
+      document.getElementById('enrichedSocialCount').textContent = socialFound;
+      document.getElementById('enrichedEmailCount').textContent = emailsFound;
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('resultsBody');
+
+      if (businesses.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: #999;">No results</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = businesses.map(biz => {
+        const bizKey = biz.name + '|' + biz.address;
+        const enriched = enrichmentResults[bizKey] || { websites: [], emails: [], social: [] };
+
+        // Determine status
+        let status = 'complete';
+        let statusText = 'Complete';
+        if (!biz.website || !biz.email) {
+          if (enriched.websites.length > 0 || enriched.emails.length > 0) {
+            status = 'enriched';
+            statusText = 'Enriched';
+          } else {
+            status = 'missing';
+            statusText = 'Missing';
+          }
+        }
+
+        // Build website sources HTML
+        let websiteHtml = '';
+        if (biz.website) {
+          websiteHtml += `<div class="source-item here"><span class="source-label">HERE:</span> <span class="source-value"><a href="${biz.website}" target="_blank">${truncateUrl(biz.website)}</a></span></div>`;
+        }
+
+        // Add enriched websites
+        const seenUrls = new Set([biz.website?.toLowerCase()]);
+        for (const w of enriched.websites) {
+          const urlLower = w.url.toLowerCase();
+          const isMatch = biz.website && normalizeUrl(biz.website) === normalizeUrl(w.url);
+          const isNew = !biz.website;
+          const isConflict = biz.website && !isMatch;
+
+          let borderClass = '';
+          if (isMatch) borderClass = 'match';
+          else if (isNew && !seenUrls.has(urlLower)) borderClass = 'new';
+          else if (isConflict && !seenUrls.has(urlLower)) borderClass = 'conflict';
+
+          if (!seenUrls.has(urlLower)) {
+            seenUrls.add(urlLower);
+            websiteHtml += `<div class="source-item ${w.source} ${borderClass}"><span class="source-label">${w.source}:</span> <span class="source-value"><a href="${w.url}" target="_blank">${truncateUrl(w.url)}</a></span></div>`;
+          }
+        }
+
+        if (!websiteHtml) {
+          websiteHtml = '<span class="no-data">No website found</span>';
+        }
+
+        // Build email sources HTML
+        let emailHtml = '';
+        if (biz.email) {
+          emailHtml += `<div class="source-item here"><span class="source-label">HERE:</span> <span class="source-value">${biz.email}</span></div>`;
+        }
+
+        const seenEmails = new Set([biz.email?.toLowerCase()]);
+        for (const e of enriched.emails) {
+          const emailLower = e.email.toLowerCase();
+          const isMatch = biz.email && biz.email.toLowerCase() === emailLower;
+          const isNew = !biz.email;
+          const isConflict = biz.email && !isMatch;
+
+          let borderClass = '';
+          if (isMatch) borderClass = 'match';
+          else if (isNew && !seenEmails.has(emailLower)) borderClass = 'new';
+          else if (isConflict && !seenEmails.has(emailLower)) borderClass = 'conflict';
+
+          if (!seenEmails.has(emailLower)) {
+            seenEmails.add(emailLower);
+            let sourceInfo = e.source;
+            if (e.confidence) sourceInfo += ` (${e.confidence}%)`;
+            if (e.verified) sourceInfo += ' ✓';
+            emailHtml += `<div class="source-item ${e.source} ${borderClass}"><span class="source-label">${sourceInfo}:</span> <span class="source-value">${e.email}</span></div>`;
+          }
+        }
+
+        if (!emailHtml) {
+          emailHtml = '<span class="no-data">No email found</span>';
+        }
+
+        // Build social media HTML
+        let socialHtml = '';
+        const socialLinks = enriched.social || [];
+        for (const s of socialLinks) {
+          const icon = s.source === 'facebook' ? '📘' : '📷';
+          socialHtml += `<div class="source-item ${s.source} new"><span class="source-label">${icon}</span> <span class="source-value"><a href="${s.url}" target="_blank">${truncateSocial(s.url, s.source)}</a></span></div>`;
+        }
+        if (!socialHtml) {
+          socialHtml = '<span class="no-data">-</span>';
+        }
+
+        return `
+          <tr>
+            <td>
+              <div class="business-name">${biz.name}</div>
+              <div class="business-address">${biz.address || ''}</div>
+            </td>
+            <td>${biz.phone || '<span class="no-data">-</span>'}</td>
+            <td class="source-cell">${websiteHtml}</td>
+            <td class="source-cell">${socialHtml}</td>
+            <td class="source-cell">${emailHtml}</td>
+            <td><span class="status ${status}">${statusText}</span></td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function truncateUrl(url) {
+      if (!url) return '';
+      try {
+        const u = new URL(url);
+        let display = u.hostname.replace('www.', '');
+        if (u.pathname && u.pathname !== '/') {
+          display += u.pathname.substring(0, 20);
+          if (u.pathname.length > 20) display += '...';
+        }
+        return display;
+      } catch {
+        return url.substring(0, 35) + (url.length > 35 ? '...' : '');
+      }
+    }
+
+    function normalizeUrl(url) {
+      if (!url) return '';
+      try {
+        const u = new URL(url);
+        return u.hostname.replace('www.', '').toLowerCase();
+      } catch {
+        return url.toLowerCase();
+      }
+    }
+
+    function truncateSocial(url, source) {
+      if (!url) return '';
+      try {
+        const u = new URL(url);
+        // Extract username/page name from path
+        const path = u.pathname.replace(/^\//, '').split('/')[0];
+        if (path && path !== 'p' && path !== 'reel') {
+          return path;
+        }
+        return u.hostname + u.pathname.substring(0, 20);
+      } catch {
+        return url.substring(0, 30);
+      }
+    }
+  </script>
+</body>
+</html>
