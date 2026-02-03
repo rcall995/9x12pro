@@ -63,6 +63,13 @@
 
 console.log('🚀 Main app.html script starting...');
 
+// ============================================================
+// ENRICHMENT TOGGLE - Disable broken Google/Serper social media searches
+// Set to false to use only HERE API data (reliable)
+// Set to true to enable Facebook/Instagram searches (currently broken)
+// ============================================================
+const ENABLE_SOCIAL_MEDIA_SEARCH = false;
+
 // Global error handler to catch uncaught exceptions
 window.onerror = function(message, source, lineno, colno, error) {
   console.error('❌ GLOBAL ERROR:', message, 'at', source, 'line', lineno);
@@ -5045,8 +5052,8 @@ async function enrichBusinessWebsite(business) {
       }
     }
 
-    // 2. Search for Facebook page (if not already set)
-    if (!business.facebook) {
+    // 2. Search for Facebook page (if not already set) - DISABLED: unreliable results
+    if (ENABLE_SOCIAL_MEDIA_SEARCH && !business.facebook) {
       const fbQuery = `${businessName} ${location} site:facebook.com`;
       const fbResult = await searchBusinessWebsite(fbQuery, businessName);
       trackEnrichmentQuery(1);
@@ -5074,8 +5081,8 @@ async function enrichBusinessWebsite(business) {
       }
     }
 
-    // 3. Search for Instagram (if not already set)
-    if (!business.instagram) {
+    // 3. Search for Instagram (if not already set) - DISABLED: unreliable results
+    if (ENABLE_SOCIAL_MEDIA_SEARCH && !business.instagram) {
       const igQuery = `${businessName} ${location} site:instagram.com`;
       const igResult = await searchBusinessWebsite(igQuery, businessName);
       trackEnrichmentQuery(1);
@@ -5143,8 +5150,8 @@ async function enrichBusinessOnMove(lead) {
       }
     }
 
-    // Search for Facebook if missing
-    if (!lead.facebook) {
+    // Search for Facebook if missing - DISABLED: unreliable results
+    if (ENABLE_SOCIAL_MEDIA_SEARCH && !lead.facebook) {
       const fbQuery = `${businessName} ${location} site:facebook.com`;
       const fbResult = await searchBusinessWebsite(fbQuery, businessName);
       if (fbResult && fbResult.includes('facebook.com') && !fbResult.includes('instagram.com')) {
@@ -5158,8 +5165,8 @@ async function enrichBusinessOnMove(lead) {
       }
     }
 
-    // Search for Instagram if missing
-    if (!lead.instagram) {
+    // Search for Instagram if missing - DISABLED: unreliable results
+    if (ENABLE_SOCIAL_MEDIA_SEARCH && !lead.instagram) {
       const igQuery = `${businessName} ${location} site:instagram.com`;
       const igResult = await searchBusinessWebsite(igQuery, businessName);
       if (igResult && igResult.includes('instagram.com') && !igResult.includes('facebook.com')) {
@@ -6457,8 +6464,8 @@ async function reEnrichPipelineBusinesses() {
         }
       }
 
-      // Search for Facebook if missing
-      if (!business.facebook) {
+      // Search for Facebook if missing - DISABLED: unreliable results
+      if (ENABLE_SOCIAL_MEDIA_SEARCH && !business.facebook) {
         const fbQuery = `${businessName} ${location} site:facebook.com`;
         const fbResult = await searchBusinessWebsite(fbQuery, businessName);
         if (fbResult && fbResult.includes('facebook.com') && !fbResult.includes('instagram.com')) {
@@ -6473,8 +6480,8 @@ async function reEnrichPipelineBusinesses() {
         }
       }
 
-      // Search for Instagram if missing
-      if (!business.instagram) {
+      // Search for Instagram if missing - DISABLED: unreliable results
+      if (ENABLE_SOCIAL_MEDIA_SEARCH && !business.instagram) {
         const igQuery = `${businessName} ${location} site:instagram.com`;
         const igResult = await searchBusinessWebsite(igQuery, businessName);
         if (igResult && igResult.includes('instagram.com') && !igResult.includes('facebook.com')) {
@@ -9328,8 +9335,8 @@ async function addSelectedProspects() {
         }
       }
 
-      // SERPER ENRICHMENT: Search for Facebook if missing
-      if (!details.facebook) {
+      // SERPER ENRICHMENT: Search for Facebook if missing - DISABLED: unreliable results
+      if (ENABLE_SOCIAL_MEDIA_SEARCH && !details.facebook) {
         const fbQuery = `${businessName} ${location} site:facebook.com`;
         const fbResult = await searchBusinessWebsite(fbQuery, businessName);
         if (fbResult && fbResult.includes('facebook.com') && !fbResult.includes('instagram.com')) {
@@ -9342,8 +9349,8 @@ async function addSelectedProspects() {
         }
       }
 
-      // SERPER ENRICHMENT: Search for Instagram if missing
-      if (!details.instagram) {
+      // SERPER ENRICHMENT: Search for Instagram if missing - DISABLED: unreliable results
+      if (ENABLE_SOCIAL_MEDIA_SEARCH && !details.instagram) {
         const igQuery = `${businessName} ${location} site:instagram.com`;
         const igResult = await searchBusinessWebsite(igQuery, businessName);
         if (igResult && igResult.includes('instagram.com') && !igResult.includes('facebook.com')) {
@@ -12890,8 +12897,8 @@ async function addFromProspectPool() {
           }
         }
 
-        // Search for Facebook if missing
-        if (!manualDetails.facebook) {
+        // Search for Facebook if missing - DISABLED: unreliable results
+        if (ENABLE_SOCIAL_MEDIA_SEARCH && !manualDetails.facebook) {
           const fbQuery = `${manualBusinessName} ${manualLocation} site:facebook.com`;
           const fbResult = await searchBusinessWebsite(fbQuery, manualBusinessName);
           if (fbResult && fbResult.includes('facebook.com') && !fbResult.includes('instagram.com')) {
@@ -12904,8 +12911,8 @@ async function addFromProspectPool() {
           }
         }
 
-        // Search for Instagram if missing
-        if (!manualDetails.instagram) {
+        // Search for Instagram if missing - DISABLED: unreliable results
+        if (ENABLE_SOCIAL_MEDIA_SEARCH && !manualDetails.instagram) {
           const igQuery = `${manualBusinessName} ${manualLocation} site:instagram.com`;
           const igResult = await searchBusinessWebsite(igQuery, manualBusinessName);
           if (igResult && igResult.includes('instagram.com') && !igResult.includes('facebook.com')) {
@@ -13002,8 +13009,8 @@ async function addFromProspectPool() {
           }
         }
 
-        // Search for Facebook if missing
-        if (!details.facebook) {
+        // Search for Facebook if missing - DISABLED: unreliable results
+        if (ENABLE_SOCIAL_MEDIA_SEARCH && !details.facebook) {
           const fbQuery = `${businessName} ${location} site:facebook.com`;
           const fbResult = await searchBusinessWebsite(fbQuery, businessName);
           if (fbResult && fbResult.includes('facebook.com') && !fbResult.includes('instagram.com')) {
@@ -13016,8 +13023,8 @@ async function addFromProspectPool() {
           }
         }
 
-        // Search for Instagram if missing
-        if (!details.instagram) {
+        // Search for Instagram if missing - DISABLED: unreliable results
+        if (ENABLE_SOCIAL_MEDIA_SEARCH && !details.instagram) {
           const igQuery = `${businessName} ${location} site:instagram.com`;
           const igResult = await searchBusinessWebsite(igQuery, businessName);
           if (igResult && igResult.includes('instagram.com') && !igResult.includes('facebook.com')) {

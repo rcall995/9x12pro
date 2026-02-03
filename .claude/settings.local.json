@@ -68,7 +68,15 @@
       "Bash(netsh winhttp show proxy:*)",
       "Bash(npx vercel@latest --prod --yes)",
       "Bash(grep:*)",
-      "Bash(npm run deploy:*)"
+      "Bash(npm run deploy:*)",
+      "WebFetch(domain:9x12method.com)",
+      "WebFetch(domain:www.skool.com)",
+      "WebFetch(domain:ourlocalspotlight.com)",
+      "WebFetch(domain:www.ourlocalspotlight.com)",
+      "WebFetch(domain:www.instagram.com)",
+      "WebFetch(domain:cyan-loris-565298.hostingersite.com)",
+      "Bash(where:*)",
+      "Bash(git reset:*)"
     ],
     "deny": [],
     "ask": []
