@@ -83,55 +83,56 @@
 
         window.initGoogleMaps = () => {
           googleMapsLoaded = true;
-          placesService = new google.maps.places.PlacesService(document.createElement('div'));
           resolve();
         };
 
         const script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyCNzXL-8UT-JI1Dy9wBN14KtH-UDMbeOlo&libraries=places&callback=initGoogleMaps`;
+        // Use the new Places API (New) with async loading
+        script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyCNzXL-8UT-JI1Dy9wBN14KtH-UDMbeOlo&libraries=places&loading=async&callback=initGoogleMaps`;
+        script.async = true;
         script.onerror = reject;
         document.head.appendChild(script);
       });
     }
 
-    // Find a place by name and get its details
+    // Find a place by name and get its details using NEW Places API
     async function enrichWithPlaces(biz) {
       await loadGoogleMaps();
 
-      return new Promise((resolve) => {
+      try {
         const query = `${biz.name} ${biz.city || ''} ${biz.state || ''}`;
+        console.log(`🔍 Places search: "${query}"`);
+
+        // Use the new Place class API
+        const { Place } = await google.maps.importLibrary("places");
 
         const request = {
-          query: query,
-          fields: ['place_id', 'name', 'formatted_address']
+          textQuery: query,
+          fields: ['displayName', 'formattedAddress', 'websiteURI', 'nationalPhoneNumber', 'googleMapsURI', 'rating', 'userRatingCount'],
+          maxResultCount: 1
         };
 
-        placesService.findPlaceFromQuery(request, (results, status) => {
-          if (status === google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
-            const placeId = results[0].place_id;
+        const { places } = await Place.searchByText(request);
 
-            // Now get details
-            placesService.getDetails({
-              placeId: placeId,
-              fields: ['formatted_phone_number', 'website', 'url', 'rating', 'user_ratings_total']
-            }, (place, detailStatus) => {
-              if (detailStatus === google.maps.places.PlacesServiceStatus.OK) {
-                resolve({
-                  website: place.website || null,
-                  phone: place.formatted_phone_number || null,
-                  googleMapsUrl: place.url || null,
-                  rating: place.rating || null,
-                  reviewCount: place.user_ratings_total || null
-                });
-              } else {
-                resolve(null);
-              }
-            });
-          } else {
-            resolve(null);
-          }
-        });
-      });
+        if (places && places.length > 0) {
+          const place = places[0];
+          console.log(`✅ Found: ${place.displayName}`, place);
+
+          return {
+            website: place.websiteURI || null,
+            phone: place.nationalPhoneNumber || null,
+            googleMapsUrl: place.googleMapsURI || null,
+            rating: place.rating || null,
+            reviewCount: place.userRatingCount || null
+          };
+        } else {
+          console.log(`❌ No results for: ${query}`);
+          return null;
+        }
+      } catch (error) {
+        console.error(`Places API error for ${biz.name}:`, error);
+        return null;
+      }
     }
 
     async function doSearch() {
