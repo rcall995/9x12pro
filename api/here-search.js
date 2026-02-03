@@ -109,8 +109,9 @@ export default async function handler(req, res) {
       const primaryCategory = place.categories?.[0]?.name || category || '';
 
       // Truncate ZIP to 5 digits (remove ZIP+4 suffix)
-      const rawZip = address.postalCode || zipCode;
-      const zip5 = rawZip ? rawZip.substring(0, 5) : zipCode.substring(0, 5);
+      // IMPORTANT: Don't fall back to searchedZipCode - if HERE doesn't have the ZIP, exclude it
+      const rawZip = address.postalCode || '';
+      const zip5 = rawZip ? rawZip.substring(0, 5) : '';
 
       return {
         placeId: place.id || `here_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
