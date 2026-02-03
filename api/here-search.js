@@ -91,13 +91,27 @@ export default async function handler(req, res) {
       let website = '';
       let email = '';
 
+      // Junk domains that HERE sometimes returns instead of real websites
+      const junkDomains = [
+        'mapquest.com', 'yellowpages.com', 'yelp.com', 'facebook.com',
+        'autorepairlocal.com', 'wnypapers.com', 'newspapers.com', 'patch.com',
+        'bbb.org', 'manta.com', 'superpages.com', 'citysearch.com',
+        'local.com', 'foursquare.com', 'tripadvisor.com', 'angieslist.com',
+        'homeadvisor.com', 'thumbtack.com', 'nextdoor.com', 'alignable.com'
+      ];
+
       if (contacts.length > 0) {
         contacts.forEach(contact => {
           if (contact.phone && contact.phone.length > 0) {
             phone = contact.phone[0].value || '';
           }
           if (contact.www && contact.www.length > 0) {
-            website = contact.www[0].value || '';
+            const rawWebsite = contact.www[0].value || '';
+            // Only use website if it's not a junk directory site
+            const isJunk = junkDomains.some(junk => rawWebsite.toLowerCase().includes(junk));
+            if (!isJunk) {
+              website = rawWebsite;
+            }
           }
           if (contact.email && contact.email.length > 0) {
             email = contact.email[0].value || '';
