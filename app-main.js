@@ -27401,14 +27401,15 @@ function renderCardsInProgress() {
     }
 
     html += `
-      <div class="dashboard-widget cursor-pointer hover:shadow-xl hover:scale-105 transition-all duration-200 border-2 border-indigo-200"
-           onclick="openPostcardCard('${campaign.Town.replace(/'/g, "\\'")}', '${campaign.Mail_Date}')">
-        <div class="metric-label text-indigo-800 font-bold">${campaign.Town.toUpperCase()}</div>
-        <div class="text-sm text-gray-600 mb-2">${monthName}</div>
-        <div class="metric-value text-indigo-600 text-lg">${spotsSold}/${totalSpots}</div>
-        <div class="text-sm text-gray-500">${percent}% complete</div>
-        <div class="w-full h-2 bg-gray-200 rounded-full mt-2">
-          <div class="h-2 bg-indigo-500 rounded-full transition-all duration-300" style="width: ${percent}%;"></div>
+      <div class="bg-white rounded-xl cursor-pointer hover:shadow-xl transition-all duration-200 border border-gray-200 p-5"
+           onclick="openPostcardCard('${campaign.Town.replace(/'/g, "\\'")}', '${campaign.Mail_Date}')"
+           style="box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
+        <div class="text-sm font-bold text-blue-700 uppercase tracking-wide mb-1">${campaign.Town}</div>
+        <div class="text-xs text-gray-500 mb-3">${monthName}</div>
+        <div class="text-2xl font-bold text-gray-900 mb-1">${spotsSold}<span class="text-gray-400">/${totalSpots}</span></div>
+        <div class="text-xs text-gray-500 mb-3">${percent}% complete</div>
+        <div class="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div class="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full transition-all duration-300" style="width: ${percent}%;"></div>
         </div>
       </div>
     `;

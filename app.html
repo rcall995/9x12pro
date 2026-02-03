@@ -135,7 +135,7 @@
       });
     })();
   </script>
-  <header class="bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 shadow-lg px-4 py-3 flex flex-col md:flex-row md:justify-between md:items-center gap-3 sticky top-0 z-30">
+  <header class="bg-gradient-to-r from-blue-700 via-blue-600 to-blue-500 shadow-lg px-4 py-3 flex flex-col md:flex-row md:justify-between md:items-center gap-3 sticky top-0 z-30">
     <div class="flex items-center gap-3">
       <h1 class="text-2xl font-bold flex items-center gap-2">
         <span class="text-white font-black text-3xl">9×12</span>
@@ -245,20 +245,22 @@
             <!-- HOME/OVERVIEW CONTENT (no sub-navigation) -->
 
             <!-- GETTING STARTED CHECKLIST (Full Width) -->
-            <div id="gettingStartedWidget" class="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl shadow-lg border-2 border-green-200 p-6 mb-8">
+            <div id="gettingStartedWidget" class="bg-white rounded-xl border border-gray-200 p-5 mb-6" style="box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
                 <div class="flex items-center gap-3 mb-4">
-                    <span class="text-4xl">🚀</span>
-                    <div class="flex-1">
-                        <h4 class="text-xl font-black text-gray-900">Getting Started</h4>
-                        <p class="text-sm text-gray-600" id="checklistProgress">0 of 5 complete</p>
+                    <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                        <span class="text-xl">🚀</span>
                     </div>
-                    <button onclick="dismissGettingStarted()" class="text-gray-400 hover:text-gray-600 transition" title="Dismiss">
+                    <div class="flex-1">
+                        <h4 class="text-lg font-semibold text-gray-900">Getting Started</h4>
+                        <p class="text-xs text-gray-500" id="checklistProgress">0 of 5 complete</p>
+                    </div>
+                    <button onclick="dismissGettingStarted()" class="text-gray-400 hover:text-gray-600 transition p-1" title="Dismiss">
                         <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
                         </svg>
                     </button>
                 </div>
-                <div class="space-y-3" id="checklistItems">
+                <div class="space-y-2" id="checklistItems">
                     <!-- Dynamically populated by renderGettingStartedChecklist() -->
                 </div>
             </div>
@@ -266,43 +268,47 @@
             <!-- QUICK STATS CARDS -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                 <!-- Prospects in Pool -->
-                <div class="bg-white rounded-xl shadow-lg border-2 border-teal-100 p-6 hover:shadow-xl transition-all">
-                    <div class="flex items-center gap-3 mb-2">
-                        <span class="text-3xl">🎯</span>
-                        <h5 class="text-sm font-bold text-gray-600">Prospects</h5>
+                <div class="bg-white rounded-xl border border-gray-200 p-5 hover:border-blue-300 transition-all" style="box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="w-10 h-10 rounded-lg bg-teal-50 flex items-center justify-center">
+                            <span class="text-xl">🎯</span>
+                        </div>
                     </div>
-                    <p id="statsProspects" class="text-4xl font-black text-teal-600">0</p>
-                    <p class="text-xs text-gray-500 mt-1">New Leads</p>
+                    <p id="statsProspects" class="text-3xl font-bold text-gray-900 mb-1">0</p>
+                    <p class="text-sm text-gray-500">Prospects</p>
                 </div>
 
                 <!-- Active Leads -->
-                <div class="bg-white rounded-xl shadow-lg border-2 border-indigo-100 p-6 hover:shadow-xl transition-all">
-                    <div class="flex items-center gap-3 mb-2">
-                        <span class="text-3xl">📊</span>
-                        <h5 class="text-sm font-bold text-gray-600">Active Leads</h5>
+                <div class="bg-white rounded-xl border border-gray-200 p-5 hover:border-blue-300 transition-all" style="box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                            <span class="text-xl">📊</span>
+                        </div>
                     </div>
-                    <p id="statsLeads" class="text-4xl font-black text-indigo-600">0</p>
-                    <p class="text-xs text-gray-500 mt-1">To Contact</p>
+                    <p id="statsLeads" class="text-3xl font-bold text-gray-900 mb-1">0</p>
+                    <p class="text-sm text-gray-500">Active Leads</p>
                 </div>
 
                 <!-- Campaigns -->
-                <div class="bg-white rounded-xl shadow-lg border-2 border-purple-100 p-6 hover:shadow-xl transition-all">
-                    <div class="flex items-center gap-3 mb-2">
-                        <span class="text-3xl">📮</span>
-                        <h5 class="text-sm font-bold text-gray-600">Campaigns</h5>
+                <div class="bg-white rounded-xl border border-gray-200 p-5 hover:border-blue-300 transition-all" style="box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center">
+                            <span class="text-xl">📮</span>
+                        </div>
                     </div>
-                    <p id="statsCampaigns" class="text-4xl font-black text-purple-600">0</p>
-                    <p class="text-xs text-gray-500 mt-1">Active</p>
+                    <p id="statsCampaigns" class="text-3xl font-bold text-gray-900 mb-1">0</p>
+                    <p class="text-sm text-gray-500">Campaigns</p>
                 </div>
 
                 <!-- Active Clients -->
-                <div class="bg-white rounded-xl shadow-lg border-2 border-green-100 p-6 hover:shadow-xl transition-all">
-                    <div class="flex items-center gap-3 mb-2">
-                        <span class="text-3xl">👥</span>
-                        <h5 class="text-sm font-bold text-gray-600">Clients</h5>
+                <div class="bg-white rounded-xl border border-gray-200 p-5 hover:border-blue-300 transition-all" style="box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center">
+                            <span class="text-xl">👥</span>
+                        </div>
                     </div>
-                    <p id="statsClients" class="text-4xl font-black text-green-600">0</p>
-                    <p class="text-xs text-gray-500 mt-1">Active</p>
+                    <p id="statsClients" class="text-3xl font-bold text-gray-900 mb-1">0</p>
+                    <p class="text-sm text-gray-500">Clients</p>
                 </div>
             </div>
 
@@ -312,105 +318,98 @@
             </div>
 
             <!-- TWO-COLUMN LAYOUT: TASKS + FINANCIALS -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-8">
                 <!-- TASKS WIDGET -->
-                <div class="bg-white rounded-2xl shadow-lg border-2 border-green-100 p-6">
+                <div class="bg-white rounded-xl border border-gray-200 p-5" style="box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
                     <div class="flex items-center justify-between mb-4">
                         <div class="flex items-center gap-3">
-                            <span class="text-3xl">✅</span>
+                            <div class="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center">
+                                <span class="text-xl">✅</span>
+                            </div>
                             <div>
-                                <h4 class="text-xl font-black text-gray-900">Tasks & Follow-Ups</h4>
-                                <p class="text-sm text-gray-500" id="dashboardTaskStatus">Loading...</p>
+                                <h4 class="text-lg font-semibold text-gray-900">Tasks</h4>
+                                <p class="text-xs text-gray-500" id="dashboardTaskStatus">Loading...</p>
                             </div>
                         </div>
-                        <button onclick="openTaskModal()" class="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg text-sm font-bold hover:from-green-700 hover:to-emerald-700 shadow transform hover:scale-105 transition-all">
+                        <button onclick="openTaskModal()" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
                             + Add
                         </button>
                     </div>
-                    <div id="dashboardTaskList" class="space-y-2 max-h-64 overflow-y-auto">
-                        <!-- Dynamically populated by renderDashboardTasks() -->
+                    <div id="dashboardTaskList" class="space-y-2 max-h-56 overflow-y-auto">
                         <p class="text-sm text-gray-500 text-center py-4">Loading tasks...</p>
                     </div>
                     <div class="mt-4 pt-3 border-t border-gray-100">
-                        <button onclick="switchTab('tasks')" class="text-sm text-green-600 hover:text-green-800 font-medium">
-                            View All Tasks →
+                        <button onclick="switchTab('tasks')" class="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                            View all tasks →
                         </button>
                     </div>
                 </div>
 
                 <!-- FINANCIAL SUMMARY WIDGET -->
-                <div class="bg-white rounded-2xl shadow-lg border-2 border-amber-100 p-6">
+                <div class="bg-white rounded-xl border border-gray-200 p-5" style="box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
                     <div class="flex items-center justify-between mb-4">
                         <div class="flex items-center gap-3">
-                            <span class="text-3xl">💰</span>
+                            <div class="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center">
+                                <span class="text-xl">💰</span>
+                            </div>
                             <div>
-                                <h4 class="text-xl font-black text-gray-900">Financial Summary</h4>
-                                <p class="text-sm text-gray-500">Revenue & Expenses</p>
+                                <h4 class="text-lg font-semibold text-gray-900">Financials</h4>
+                                <p class="text-xs text-gray-500">This month</p>
                             </div>
                         </div>
-                        <button onclick="showAddTransactionModal()" class="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg text-sm font-bold hover:from-amber-600 hover:to-orange-600 shadow transform hover:scale-105 transition-all">
+                        <button onclick="showAddTransactionModal()" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
                             + Add
                         </button>
                     </div>
                     <!-- This Month Summary -->
                     <div class="grid grid-cols-3 gap-3 mb-4">
-                        <div class="bg-green-50 rounded-xl p-3 text-center">
-                            <p class="text-xs font-bold text-gray-500 mb-1">Revenue</p>
-                            <p id="dashboardRevenueMonth" class="text-lg font-black text-green-600">$0</p>
-                            <p class="text-xs text-gray-400">This Month</p>
+                        <div class="text-center p-3 bg-gray-50 rounded-lg">
+                            <p class="text-xs text-gray-500 mb-1">Revenue</p>
+                            <p id="dashboardRevenueMonth" class="text-xl font-bold text-green-600">$0</p>
                         </div>
-                        <div class="bg-red-50 rounded-xl p-3 text-center">
-                            <p class="text-xs font-bold text-gray-500 mb-1">Expenses</p>
-                            <p id="dashboardExpensesMonth" class="text-lg font-black text-red-600">$0</p>
-                            <p class="text-xs text-gray-400">This Month</p>
+                        <div class="text-center p-3 bg-gray-50 rounded-lg">
+                            <p class="text-xs text-gray-500 mb-1">Expenses</p>
+                            <p id="dashboardExpensesMonth" class="text-xl font-bold text-red-500">$0</p>
                         </div>
-                        <div class="bg-blue-50 rounded-xl p-3 text-center">
-                            <p class="text-xs font-bold text-gray-500 mb-1">Profit</p>
-                            <p id="dashboardProfitMonth" class="text-lg font-black text-blue-600">$0</p>
-                            <p class="text-xs text-gray-400">This Month</p>
+                        <div class="text-center p-3 bg-gray-50 rounded-lg">
+                            <p class="text-xs text-gray-500 mb-1">Profit</p>
+                            <p id="dashboardProfitMonth" class="text-xl font-bold text-blue-600">$0</p>
                         </div>
                     </div>
                     <!-- All Time Summary -->
-                    <div class="bg-gray-50 rounded-xl p-3">
-                        <p class="text-xs font-bold text-gray-500 mb-2 text-center">All Time</p>
-                        <div class="grid grid-cols-3 gap-2 text-center">
-                            <div>
-                                <p id="dashboardRevenueAll" class="text-sm font-bold text-green-600">$0</p>
-                                <p class="text-xs text-gray-400">Revenue</p>
-                            </div>
-                            <div>
-                                <p id="dashboardExpensesAll" class="text-sm font-bold text-red-600">$0</p>
-                                <p class="text-xs text-gray-400">Expenses</p>
-                            </div>
-                            <div>
-                                <p id="dashboardProfitAll" class="text-sm font-bold text-blue-600">$0</p>
-                                <p class="text-xs text-gray-400">Profit</p>
-                            </div>
+                    <div class="flex items-center justify-between text-sm px-1 py-2 border-t border-gray-100">
+                        <span class="text-gray-500">All time:</span>
+                        <div class="flex gap-4">
+                            <span class="text-green-600 font-medium"><span id="dashboardRevenueAll">$0</span></span>
+                            <span class="text-red-500 font-medium"><span id="dashboardExpensesAll">$0</span></span>
+                            <span class="text-blue-600 font-medium"><span id="dashboardProfitAll">$0</span></span>
                         </div>
                     </div>
-                    <div class="mt-4 pt-3 border-t border-gray-100">
-                        <button onclick="switchTab('reports')" class="text-sm text-amber-600 hover:text-amber-800 font-medium">
-                            View Full Reports →
+                    <div class="mt-3 pt-3 border-t border-gray-100">
+                        <button onclick="switchTab('reports')" class="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                            View full reports →
                         </button>
                     </div>
                 </div>
             </div>
 
-            <!-- STORAGE & CACHE WIDGET -->
-            <div class="bg-white rounded-2xl shadow-lg border-2 border-gray-200 p-6 mt-8">
+            <!-- STORAGE & CACHE WIDGET (hidden by default, admin use only) -->
+            <div class="hidden bg-white rounded-xl border border-gray-200 p-5 mt-6" id="storageCacheWidget" style="box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
                 <div class="flex items-center gap-3 mb-4">
-                    <span class="text-3xl">💾</span>
+                    <div class="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+                        <span class="text-xl">💾</span>
+                    </div>
                     <div>
-                        <h4 class="text-xl font-black text-gray-900">Storage & Cache</h4>
-                        <p class="text-sm text-gray-500">Manage local browser storage</p>
+                        <h4 class="text-lg font-semibold text-gray-900">Storage & Cache</h4>
+                        <p class="text-xs text-gray-500">Manage local browser storage</p>
                     </div>
                 </div>
                 <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
                     <div class="flex-1">
                         <p class="text-sm text-gray-600" id="cacheStatusText">Loading cache info...</p>
                     </div>
-                    <button onclick="clearLocalCache()" class="px-4 py-2 bg-red-500 text-white rounded-lg font-bold hover:bg-red-600 transition-all text-sm">
-                        🗑️ Clear Local Cache
+                    <button onclick="clearLocalCache()" class="px-3 py-1.5 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors text-sm">
+                        Clear Cache
                     </button>
                 </div>
             </div>
