@@ -40,7 +40,12 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       console.error('Google Custom Search error:', data);
-      return res.status(200).json({ website: '' }); // Return empty instead of error
+      const errorMsg = data.error?.message || `HTTP ${response.status}`;
+      return res.status(200).json({
+        website: '',
+        topUrl: null,
+        error: `Google API error: ${errorMsg}`
+      });
     }
 
     // Find the first result that looks like a business website

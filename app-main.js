@@ -4932,6 +4932,87 @@ async function testSearchAPI() {
 }
 window.testSearchAPI = testSearchAPI;
 
+// Compare Serper vs Google side-by-side
+async function compareSearchAPIs(businessName = 'Adams Heating Cooling', location = 'Buffalo NY') {
+  console.log('🧪 COMPARING SEARCH APIs: Serper vs Google');
+  console.log('==========================================');
+
+  const queries = [
+    { type: 'Website', query: `${businessName} ${location} official website` },
+    { type: 'Facebook', query: `${businessName} ${location} site:facebook.com` },
+    { type: 'Instagram', query: `${businessName} ${location} site:instagram.com` }
+  ];
+
+  const results = [];
+
+  for (const { type, query } of queries) {
+    console.log(`\n🔍 Testing: ${type}`);
+    console.log(`   Query: "${query}"`);
+
+    // Test Serper directly
+    let serperResult = null;
+    let serperError = null;
+    try {
+      const serperResp = await fetch('/api/serper-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, businessName, forceSerper: true })
+      });
+      const serperData = await serperResp.json();
+      serperResult = serperData.topUrl;
+      if (serperData.error) serperError = serperData.error;
+      if (serperData.source) console.log(`   Serper source: ${serperData.source}`);
+    } catch (e) {
+      serperError = e.message;
+    }
+
+    // Test Google directly
+    let googleResult = null;
+    let googleError = null;
+    try {
+      const googleResp = await fetch('/api/google-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, businessName })
+      });
+      const googleData = await googleResp.json();
+      googleResult = googleData.website || googleData.topUrl; // google-search returns 'website'
+      if (googleData.error) googleError = googleData.error;
+    } catch (e) {
+      googleError = e.message;
+    }
+
+    console.log(`   SERPER: ${serperResult || serperError || 'NO RESULT'}`);
+    console.log(`   GOOGLE: ${googleResult || googleError || 'NO RESULT'}`);
+
+    results.push({
+      type,
+      serper: serperResult || `ERROR: ${serperError || 'none'}`,
+      google: googleResult || `ERROR: ${googleError || 'none'}`
+    });
+  }
+
+  // Display results
+  let msg = 'SEARCH API COMPARISON\n';
+  msg += '=====================\n\n';
+  msg += `Business: ${businessName}, ${location}\n\n`;
+
+  for (const r of results) {
+    msg += `${r.type}:\n`;
+    msg += `  Serper: ${r.serper}\n`;
+    msg += `  Google: ${r.google}\n\n`;
+  }
+
+  msg += 'Check browser console for full details.';
+
+  console.log('\n📊 SUMMARY:');
+  console.table(results);
+
+  alert(msg);
+  return results;
+}
+window.compareSearchAPIs = compareSearchAPIs;
+
 /**
  * Enrich a business with website and social media when added to kanban
  * Runs asynchronously so it doesn't block the UI
