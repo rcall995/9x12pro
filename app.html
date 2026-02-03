@@ -228,18 +228,15 @@
         <!-- SUPERCHARGED DASHBOARD TAB -->
         <div data-content="dashboard" class="tab-pane active-pane">
             <!-- COMMAND CENTER BANNER -->
-            <div class="bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 rounded-2xl shadow-2xl p-8 md:p-12 mb-6 text-white relative overflow-hidden">
-                <div class="absolute inset-0 opacity-10">
-                    <div class="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
-                    <div class="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
-                </div>
-
+            <div class="hero-section mb-6">
                 <div class="relative z-10">
-                    <div class="flex items-center gap-3 mb-4">
-                        <span class="text-6xl">🎯</span>
+                    <div class="flex items-center gap-4">
+                        <div class="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
+                            <span class="text-4xl">🎯</span>
+                        </div>
                         <div>
-                            <h2 class="text-5xl font-black tracking-tight">Command Center</h2>
-                            <p class="text-2xl text-blue-100 mt-2">Your Business at a Glance</p>
+                            <h2 class="text-3xl md:text-4xl font-bold tracking-tight">Dashboard</h2>
+                            <p class="text-lg text-blue-100 mt-1">Your business at a glance</p>
                         </div>
                     </div>
                 </div>
@@ -423,18 +420,15 @@
         <!-- TASKS TAB (new main tab) -->
         <div data-content="tasks" class="tab-pane hidden">
                 <!-- HERO SECTION -->
-                <div class="bg-gradient-to-br from-green-600 via-emerald-600 to-teal-600 rounded-2xl shadow-2xl p-8 md:p-12 mb-8 text-white relative overflow-hidden">
-                    <div class="absolute inset-0 opacity-10">
-                        <div class="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
-                        <div class="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
-                    </div>
-
+                <div class="hero-section mb-6" style="background: linear-gradient(135deg, #059669 0%, #10b981 50%, #0ea5e9 100%);">
                     <div class="relative z-10">
-                        <div class="flex items-center gap-3 mb-4">
-                            <span class="text-6xl">✅</span>
+                        <div class="flex items-center gap-4">
+                            <div class="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
+                                <span class="text-4xl">✅</span>
+                            </div>
                             <div>
-                                <h2 class="text-5xl font-black tracking-tight">Tasks & Follow-Ups</h2>
-                                <p class="text-2xl text-green-100 mt-2">Stay on Top of Your To-Do List</p>
+                                <h2 class="text-3xl md:text-4xl font-bold tracking-tight">Tasks & Follow-Ups</h2>
+                                <p class="text-lg text-green-100 mt-1">Stay on top of your to-do list</p>
                             </div>
                         </div>
                     </div>
@@ -465,36 +459,24 @@
         <!-- REPORTS TAB (standalone main tab) -->
         <div data-content="reports" class="tab-pane hidden">
                 <!-- HERO SECTION -->
-                <div class="bg-gradient-to-br from-amber-600 via-orange-600 to-rose-600 rounded-2xl shadow-2xl p-8 md:p-12 mb-8 text-white relative overflow-hidden">
-                    <div class="absolute inset-0 opacity-10">
-                        <div class="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
-                        <div class="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
-                    </div>
-
+                <div class="hero-section mb-6" style="background: linear-gradient(135deg, #d97706 0%, #f59e0b 50%, #0ea5e9 100%);">
                     <div class="relative z-10">
                         <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-                            <div class="flex items-center gap-3">
-                                <span class="text-6xl">💰</span>
+                            <div class="flex items-center gap-4">
+                                <div class="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
+                                    <span class="text-4xl">💰</span>
+                                </div>
                                 <div>
-                                    <h2 class="text-5xl font-black tracking-tight">Financial Reports</h2>
-                                    <p class="text-2xl text-orange-100 mt-2">Track Revenue, Expenses & Growth</p>
+                                    <h2 class="text-3xl md:text-4xl font-bold tracking-tight">Financial Reports</h2>
+                                    <p class="text-lg text-amber-100 mt-1">Track revenue, expenses & growth</p>
                                 </div>
                             </div>
-                            <div class="flex gap-3 flex-wrap">
-                                <button onclick="syncAllProspectsToCloud()" class="px-6 py-3 bg-white text-blue-600 rounded-xl font-bold hover:bg-blue-50 transition-all shadow-lg transform hover:scale-105">
-                                    ☁️ Sync to Cloud
+                            <div class="flex gap-2 flex-wrap">
+                                <button onclick="showAddTransactionModal()" class="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg font-semibold transition-all">
+                                    + Add
                                 </button>
-                                <a href="email-report.html" target="_blank" class="px-6 py-3 bg-white text-indigo-600 rounded-xl font-bold hover:bg-indigo-50 transition-all shadow-lg transform hover:scale-105 no-underline">
-                                    📧 Email Report
-                                </a>
-                                <button onclick="importSquareStatements()" class="px-6 py-3 bg-white text-blue-600 rounded-xl font-bold hover:bg-blue-50 transition-all shadow-lg transform hover:scale-105">
-                                    📄 Import Square
-                                </button>
-                                <button onclick="exportFinancialCSV()" class="px-6 py-3 bg-white text-green-600 rounded-xl font-bold hover:bg-green-50 transition-all shadow-lg transform hover:scale-105">
-                                    📥 Export CSV
-                                </button>
-                                <button onclick="showAddTransactionModal()" class="px-6 py-3 bg-white text-orange-600 rounded-xl font-bold hover:bg-orange-50 transition-all shadow-lg transform hover:scale-105">
-                                    + Transaction
+                                <button onclick="exportFinancialCSV()" class="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg font-semibold transition-all">
+                                    Export
                                 </button>
                             </div>
                         </div>
@@ -608,18 +590,15 @@
         <!-- SALES PIPELINE TAB -->
         <div data-content="pipeline" class="tab-pane hidden">
             <!-- HERO SECTION -->
-            <div class="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 rounded-2xl shadow-2xl p-8 md:p-12 mb-8 text-white relative overflow-hidden">
-                <div class="absolute inset-0 opacity-10">
-                    <div class="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
-                    <div class="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
-                </div>
-
+            <div class="hero-section mb-6" style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #0ea5e9 100%);">
                 <div class="relative z-10">
-                    <div class="flex items-center gap-3 mb-4">
-                        <span class="text-6xl">📊</span>
+                    <div class="flex items-center gap-4">
+                        <div class="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
+                            <span class="text-4xl">📊</span>
+                        </div>
                         <div>
-                            <h2 class="text-5xl font-black tracking-tight">Sales Pipeline</h2>
-                            <p class="text-2xl text-purple-100 mt-2">Drag & Drop to Manage Your Deals</p>
+                            <h2 class="text-3xl md:text-4xl font-bold tracking-tight">Sales Pipeline</h2>
+                            <p class="text-lg text-indigo-100 mt-1">Drag & drop to manage your deals</p>
                         </div>
                     </div>
                 </div>
@@ -1033,16 +1012,18 @@
             <!-- COLLAPSIBLE PROSPECT RADAR SECTION -->
             <div id="prospectRadarSection" class="mb-6">
                 <!-- Collapsed State Header (shown when collapsed) -->
-                <div id="prospectRadarCollapsed" class="hidden bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl shadow-lg p-4 cursor-pointer hover:shadow-xl transition-all" onclick="toggleProspectRadar()">
-                    <div class="flex items-center justify-between">
+                <div id="prospectRadarCollapsed" class="hidden hero-section cursor-pointer" style="background: linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #0ea5e9 100%); padding: 1rem 1.5rem;" onclick="toggleProspectRadar()">
+                    <div class="flex items-center justify-between relative z-10">
                         <div class="flex items-center gap-3 text-white">
-                            <span class="text-3xl">🔍</span>
+                            <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                                <span class="text-2xl">🔍</span>
+                            </div>
                             <div>
                                 <h3 class="text-xl font-bold">ProspectRadar</h3>
                                 <p class="text-sm text-purple-200">Click to search for new prospects</p>
                             </div>
                         </div>
-                        <button class="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg font-bold text-sm flex items-center gap-2">
+                        <button class="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg font-semibold text-sm flex items-center gap-2 transition-all">
                             <span>Expand</span>
                             <span>▼</span>
                         </button>
@@ -1050,17 +1031,19 @@
                 </div>
 
                 <!-- Expanded State (full search interface) -->
-                <div id="prospectRadarExpanded" class="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl shadow-2xl p-6 text-white">
+                <div id="prospectRadarExpanded" class="hero-section" style="background: linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #0ea5e9 100%);">
                     <!-- Header with Collapse Button -->
-                    <div class="flex items-center justify-between mb-6">
-                        <div class="flex items-center gap-3">
-                            <span class="text-4xl">🔍</span>
+                    <div class="flex items-center justify-between mb-6 relative z-10">
+                        <div class="flex items-center gap-4">
+                            <div class="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
+                                <span class="text-3xl">🔍</span>
+                            </div>
                             <div>
-                                <h3 class="text-2xl font-black">ProspectRadar</h3>
+                                <h3 class="text-2xl font-bold">ProspectRadar</h3>
                                 <p class="text-purple-200">Find local businesses by ZIP code</p>
                             </div>
                         </div>
-                        <button onclick="toggleProspectRadar()" class="px-3 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg font-bold text-sm flex items-center gap-2" title="Collapse search">
+                        <button onclick="toggleProspectRadar()" class="px-3 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg font-semibold text-sm flex items-center gap-2 transition-all" title="Collapse search">
                             <span>▲</span>
                         </button>
                     </div>
