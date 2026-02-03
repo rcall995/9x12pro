@@ -6097,26 +6097,27 @@ class EnrichmentQueue {
       const enrichedData = await fetchSmartEnrichment(business.website, business.name);
 
       // Merge enriched data with existing business data
+      // IMPORTANT: Preserve existing data, only add new data from enrichment
       const enrichedBusiness = {
         ...business,
         email: enrichedData.email || business.email || '',
-        phone: enrichedData.phone || business.phone || '',
+        phone: business.phone || enrichedData.phone || '',
         facebook: enrichedData.facebook || business.facebook || '',
         instagram: enrichedData.instagram || business.instagram || '',
         linkedin: enrichedData.linkedin || business.linkedin || '',
         twitter: enrichedData.twitter || business.twitter || '',
-        contactNames: enrichedData.contactNames || [],
+        contactNames: enrichedData.contactNames?.length > 0 ? enrichedData.contactNames : (business.contactNames || []),
         enriched: true,
         enrichmentSource: '9x12pro-scraper',
         pagesScraped: enrichedData.pagesScraped || 0,
         contactScore: calculateContactScore({
-          phone: enrichedData.phone || business.phone,
-          email: enrichedData.email,
+          phone: business.phone || enrichedData.phone,
+          email: enrichedData.email || business.email,
           website: business.website,
-          facebook: enrichedData.facebook,
-          instagram: enrichedData.instagram,
-          linkedin: enrichedData.linkedin,
-          twitter: enrichedData.twitter
+          facebook: enrichedData.facebook || business.facebook,
+          instagram: enrichedData.instagram || business.instagram,
+          linkedin: enrichedData.linkedin || business.linkedin,
+          twitter: enrichedData.twitter || business.twitter
         })
       };
 
@@ -6315,26 +6316,28 @@ async function runAutoPopulate() {
             if (cached && cached.cachedData) {
               const businessIndex = cached.cachedData.findIndex(b => b.placeId === business.placeId);
               if (businessIndex !== -1) {
+                const existing = cached.cachedData[businessIndex];
+                // IMPORTANT: Preserve existing data, only add new data from enrichment
                 cached.cachedData[businessIndex] = {
-                  ...cached.cachedData[businessIndex],
-                  email: enrichedData.email || '',
-                  phone: cached.cachedData[businessIndex].phone || enrichedData.phone || '',
-                  facebook: enrichedData.facebook || '',
-                  instagram: enrichedData.instagram || '',
-                  linkedin: enrichedData.linkedin || '',
-                  twitter: enrichedData.twitter || '',
-                  contactNames: enrichedData.contactNames || [],
+                  ...existing,
+                  email: enrichedData.email || existing.email || '',
+                  phone: existing.phone || enrichedData.phone || '',
+                  facebook: enrichedData.facebook || existing.facebook || '',
+                  instagram: enrichedData.instagram || existing.instagram || '',
+                  linkedin: enrichedData.linkedin || existing.linkedin || '',
+                  twitter: enrichedData.twitter || existing.twitter || '',
+                  contactNames: enrichedData.contactNames?.length > 0 ? enrichedData.contactNames : (existing.contactNames || []),
                   enriched: true,
                   enrichmentSource: '9x12pro-scraper',
                   pagesScraped: enrichedData.pagesScraped || 0,
                   contactScore: calculateContactScore({
-                    phone: cached.cachedData[businessIndex].phone,
-                    email: enrichedData.email,
-                    website: cached.cachedData[businessIndex].website,
-                    facebook: enrichedData.facebook,
-                    instagram: enrichedData.instagram,
-                    linkedin: enrichedData.linkedin,
-                    twitter: enrichedData.twitter
+                    phone: existing.phone || enrichedData.phone,
+                    email: enrichedData.email || existing.email,
+                    website: existing.website,
+                    facebook: enrichedData.facebook || existing.facebook,
+                    instagram: enrichedData.instagram || existing.instagram,
+                    linkedin: enrichedData.linkedin || existing.linkedin,
+                    twitter: enrichedData.twitter || existing.twitter
                   })
                 };
 
@@ -8760,26 +8763,28 @@ async function runBulkAutoPopulate() {
             if (cached && cached.cachedData) {
               const businessIndex = cached.cachedData.findIndex(b => b.placeId === business.placeId);
               if (businessIndex !== -1) {
+                const existing = cached.cachedData[businessIndex];
+                // IMPORTANT: Preserve existing data, only add new data from enrichment
                 cached.cachedData[businessIndex] = {
-                  ...cached.cachedData[businessIndex],
-                  email: enrichedData.email || '',
-                  phone: cached.cachedData[businessIndex].phone || enrichedData.phone || '',
-                  facebook: enrichedData.facebook || '',
-                  instagram: enrichedData.instagram || '',
-                  linkedin: enrichedData.linkedin || '',
-                  twitter: enrichedData.twitter || '',
-                  contactNames: enrichedData.contactNames || [],
+                  ...existing,
+                  email: enrichedData.email || existing.email || '',
+                  phone: existing.phone || enrichedData.phone || '',
+                  facebook: enrichedData.facebook || existing.facebook || '',
+                  instagram: enrichedData.instagram || existing.instagram || '',
+                  linkedin: enrichedData.linkedin || existing.linkedin || '',
+                  twitter: enrichedData.twitter || existing.twitter || '',
+                  contactNames: enrichedData.contactNames?.length > 0 ? enrichedData.contactNames : (existing.contactNames || []),
                   enriched: true,
                   enrichmentSource: '9x12pro-scraper',
                   pagesScraped: enrichedData.pagesScraped || 0,
                   contactScore: calculateContactScore({
-                    phone: cached.cachedData[businessIndex].phone,
-                    email: enrichedData.email,
-                    website: cached.cachedData[businessIndex].website,
-                    facebook: enrichedData.facebook,
-                    instagram: enrichedData.instagram,
-                    linkedin: enrichedData.linkedin,
-                    twitter: enrichedData.twitter
+                    phone: existing.phone || enrichedData.phone,
+                    email: enrichedData.email || existing.email,
+                    website: existing.website,
+                    facebook: enrichedData.facebook || existing.facebook,
+                    instagram: enrichedData.instagram || existing.instagram,
+                    linkedin: enrichedData.linkedin || existing.linkedin,
+                    twitter: enrichedData.twitter || existing.twitter
                   })
                 };
 
