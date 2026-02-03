@@ -52,30 +52,38 @@ export default async function handler(req, res) {
     let website = '';
     if (data.items && data.items.length > 0) {
       for (const item of data.items) {
-        const url = item.link;
+        const url = item.link?.toLowerCase() || '';
 
-        // Skip common non-business sites
+        // Skip directories, social media, news sites - comprehensive list
         const skipDomains = [
           'yelp.com', 'facebook.com', 'instagram.com', 'twitter.com',
           'linkedin.com', 'yellowpages.com', 'google.com', 'maps.google.com',
-          'bbb.org', 'tripadvisor.com', 'foursquare.com'
+          'bbb.org', 'tripadvisor.com', 'foursquare.com',
+          // Directories
+          'mapquest.com', 'superpages.com', 'citysearch.com', 'manta.com',
+          'autorepairlocal.com', 'local.com', 'hotfrog.com', 'cylex.us',
+          'angieslist.com', 'homeadvisor.com', 'thumbtack.com', 'nextdoor.com',
+          'alignable.com', 'chamberofcommerce.com', 'dnb.com', 'zoominfo.com',
+          // News sites
+          'wnypapers.com', 'newspapers.com', 'patch.com', 'news.google.com',
+          'buffalonews.com', 'wivb.com', 'wgrz.com', 'wkbw.com',
+          // Other junk
+          'wikipedia.org', 'youtube.com', 'tiktok.com', 'pinterest.com'
         ];
 
-        const isSkipDomain = skipDomains.some(domain => url.includes(domain));
+        // Skip file extensions
+        const skipExtensions = ['.pdf', '.doc', '.docx', '.jpg', '.png', '.gif'];
 
-        if (!isSkipDomain) {
-          website = url;
+        const isSkipDomain = skipDomains.some(domain => url.includes(domain));
+        const isSkipFile = skipExtensions.some(ext => url.endsWith(ext));
+
+        if (!isSkipDomain && !isSkipFile) {
+          website = item.link; // Use original case
           break;
         }
       }
 
-      // If all results were social/directory sites, just take the first non-Google result
-      if (!website && data.items.length > 0) {
-        const firstNonGoogle = data.items.find(item => !item.link.includes('google.com'));
-        if (firstNonGoogle) {
-          website = firstNonGoogle.link;
-        }
-      }
+      // Don't fall back to junk - better to return nothing than garbage
     }
 
     return res.status(200).json({
