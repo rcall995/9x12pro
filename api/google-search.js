@@ -77,10 +77,27 @@ export default async function handler(req, res) {
         const isSkipDomain = skipDomains.some(domain => url.includes(domain));
         const isSkipFile = skipExtensions.some(ext => url.endsWith(ext));
 
-        if (!isSkipDomain && !isSkipFile) {
-          website = item.link; // Use original case
-          break;
+        if (isSkipDomain || isSkipFile) continue;
+
+        // Validate: domain or title should relate to business name
+        if (businessName) {
+          const bizWords = businessName.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+          const hostname = new URL(item.link).hostname.toLowerCase().replace('www.', '');
+          const title = (item.title || '').toLowerCase();
+
+          // Check if domain contains business name words
+          const domainMatch = bizWords.some(word => hostname.includes(word));
+          // Check if title contains business name words
+          const titleMatch = bizWords.some(word => title.includes(word));
+
+          if (!domainMatch && !titleMatch) {
+            console.log(`Skipping unrelated result for "${businessName}": ${item.link}`);
+            continue;
+          }
         }
+
+        website = item.link;
+        break;
       }
 
       // Don't fall back to junk - better to return nothing than garbage
