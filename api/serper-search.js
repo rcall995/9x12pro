@@ -180,7 +180,7 @@ export default async function handler(req, res) {
       // Skip PDFs and other non-website files
       if (skipExtensions.some(ext => urlLower.endsWith(ext))) continue;
 
-      // For Facebook: validate it's a real business page URL
+      // For Facebook: validate it's a real business page URL AND related to the business
       if (isFacebookSearch) {
         // Skip bad patterns
         if (fbSkipPatterns.some(p => url.includes(p))) continue;
@@ -193,26 +193,59 @@ export default async function handler(req, res) {
         // Skip if the "page name" is a generic word
         const fbPageName = fbMatch[1].toLowerCase();
         if (['home', 'watch', 'marketplace', 'gaming', 'login', 'help'].includes(fbPageName)) continue;
+
+        // IMPORTANT: Verify the page name is related to the business name
+        // This prevents returning unrelated pages like "DavidCrisafulliMP" for "Wheelfind Auto"
+        if (businessName) {
+          const bizWords = businessName.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+          const pageNameLower = fbPageName.replace(/[-_]/g, '').toLowerCase();
+          const hasMatch = bizWords.some(word => pageNameLower.includes(word));
+          if (!hasMatch) {
+            console.log(`🔍 Skipping unrelated FB page "${fbPageName}" for "${businessName}"`);
+            continue;
+          }
+        }
+
         // This looks like a valid business page
         topUrl = url;
         break;
       }
 
-      // For Instagram: validate it's a profile URL, not a post
+      // For Instagram: validate it's a profile URL, not a post, AND related to business
       if (isInstagramSearch) {
+        let igUsername = null;
+
         if (igSkipPatterns.some(p => url.includes(p))) {
           // Try to extract profile from post URL
           const match = url.match(/instagram\.com\/([^\/\?]+)/);
           if (match && match[1] && !['p', 'reel', 'reels', 'stories', 'tv', 'explore', 's', 'live', 'accounts'].includes(match[1])) {
-            topUrl = `https://www.instagram.com/${match[1]}`;
-            break;
+            igUsername = match[1];
+          } else {
+            continue;
           }
-          continue;
+        } else {
+          // Validate it's a profile URL (instagram.com/username with no extra path)
+          const igMatch = url.match(/instagram\.com\/([^\/\?]+)\/?$/);
+          if (igMatch && igMatch[1] && !['p', 'reel', 'reels', 'stories', 'tv', 'explore', 's', 'live', 'accounts'].includes(igMatch[1].toLowerCase())) {
+            igUsername = igMatch[1];
+          } else {
+            continue;
+          }
         }
-        // Validate it's a profile URL (instagram.com/username with no extra path)
-        const igMatch = url.match(/instagram\.com\/([^\/\?]+)\/?$/);
-        if (igMatch && igMatch[1] && !['p', 'reel', 'reels', 'stories', 'tv', 'explore', 's', 'live', 'accounts'].includes(igMatch[1].toLowerCase())) {
-          topUrl = url;
+
+        // IMPORTANT: Verify the username is related to the business name
+        if (igUsername && businessName) {
+          const bizWords = businessName.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+          const usernameLower = igUsername.replace(/[-_\.]/g, '').toLowerCase();
+          const hasMatch = bizWords.some(word => usernameLower.includes(word));
+          if (!hasMatch) {
+            console.log(`🔍 Skipping unrelated IG profile "${igUsername}" for "${businessName}"`);
+            continue;
+          }
+        }
+
+        if (igUsername) {
+          topUrl = `https://www.instagram.com/${igUsername}`;
           break;
         }
         continue;
@@ -228,14 +261,39 @@ export default async function handler(req, res) {
         }
 
         // Prefer simpler URLs (likely homepages) - count path segments
-        const pathname = new URL(url).pathname;
-        const pathSegments = pathname.split('/').filter(s => s.length > 0);
+        try {
+          const parsedUrl = new URL(url);
+          const pathname = parsedUrl.pathname;
+          const pathSegments = pathname.split('/').filter(s => s.length > 0);
 
-        // URLs with many path segments are usually articles, not business homepages
-        // Business homepages are typically domain.com/ or domain.com/page
-        if (pathSegments.length > 3) {
-          console.log(`🔍 Skipping deeply nested URL (${pathSegments.length} segments): ${url}`);
-          continue;
+          // URLs with many path segments are usually articles, not business homepages
+          // Business homepages are typically domain.com/ or domain.com/page
+          if (pathSegments.length > 3) {
+            console.log(`🔍 Skipping deeply nested URL (${pathSegments.length} segments): ${url}`);
+            continue;
+          }
+
+          // IMPORTANT: For website searches, verify domain relates to business name
+          // This prevents returning random websites that just mention the business
+          if (businessName) {
+            const hostname = parsedUrl.hostname.toLowerCase().replace('www.', '');
+            const domainBase = hostname.split('.')[0]; // e.g., "wheelfindauto" from "wheelfindauto.com"
+            const bizWords = businessName.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+
+            // Check if domain contains any business name word
+            const domainMatchesBiz = bizWords.some(word => domainBase.includes(word));
+
+            // Also check if result title/snippet contains business name (from search result)
+            const resultTitle = (result.title || '').toLowerCase();
+            const titleMatchesBiz = bizWords.some(word => resultTitle.includes(word));
+
+            if (!domainMatchesBiz && !titleMatchesBiz) {
+              console.log(`🔍 Skipping unrelated website "${hostname}" for "${businessName}"`);
+              continue;
+            }
+          }
+        } catch (e) {
+          continue; // Invalid URL
         }
 
         // This looks like a valid business website
