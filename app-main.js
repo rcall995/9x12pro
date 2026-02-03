@@ -216,7 +216,11 @@ function checkForAppUpdate() {
   if (currentVersion && currentVersion !== lastVersion) {
     console.log('🆕 New version detected:', currentVersion, '(last seen:', lastVersion + ')');
 
-    // Show persistent banner prompting refresh
+    // Immediately update localStorage so we don't show redundant banners
+    // The new code is already loaded, user just needs to know about it
+    localStorage.setItem(LAST_VERSION_KEY, currentVersion);
+
+    // Show brief success notification (auto-dismisses since new code is already loaded)
     const updateBanner = document.createElement('div');
     updateBanner.id = 'update-banner';
     updateBanner.style.cssText = `
@@ -224,7 +228,7 @@ function checkForAppUpdate() {
       top: 0;
       left: 0;
       right: 0;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
       color: white;
       padding: 12px 20px;
       text-align: center;
@@ -235,15 +239,21 @@ function checkForAppUpdate() {
     `;
     updateBanner.innerHTML = `
       <div style="max-width: 800px; margin: 0 auto; display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap;">
-        <span>🎉 New version available (${currentVersion})!</span>
-        <button onclick="forceAppRefresh()" style="background: white; color: #667eea; padding: 8px 20px; border-radius: 8px; font-weight: bold; border: none; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2); transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-          Refresh Now
-        </button>
-        <button onclick="updateBannerDismissed=true; this.parentElement.parentElement.remove()" style="background: transparent; color: white; padding: 8px 16px; border-radius: 8px; border: 2px solid white; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='transparent'">
-          Later
+        <span>✅ Updated to ${currentVersion}</span>
+        <button onclick="this.parentElement.parentElement.remove()" style="background: transparent; color: white; padding: 4px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.5); cursor: pointer; font-size: 12px;">
+          Dismiss
         </button>
       </div>
     `;
+
+    // Auto-dismiss after 4 seconds
+    setTimeout(() => {
+      const banner = document.getElementById('update-banner');
+      if (banner) {
+        banner.style.animation = 'slideUp 0.3s ease-out forwards';
+        setTimeout(() => banner.remove(), 300);
+      }
+    }, 4000);
 
     // Add animation (only once)
     if (!document.getElementById('update-banner-style')) {
@@ -253,6 +263,10 @@ function checkForAppUpdate() {
         @keyframes slideDown {
           from { transform: translateY(-100%); }
           to { transform: translateY(0); }
+        }
+        @keyframes slideUp {
+          from { transform: translateY(0); opacity: 1; }
+          to { transform: translateY(-100%); opacity: 0; }
         }
       `;
       document.head.appendChild(style);
