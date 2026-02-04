@@ -14444,6 +14444,16 @@ function openProspectDetailModal(prospectData, source = 'prospect') {
   // Reset to Activity tab
   switchCrmTab('activity');
 
+  // Update footer buttons based on client vs prospect
+  const isClient = source === 'client';
+  const btnConvert = document.getElementById('btnCrmConvertToClient');
+  const btnEdit = document.getElementById('btnCrmEditClient');
+  const btnNotInterested = document.getElementById('btnCrmNotInterested');
+
+  if (btnConvert) btnConvert.classList.toggle('hidden', isClient);
+  if (btnEdit) btnEdit.classList.toggle('hidden', !isClient);
+  if (btnNotInterested) btnNotInterested.classList.toggle('hidden', isClient);
+
   // Show modal
   modal.style.display = 'flex';
   modal.setAttribute('aria-hidden', 'false');

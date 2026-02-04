@@ -3397,12 +3397,15 @@
 
       <!-- FOOTER -->
       <div class="bg-white border-t p-4 flex justify-between items-center rounded-b-2xl">
-        <button onclick="markProspectNotInterested()" class="px-4 py-2 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 flex items-center gap-2">
+        <button id="btnCrmNotInterested" onclick="markProspectNotInterested()" class="px-4 py-2 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 flex items-center gap-2">
           <span>🚫</span> Not Interested
         </button>
         <div class="flex gap-2">
-          <button onclick="convertToClient()" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-2">
+          <button id="btnCrmConvertToClient" onclick="convertToClient()" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-2">
             <span>👤</span> Convert to Client
+          </button>
+          <button id="btnCrmEditClient" onclick="openEditContactModal()" class="hidden px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center gap-2">
+            <span>✏️</span> Edit Client
           </button>
           <button onclick="closeProspectDetailModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300">
             Close
@@ -3506,7 +3509,7 @@
   <script src="performance-loader.js" defer></script>
 
   <!-- Main Application JavaScript (Refactored) -->
-  <script src="app-main.js?v=479" defer></script>
+  <script src="app-main.js?v=480" defer></script>
 
   <!-- Authentication -->
   <script src="auth-root.js?v=454"></script>
