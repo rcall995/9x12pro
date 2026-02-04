@@ -1942,21 +1942,43 @@ async function saveClients() {
 function renderClientList() {
   const container = document.getElementById('clientList');
 
+  // Helper to normalize names for deduplication
+  const normalizeForDedup = (name) => {
+    if (!name) return '';
+    // Truncate at separators: bullets, pipes, colons, dashes
+    let coreName = name.split(/[•·●|:\-–—►▸‣⁃]/)[0];
+    return coreName.toLowerCase()
+      .replace(/&/g, 'and')
+      .replace(/['''`´]/g, '')
+      .replace(/\s+/g, ' ')
+      .replace(/[^\w\s]/g, '')
+      .trim();
+  };
+
   // Combine crmState.clients with pipeline prospects
   const crmClients = Object.values(crmState.clients);
 
   // Get all prospects from kanban pipeline columns
   const pipelineProspects = [];
   const existingPlaceIds = new Set(crmClients.map(c => c.placeId).filter(Boolean));
-  const existingNames = new Set(crmClients.map(c => c.businessName?.toLowerCase()).filter(Boolean));
+  const existingNormalizedNames = new Set(crmClients.map(c => normalizeForDedup(c.businessName)).filter(Boolean));
 
   if (kanbanState && kanbanState.columns) {
     Object.values(kanbanState.columns).forEach(column => {
       column.forEach(prospect => {
-        const prospectName = (prospect.businessName || prospect.name || prospect.title || '').toLowerCase();
-        // Skip if already in CRM (by placeId or name)
+        const prospectName = prospect.businessName || prospect.name || prospect.title || '';
+        const normalizedName = normalizeForDedup(prospectName);
+        // Skip if already in CRM (by placeId or normalized name)
         if (prospect.placeId && existingPlaceIds.has(prospect.placeId)) return;
-        if (prospectName && existingNames.has(prospectName)) return;
+        if (normalizedName && existingNormalizedNames.has(normalizedName)) return;
+
+        // Track this name to avoid duplicates within pipeline
+        if (normalizedName) {
+          existingNormalizedNames.add(normalizedName);
+        }
+        if (prospect.placeId) {
+          existingPlaceIds.add(prospect.placeId);
+        }
 
         // Convert to client-like format
         pipelineProspects.push({
@@ -1990,7 +2012,7 @@ function renderClientList() {
     });
   }
 
-  // Combine and dedupe
+  // Combine CRM clients and pipeline prospects (CRM clients take priority - already deduped above)
   const clients = [...crmClients, ...pipelineProspects];
 
   if (clients.length === 0) {
@@ -2012,7 +2034,9 @@ function renderClientList() {
         const hasEmail = client.contact && client.contact.email;
         const isSelected = clientSelectionState.selectedIds.has(client.id);
         const totalSpent = (client.lifetime?.totalSpent) || 0;
-        const isPayingClient = totalSpent > 0;
+        const monthlyPrice = client.monthlyPrice || 0;
+        // A client is someone with revenue, monthly price, or explicitly in crmState.clients (not from pipeline)
+        const isActualClient = totalSpent > 0 || monthlyPrice > 0 || (!client.isPipelineProspect && crmState.clients[client.id]);
         const isPipelineProspect = client.isPipelineProspect || false;
 
         return `
@@ -2020,10 +2044,10 @@ function renderClientList() {
                data-client-id="${esc(client.id)}"
                data-category="${esc(client.category)}"
                data-business="${esc(client.businessName.toLowerCase())}"
-               data-is-client="${isPayingClient}"
-               data-is-prospect="${!isPayingClient}">
+               data-is-client="${isActualClient}"
+               data-is-prospect="${!isActualClient}">
 
-            ${isPayingClient ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-green-500 to-emerald-400"></div>' : (isPipelineProspect ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-500 to-indigo-400"></div>' : '')}
+            ${isActualClient ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-green-500 to-emerald-400"></div>' : (isPipelineProspect ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-500 to-indigo-400"></div>' : '')}
 
             <!-- Checkbox in top-left corner -->
             <div class="absolute top-2 left-2 z-10">
@@ -2035,11 +2059,16 @@ function renderClientList() {
               />
             </div>
 
-            <!-- Revenue Badge in top-right corner -->
+            <!-- Revenue/Status Badge in top-right corner -->
             <div class="absolute top-2 right-2 text-right pointer-events-none z-10">
-              ${isPayingClient ? `
-                <div class="text-sm font-semibold text-green-600">${formatCurrency((client.lifetime?.totalSpent) || 0)}</div>
-                <div class="text-xs text-gray-500">${(client.lifetime?.cardsBought) || 0} card${(client.lifetime?.cardsBought) === 1 ? '' : 's'}</div>
+              ${isActualClient ? `
+                ${totalSpent > 0 ? `
+                  <div class="text-sm font-semibold text-green-600">${formatCurrency(totalSpent)}</div>
+                  <div class="text-xs text-gray-500">${(client.lifetime?.cardsBought) || 0} card${(client.lifetime?.cardsBought) === 1 ? '' : 's'}</div>
+                ` : `
+                  <span class="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-md font-medium">Client</span>
+                  ${monthlyPrice > 0 ? `<div class="text-xs text-green-600 mt-1">${formatCurrency(monthlyPrice)}/mo</div>` : ''}
+                `}
               ` : (isPipelineProspect ? `
                 <span class="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-md font-medium">Pipeline</span>
               ` : `
@@ -10397,8 +10426,9 @@ function deduplicateManualProspects() {
   // Helper to normalize name for deduplication (handles &/and, apostrophes, spacing)
   const normalizeNameForDedup = (name) => {
     if (!name) return '';
-    // First, truncate at common separators (•, |, -, :) to get core business name
-    let coreName = name.split(/[•|:\-–—]/)[0];
+    // First, truncate at common separators to get core business name
+    // Includes: bullets (•·●), pipes (|), colons (:), dashes (-–—), and other separators
+    let coreName = name.split(/[•·●|:\-–—►▸‣⁃]/)[0];
     return coreName.toLowerCase()
       .replace(/&/g, 'and')
       .replace(/['''`´]/g, '')  // Remove all apostrophe variations
@@ -12211,8 +12241,9 @@ function renderProspectPool() {
   // Helper to normalize business name for deduplication (handles "& vs and", spacing, apostrophes, etc)
   const normalizeNameForDedup = (name) => {
     if (!name) return '';
-    // First, truncate at common separators (•, |, -, :) to get core business name
-    let coreName = name.split(/[•|:\-–—]/)[0];
+    // First, truncate at common separators to get core business name
+    // Includes: bullets (•·●), pipes (|), colons (:), dashes (-–—), and other separators
+    let coreName = name.split(/[•·●|:\-–—►▸‣⁃]/)[0];
     return coreName.toLowerCase()
       .replace(/&/g, 'and')
       .replace(/['''`´]/g, '')  // Remove all apostrophe variations
