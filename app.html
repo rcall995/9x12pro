@@ -202,21 +202,21 @@
           <span class="text-xl lg:text-2xl">🏠</span>
           <span class="text-xs lg:text-sm font-bold text-gray-600 group-hover:text-indigo-600">Dashboard</span>
         </button>
-        <button onclick="switchTab('lead-generation')" data-tab="lead-generation" class="tab-btn flex-1 flex flex-col lg:flex-row items-center justify-center gap-1 lg:gap-2 px-2 py-2 lg:py-2.5 rounded-lg transition-all hover:bg-indigo-50 group" id="nav-generator" title="Search - Find local businesses by ZIP code and category">
-          <span class="text-xl lg:text-2xl">🔍</span>
-          <span class="text-xs lg:text-sm font-bold text-gray-600 group-hover:text-indigo-600">Search</span>
-        </button>
-        <button onclick="switchTab('pipeline')" data-tab="pipeline" class="tab-btn flex-1 flex flex-col lg:flex-row items-center justify-center gap-1 lg:gap-2 px-2 py-2 lg:py-2.5 rounded-lg transition-all hover:bg-indigo-50 group" id="nav-pipeline" title="Pipeline - Manage your sales funnel with drag & drop kanban">
-          <span class="text-xl lg:text-2xl">📊</span>
-          <span class="text-xs lg:text-sm font-bold text-gray-600 group-hover:text-indigo-600">Pipeline</span>
-        </button>
         <button onclick="switchTab('manager')" data-tab="manager" class="tab-btn flex-1 flex flex-col lg:flex-row items-center justify-center gap-1 lg:gap-2 px-2 py-2 lg:py-2.5 rounded-lg transition-all hover:bg-indigo-50 group" id="nav-campaigns" title="Campaigns - Design & manage your postcard layouts">
           <span class="text-xl lg:text-2xl">📮</span>
           <span class="text-xs lg:text-sm font-bold text-gray-600 group-hover:text-indigo-600">Campaigns</span>
         </button>
-        <button onclick="switchTab('clients')" data-tab="clients" class="tab-btn flex-1 flex flex-col lg:flex-row items-center justify-center gap-1 lg:gap-2 px-2 py-2 lg:py-2.5 rounded-lg transition-all hover:bg-indigo-50 group" id="nav-clients" title="Clients - Your client database with contact history">
+        <button onclick="switchTab('lead-generation')" data-tab="lead-generation" class="tab-btn flex-1 flex flex-col lg:flex-row items-center justify-center gap-1 lg:gap-2 px-2 py-2 lg:py-2.5 rounded-lg transition-all hover:bg-indigo-50 group" id="nav-generator" title="Prospect Radar - Find local businesses by ZIP code and category">
+          <span class="text-xl lg:text-2xl">🔍</span>
+          <span class="text-xs lg:text-sm font-bold text-gray-600 group-hover:text-indigo-600 whitespace-nowrap">Prospect Radar</span>
+        </button>
+        <button onclick="switchTab('clients')" data-tab="clients" class="tab-btn flex-1 flex flex-col lg:flex-row items-center justify-center gap-1 lg:gap-2 px-2 py-2 lg:py-2.5 rounded-lg transition-all hover:bg-indigo-50 group" id="nav-clients" title="Businesses - All prospects and clients in one place">
           <span class="text-xl lg:text-2xl">👥</span>
-          <span class="text-xs lg:text-sm font-bold text-gray-600 group-hover:text-indigo-600">Clients</span>
+          <span class="text-xs lg:text-sm font-bold text-gray-600 group-hover:text-indigo-600">Businesses</span>
+        </button>
+        <button onclick="switchTab('pipeline')" data-tab="pipeline" class="tab-btn flex-1 flex flex-col lg:flex-row items-center justify-center gap-1 lg:gap-2 px-2 py-2 lg:py-2.5 rounded-lg transition-all hover:bg-indigo-50 group" id="nav-pipeline" title="Pipeline - Manage your sales funnel with drag & drop kanban">
+          <span class="text-xl lg:text-2xl">📊</span>
+          <span class="text-xs lg:text-sm font-bold text-gray-600 group-hover:text-indigo-600">Pipeline</span>
         </button>
       </div>
     </div>
@@ -230,14 +230,21 @@
             <!-- COMMAND CENTER BANNER -->
             <div class="hero-section mb-6">
                 <div class="relative z-10">
-                    <div class="flex items-center gap-4">
-                        <div class="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
-                            <span class="text-4xl">🎯</span>
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
+                                <span class="text-4xl">🎯</span>
+                            </div>
+                            <div>
+                                <h2 class="text-3xl md:text-4xl font-bold tracking-tight">Dashboard</h2>
+                                <p class="text-lg text-blue-100 mt-1">Your business at a glance</p>
+                            </div>
                         </div>
-                        <div>
-                            <h2 class="text-3xl md:text-4xl font-bold tracking-tight">Dashboard</h2>
-                            <p class="text-lg text-blue-100 mt-1">Your business at a glance</p>
-                        </div>
+                        <a href="facing-slip.html" target="_blank" class="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-white rounded-xl font-bold text-sm flex items-center gap-2 transition-all shadow-lg hover:shadow-xl hover:scale-105">
+                            <span>📋</span>
+                            <span class="hidden md:inline">Facing Slip Generator</span>
+                            <span class="md:hidden">Slips</span>
+                        </a>
                     </div>
                 </div>
             </div>
@@ -390,6 +397,27 @@
                             View full reports →
                         </button>
                     </div>
+                </div>
+            </div>
+
+            <!-- CONTRACT RENEWALS WIDGET -->
+            <div class="bg-white rounded-xl border border-orange-200 p-5 mb-6" style="box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center">
+                            <span class="text-xl">🔄</span>
+                        </div>
+                        <div>
+                            <h4 class="text-lg font-semibold text-gray-900">Contract Renewals</h4>
+                            <p class="text-xs text-gray-500">Clients due for renewal (30+ days since mail drop)</p>
+                        </div>
+                    </div>
+                    <button onclick="checkRenewals()" class="px-3 py-1.5 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700 transition-colors">
+                        🔄 Refresh
+                    </button>
+                </div>
+                <div id="dashboardRenewalList" class="space-y-2 max-h-48 overflow-y-auto">
+                    <p class="text-sm text-gray-500 text-center py-4">Select a campaign to check renewals</p>
                 </div>
             </div>
 
@@ -601,22 +629,6 @@
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <!-- QUICK TOOLS BAR -->
-            <div class="flex flex-wrap gap-3 mb-6">
-                <button onclick="window.open('/facing-slip.html', '_blank', 'noopener,noreferrer')" class="flex items-center gap-2 px-4 py-2 bg-white border-2 border-blue-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-all shadow-sm cursor-pointer">
-                    <span class="text-xl">📋</span>
-                    <span class="font-semibold text-gray-700">Facing Slip Generator</span>
-                </button>
-                <button onclick="window.open('/outreach-ipad.html', '_blank', 'noopener,noreferrer')" class="flex items-center gap-2 px-4 py-2 bg-white border-2 border-green-200 rounded-xl hover:border-green-400 hover:bg-green-50 transition-all shadow-sm cursor-pointer">
-                    <span class="text-xl">📍</span>
-                    <span class="font-semibold text-gray-700">iPad Outreach Hub</span>
-                </button>
-                <button onclick="reEnrichPipelineBusinesses()" class="flex items-center gap-2 px-4 py-2 bg-white border-2 border-orange-200 rounded-xl hover:border-orange-400 hover:bg-orange-50 transition-all shadow-sm cursor-pointer" title="Re-fetch missing emails and social media for pipeline businesses">
-                    <span class="text-xl">🔄</span>
-                    <span class="font-semibold text-gray-700">Re-Enrich Data</span>
-                </button>
             </div>
 
             <!-- SALES PIPELINE KANBAN -->
@@ -1008,48 +1020,58 @@
 
         <!-- LEAD GENERATION TAB -->
         <div data-content="lead-generation" class="tab-pane hidden">
-            <!-- COLLAPSIBLE PROSPECT RADAR SECTION -->
+            <!-- HERO SECTION (Simple Banner) -->
+            <div class="hero-section mb-6">
+                <div class="relative z-10">
+                    <div class="flex items-center gap-4">
+                        <div class="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
+                            <span class="text-4xl">🔍</span>
+                        </div>
+                        <div>
+                            <h2 class="text-3xl md:text-4xl font-bold tracking-tight">Prospect Radar</h2>
+                            <p class="text-lg text-blue-100 mt-1">Find local businesses by ZIP code</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SEARCH TOOL CARD (Collapsible) -->
             <div id="prospectRadarSection" class="mb-6">
-                <!-- Collapsed State Header (shown when collapsed) -->
-                <div id="prospectRadarCollapsed" class="hidden hero-section cursor-pointer" style="background: linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #0ea5e9 100%); padding: 1rem 1.5rem;" onclick="toggleProspectRadar()">
-                    <div class="flex items-center justify-between relative z-10">
-                        <div class="flex items-center gap-3 text-white">
-                            <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                                <span class="text-2xl">🔍</span>
+                <!-- Collapsed State -->
+                <div id="prospectRadarCollapsed" class="hidden bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:shadow-md transition-all" onclick="toggleProspectRadar()">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                                <span class="text-xl">🔍</span>
                             </div>
                             <div>
-                                <h3 class="text-xl font-bold">ProspectRadar</h3>
-                                <p class="text-sm text-purple-200">Click to search for new prospects</p>
+                                <h3 class="font-semibold text-gray-900">Search for Prospects</h3>
+                                <p class="text-sm text-gray-500">Click to expand search options</p>
                             </div>
                         </div>
-                        <button class="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg font-semibold text-sm flex items-center gap-2 transition-all">
-                            <span>Expand</span>
-                            <span>▼</span>
-                        </button>
+                        <span class="text-gray-400 text-xl">▼</span>
                     </div>
                 </div>
 
-                <!-- Expanded State (full search interface) -->
-                <div id="prospectRadarExpanded" class="hero-section" style="background: linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #0ea5e9 100%);">
+                <!-- Expanded State (Search Interface) -->
+                <div id="prospectRadarExpanded" class="bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-500 rounded-xl p-6 text-white">
                     <!-- Header with Collapse Button -->
-                    <div class="flex items-center justify-between mb-6 relative z-10">
-                        <div class="flex items-center gap-4">
-                            <div class="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
-                                <span class="text-3xl">🔍</span>
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                                <span class="text-xl">🔍</span>
                             </div>
-                            <div>
-                                <h3 class="text-2xl font-bold">ProspectRadar</h3>
-                                <p class="text-purple-200">Find local businesses by ZIP code</p>
-                            </div>
+                            <h3 class="text-lg font-bold">Search for Prospects</h3>
                         </div>
-                        <button onclick="toggleProspectRadar()" class="px-3 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg font-semibold text-sm flex items-center gap-2 transition-all" title="Collapse search">
+                        <button onclick="toggleProspectRadar()" class="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg font-semibold text-sm flex items-center gap-2 transition-all" title="Collapse search">
                             <span>▲</span>
                         </button>
                     </div>
+
                     <!-- Compact Search Layout -->
-                    <div class="grid md:grid-cols-2 gap-6">
+                    <div class="grid md:grid-cols-2 gap-4">
                         <!-- ZIP Code Input -->
-                        <div class="bg-white/10 backdrop-blur-md rounded-xl px-5 py-4 border border-white/20">
+                        <div class="bg-white/10 backdrop-blur-md rounded-xl px-4 py-3 border border-white/20">
                             <!-- Search Mode Tabs -->
                             <div class="flex gap-2 mb-3">
                                 <button id="zipModeTab" onclick="setZipSearchMode('zips')" class="px-3 py-1 text-sm font-bold rounded-lg bg-white text-purple-600">
@@ -1065,11 +1087,11 @@
                                 <div class="text-sm text-purple-100 mb-2 font-semibold">📍 ZIP Codes (max 3)</div>
                                 <div class="flex gap-2 items-center">
                                     <input id="bulkPopZip1" type="text" placeholder="ZIP 1" maxlength="5"
-                                        class="w-20 px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white text-center font-bold placeholder-purple-200 focus:outline-none focus:ring-2 focus:ring-white/50" />
+                                        class="w-20 px-3 py-2 bg-white border-2 border-purple-300 rounded-lg text-gray-800 text-center font-bold placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400" />
                                     <input id="bulkPopZip2" type="text" placeholder="ZIP 2" maxlength="5"
-                                        class="w-20 px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white text-center font-bold placeholder-purple-200 focus:outline-none focus:ring-2 focus:ring-white/50" />
+                                        class="w-20 px-3 py-2 bg-white border-2 border-purple-300 rounded-lg text-gray-800 text-center font-bold placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400" />
                                     <input id="bulkPopZip3" type="text" placeholder="ZIP 3" maxlength="5"
-                                        class="w-20 px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white text-center font-bold placeholder-purple-200 focus:outline-none focus:ring-2 focus:ring-white/50" />
+                                        class="w-20 px-3 py-2 bg-white border-2 border-purple-300 rounded-lg text-gray-800 text-center font-bold placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400" />
                                 </div>
                             </div>
 
@@ -1078,18 +1100,18 @@
                                 <div class="text-sm text-purple-100 mb-2 font-semibold">📍 Search within radius of ZIP</div>
                                 <div class="flex gap-2 items-center">
                                     <input id="radiusCenterZip" type="text" placeholder="ZIP" maxlength="5"
-                                        class="w-24 px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white text-center font-bold placeholder-purple-200 focus:outline-none focus:ring-2 focus:ring-white/50" />
-                                    <span class="text-purple-200">+</span>
+                                        class="w-24 px-3 py-2 bg-white border-2 border-purple-300 rounded-lg text-gray-800 text-center font-bold placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400" />
+                                    <span class="text-white font-bold">+</span>
                                     <input id="radiusMiles" type="number" placeholder="5" min="1" max="50" value="5"
-                                        class="w-16 px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white text-center font-bold placeholder-purple-200 focus:outline-none focus:ring-2 focus:ring-white/50" />
-                                    <span class="text-purple-200 font-semibold">miles</span>
+                                        class="w-16 px-3 py-2 bg-white border-2 border-purple-300 rounded-lg text-gray-800 text-center font-bold placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400" />
+                                    <span class="text-white font-semibold">miles</span>
                                 </div>
                             </div>
                         </div>
                         <!-- Search Button -->
                         <div class="flex items-center">
                             <button id="btnRunBulkPopulate" onclick="runBulkAutoPopulate()"
-                                class="w-full px-8 py-4 bg-white text-purple-600 text-lg font-black rounded-xl hover:bg-purple-50 transition-all shadow-xl hover:shadow-2xl transform hover:scale-105">
+                                class="w-full px-6 py-3 bg-white text-purple-600 text-lg font-black rounded-xl hover:bg-purple-50 transition-all shadow-lg hover:shadow-xl">
                                 🔍 Search Now
                             </button>
                         </div>
@@ -1099,10 +1121,10 @@
                     <div class="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20 mt-4">
                         <div class="flex items-center justify-between mb-3">
                             <h4 class="font-semibold flex items-center gap-2">
-                                <span class="text-2xl">🏢</span> Business Categories (Select Multiple)
+                                <span class="text-xl">🏢</span> Business Categories (Select Multiple)
                             </h4>
                             <div class="flex gap-2">
-                                <button onclick="openManageCategoriesModal()" class="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-700 rounded transition font-semibold">
+                                <button onclick="openManageCategoriesModal()" class="text-xs px-2 py-1 bg-blue-500 hover:bg-blue-600 rounded transition font-semibold">
                                     ⚙️ Manage
                                 </button>
                                 <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/20 px-3 py-1.5 rounded transition font-semibold">
@@ -1111,12 +1133,12 @@
                                 </label>
                             </div>
                         </div>
-                        <div id="categoryCheckboxContainer" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 max-h-64 overflow-y-auto pr-2" style="scrollbar-width: thin;">
+                        <div id="categoryCheckboxContainer" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 max-h-48 overflow-y-auto pr-2" style="scrollbar-width: thin;">
                             <!-- Categories will be dynamically rendered here -->
                         </div>
 
                         <!-- Custom Category Input -->
-                        <div class="mt-4 pt-4 border-t border-white/20">
+                        <div class="mt-3 pt-3 border-t border-white/20">
                             <label class="flex items-center gap-2 text-sm mb-2">
                                 <input type="checkbox" id="enableCustomCategory" class="category-checkbox rounded text-purple-600" onchange="toggleBulkCustomCategory()" />
                                 <span class="font-medium">Add custom category</span>
@@ -1131,111 +1153,16 @@
                         </div>
                     </div>
 
-                    <!-- Powered by note -->
-                    <div class="mt-4 text-center text-xs text-purple-200">
-                        <span class="inline-block w-2 h-2 bg-yellow-400 rounded-full animate-pulse mr-1"></span>
-                        Powered by HERE Places API • Real-time local business data
-                    </div>
                 </div><!-- End prospectRadarExpanded -->
             </div><!-- End prospectRadarSection -->
 
-            <!-- DISCOVERED PROSPECTS SECTION -->
-            <div id="inlineProspectPool">
-                <!-- Sticky Header -->
-                <div class="sticky top-0 z-30 bg-white pb-4 pt-2 -mx-3 px-3 border-b border-gray-200 shadow-sm">
-                    <!-- Header Row -->
-                    <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-3 mb-4">
-                        <div class="flex items-center gap-3">
-                            <span class="text-3xl">🎯</span>
-                            <div>
-                                <h2 class="text-2xl font-black text-gray-900">Your Discovered Prospects</h2>
-                                <p class="text-sm text-gray-500">Select businesses to add to your pipeline</p>
-                            </div>
-                        </div>
-                        <div class="flex gap-2">
-                            <button onclick="openAddManualBusinessModal()" class="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-bold text-sm">
-                                ➕ Add Manually
-                            </button>
-                            <button onclick="exportProspectPoolCSV()" class="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-bold text-sm border">
-                                📥 Export
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Stats Row -->
-                    <div id="inlineProspectPoolStats" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                        <!-- Stats populated by JavaScript -->
-                    </div>
-
-                    <!-- Unified Filter Bar - Compact Dropdowns -->
-                    <div class="bg-gray-50 border rounded-xl p-3">
-                        <div class="flex flex-wrap items-center gap-3">
-                            <!-- ZIP Filter Dropdown -->
-                            <div class="relative">
-                                <button onclick="toggleFilterDropdown('zip')" class="flex items-center gap-2 px-3 py-2 bg-white border-2 border-gray-300 rounded-lg hover:border-indigo-400 transition-colors text-sm font-medium">
-                                    <span>📍 ZIP:</span>
-                                    <span id="zipFilterSummary" class="text-indigo-600 font-bold">All</span>
-                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                                </button>
-                                <div id="zipFilterDropdown" class="hidden absolute top-full left-0 mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl z-50 p-3 min-w-[300px] max-w-[500px] max-h-[300px] overflow-y-auto">
-                                    <div id="inlineProspectPoolZipCheckboxes" class="flex flex-wrap gap-1">
-                                        <!-- ZIP checkboxes populated by JavaScript -->
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Category Filter Dropdown -->
-                            <div class="relative">
-                                <button onclick="toggleFilterDropdown('category')" class="flex items-center gap-2 px-3 py-2 bg-white border-2 border-gray-300 rounded-lg hover:border-emerald-400 transition-colors text-sm font-medium">
-                                    <span>🏢 Category:</span>
-                                    <span id="categoryFilterSummary" class="text-emerald-600 font-bold">All</span>
-                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                                </button>
-                                <div id="categoryFilterDropdown" class="hidden absolute top-full left-0 mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl z-50 p-3 min-w-[300px] max-w-[500px] max-h-[300px] overflow-y-auto">
-                                    <div id="prospectPoolCategoryCheckboxes" class="flex flex-wrap gap-1">
-                                        <!-- Category checkboxes populated by JavaScript -->
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Client Status Filter -->
-                            <div class="flex items-center gap-2">
-                                <select id="prospectPoolClientFilter" onchange="filterProspectPoolByClientStatus()"
-                                    class="px-3 py-2 border-2 border-gray-300 rounded-lg text-sm bg-white hover:border-amber-400 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 font-medium">
-                                    <option value="all">👥 All Prospects</option>
-                                    <option value="new">🆕 New Only</option>
-                                    <option value="existing">⭐ Existing Clients</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="inlineProspectPoolContainer">
-                    <div class="text-center py-12 text-gray-500">
-                        <span class="text-4xl mb-4 block">🔍</span>
-                        <p class="text-lg font-medium">No prospects yet</p>
-                        <p class="text-sm">Use the search above to discover local businesses</p>
-                    </div>
-                </div>
-
-                <!-- ACTION BAR for inline pool -->
-                <div id="inlineProspectPoolActionBar" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-40 transition-all duration-300" style="display: none;">
-                    <div class="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-full shadow-2xl border-2 border-emerald-300 px-6 py-3 flex items-center gap-4">
-                        <div class="flex items-center gap-2 text-white">
-                            <span id="inlineProspectPoolSelectedCount" class="text-2xl font-black">0</span>
-                            <span class="text-sm font-medium">selected</span>
-                        </div>
-                        <button id="btnAddFromPool" onclick="addFromProspectPool()" class="px-6 py-2 bg-white text-emerald-600 rounded-full font-bold text-sm hover:bg-emerald-50 shadow-lg transform hover:scale-105 transition-all">
-                            📊 Add to Pipeline
-                        </button>
-                        <button onclick="clearProspectPoolSelection()" class="text-white hover:text-emerald-100 transition-colors" title="Clear selection">
-                            ✕
-                        </button>
-                    </div>
-                </div>
+            <!-- Tip: Search results appear in the Businesses tab -->
+            <div class="mt-6 bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+                <p class="text-blue-700 font-medium">🔍 Search results will appear in the <strong>Businesses</strong> tab</p>
+                <button onclick="switchTab('clients')" class="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm">
+                    Go to Businesses →
+                </button>
             </div>
-
         </div>
 
         <div data-content="manager" class="tab-pane hidden">
@@ -1377,7 +1304,7 @@
             </div>
         </div>
         
-        <!-- CLIENT DATABASE TAB -->
+        <!-- BUSINESSES TAB (Combined Prospects + Clients) -->
         <div data-content="clients" class="tab-pane hidden">
             <!-- HERO SECTION -->
             <div class="hero-section mb-6" style="background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 50%, #0ea5e9 100%);">
@@ -1387,40 +1314,162 @@
                             <span class="text-4xl">👥</span>
                         </div>
                         <div>
-                            <h2 class="text-3xl md:text-4xl font-bold tracking-tight">Clients</h2>
-                            <p class="text-lg text-blue-100 mt-1">Manage relationships & communications</p>
+                            <h2 class="text-3xl md:text-4xl font-bold tracking-tight">Businesses</h2>
+                            <p class="text-lg text-blue-100 mt-1">All prospects and clients in one place</p>
                         </div>
                     </div>
                 </div>
             </div>
-            <!-- CLIENT DATABASE SECTION -->
-            <div class="bg-white rounded-2xl shadow-xl border-2 border-indigo-100 p-6 md:p-8">
-                <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
-                    <div class="flex items-center gap-3">
-                        <span class="text-4xl">💼</span>
-                        <h3 class="text-2xl font-black text-gray-900">Client Database</h3>
+
+            <!-- DISCOVERED PROSPECTS SECTION (from Prospect Radar searches) -->
+            <div id="inlineProspectPool" class="mb-6">
+                <!-- Header -->
+                <div class="bg-white rounded-xl border border-gray-200 p-5 md:p-6 mb-4" style="box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                    <!-- Header Row -->
+                    <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-3 mb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center">
+                                <span class="text-xl">🎯</span>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-900">Discovered Prospects</h3>
+                                <p class="text-sm text-gray-500">From Prospect Radar searches • Select to add to Pipeline</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="openAddManualBusinessModal()" class="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors">
+                                + Add Manually
+                            </button>
+                            <button onclick="exportProspectPoolCSV()" class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
+                                Export
+                            </button>
+                        </div>
                     </div>
-                    <div class="flex gap-3 flex-wrap">
-                        <button onclick="document.getElementById('csvFileInput').click()" class="px-5 py-2.5 bg-purple-600 text-white rounded-xl text-sm font-bold hover:bg-purple-700 shadow-lg transform hover:scale-105 transition-all">
-                            📤 Import
-                        </button>
-                        <input type="file" id="csvFileInput" accept=".csv" onchange="importClientsCSV(event)" style="display: none;" />
-                        <button onclick="exportClientsCSV()" class="px-5 py-2.5 bg-green-600 text-white rounded-xl text-sm font-bold hover:bg-green-700 shadow-lg transform hover:scale-105 transition-all">
-                            📥 Export
-                        </button>
-                        <button onclick="syncClientsToSheets()" class="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 shadow-lg transform hover:scale-105 transition-all">
-                            ☁️ Sync
-                        </button>
-                        <button onclick="openClientModal()" class="px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold hover:from-indigo-700 hover:to-purple-700 shadow-lg transform hover:scale-105 transition-all">
-                            + Add Client
+
+                    <!-- Stats Row -->
+                    <div id="inlineProspectPoolStats" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                        <!-- Stats populated by JavaScript -->
+                    </div>
+
+                    <!-- Filter Buttons - Large Centered Colored -->
+                    <div class="grid grid-cols-3 gap-3">
+                        <!-- ZIP Filter -->
+                        <div class="relative">
+                            <button onclick="toggleFilterDropdown('zip')" class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold transition-all shadow-md">
+                                <span class="text-lg">📍</span>
+                                <span>ZIP: <span id="zipFilterSummary" class="font-bold">All</span></span>
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </button>
+                            <div id="zipFilterDropdown" class="hidden absolute top-full left-0 right-0 mt-2 bg-white border-2 border-indigo-200 rounded-xl shadow-2xl z-50 p-4 max-h-[300px] overflow-y-auto">
+                                <div id="inlineProspectPoolZipCheckboxes" class="flex flex-wrap gap-2">
+                                    <!-- ZIP checkboxes populated by JavaScript -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Category Filter -->
+                        <div class="relative">
+                            <button onclick="toggleFilterDropdown('category')" class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold transition-all shadow-md">
+                                <span class="text-lg">🏢</span>
+                                <span>Category: <span id="categoryFilterSummary" class="font-bold">All</span></span>
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </button>
+                            <div id="categoryFilterDropdown" class="hidden absolute top-full left-0 right-0 mt-2 bg-white border-2 border-emerald-200 rounded-xl shadow-2xl z-50 p-4 max-h-[300px] overflow-y-auto">
+                                <div id="prospectPoolCategoryCheckboxes" class="flex flex-wrap gap-2">
+                                    <!-- Category checkboxes populated by JavaScript -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Status Filter -->
+                        <div class="relative">
+                            <button onclick="toggleFilterDropdown('status')" id="statusFilterBtn" class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold transition-all shadow-md">
+                                <span class="text-lg">👥</span>
+                                <span id="statusFilterSummary">All Prospects</span>
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </button>
+                            <div id="statusFilterDropdown" class="hidden absolute top-full left-0 right-0 mt-2 bg-white border-2 border-amber-200 rounded-xl shadow-2xl z-50 p-2">
+                                <button onclick="setProspectStatusFilter('all')" class="w-full text-left px-4 py-2 hover:bg-amber-50 rounded-lg font-medium">👥 All Prospects</button>
+                                <button onclick="setProspectStatusFilter('new')" class="w-full text-left px-4 py-2 hover:bg-amber-50 rounded-lg font-medium">🆕 New Only</button>
+                                <button onclick="setProspectStatusFilter('existing')" class="w-full text-left px-4 py-2 hover:bg-amber-50 rounded-lg font-medium">⭐ Existing Clients</button>
+                            </div>
+                            <select id="prospectPoolClientFilter" onchange="filterProspectPoolByClientStatus()" class="hidden">
+                                <option value="all">All Prospects</option>
+                                <option value="new">New Only</option>
+                                <option value="existing">Existing Clients</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="inlineProspectPoolContainer">
+                    <div class="text-center py-12 text-gray-500 bg-white rounded-xl border border-gray-200">
+                        <span class="text-4xl mb-4 block">🔍</span>
+                        <p class="text-lg font-medium">No prospects discovered yet</p>
+                        <p class="text-sm mb-4">Use Prospect Radar to search for local businesses</p>
+                        <button onclick="switchTab('lead-generation')" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium text-sm">
+                            Go to Prospect Radar →
                         </button>
                     </div>
                 </div>
 
+                <!-- ACTION BAR for inline pool -->
+                <div id="inlineProspectPoolActionBar" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-40 transition-all duration-300" style="display: none;">
+                    <div class="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-full shadow-2xl border-2 border-emerald-300 px-6 py-3 flex items-center gap-4">
+                        <div class="flex items-center gap-2 text-white">
+                            <span id="inlineProspectPoolSelectedCount" class="text-2xl font-black">0</span>
+                            <span class="text-sm font-medium">selected</span>
+                        </div>
+                        <button id="btnAddFromPool" onclick="addFromProspectPool()" class="px-6 py-2 bg-white text-emerald-600 rounded-full font-bold text-sm hover:bg-emerald-50 shadow-lg transform hover:scale-105 transition-all">
+                            📊 Add to Pipeline
+                        </button>
+                        <button onclick="clearProspectPoolSelection()" class="text-white hover:text-emerald-100 transition-colors" title="Clear selection">
+                            ✕
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BUSINESSES SECTION (CRM Clients) -->
+            <div class="bg-white rounded-xl border border-gray-200 p-5 md:p-6" style="box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-5">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                            <span class="text-xl">💼</span>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-900">Business Directory</h3>
+                    </div>
+                    <div class="flex gap-2 flex-wrap">
+                        <button onclick="document.getElementById('csvFileInput').click()" class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
+                            Import
+                        </button>
+                        <input type="file" id="csvFileInput" accept=".csv" onchange="importClientsCSV(event)" style="display: none;" />
+                        <button onclick="exportClientsCSV()" class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
+                            Export
+                        </button>
+                        <button onclick="openClientModal()" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+                            + Add Business
+                        </button>
+                    </div>
+                </div>
+
+                <!-- TYPE FILTER BUTTONS -->
+                <div class="flex gap-2 mb-4">
+                    <button onclick="setBusinessTypeFilter('all')" id="filterAll" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors">
+                        All
+                    </button>
+                    <button onclick="setBusinessTypeFilter('prospects')" id="filterProspects" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
+                        Prospects
+                    </button>
+                    <button onclick="setBusinessTypeFilter('clients')" id="filterClients" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
+                        Clients
+                    </button>
+                </div>
+
                 <!-- SEARCH & FILTERS -->
-                <div class="bg-gradient-to-r from-indigo-50 to-purple-50 border-2 border-indigo-200 rounded-xl p-4 mb-6">
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-5">
                     <input id="clientSearch" type="text" placeholder="Search by business name, category, or contact..."
-                           class="w-full p-3 border-2 border-indigo-200 rounded-lg mb-3 font-medium focus:border-indigo-500 focus:ring focus:ring-indigo-200 transition-all" onkeyup="filterClients()" />
+                           class="w-full p-3 border border-gray-200 rounded-lg font-medium focus:border-blue-400 focus:ring focus:ring-blue-100 transition-all" onkeyup="filterClients()" />
 
                     <div class="flex gap-3 flex-wrap">
                         <select id="categoryFilter" class="border-2 border-indigo-200 rounded-lg p-2.5 text-sm font-bold bg-white flex-1 min-w-[150px]" onchange="filterClients()">
@@ -1490,26 +1539,6 @@
                             </button>
                         </div>
                     </div>
-                </div>
-            </div>
-
-            <!-- RENEWALS SECTION -->
-            <div class="bg-white rounded-2xl shadow-xl border-2 border-orange-100 p-6 md:p-8 mt-8">
-                <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
-                    <div class="flex items-center gap-3">
-                        <span class="text-4xl">🔄</span>
-                        <div>
-                            <h3 class="text-2xl font-black text-gray-900">Contract Renewals</h3>
-                            <p class="text-sm text-gray-600">Clients due for renewal outreach (30+ days since mail drop)</p>
-                        </div>
-                    </div>
-                    <button onclick="checkRenewals()" class="px-5 py-2.5 bg-orange-600 text-white rounded-xl text-sm font-bold hover:bg-orange-700 shadow-lg transform hover:scale-105 transition-all">
-                        🔄 Refresh Renewals
-                    </button>
-                </div>
-
-                <div id="renewalList" class="space-y-3">
-                    <p class="text-base text-gray-500 text-center py-8 font-medium">Select a campaign to check for renewals</p>
                 </div>
             </div>
         </div>
@@ -1936,14 +1965,6 @@
           </div>
         </div>
         
-        <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
-          <h4 class="font-semibold text-blue-900 mb-2">💡 Quick Calculation Help</h4>
-          <div class="text-sm text-blue-800 space-y-1">
-            <p><strong>5,000 pieces:</strong> ~$1,000-1,150 postage</p>
-            <p><strong>10,000 pieces:</strong> ~$2,000-2,300 postage</p>
-            <p><strong>Printing:</strong> $0.10-0.15 per postcard</p>
-          </div>
-        </div>
       </div>
       
       <div class="flex justify-end gap-2 mt-6">
@@ -3144,218 +3165,336 @@
     </div>
   </div>
 
-  <!-- Prospect/Client Detail Modal -->
+  <!-- CRM Contact Card Modal (Redesigned) -->
   <div id="prospectDetailModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
-    <div class="modal" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
-      <div class="flex justify-between items-start mb-4">
-        <div>
-          <h3 id="prospectDetailTitle" class="text-xl font-bold">Business Details</h3>
-          <p id="prospectDetailSubtitle" class="text-sm text-gray-600 mt-1"></p>
-        </div>
-        <button onclick="closeProspectDetailModal()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
-      </div>
+    <div class="modal relative" style="max-width: 700px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column;">
 
-      <!-- Business Info Section -->
-      <div class="bg-gray-50 rounded-lg p-4 mb-4">
-        <div class="grid grid-cols-2 gap-4">
+      <!-- HEADER SECTION -->
+      <div class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-5 rounded-t-2xl">
+        <!-- Close Button -->
+        <button onclick="closeProspectDetailModal()" class="absolute top-3 right-3 text-white/80 hover:text-white text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/20 transition">&times;</button>
+
+        <!-- Business Name & Meta -->
+        <div class="flex justify-between items-start mb-4 pr-8">
           <div>
-            <div class="text-xs text-gray-500 font-medium">Business Name</div>
-            <div id="detailBusinessName" class="text-base font-semibold text-gray-900 mt-1">—</div>
-          </div>
-          <div>
-            <div class="text-xs text-gray-500 font-medium mb-1">Category</div>
-            <div class="flex gap-2 items-center">
-              <select id="detailCategory" class="flex-1 text-sm text-gray-900 border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white cursor-pointer">
-                <option value="">— Select Category —</option>
-              </select>
-              <button onclick="updateProspectCategory(document.getElementById('detailCategory').value)" class="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 whitespace-nowrap">
-                Save
-              </button>
+            <h2 id="detailBusinessName" class="text-2xl font-bold">Business Name</h2>
+            <div class="flex items-center gap-3 mt-1 text-white/80 text-sm">
+              <span id="detailCategoryDisplay" class="flex items-center gap-1">
+                <span>📁</span> <span id="detailCategoryText">Category</span>
+              </span>
+              <span>•</span>
+              <span id="detailZipDisplay" class="flex items-center gap-1">
+                <span>📍</span> <span id="detailZipCode">ZIP</span>
+              </span>
             </div>
           </div>
-          <div>
-            <div class="text-xs text-gray-500 font-medium">ZIP Code</div>
-            <div id="detailZipCode" class="text-base text-gray-900 mt-1">—</div>
-          </div>
-          <div>
-            <div class="text-xs text-gray-500 font-medium">Rating</div>
-            <div id="detailRating" class="text-base text-gray-900 mt-1">—</div>
+          <div class="text-right">
+            <div id="detailStageBadge" class="px-3 py-1 bg-white/20 rounded-full text-sm font-semibold">Stage</div>
+            <div id="detailContactScore" class="text-xs text-white/70 mt-1">Score: 7/10</div>
           </div>
         </div>
-      </div>
 
-      <!-- Contact Info & Quick Actions Section -->
-      <div class="bg-white rounded-lg border p-4 mb-4">
-        <h4 class="font-semibold text-gray-700 mb-3">Contact Information & Quick Actions</h4>
-
-        <div class="space-y-2">
-          <div class="flex justify-between items-center">
-            <div>
-              <div class="text-xs text-gray-500">Phone</div>
-              <div id="detailPhone" class="text-sm text-gray-900">—</div>
-            </div>
-            <div class="flex gap-2">
-              <button id="btnCallAction" onclick="quickAction('call')" class="px-3 py-1.5 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
-                📞 Call
-              </button>
-              <button id="btnSMSAction" onclick="quickAction('sms')" class="px-3 py-1.5 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
-                📱 SMS
-              </button>
-            </div>
-          </div>
-
-          <div class="flex justify-between items-center">
-            <div>
-              <div class="text-xs text-gray-500">Email</div>
-              <div id="detailEmail" class="text-sm text-gray-900">—</div>
-            </div>
-            <button id="btnEmailAction" onclick="quickAction('email')" class="px-3 py-1.5 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
-              ✉️ Email
-            </button>
-          </div>
-
-          <div class="flex justify-between items-center">
-            <div>
-              <div class="text-xs text-gray-500">Website</div>
-              <div id="detailWebsite" class="text-sm text-gray-900 truncate max-w-md">—</div>
-            </div>
-            <button id="btnWebsiteAction" onclick="quickAction('website')" class="px-3 py-1.5 bg-gray-600 text-white rounded-md text-sm hover:bg-gray-700 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
-              🌐 Visit
-            </button>
-          </div>
-
-          <div class="flex justify-between items-center">
-            <div>
-              <div class="text-xs text-gray-500">Facebook</div>
-              <div id="detailFacebook" class="text-sm text-gray-900 truncate max-w-md">—</div>
-            </div>
-            <button id="btnFacebookAction" onclick="quickAction('facebook')" class="px-3 py-1.5 bg-blue-700 text-white rounded-md text-sm hover:bg-blue-800 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
-              📘 Message
-            </button>
-          </div>
-
-          <div class="flex justify-between items-center">
-            <div>
-              <div class="text-xs text-gray-500">Instagram</div>
-              <div id="detailInstagram" class="text-sm text-gray-900 truncate max-w-md">—</div>
-            </div>
-            <button id="btnInstagramAction" onclick="quickAction('instagram')" class="px-3 py-1.5 bg-pink-600 text-white rounded-md text-sm hover:bg-pink-700 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
-              📷 DM
-            </button>
-          </div>
-
-          <div class="flex justify-between items-center">
-            <div>
-              <div class="text-xs text-gray-500">LinkedIn</div>
-              <div id="detailLinkedIn" class="text-sm text-gray-900 truncate max-w-md">—</div>
-            </div>
-            <button id="btnLinkedInAction" onclick="quickAction('linkedin')" class="px-3 py-1.5 bg-blue-800 text-white rounded-md text-sm hover:bg-blue-900 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
-              💼 Visit
-            </button>
-          </div>
-
-          <div class="flex justify-between items-center">
-            <div>
-              <div class="text-xs text-gray-500">Twitter/X</div>
-              <div id="detailTwitter" class="text-sm text-gray-900 truncate max-w-md">—</div>
-            </div>
-            <button id="btnTwitterAction" onclick="quickAction('twitter')" class="px-3 py-1.5 bg-black text-white rounded-md text-sm hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
-              🐦 DM
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Quick Send with Template Section -->
-      <div class="bg-green-50 rounded-lg border border-green-200 p-4 mb-4">
-        <h4 class="font-semibold text-green-900 mb-3">📤 Quick Send with Template</h4>
-
-        <div class="space-y-3">
-          <div>
-            <label class="text-xs font-medium text-gray-700 block mb-1">Select Template:</label>
-            <select id="quickSendTemplateSelector" class="border rounded-md w-full p-2 text-sm bg-white" onchange="previewQuickSendTemplate()">
-              <option value="">-- Choose a template --</option>
-            </select>
-          </div>
-
-          <div id="quickSendPreview" class="hidden bg-white border rounded-lg p-3">
-            <div class="text-xs font-semibold text-gray-700 mb-2">Preview:</div>
-            <div id="quickSendPreviewSubject" class="text-xs font-semibold text-gray-900 mb-1"></div>
-            <pre id="quickSendPreviewBody" class="text-xs text-gray-700 whitespace-pre-wrap font-sans max-h-32 overflow-y-auto"></pre>
-          </div>
-
-          <div class="flex gap-2">
-            <button id="btnQuickSendSMS" onclick="quickSendWithTemplate('sms')" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
-              📱 Send SMS
-            </button>
-            <button id="btnQuickSendEmail" onclick="quickSendWithTemplate('email')" class="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
-              ✉️ Send Email
-            </button>
-          </div>
-
-          <div class="text-xs text-gray-600 mt-2">
-            💡 Select a template, preview it, then click Send to open your SMS/Email app with the message pre-filled.
-          </div>
-        </div>
-      </div>
-
-      <!-- Interaction Timeline Section -->
-      <div class="bg-white rounded-lg border p-4 mb-4">
-        <h4 class="font-semibold text-gray-700 mb-3">Interaction History</h4>
-        <div id="interactionTimeline" class="space-y-3 max-h-64 overflow-y-auto">
-          <div class="text-sm text-gray-400 italic text-center py-4">No interactions yet</div>
-        </div>
-      </div>
-
-      <!-- Add New Interaction Form -->
-      <div class="bg-blue-50 rounded-lg border border-blue-200 p-4 mb-4">
-        <h4 class="font-semibold text-blue-900 mb-3">Log New Interaction</h4>
-
-        <div class="space-y-3">
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="text-xs font-medium text-gray-700 block mb-1">Interaction Type</label>
-              <select id="newInteractionType" class="border rounded-md w-full p-2 text-sm bg-white">
-                <option value="call">📞 Phone Call</option>
-                <option value="email">✉️ Email</option>
-                <option value="messenger">📘 Facebook Messenger</option>
-                <option value="instagram">📷 Instagram DM</option>
-                <option value="in-person">🤝 In-Person Meeting</option>
-                <option value="other">📝 Other</option>
-              </select>
-            </div>
-            <div>
-              <label class="text-xs font-medium text-gray-700 block mb-1">Date</label>
-              <input id="newInteractionDate" type="date" class="border rounded-md w-full p-2 text-sm" />
-            </div>
-          </div>
-
-          <div>
-            <label class="text-xs font-medium text-gray-700 block mb-1">Notes</label>
-            <textarea id="newInteractionNotes" rows="2" class="border rounded-md w-full p-2 text-sm" placeholder="What was discussed? What's the next step?"></textarea>
-          </div>
-
-          <div>
-            <label class="text-xs font-medium text-gray-700 block mb-1">Next Follow-Up Date (Optional)</label>
-            <input id="newInteractionFollowUp" type="date" class="border rounded-md w-full p-2 text-sm" />
-          </div>
-
-          <button onclick="addNewInteraction()" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium">
-            Add Interaction
+        <!-- Quick Action Buttons -->
+        <div class="flex gap-2 flex-wrap">
+          <button id="btnHeaderCall" onclick="quickAction('call')" class="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-semibold flex items-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+            <span>📞</span> Call
+          </button>
+          <button id="btnHeaderSMS" onclick="quickAction('sms')" class="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-semibold flex items-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+            <span>💬</span> Text
+          </button>
+          <button id="btnHeaderEmail" onclick="quickAction('email')" class="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-semibold flex items-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+            <span>✉️</span> Email
+          </button>
+          <button id="btnHeaderWebsite" onclick="quickAction('website')" class="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-semibold flex items-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+            <span>🌐</span> Website
           </button>
         </div>
       </div>
 
-      <!-- Action Buttons -->
-      <div class="flex justify-between items-center gap-2 pt-4 border-t">
-        <button id="btnNotInterested" onclick="markNotInterested()" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 font-medium">
-          🚫 Not Interested
+      <!-- TAB BAR -->
+      <div class="bg-gray-100 border-b flex">
+        <button onclick="switchCrmTab('activity')" data-crm-tab="activity" class="crm-tab flex-1 px-4 py-3 text-sm font-semibold text-center border-b-2 border-indigo-600 text-indigo-600 bg-white">
+          Activity
+        </button>
+        <button onclick="switchCrmTab('contact')" data-crm-tab="contact" class="crm-tab flex-1 px-4 py-3 text-sm font-semibold text-center border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50">
+          Contact Info
+        </button>
+        <button onclick="switchCrmTab('deal')" data-crm-tab="deal" class="crm-tab flex-1 px-4 py-3 text-sm font-semibold text-center border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50">
+          Deal Info
+        </button>
+        <button onclick="switchCrmTab('notes')" data-crm-tab="notes" class="crm-tab flex-1 px-4 py-3 text-sm font-semibold text-center border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50">
+          Notes
+        </button>
+      </div>
+
+      <!-- TAB CONTENT AREA -->
+      <div class="flex-1 overflow-y-auto p-4 bg-gray-50">
+
+        <!-- ACTIVITY TAB -->
+        <div id="crmTabActivity" class="crm-tab-content">
+          <!-- Activity Timeline -->
+          <div id="crmActivityTimeline" class="space-y-3">
+            <div class="text-center py-8 text-gray-400">
+              <div class="text-4xl mb-2">📋</div>
+              <p class="font-medium">No activity yet</p>
+              <p class="text-sm">Click "+ Add Activity" to log your first interaction</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- CONTACT INFO TAB -->
+        <div id="crmTabContact" class="crm-tab-content hidden">
+          <div class="space-y-3">
+            <!-- Phone -->
+            <div class="bg-white rounded-xl p-4 border border-gray-200">
+              <div class="flex justify-between items-center">
+                <div>
+                  <div class="text-xs text-gray-500 font-medium uppercase tracking-wide">Phone</div>
+                  <div id="detailPhone" class="text-lg font-semibold text-gray-900 mt-1">—</div>
+                </div>
+                <div class="flex gap-2">
+                  <button onclick="copyToClipboard(document.getElementById('detailPhone').textContent)" class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg" title="Copy">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                  </button>
+                  <button id="btnContactCall" onclick="quickAction('call')" class="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>Call</button>
+                  <button id="btnContactSMS" onclick="quickAction('sms')" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>Text</button>
+                </div>
+              </div>
+            </div>
+            <!-- Email -->
+            <div class="bg-white rounded-xl p-4 border border-gray-200">
+              <div class="flex justify-between items-center">
+                <div class="flex-1 min-w-0">
+                  <div class="text-xs text-gray-500 font-medium uppercase tracking-wide">Email</div>
+                  <div id="detailEmail" class="text-lg font-semibold text-gray-900 mt-1 truncate">—</div>
+                </div>
+                <div class="flex gap-2 ml-4">
+                  <button onclick="copyToClipboard(document.getElementById('detailEmail').textContent)" class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg" title="Copy">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                  </button>
+                  <button id="btnContactEmail" onclick="quickAction('email')" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>Send Email</button>
+                </div>
+              </div>
+            </div>
+            <!-- Website -->
+            <div class="bg-white rounded-xl p-4 border border-gray-200">
+              <div class="flex justify-between items-center">
+                <div class="flex-1 min-w-0">
+                  <div class="text-xs text-gray-500 font-medium uppercase tracking-wide">Website</div>
+                  <div id="detailWebsite" class="text-lg font-semibold text-gray-900 mt-1 truncate">—</div>
+                </div>
+                <button id="btnContactWebsite" onclick="quickAction('website')" class="ml-4 px-3 py-1.5 bg-gray-600 text-white rounded-lg text-sm font-medium hover:bg-gray-700 disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>Open Site</button>
+              </div>
+            </div>
+            <!-- Address -->
+            <div class="bg-white rounded-xl p-4 border border-gray-200">
+              <div class="flex justify-between items-center">
+                <div>
+                  <div class="text-xs text-gray-500 font-medium uppercase tracking-wide">Address</div>
+                  <div id="detailAddress" class="text-base text-gray-900 mt-1">—</div>
+                </div>
+                <button id="btnContactDirections" onclick="openDirections()" class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">Directions</button>
+              </div>
+            </div>
+            <!-- Social Media -->
+            <div class="bg-white rounded-xl p-4 border border-gray-200">
+              <div class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-3">Social Media</div>
+              <div class="flex flex-wrap gap-2" id="detailSocialLinks">
+                <span class="text-sm text-gray-400">No social links</span>
+              </div>
+            </div>
+            <!-- Edit Button -->
+            <div class="text-right mt-4">
+              <button onclick="openEditContactModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300">Edit Contact Info</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- DEAL INFO TAB -->
+        <div id="crmTabDeal" class="crm-tab-content hidden">
+          <div class="space-y-4">
+            <!-- Interested Campaign -->
+            <div class="bg-white rounded-xl p-4 border border-gray-200">
+              <label class="text-xs text-gray-500 font-medium uppercase tracking-wide block mb-2">Interested In Campaign</label>
+              <select id="dealCampaign" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm" onchange="updateDealInfo()">
+                <option value="">— Select Campaign —</option>
+              </select>
+            </div>
+            <!-- Interested Spot -->
+            <div class="bg-white rounded-xl p-4 border border-gray-200">
+              <label class="text-xs text-gray-500 font-medium uppercase tracking-wide block mb-2">Interested Spot</label>
+              <select id="dealSpot" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm" onchange="updateDealInfo()">
+                <option value="">— Select Spot —</option>
+              </select>
+            </div>
+            <!-- Pricing -->
+            <div class="bg-white rounded-xl p-4 border border-gray-200">
+              <label class="text-xs text-gray-500 font-medium uppercase tracking-wide block mb-2">Quoted Price</label>
+              <div class="flex items-center gap-3">
+                <span class="text-gray-500">$</span>
+                <input id="dealQuotedPrice" type="number" class="flex-1 border border-gray-300 rounded-lg p-2.5 text-sm" placeholder="150" onchange="updateDealInfo()">
+                <span id="dealStandardPrice" class="text-sm text-gray-500">(Standard: $175)</span>
+              </div>
+            </div>
+            <!-- Expected Close Date -->
+            <div class="bg-white rounded-xl p-4 border border-gray-200">
+              <label class="text-xs text-gray-500 font-medium uppercase tracking-wide block mb-2">Expected Close Date</label>
+              <input id="dealExpectedClose" type="date" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm" onchange="updateDealInfo()">
+            </div>
+            <!-- Decision Maker -->
+            <div class="bg-white rounded-xl p-4 border border-gray-200">
+              <label class="text-xs text-gray-500 font-medium uppercase tracking-wide block mb-2">Decision Maker</label>
+              <div class="grid grid-cols-2 gap-3">
+                <input id="dealContactName" type="text" class="border border-gray-300 rounded-lg p-2.5 text-sm" placeholder="Name" onchange="updateDealInfo()">
+                <input id="dealContactRole" type="text" class="border border-gray-300 rounded-lg p-2.5 text-sm" placeholder="Role (Owner, Manager)" onchange="updateDealInfo()">
+              </div>
+            </div>
+            <!-- Deal Notes -->
+            <div class="bg-white rounded-xl p-4 border border-gray-200">
+              <label class="text-xs text-gray-500 font-medium uppercase tracking-wide block mb-2">Deal Notes</label>
+              <textarea id="dealNotes" rows="3" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm" placeholder="What are they interested in? Any special requests?" onchange="updateDealInfo()"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- NOTES TAB -->
+        <div id="crmTabNotes" class="crm-tab-content hidden">
+          <div class="space-y-4">
+            <!-- Best Time to Contact -->
+            <div class="bg-white rounded-xl p-4 border border-gray-200">
+              <label class="text-xs text-gray-500 font-medium uppercase tracking-wide block mb-2">Best Time to Contact</label>
+              <select id="notesBestTime" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm" onchange="updateNotesInfo()">
+                <option value="">— Any Time —</option>
+                <option value="morning">Morning (9am - 12pm)</option>
+                <option value="afternoon">Afternoon (12pm - 5pm)</option>
+                <option value="evening">Evening (5pm - 8pm)</option>
+              </select>
+            </div>
+            <!-- Key Info / General Notes -->
+            <div class="bg-white rounded-xl p-4 border border-gray-200">
+              <label class="text-xs text-gray-500 font-medium uppercase tracking-wide block mb-2">Key Information</label>
+              <textarea id="notesKeyInfo" rows="5" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm" placeholder="Important notes about this business..." onchange="updateNotesInfo()"></textarea>
+            </div>
+            <!-- Tags -->
+            <div class="bg-white rounded-xl p-4 border border-gray-200">
+              <label class="text-xs text-gray-500 font-medium uppercase tracking-wide block mb-2">Tags</label>
+              <div id="notesTags" class="flex flex-wrap gap-2 mb-3">
+                <!-- Tags will be rendered here -->
+              </div>
+              <div class="flex gap-2">
+                <input id="notesNewTag" type="text" class="flex-1 border border-gray-300 rounded-lg p-2 text-sm" placeholder="Add a tag..." onkeypress="if(event.key==='Enter'){addTag();event.preventDefault();}">
+                <button onclick="addTag()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">Add</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FLOATING ADD ACTIVITY BUTTON -->
+      <button onclick="openAddActivityForm()" class="absolute bottom-20 right-6 w-14 h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg flex items-center justify-center text-2xl transition-all hover:scale-110" title="Add Activity">
+        +
+      </button>
+
+      <!-- FOOTER -->
+      <div class="bg-white border-t p-4 flex justify-between items-center rounded-b-2xl">
+        <button onclick="markProspectNotInterested()" class="px-4 py-2 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 flex items-center gap-2">
+          <span>🚫</span> Not Interested
         </button>
         <div class="flex gap-2">
-          <button onclick="closeProspectDetailModal()" class="px-4 py-2 border rounded-md bg-gray-100 hover:bg-gray-200">
+          <button onclick="convertToClient()" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-2">
+            <span>👤</span> Convert to Client
+          </button>
+          <button onclick="closeProspectDetailModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300">
             Close
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Activity Modal (Floating Form) -->
+  <div id="addActivityModal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal" style="max-width: 500px;">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold text-gray-900">Log Activity</h3>
+        <button onclick="closeAddActivityModal()" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+      </div>
+
+      <div class="space-y-4">
+        <!-- Activity Type -->
+        <div class="grid grid-cols-4 gap-2">
+          <button type="button" onclick="selectActivityType('call')" data-activity-type="call" class="activity-type-btn p-3 border-2 rounded-xl text-center hover:border-indigo-500 hover:bg-indigo-50 transition">
+            <div class="text-2xl mb-1">📞</div>
+            <div class="text-xs font-medium">Call</div>
+          </button>
+          <button type="button" onclick="selectActivityType('sms')" data-activity-type="sms" class="activity-type-btn p-3 border-2 rounded-xl text-center hover:border-indigo-500 hover:bg-indigo-50 transition">
+            <div class="text-2xl mb-1">💬</div>
+            <div class="text-xs font-medium">Text</div>
+          </button>
+          <button type="button" onclick="selectActivityType('email')" data-activity-type="email" class="activity-type-btn p-3 border-2 rounded-xl text-center hover:border-indigo-500 hover:bg-indigo-50 transition">
+            <div class="text-2xl mb-1">✉️</div>
+            <div class="text-xs font-medium">Email</div>
+          </button>
+          <button type="button" onclick="selectActivityType('facebook')" data-activity-type="facebook" class="activity-type-btn p-3 border-2 rounded-xl text-center hover:border-indigo-500 hover:bg-indigo-50 transition">
+            <div class="text-2xl mb-1">📘</div>
+            <div class="text-xs font-medium">Facebook</div>
+          </button>
+          <button type="button" onclick="selectActivityType('instagram')" data-activity-type="instagram" class="activity-type-btn p-3 border-2 rounded-xl text-center hover:border-indigo-500 hover:bg-indigo-50 transition">
+            <div class="text-2xl mb-1">📷</div>
+            <div class="text-xs font-medium">Instagram</div>
+          </button>
+          <button type="button" onclick="selectActivityType('meeting')" data-activity-type="meeting" class="activity-type-btn p-3 border-2 rounded-xl text-center hover:border-indigo-500 hover:bg-indigo-50 transition">
+            <div class="text-2xl mb-1">🤝</div>
+            <div class="text-xs font-medium">Meeting</div>
+          </button>
+          <button type="button" onclick="selectActivityType('note')" data-activity-type="note" class="activity-type-btn p-3 border-2 rounded-xl text-center hover:border-indigo-500 hover:bg-indigo-50 transition">
+            <div class="text-2xl mb-1">📝</div>
+            <div class="text-xs font-medium">Note</div>
+          </button>
+        </div>
+
+        <!-- Direction (Inbound/Outbound) -->
+        <div>
+          <label class="text-xs text-gray-500 font-medium uppercase tracking-wide block mb-2">Direction</label>
+          <div class="flex gap-2">
+            <button type="button" onclick="selectActivityDirection('outbound')" data-direction="outbound" class="direction-btn flex-1 px-4 py-2 border-2 rounded-lg text-sm font-medium hover:border-indigo-500 hover:bg-indigo-50 transition border-indigo-500 bg-indigo-50 text-indigo-700">
+              Outbound (I contacted them)
+            </button>
+            <button type="button" onclick="selectActivityDirection('inbound')" data-direction="inbound" class="direction-btn flex-1 px-4 py-2 border-2 rounded-lg text-sm font-medium hover:border-indigo-500 hover:bg-indigo-50 transition border-gray-200">
+              Inbound (They contacted me)
+            </button>
+          </div>
+        </div>
+
+        <!-- Outcome -->
+        <div>
+          <label class="text-xs text-gray-500 font-medium uppercase tracking-wide block mb-2">Outcome</label>
+          <select id="activityOutcome" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
+            <option value="">— Select Outcome —</option>
+            <option value="interested">Interested - Wants to proceed</option>
+            <option value="callback">Callback - Schedule follow-up</option>
+            <option value="no_answer">No Answer - Try again later</option>
+            <option value="voicemail">Left Voicemail</option>
+            <option value="not_interested">Not Interested</option>
+          </select>
+        </div>
+
+        <!-- Notes -->
+        <div>
+          <label class="text-xs text-gray-500 font-medium uppercase tracking-wide block mb-2">Notes</label>
+          <textarea id="activityNotes" rows="3" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm" placeholder="What was discussed? Any key takeaways?"></textarea>
+        </div>
+
+        <!-- Follow-up Date -->
+        <div>
+          <label class="text-xs text-gray-500 font-medium uppercase tracking-wide block mb-2">Follow-up Date (Optional)</label>
+          <input id="activityFollowUp" type="date" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
+        </div>
+      </div>
+
+      <div class="flex gap-3 mt-6">
+        <button onclick="closeAddActivityModal()" class="flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300">Cancel</button>
+        <button onclick="saveActivity()" class="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700">Save Activity</button>
       </div>
     </div>
   </div>
@@ -3367,7 +3506,7 @@
   <script src="performance-loader.js" defer></script>
 
   <!-- Main Application JavaScript (Refactored) -->
-  <script src="app-main.js?v=460" defer></script>
+  <script src="app-main.js?v=474" defer></script>
 
   <!-- Authentication -->
   <script src="auth-root.js?v=454"></script>

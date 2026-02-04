@@ -1941,10 +1941,60 @@ async function saveClients() {
 
 function renderClientList() {
   const container = document.getElementById('clientList');
-  const clients = Object.values(crmState.clients);
+
+  // Combine crmState.clients with pipeline prospects
+  const crmClients = Object.values(crmState.clients);
+
+  // Get all prospects from kanban pipeline columns
+  const pipelineProspects = [];
+  const existingPlaceIds = new Set(crmClients.map(c => c.placeId).filter(Boolean));
+  const existingNames = new Set(crmClients.map(c => c.businessName?.toLowerCase()).filter(Boolean));
+
+  if (kanbanState && kanbanState.columns) {
+    Object.values(kanbanState.columns).forEach(column => {
+      column.forEach(prospect => {
+        const prospectName = (prospect.businessName || prospect.name || prospect.title || '').toLowerCase();
+        // Skip if already in CRM (by placeId or name)
+        if (prospect.placeId && existingPlaceIds.has(prospect.placeId)) return;
+        if (prospectName && existingNames.has(prospectName)) return;
+
+        // Convert to client-like format
+        pipelineProspects.push({
+          id: prospect.id || prospect.placeId || `pipeline-${Date.now()}-${Math.random()}`,
+          businessName: prospect.businessName || prospect.name || prospect.title || 'Unknown Business',
+          category: prospect.category || '',
+          status: 'active',
+          contact: {
+            name: prospect.contactName || prospect.ownerName || '',
+            firstName: '',
+            phone: prospect.phone || '',
+            email: prospect.email || ''
+          },
+          website: prospect.website || '',
+          facebook: prospect.facebook || '',
+          instagram: prospect.instagram || '',
+          linkedin: prospect.linkedin || '',
+          twitter: prospect.twitter || '',
+          ownerName: prospect.ownerName || prospect.contactName || '',
+          rating: prospect.rating || null,
+          reviewCount: prospect.reviewCount || null,
+          priceLevel: prospect.priceLevel || null,
+          description: prospect.description || '',
+          monthlyPrice: null,
+          placeId: prospect.placeId || null,
+          history: [],
+          lifetime: { totalSpent: 0, cardsBought: 0 },
+          isPipelineProspect: true // Mark as pipeline prospect
+        });
+      });
+    });
+  }
+
+  // Combine and dedupe
+  const clients = [...crmClients, ...pipelineProspects];
 
   if (clients.length === 0) {
-    container.innerHTML = '<p class="text-sm text-gray-500 text-center py-8">No clients yet. Add your first client above!</p>';
+    container.innerHTML = '<p class="text-sm text-gray-500 text-center py-8">No businesses yet. Search for prospects or add a business above!</p>';
     updateClientBulkSendSection();
     return;
   }
@@ -1961,12 +2011,19 @@ function renderClientList() {
         const hasPhone = client.contact && client.contact.phone;
         const hasEmail = client.contact && client.contact.email;
         const isSelected = clientSelectionState.selectedIds.has(client.id);
+        const totalSpent = (client.lifetime?.totalSpent) || 0;
+        const isPayingClient = totalSpent > 0;
+        const isPipelineProspect = client.isPipelineProspect || false;
 
         return `
-          <div class="client-row bg-white border-2 ${isSelected ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200'} rounded-lg p-3 hover:shadow-lg transition relative flex flex-col min-h-[220px]"
+          <div class="client-row bg-white border-2 ${isSelected ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200'} rounded-lg p-3 hover:shadow-lg transition relative flex flex-col min-h-[220px] overflow-hidden"
                data-client-id="${esc(client.id)}"
                data-category="${esc(client.category)}"
-               data-business="${esc(client.businessName.toLowerCase())}">
+               data-business="${esc(client.businessName.toLowerCase())}"
+               data-is-client="${isPayingClient}"
+               data-is-prospect="${!isPayingClient}">
+
+            ${isPayingClient ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-green-500 to-emerald-400"></div>' : (isPipelineProspect ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-500 to-indigo-400"></div>' : '')}
 
             <!-- Checkbox in top-left corner -->
             <div class="absolute top-2 left-2 z-10">
@@ -1980,8 +2037,14 @@ function renderClientList() {
 
             <!-- Revenue Badge in top-right corner -->
             <div class="absolute top-2 right-2 text-right pointer-events-none z-10">
-              <div class="text-sm font-semibold text-green-600">${formatCurrency((client.lifetime?.totalSpent) || 0)}</div>
-              <div class="text-xs text-gray-500">${(client.lifetime?.cardsBought) || 0} card${(client.lifetime?.cardsBought) === 1 ? '' : 's'}</div>
+              ${isPayingClient ? `
+                <div class="text-sm font-semibold text-green-600">${formatCurrency((client.lifetime?.totalSpent) || 0)}</div>
+                <div class="text-xs text-gray-500">${(client.lifetime?.cardsBought) || 0} card${(client.lifetime?.cardsBought) === 1 ? '' : 's'}</div>
+              ` : (isPipelineProspect ? `
+                <span class="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-md font-medium">Pipeline</span>
+              ` : `
+                <span class="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-md font-medium">Prospect</span>
+              `)}
             </div>
 
             <!-- Main content (clickable to open modal) -->
@@ -2559,38 +2622,63 @@ function clientBulkSendGoogleVoice() {
   }
 }
 
+// Business type filter state
+let businessTypeFilter = 'all'; // 'all', 'prospects', 'clients'
+
+function setBusinessTypeFilter(type) {
+  businessTypeFilter = type;
+
+  // Update button states
+  document.getElementById('filterAll').className = type === 'all'
+    ? 'px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors'
+    : 'px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors';
+  document.getElementById('filterProspects').className = type === 'prospects'
+    ? 'px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors'
+    : 'px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors';
+  document.getElementById('filterClients').className = type === 'clients'
+    ? 'px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors'
+    : 'px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors';
+
+  filterClients();
+}
+
 function filterClients() {
   const searchTerm = document.getElementById('clientSearch').value.toLowerCase();
   const categoryFilter = document.getElementById('categoryFilter').value;
-  const statusFilter = document.getElementById('statusFilter').value;
-  
+  const statusFilter = document.getElementById('statusFilter')?.value || '';
+
   const clientEls = document.querySelectorAll('#clientList .client-row');
-  
+
   clientEls.forEach(el => {
     const business = el.dataset.business || '';
     const category = el.dataset.category || '';
     const clientId = el.dataset.clientId;
     const client = crmState.clients[clientId];
-    
+    const isClient = el.dataset.isClient === 'true';
+
     let visible = true;
-    
+
+    // Business type filter
+    if (businessTypeFilter === 'clients' && !isClient) visible = false;
+    if (businessTypeFilter === 'prospects' && isClient) visible = false;
+
     if (searchTerm && !business.includes(searchTerm) && !category.toLowerCase().includes(searchTerm)) {
       visible = false;
     }
-    
+
     if (categoryFilter && category !== categoryFilter) {
       visible = false;
     }
-    
+
     if (statusFilter && client) {
       const hasActivePurchase = client.history.some(h => h.status === 'Paid in Full');
       const hasPendingPurchase = client.history.some(h => h.status !== 'Paid in Full' && h.status !== 'Available');
-      
+
       if (statusFilter === 'active' && !hasActivePurchase) visible = false;
       if (statusFilter === 'pending' && !hasPendingPurchase) visible = false;
       if (statusFilter === 'inactive' && (hasActivePurchase || hasPendingPurchase)) visible = false;
     }
-    
+
     el.style.display = visible ? 'block' : 'none';
   });
 }
@@ -9013,7 +9101,7 @@ async function runBulkAutoPopulate() {
 
       // Still switch to Prospect Pool to show existing cached searches
       setTimeout(() => {
-        switchTab('prospects');
+        switchTab('clients');
       }, 1500);
       return;
     }
@@ -9608,15 +9696,12 @@ let businessCategories = [
   { value: "waterproofing", label: "Waterproofing" },
   { value: "window_installation", label: "Window Installation" },
 
-  // FOOD & BEVERAGE
+  // FOOD & BEVERAGE (Use "Restaurant" for all dining; specific types can be searched via custom category)
   { value: "bakery", label: "Bakery" },
   { value: "bar", label: "Bar/Pub" },
-  { value: "bbq_restaurant", label: "BBQ Restaurant" },
   { value: "cafe", label: "Cafe/Coffee Shop" },
   { value: "meal_delivery", label: "Catering" },
   { value: "food_truck", label: "Food Truck" },
-  { value: "ice_cream_shop", label: "Ice Cream Shop" },
-  { value: "pizza", label: "Pizzeria" },
   { value: "restaurant", label: "Restaurant" },
 
   // HEALTH & MEDICAL
@@ -9674,19 +9759,16 @@ let businessCategories = [
 
   // PERSONAL SERVICES
   { value: "barber", label: "Barber Shop" },
-  { value: "beauty_salon", label: "Beauty Salon" },
-  { value: "day_spa", label: "Day Spa" },
-  { value: "dog_grooming", label: "Dog Grooming" },
+  { value: "beauty_salon", label: "Hair & Beauty Salon" },
+  { value: "day_spa", label: "Spa/Massage" },
+  { value: "dog_grooming", label: "Pet Grooming" },
   { value: "dry_cleaning", label: "Dry Cleaner" },
   { value: "gym", label: "Gym/Fitness Center" },
-  { value: "hair_care", label: "Hair Salon" },
   { value: "laundromat", label: "Laundromat" },
-  { value: "massage_therapy", label: "Massage Therapy" },
   { value: "nail_salon", label: "Nail Salon" },
-  { value: "personal_trainer", label: "Personal Trainer" },
   { value: "tanning_salon", label: "Tanning Salon" },
   { value: "tattoo_shop", label: "Tattoo Shop" },
-  { value: "yoga_studio", label: "Yoga Studio" },
+  { value: "yoga_studio", label: "Yoga/Pilates Studio" },
 
   // PROFESSIONAL SERVICES
   { value: "accountant", label: "Accountant/CPA" },
@@ -9743,12 +9825,12 @@ async function loadBusinessCategories() {
   try {
     const cloudData = await loadFromCloud('businessCategories');
 
-    // ONE-TIME MIGRATION: Force update to comprehensive nationwide category list
-    const CATEGORY_VERSION = '2025-01-22-v3';
+    // ONE-TIME MIGRATION: Force update to simplified category list
+    const CATEGORY_VERSION = '2026-02-03-v4';
     const currentVersion = localStorage.getItem('categoryVersion');
 
     if (currentVersion !== CATEGORY_VERSION) {
-      console.log('🔄 Migrating to new business categories (160+ categories - comprehensive nationwide coverage with regional specialties)');
+      console.log('🔄 Migrating to simplified business categories (consolidated similar categories)');
       // Use the new default categories
       businessCategories.sort((a, b) => a.label.localeCompare(b.label));
       await saveToCloud('businessCategories', businessCategories);
@@ -10304,9 +10386,11 @@ function deduplicateManualProspects() {
   // Helper to normalize name for deduplication (handles &/and, apostrophes, spacing)
   const normalizeNameForDedup = (name) => {
     if (!name) return '';
-    return name.toLowerCase()
+    // First, truncate at common separators (•, |, -, :) to get core business name
+    let coreName = name.split(/[•|:\-–—]/)[0];
+    return coreName.toLowerCase()
       .replace(/&/g, 'and')
-      .replace(/[''`]/g, '')
+      .replace(/['''`´]/g, '')  // Remove all apostrophe variations
       .replace(/\s+/g, ' ')
       .replace(/[^\w\s]/g, '')
       .trim();
@@ -11288,7 +11372,7 @@ async function moveProspectToPool(leadId, event) {
   // Ask if user wants to view the pool
   setTimeout(() => {
     if (confirm('Go to Prospect Pool to view this prospect?')) {
-      switchTab('prospects');
+      switchTab('clients');
     }
   }, 500);
 }
@@ -11637,20 +11721,44 @@ function toggleProspectRadar() {
 function toggleFilterDropdown(type) {
   const zipDropdown = document.getElementById('zipFilterDropdown');
   const categoryDropdown = document.getElementById('categoryFilterDropdown');
+  const statusDropdown = document.getElementById('statusFilterDropdown');
 
   if (type === 'zip') {
     zipDropdown?.classList.toggle('hidden');
     categoryDropdown?.classList.add('hidden');
+    statusDropdown?.classList.add('hidden');
   } else if (type === 'category') {
     categoryDropdown?.classList.toggle('hidden');
     zipDropdown?.classList.add('hidden');
+    statusDropdown?.classList.add('hidden');
+  } else if (type === 'status') {
+    statusDropdown?.classList.toggle('hidden');
+    zipDropdown?.classList.add('hidden');
+    categoryDropdown?.classList.add('hidden');
   }
 }
+
+// Set prospect status filter (for new button dropdown)
+function setProspectStatusFilter(value) {
+  const select = document.getElementById('prospectPoolClientFilter');
+  const summary = document.getElementById('statusFilterSummary');
+  const dropdown = document.getElementById('statusFilterDropdown');
+
+  if (select) select.value = value;
+
+  const labels = { all: 'All Prospects', new: 'New Only', existing: 'Existing Clients' };
+  if (summary) summary.textContent = labels[value] || 'All Prospects';
+
+  dropdown?.classList.add('hidden');
+  filterProspectPoolByClientStatus();
+}
+window.setProspectStatusFilter = setProspectStatusFilter;
 
 // Close dropdowns when clicking outside
 document.addEventListener('click', function(e) {
   const zipDropdown = document.getElementById('zipFilterDropdown');
   const categoryDropdown = document.getElementById('categoryFilterDropdown');
+  const statusDropdown = document.getElementById('statusFilterDropdown');
 
   // Check if click is outside ZIP dropdown
   if (zipDropdown && !zipDropdown.classList.contains('hidden')) {
@@ -11665,6 +11773,14 @@ document.addEventListener('click', function(e) {
     const catButton = categoryDropdown.previousElementSibling;
     if (!categoryDropdown.contains(e.target) && !catButton?.contains(e.target)) {
       categoryDropdown.classList.add('hidden');
+    }
+  }
+
+  // Check if click is outside Status dropdown
+  if (statusDropdown && !statusDropdown.classList.contains('hidden')) {
+    const statusButton = statusDropdown.previousElementSibling;
+    if (!statusDropdown.contains(e.target) && !statusButton?.contains(e.target)) {
+      statusDropdown.classList.add('hidden');
     }
   }
 });
@@ -11698,6 +11814,28 @@ function updateCategoryFilterSummary() {
     summary.textContent = `${prospectPoolSelectedCategories.size} selected`;
   }
 }
+
+// Scroll to next category section
+function scrollToNextCategory(currentCategory) {
+  const sections = document.querySelectorAll('.category-section');
+  const sectionIds = Array.from(sections).map(s => s.id.replace('category-', ''));
+  const currentIndex = sectionIds.indexOf(currentCategory);
+
+  if (currentIndex !== -1 && currentIndex < sectionIds.length - 1) {
+    const nextCategory = sectionIds[currentIndex + 1];
+    const nextSection = document.getElementById(`category-${nextCategory}`);
+    if (nextSection) {
+      nextSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  } else {
+    // If last category, scroll back to top of first category
+    const firstSection = sections[0];
+    if (firstSection) {
+      firstSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+}
+window.scrollToNextCategory = scrollToNextCategory;
 
 // Toggle all categories on/off
 function toggleAllCategories(checkbox) {
@@ -12059,12 +12197,14 @@ function renderProspectPool() {
   let manualProspectsAdded = 0;
   let manualProspectsSkipped = 0;
 
-  // Helper to normalize business name for deduplication (handles "& vs and", spacing, etc)
+  // Helper to normalize business name for deduplication (handles "& vs and", spacing, apostrophes, etc)
   const normalizeNameForDedup = (name) => {
     if (!name) return '';
-    return name.toLowerCase()
+    // First, truncate at common separators (•, |, -, :) to get core business name
+    let coreName = name.split(/[•|:\-–—]/)[0];
+    return coreName.toLowerCase()
       .replace(/&/g, 'and')
-      .replace(/['']/g, '')
+      .replace(/['''`´]/g, '')  // Remove all apostrophe variations
       .replace(/\s+/g, ' ')
       .replace(/[^\w\s]/g, '')
       .trim();
@@ -12076,7 +12216,11 @@ function renderProspectPool() {
       // Filter by selected ZIP codes - use smart ZIP extraction
       // Normalize both sides to 5 digits for comparison
       const prospectZip = getProspectActualZip(prospect);
-      if (filterByZip && prospectZip) {
+      if (filterByZip) {
+        // If filtering by ZIP, exclude prospects without a ZIP
+        if (!prospectZip) {
+          return false;
+        }
         const normalizedProspectZip = truncateZipTo5(prospectZip);
         const matchesFilter = selectedZips.some(sz => truncateZipTo5(sz) === normalizedProspectZip);
         if (!matchesFilter) {
@@ -12340,11 +12484,16 @@ function renderProspectPool() {
     const availableToAdd = prospects.filter(p => !p.inSystem).length;
 
     return `
-      <div class="mb-8">
+      <div class="mb-8 category-section" id="category-${category}">
         <div class="flex items-center justify-between mb-4 pb-2 border-b-2 border-gray-200">
-          <div>
-            <h4 class="text-lg font-bold text-gray-900">${categoryName}</h4>
-            <p class="text-sm text-gray-600">${prospects.length} total • <span class="text-green-600">${enrichedCount} enriched</span> • <span class="text-blue-600">${rawCount} raw</span></p>
+          <div class="flex items-center gap-3">
+            <button onclick="scrollToNextCategory('${category}')" class="p-2 bg-gray-100 hover:bg-indigo-100 rounded-lg transition-colors group" title="Next category">
+              <svg class="w-5 h-5 text-gray-500 group-hover:text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+            </button>
+            <div>
+              <h4 class="text-lg font-bold text-gray-900">${categoryName}</h4>
+              <p class="text-sm text-gray-600">${prospects.length} total • <span class="text-green-600">${enrichedCount} enriched</span> • <span class="text-blue-600">${rawCount} raw</span></p>
+            </div>
           </div>
           ${availableToAdd > 0 ? `
           <button onclick="selectAllInCategory('${category}')" class="px-3 py-1.5 bg-purple-600 text-white text-sm font-bold rounded-lg hover:bg-purple-700 transition-all flex items-center gap-2">
@@ -14165,88 +14314,801 @@ function openProspectDetailModal(prospectData, source = 'prospect') {
   // Store current prospect data with normalized businessName
   currentProspectDetail = { ...prospectData, businessName, source };
 
-  // Set title and subtitle
-  document.getElementById('prospectDetailTitle').textContent = businessName;
-  document.getElementById('prospectDetailSubtitle').textContent = source === 'client' ? 'Client' : 'Prospect';
-
-  // Populate business info
+  // === HEADER SECTION ===
   document.getElementById('detailBusinessName').textContent = businessName;
 
-  // Populate category dropdown
-  const categorySelect = document.getElementById('detailCategory');
-  categorySelect.innerHTML = '<option value="">— Select Category —</option>';
-  businessCategories.forEach(cat => {
-    const option = document.createElement('option');
-    option.value = cat.value;
-    option.textContent = cat.label;
-    if (cat.value === prospectData.category) {
-      option.selected = true;
-    }
-    categorySelect.appendChild(option);
-  });
+  // Category display
+  const categoryObj = businessCategories.find(c => c.value === prospectData.category);
+  const categoryLabel = categoryObj ? categoryObj.label : (prospectData.category || 'Uncategorized');
+  document.getElementById('detailCategoryText').textContent = categoryLabel;
 
+  // ZIP code display
   document.getElementById('detailZipCode').textContent = prospectData.zipCode || prospectData.town || '—';
 
-  if (prospectData.rating) {
-    document.getElementById('detailRating').textContent = `⭐ ${prospectData.rating} (${prospectData.reviewsCount || 0} reviews)`;
+  // Stage badge
+  const stageBadge = document.getElementById('detailStageBadge');
+  if (source === 'client') {
+    stageBadge.textContent = 'Client';
+    stageBadge.className = 'px-3 py-1 bg-green-500/30 rounded-full text-sm font-semibold';
   } else {
-    document.getElementById('detailRating').textContent = '—';
+    // Determine stage from kanban column or campaign board
+    const stage = prospectData.stage || prospectData.columnKey || 'Prospect';
+    const stageLabels = {
+      'cold': 'Cold Lead',
+      'to-contact': 'To Contact',
+      'contacted': 'Contacted',
+      'follow-up': 'Follow Up',
+      'interested': 'Interested',
+      'client': 'Client'
+    };
+    stageBadge.textContent = stageLabels[stage] || 'Prospect';
+    stageBadge.className = 'px-3 py-1 bg-white/20 rounded-full text-sm font-semibold';
   }
 
-  // Populate contact info and enable/disable quick action buttons
+  // Contact score (calculate based on available info)
+  const score = calculateContactScore(prospectData);
+  document.getElementById('detailContactScore').textContent = `Score: ${score}/10`;
+
+  // === QUICK ACTION BUTTONS (Header) ===
   const phone = prospectData.phone || '';
   const email = prospectData.email || '';
   const website = prospectData.website || '';
-  const facebook = prospectData.facebook || '';
-  const instagram = prospectData.instagram || '';
-  const linkedin = prospectData.linkedin || '';
-  const twitter = prospectData.twitter || '';
 
+  document.getElementById('btnHeaderCall').disabled = !phone;
+  document.getElementById('btnHeaderSMS').disabled = !phone;
+  document.getElementById('btnHeaderEmail').disabled = !email;
+  document.getElementById('btnHeaderWebsite').disabled = !website;
+
+  // === CONTACT INFO TAB ===
   document.getElementById('detailPhone').textContent = phone || '—';
-  document.getElementById('btnCallAction').disabled = !phone;
-  document.getElementById('btnSMSAction').disabled = !phone;
+  document.getElementById('btnContactCall').disabled = !phone;
+  document.getElementById('btnContactSMS').disabled = !phone;
 
   document.getElementById('detailEmail').textContent = email || '—';
-  document.getElementById('btnEmailAction').disabled = !email;
+  document.getElementById('btnContactEmail').disabled = !email;
 
   document.getElementById('detailWebsite').textContent = website || '—';
-  document.getElementById('btnWebsiteAction').disabled = !website;
+  document.getElementById('btnContactWebsite').disabled = !website;
 
-  document.getElementById('detailFacebook').textContent = facebook || '—';
-  document.getElementById('btnFacebookAction').disabled = !facebook;
+  // Address
+  const address = prospectData.address || prospectData.fullAddress || '';
+  document.getElementById('detailAddress').textContent = address || '—';
+  document.getElementById('btnContactDirections').style.display = address ? 'block' : 'none';
 
-  document.getElementById('detailInstagram').textContent = instagram || '—';
-  document.getElementById('btnInstagramAction').disabled = !instagram;
+  // Social links
+  renderSocialLinks(prospectData);
 
-  // LinkedIn and Twitter (if elements exist in the modal)
-  const linkedinEl = document.getElementById('detailLinkedIn');
-  const twitterEl = document.getElementById('detailTwitter');
-  const btnLinkedInAction = document.getElementById('btnLinkedInAction');
-  const btnTwitterAction = document.getElementById('btnTwitterAction');
+  // === DEAL INFO TAB ===
+  populateDealCampaigns();
 
-  if (linkedinEl) linkedinEl.textContent = linkedin || '—';
-  if (btnLinkedInAction) btnLinkedInAction.disabled = !linkedin;
+  // Load existing deal info if present
+  const dealInfo = prospectData.dealInfo || {};
+  document.getElementById('dealCampaign').value = dealInfo.campaignId || '';
+  document.getElementById('dealSpot').value = dealInfo.interestedSpot || '';
+  document.getElementById('dealQuotedPrice').value = dealInfo.quotedPrice || '';
+  document.getElementById('dealExpectedClose').value = dealInfo.expectedCloseDate || '';
+  document.getElementById('dealContactName').value = dealInfo.decisionMaker?.name || '';
+  document.getElementById('dealContactRole').value = dealInfo.decisionMaker?.role || '';
+  document.getElementById('dealNotes').value = dealInfo.dealNotes || '';
 
-  if (twitterEl) twitterEl.textContent = twitter || '—';
-  if (btnTwitterAction) btnTwitterAction.disabled = !twitter;
+  // === NOTES TAB ===
+  document.getElementById('notesBestTime').value = prospectData.bestTimeToContact || '';
+  document.getElementById('notesKeyInfo').value = prospectData.keyNotes || '';
+  renderTags(prospectData.tags || []);
 
-  // Render interaction timeline
-  renderInteractionTimeline(prospectData.interactions || []);
+  // === ACTIVITY TAB ===
+  renderCrmActivityTimeline(prospectData.interactions || []);
 
-  // Set default date for new interaction
-  document.getElementById('newInteractionDate').valueAsDate = new Date();
-
-  // Clear form
-  document.getElementById('newInteractionNotes').value = '';
-  document.getElementById('newInteractionFollowUp').value = '';
-  document.getElementById('templatePreview').classList.add('hidden');
-
-  // Populate quick send template selector
-  populateQuickSendTemplates();
+  // Reset to Activity tab
+  switchCrmTab('activity');
 
   // Show modal
   modal.style.display = 'flex';
   modal.setAttribute('aria-hidden', 'false');
+}
+
+// Calculate contact score based on available information
+function calculateContactScore(prospect) {
+  let score = 0;
+  if (prospect.phone) score += 3;
+  if (prospect.email) score += 2;
+  if (prospect.website) score += 1;
+  if (prospect.facebook || prospect.instagram) score += 1;
+  if (prospect.rating && prospect.rating >= 4) score += 1;
+  if (prospect.interactions && prospect.interactions.length > 0) score += 2;
+  return Math.min(score, 10);
+}
+
+// Switch between CRM card tabs
+function switchCrmTab(tabName) {
+  // Update tab buttons
+  document.querySelectorAll('.crm-tab').forEach(btn => {
+    const isActive = btn.dataset.crmTab === tabName;
+    btn.classList.toggle('border-indigo-600', isActive);
+    btn.classList.toggle('text-indigo-600', isActive);
+    btn.classList.toggle('bg-white', isActive);
+    btn.classList.toggle('border-transparent', !isActive);
+    btn.classList.toggle('text-gray-500', !isActive);
+  });
+
+  // Update tab content
+  document.querySelectorAll('.crm-tab-content').forEach(content => {
+    content.classList.add('hidden');
+  });
+
+  const activeContent = document.getElementById(`crmTab${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`);
+  if (activeContent) {
+    activeContent.classList.remove('hidden');
+  }
+}
+
+// Render activity timeline with enhanced design
+function renderCrmActivityTimeline(interactions) {
+  const timeline = document.getElementById('crmActivityTimeline');
+  if (!timeline) return;
+
+  if (!interactions || interactions.length === 0) {
+    timeline.innerHTML = `
+      <div class="text-center py-8 text-gray-400">
+        <div class="text-4xl mb-2">📋</div>
+        <p class="font-medium">No activity yet</p>
+        <p class="text-sm">Click "+ Add Activity" to log your first interaction</p>
+      </div>
+    `;
+    return;
+  }
+
+  // Sort interactions by date (newest first)
+  const sorted = [...interactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  // Group by date
+  const grouped = {};
+  sorted.forEach(interaction => {
+    const dateKey = new Date(interaction.date).toLocaleDateString('en-US', {
+      year: 'numeric', month: 'long', day: 'numeric'
+    });
+    if (!grouped[dateKey]) grouped[dateKey] = [];
+    grouped[dateKey].push(interaction);
+  });
+
+  const typeIcons = {
+    call: '📞', sms: '💬', email: '✉️', facebook: '📘',
+    instagram: '📷', meeting: '🤝', note: '📝',
+    messenger: '📘', 'in-person': '🤝', other: '📝'
+  };
+
+  const directionLabels = {
+    outbound: '→ Outbound',
+    inbound: '← Inbound'
+  };
+
+  const outcomeColors = {
+    interested: 'bg-green-100 text-green-700',
+    callback: 'bg-blue-100 text-blue-700',
+    no_answer: 'bg-yellow-100 text-yellow-700',
+    voicemail: 'bg-orange-100 text-orange-700',
+    not_interested: 'bg-red-100 text-red-700'
+  };
+
+  let html = '';
+  Object.keys(grouped).forEach(dateKey => {
+    const isToday = new Date(dateKey).toDateString() === new Date().toDateString();
+    const isYesterday = new Date(dateKey).toDateString() === new Date(Date.now() - 86400000).toDateString();
+    const displayDate = isToday ? 'TODAY' : isYesterday ? 'YESTERDAY' : dateKey.toUpperCase();
+
+    html += `<div class="text-xs font-bold text-gray-400 mb-2 mt-4 first:mt-0">${displayDate}</div>`;
+
+    grouped[dateKey].forEach(interaction => {
+      const time = new Date(interaction.date).toLocaleTimeString('en-US', {
+        hour: 'numeric', minute: '2-digit', hour12: true
+      });
+
+      const icon = typeIcons[interaction.type] || '📝';
+      const typeLabel = (interaction.type || 'note').toUpperCase();
+      const direction = interaction.direction ? `<span class="text-xs text-gray-400 ml-2">${directionLabels[interaction.direction] || ''}</span>` : '';
+
+      let outcomeHtml = '';
+      if (interaction.outcome) {
+        const outcomeLabel = interaction.outcome.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+        const outcomeClass = outcomeColors[interaction.outcome] || 'bg-gray-100 text-gray-700';
+        outcomeHtml = `<span class="text-xs px-2 py-0.5 rounded-full ${outcomeClass} ml-2">${outcomeLabel}</span>`;
+      }
+
+      let followUpHtml = '';
+      if (interaction.followUpDate || interaction.nextFollowUp) {
+        const followUpDate = new Date(interaction.followUpDate || interaction.nextFollowUp).toLocaleDateString('en-US', {
+          month: 'short', day: 'numeric'
+        });
+        followUpHtml = `<div class="text-xs text-purple-600 mt-2 flex items-center gap-1">📅 Follow-up: ${followUpDate}</div>`;
+      }
+
+      html += `
+        <div class="bg-white rounded-xl p-4 border border-gray-200 mb-2">
+          <div class="flex justify-between items-start mb-2">
+            <div class="flex items-center">
+              <span class="text-lg mr-2">${icon}</span>
+              <span class="font-semibold text-sm text-gray-900">${typeLabel}</span>
+              ${direction}
+              ${outcomeHtml}
+            </div>
+            <span class="text-xs text-gray-400">${time}</span>
+          </div>
+          ${interaction.notes ? `<div class="text-sm text-gray-700">${esc(interaction.notes)}</div>` : ''}
+          ${followUpHtml}
+        </div>
+      `;
+    });
+  });
+
+  timeline.innerHTML = html;
+}
+
+// Render social media links
+function renderSocialLinks(prospect) {
+  const container = document.getElementById('detailSocialLinks');
+  if (!container) return;
+
+  const links = [];
+
+  if (prospect.facebook) {
+    links.push({ type: 'Facebook', icon: '📘', url: prospect.facebook });
+  }
+  if (prospect.instagram) {
+    links.push({ type: 'Instagram', icon: '📷', url: prospect.instagram });
+  }
+  if (prospect.linkedin) {
+    links.push({ type: 'LinkedIn', icon: '💼', url: prospect.linkedin });
+  }
+  if (prospect.twitter) {
+    links.push({ type: 'Twitter', icon: '🐦', url: prospect.twitter });
+  }
+
+  if (links.length === 0) {
+    container.innerHTML = '<span class="text-sm text-gray-400">No social links</span>';
+    return;
+  }
+
+  container.innerHTML = links.map(link => `
+    <a href="${esc(link.url)}" target="_blank" class="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition text-sm">
+      <span>${link.icon}</span>
+      <span>${link.type}</span>
+    </a>
+  `).join('');
+}
+
+// Populate campaign dropdown for deal info
+function populateDealCampaigns() {
+  const select = document.getElementById('dealCampaign');
+  if (!select) return;
+
+  select.innerHTML = '<option value="">— Select Campaign —</option>';
+
+  // Get campaigns from campaign boards
+  if (campaignBoardsState && campaignBoardsState.boards) {
+    Object.keys(campaignBoardsState.boards).forEach(boardId => {
+      const board = campaignBoardsState.boards[boardId];
+      const option = document.createElement('option');
+      option.value = boardId;
+      option.textContent = board.name || boardId;
+      select.appendChild(option);
+    });
+  }
+}
+
+// Open add activity modal
+function openAddActivityForm() {
+  const modal = document.getElementById('addActivityModal');
+  if (!modal) return;
+
+  // Reset form
+  document.querySelectorAll('.activity-type-btn').forEach(btn => {
+    btn.classList.remove('border-indigo-500', 'bg-indigo-50');
+    btn.classList.add('border-gray-200');
+  });
+
+  // Default to 'call' type
+  const callBtn = document.querySelector('[data-activity-type="call"]');
+  if (callBtn) {
+    callBtn.classList.add('border-indigo-500', 'bg-indigo-50');
+    callBtn.classList.remove('border-gray-200');
+  }
+  window.selectedActivityType = 'call';
+
+  // Default to outbound
+  selectActivityDirection('outbound');
+  window.selectedActivityDirection = 'outbound';
+
+  // Clear other fields
+  document.getElementById('activityOutcome').value = '';
+  document.getElementById('activityNotes').value = '';
+  document.getElementById('activityFollowUp').value = '';
+
+  modal.classList.remove('hidden');
+  modal.style.display = 'flex';
+}
+
+// Close add activity modal
+function closeAddActivityModal() {
+  const modal = document.getElementById('addActivityModal');
+  if (!modal) return;
+
+  modal.classList.add('hidden');
+  modal.style.display = 'none';
+}
+
+// Select activity type
+function selectActivityType(type) {
+  window.selectedActivityType = type;
+
+  document.querySelectorAll('.activity-type-btn').forEach(btn => {
+    const isSelected = btn.dataset.activityType === type;
+    btn.classList.toggle('border-indigo-500', isSelected);
+    btn.classList.toggle('bg-indigo-50', isSelected);
+    btn.classList.toggle('border-gray-200', !isSelected);
+  });
+}
+
+// Select activity direction
+function selectActivityDirection(direction) {
+  window.selectedActivityDirection = direction;
+
+  document.querySelectorAll('.direction-btn').forEach(btn => {
+    const isSelected = btn.dataset.direction === direction;
+    btn.classList.toggle('border-indigo-500', isSelected);
+    btn.classList.toggle('bg-indigo-50', isSelected);
+    btn.classList.toggle('text-indigo-700', isSelected);
+    btn.classList.toggle('border-gray-200', !isSelected);
+  });
+}
+
+// Save new activity
+async function saveActivity() {
+  if (!currentProspectDetail) {
+    toast('No prospect selected', false);
+    return;
+  }
+
+  const type = window.selectedActivityType || 'note';
+  const direction = window.selectedActivityDirection || 'outbound';
+  const outcome = document.getElementById('activityOutcome').value || null;
+  const notes = document.getElementById('activityNotes').value.trim();
+  const followUpDate = document.getElementById('activityFollowUp').value || null;
+
+  const newActivity = {
+    id: Date.now().toString(),
+    type: type,
+    direction: direction,
+    outcome: outcome,
+    date: new Date().toISOString(),
+    notes: notes,
+    followUpDate: followUpDate,
+    createdAt: new Date().toISOString()
+  };
+
+  // Initialize interactions array if needed
+  if (!currentProspectDetail.interactions) {
+    currentProspectDetail.interactions = [];
+  }
+  currentProspectDetail.interactions.push(newActivity);
+
+  // Save to appropriate data store
+  await saveProspectInteractions(currentProspectDetail, newActivity);
+
+  // Re-render timeline
+  renderCrmActivityTimeline(currentProspectDetail.interactions);
+
+  // Close modal
+  closeAddActivityModal();
+
+  toast('Activity logged!', true);
+}
+
+// Save prospect interactions to the appropriate data store
+async function saveProspectInteractions(prospect, newInteraction) {
+  const source = prospect.source;
+  const prospectId = prospect.id;
+  const placeId = prospect.placeId;
+  const businessName = prospect.businessName;
+
+  // Save to clients if it's a client
+  if (source === 'client') {
+    if (crmState.clients[prospectId]) {
+      if (!crmState.clients[prospectId].interactions) {
+        crmState.clients[prospectId].interactions = [];
+      }
+      crmState.clients[prospectId].interactions.push(newInteraction);
+      await saveClients();
+      return;
+    }
+  }
+
+  // Save to campaign boards
+  if (campaignBoardsState && campaignBoardsState.boards) {
+    for (const boardId of Object.keys(campaignBoardsState.boards)) {
+      const board = campaignBoardsState.boards[boardId];
+      if (board.columns) {
+        for (const columnKey of Object.keys(board.columns)) {
+          const items = board.columns[columnKey];
+          const index = items.findIndex(item =>
+            item.id === prospectId ||
+            (placeId && item.placeId === placeId) ||
+            (item.businessName && item.businessName === businessName)
+          );
+          if (index !== -1) {
+            if (!items[index].interactions) items[index].interactions = [];
+            items[index].interactions.push(newInteraction);
+            await saveCampaignBoards();
+            return;
+          }
+        }
+      }
+    }
+  }
+
+  // Save to legacy kanban
+  for (const columnKey of Object.keys(kanbanState.columns)) {
+    const items = kanbanState.columns[columnKey];
+    const index = items.findIndex(item =>
+      typeof item === 'object' && (
+        item.id === prospectId ||
+        (placeId && item.placeId === placeId) ||
+        (item.businessName && item.businessName === businessName)
+      )
+    );
+    if (index !== -1) {
+      if (!items[index].interactions) items[index].interactions = [];
+      items[index].interactions.push(newInteraction);
+      await saveKanban();
+      return;
+    }
+  }
+
+  // Save to manual prospects
+  const manualIndex = prospectPoolState.manualProspects.findIndex(p =>
+    p.id === prospectId ||
+    (placeId && p.placeId === placeId) ||
+    (p.businessName && p.businessName === businessName)
+  );
+  if (manualIndex !== -1) {
+    if (!prospectPoolState.manualProspects[manualIndex].interactions) {
+      prospectPoolState.manualProspects[manualIndex].interactions = [];
+    }
+    prospectPoolState.manualProspects[manualIndex].interactions.push(newInteraction);
+    saveManualProspects();
+  }
+}
+
+// Update deal info
+async function updateDealInfo() {
+  if (!currentProspectDetail) return;
+
+  const dealInfo = {
+    campaignId: document.getElementById('dealCampaign').value || null,
+    interestedSpot: document.getElementById('dealSpot').value || null,
+    quotedPrice: parseFloat(document.getElementById('dealQuotedPrice').value) || null,
+    expectedCloseDate: document.getElementById('dealExpectedClose').value || null,
+    decisionMaker: {
+      name: document.getElementById('dealContactName').value || null,
+      role: document.getElementById('dealContactRole').value || null
+    },
+    dealNotes: document.getElementById('dealNotes').value || null
+  };
+
+  currentProspectDetail.dealInfo = dealInfo;
+  await saveProspectField(currentProspectDetail, 'dealInfo', dealInfo);
+}
+
+// Update notes info
+async function updateNotesInfo() {
+  if (!currentProspectDetail) return;
+
+  const bestTimeToContact = document.getElementById('notesBestTime').value || null;
+  const keyNotes = document.getElementById('notesKeyInfo').value || null;
+
+  currentProspectDetail.bestTimeToContact = bestTimeToContact;
+  currentProspectDetail.keyNotes = keyNotes;
+
+  await saveProspectField(currentProspectDetail, 'bestTimeToContact', bestTimeToContact);
+  await saveProspectField(currentProspectDetail, 'keyNotes', keyNotes);
+}
+
+// Save a single field to prospect data store
+async function saveProspectField(prospect, fieldName, value) {
+  const source = prospect.source;
+  const prospectId = prospect.id;
+  const placeId = prospect.placeId;
+  const businessName = prospect.businessName;
+
+  // Save to clients
+  if (source === 'client' && crmState.clients[prospectId]) {
+    crmState.clients[prospectId][fieldName] = value;
+    await saveClients();
+    return;
+  }
+
+  // Save to campaign boards
+  if (campaignBoardsState && campaignBoardsState.boards) {
+    for (const boardId of Object.keys(campaignBoardsState.boards)) {
+      const board = campaignBoardsState.boards[boardId];
+      if (board.columns) {
+        for (const columnKey of Object.keys(board.columns)) {
+          const items = board.columns[columnKey];
+          const index = items.findIndex(item =>
+            item.id === prospectId ||
+            (placeId && item.placeId === placeId) ||
+            (item.businessName && item.businessName === businessName)
+          );
+          if (index !== -1) {
+            items[index][fieldName] = value;
+            await saveCampaignBoards();
+            return;
+          }
+        }
+      }
+    }
+  }
+
+  // Save to legacy kanban
+  for (const columnKey of Object.keys(kanbanState.columns)) {
+    const items = kanbanState.columns[columnKey];
+    const index = items.findIndex(item =>
+      typeof item === 'object' && (
+        item.id === prospectId ||
+        (placeId && item.placeId === placeId) ||
+        (item.businessName && item.businessName === businessName)
+      )
+    );
+    if (index !== -1) {
+      items[index][fieldName] = value;
+      await saveKanban();
+      return;
+    }
+  }
+
+  // Save to manual prospects
+  const manualIndex = prospectPoolState.manualProspects.findIndex(p =>
+    p.id === prospectId ||
+    (placeId && p.placeId === placeId) ||
+    (p.businessName && p.businessName === businessName)
+  );
+  if (manualIndex !== -1) {
+    prospectPoolState.manualProspects[manualIndex][fieldName] = value;
+    saveManualProspects();
+  }
+}
+
+// Render tags
+function renderTags(tags) {
+  const container = document.getElementById('notesTags');
+  if (!container) return;
+
+  if (!tags || tags.length === 0) {
+    container.innerHTML = '<span class="text-sm text-gray-400">No tags yet</span>';
+    return;
+  }
+
+  container.innerHTML = tags.map(tag => `
+    <span class="inline-flex items-center gap-1 px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm">
+      ${esc(tag)}
+      <button onclick="removeTag('${esc(tag)}')" class="hover:text-red-600 ml-1">&times;</button>
+    </span>
+  `).join('');
+}
+
+// Add a new tag
+async function addTag() {
+  if (!currentProspectDetail) return;
+
+  const input = document.getElementById('notesNewTag');
+  const tag = input.value.trim();
+
+  if (!tag) return;
+
+  if (!currentProspectDetail.tags) {
+    currentProspectDetail.tags = [];
+  }
+
+  if (!currentProspectDetail.tags.includes(tag)) {
+    currentProspectDetail.tags.push(tag);
+    await saveProspectField(currentProspectDetail, 'tags', currentProspectDetail.tags);
+    renderTags(currentProspectDetail.tags);
+  }
+
+  input.value = '';
+}
+
+// Remove a tag
+async function removeTag(tagToRemove) {
+  if (!currentProspectDetail || !currentProspectDetail.tags) return;
+
+  currentProspectDetail.tags = currentProspectDetail.tags.filter(t => t !== tagToRemove);
+  await saveProspectField(currentProspectDetail, 'tags', currentProspectDetail.tags);
+  renderTags(currentProspectDetail.tags);
+}
+
+// Open directions in maps
+function openDirections() {
+  if (!currentProspectDetail) return;
+
+  const address = currentProspectDetail.address || currentProspectDetail.fullAddress;
+  if (!address) {
+    toast('No address available', false);
+    return;
+  }
+
+  const encodedAddress = encodeURIComponent(address);
+  window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`, '_blank');
+}
+
+// Copy text to clipboard
+function copyToClipboard(text) {
+  if (!text || text === '—') {
+    toast('Nothing to copy', false);
+    return;
+  }
+
+  navigator.clipboard.writeText(text).then(() => {
+    toast('Copied to clipboard!', true);
+  }).catch(() => {
+    // Fallback for older browsers
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      toast('Copied to clipboard!', true);
+    } catch (e) {
+      toast('Failed to copy', false);
+    }
+    document.body.removeChild(textArea);
+  });
+}
+
+// Placeholder for edit contact modal
+function openEditContactModal() {
+  toast('Edit contact feature coming soon!', true);
+}
+
+// Mark prospect as not interested (called from CRM card footer)
+async function markProspectNotInterested() {
+  if (!currentProspectDetail) {
+    toast('No prospect selected', false);
+    return;
+  }
+
+  const placeId = currentProspectDetail.placeId || currentProspectDetail.id;
+  const businessName = currentProspectDetail.businessName || currentProspectDetail.name;
+
+  const confirmed = confirm(`Mark "${businessName}" as Not Interested?\n\nThis business will be removed from your prospect lists.`);
+  if (!confirmed) return;
+
+  // Add to Not Interested list
+  if (!notInterestedState.placeIds) notInterestedState.placeIds = new Set();
+  if (!notInterestedState.businesses) notInterestedState.businesses = {};
+
+  notInterestedState.placeIds.add(placeId);
+  notInterestedState.businesses[placeId] = {
+    businessName,
+    placeId: placeId,
+    dateMarked: new Date().toISOString(),
+    reason: 'User marked as not interested from CRM card'
+  };
+
+  // Save to cloud/local
+  await saveNotInterestedList();
+
+  // Remove from campaign boards if present
+  if (campaignBoardsState && campaignBoardsState.boards) {
+    for (const boardId of Object.keys(campaignBoardsState.boards)) {
+      const board = campaignBoardsState.boards[boardId];
+      if (board.columns) {
+        for (const columnKey of Object.keys(board.columns)) {
+          const items = board.columns[columnKey];
+          const index = items.findIndex(item =>
+            item.placeId === placeId || item.id === placeId
+          );
+          if (index !== -1) {
+            items.splice(index, 1);
+          }
+        }
+      }
+    }
+    await saveCampaignBoards();
+  }
+
+  // Remove from legacy kanban
+  Object.keys(kanbanState.columns).forEach(columnKey => {
+    const items = kanbanState.columns[columnKey];
+    const index = items.findIndex(item =>
+      typeof item === 'object' && (item.placeId === placeId || item.id === placeId)
+    );
+    if (index !== -1) {
+      items.splice(index, 1);
+    }
+  });
+  await saveKanban();
+
+  // Close modal and refresh
+  closeProspectDetailModal();
+  toast(`"${businessName}" marked as not interested`, true);
+
+  // Refresh displays
+  if (typeof renderCampaignBoards === 'function') renderCampaignBoards();
+  if (typeof renderKanban === 'function') renderKanban();
+  if (typeof renderProspectPool === 'function') renderProspectPool();
+}
+
+// Convert prospect to client (called from CRM card footer)
+async function convertToClient() {
+  if (!currentProspectDetail) {
+    toast('No prospect selected', false);
+    return;
+  }
+
+  const businessName = currentProspectDetail.businessName || currentProspectDetail.name;
+  const prospectId = currentProspectDetail.id;
+  const placeId = currentProspectDetail.placeId;
+
+  const confirmed = confirm(`Convert "${businessName}" to a Client?\n\nThis will move them to your Clients list.`);
+  if (!confirmed) return;
+
+  // Create client record
+  const clientId = placeId || prospectId || Date.now().toString();
+  const clientData = {
+    ...currentProspectDetail,
+    id: clientId,
+    convertedAt: new Date().toISOString(),
+    status: 'active'
+  };
+
+  // Remove source field as it's no longer a prospect
+  delete clientData.source;
+
+  // Add to clients
+  crmState.clients[clientId] = clientData;
+  await saveClients();
+
+  // Remove from campaign boards if present
+  if (campaignBoardsState && campaignBoardsState.boards) {
+    for (const boardId of Object.keys(campaignBoardsState.boards)) {
+      const board = campaignBoardsState.boards[boardId];
+      if (board.columns) {
+        for (const columnKey of Object.keys(board.columns)) {
+          const items = board.columns[columnKey];
+          const index = items.findIndex(item =>
+            item.placeId === placeId || item.id === prospectId
+          );
+          if (index !== -1) {
+            items.splice(index, 1);
+          }
+        }
+      }
+    }
+    await saveCampaignBoards();
+  }
+
+  // Remove from legacy kanban
+  Object.keys(kanbanState.columns).forEach(columnKey => {
+    const items = kanbanState.columns[columnKey];
+    const index = items.findIndex(item =>
+      typeof item === 'object' && (item.placeId === placeId || item.id === prospectId)
+    );
+    if (index !== -1) {
+      items.splice(index, 1);
+    }
+  });
+  await saveKanban();
+
+  // Close modal
+  closeProspectDetailModal();
+  toast(`"${businessName}" converted to Client!`, true);
+
+  // Refresh displays
+  if (typeof renderCampaignBoards === 'function') renderCampaignBoards();
+  if (typeof renderKanban === 'function') renderKanban();
+  if (typeof renderClientList === 'function') renderClientList();
+  if (typeof renderDashboardStats === 'function') renderDashboardStats();
 }
 
 // Update prospect category when changed in detail modal
@@ -25154,31 +26016,44 @@ async function createNewPostcard() {
 /* ========= RENEWAL AUTOMATION ========= */
 
 function checkRenewals() {
-  if (!state.current) return;
-  
+  // Render to both the old location (if exists) and the dashboard widget
+  const renewalContainer = document.getElementById('renewalList');
+  const dashboardRenewalContainer = document.getElementById('dashboardRenewalList');
+
+  if (!state.current) {
+    const noCardMsg = `<p class="text-sm text-gray-500 text-center py-2">Select a campaign to check renewals</p>`;
+    if (renewalContainer) renewalContainer.innerHTML = noCardMsg;
+    if (dashboardRenewalContainer) dashboardRenewalContainer.innerHTML = noCardMsg;
+    return;
+  }
+
   const mailDate = new Date(state.current.Mail_Date);
   const today = new Date();
   const daysSinceDrop = Math.floor((today - mailDate) / (1000 * 60 * 60 * 24));
-  
-  const renewalContainer = document.getElementById('renewalList');
-  if (!renewalContainer) return;
-  
+
   if (daysSinceDrop >= 30) {
-    const clients = Object.values(crmState.clients).filter(c => 
+    const clients = Object.values(crmState.clients).filter(c =>
       c.history.some(h => h.campaign.includes(state.current.Town))
     );
-    
-    renewalContainer.innerHTML = clients.map(c => `
-      <div class="p-3 border rounded-lg bg-white">
-        <div class="font-semibold">${esc(c.businessName)}</div>
-        <div class="text-sm text-gray-600">Ready for renewal outreach</div>
-        <button onclick="openEmailRenewal('${c.id}')" class="mt-2 text-sm px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">
-          Send Renewal Email
+
+    const renewalHTML = clients.length > 0 ? clients.map(c => `
+      <div class="p-3 border rounded-lg bg-white flex items-center justify-between">
+        <div>
+          <div class="font-semibold text-sm">${esc(c.businessName)}</div>
+          <div class="text-xs text-gray-500">Ready for renewal outreach</div>
+        </div>
+        <button onclick="openEmailRenewal('${c.id}')" class="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+          Email
         </button>
       </div>
-    `).join('');
+    `).join('') : `<p class="text-sm text-gray-500 text-center py-2">No clients due for renewal from this campaign</p>`;
+
+    if (renewalContainer) renewalContainer.innerHTML = renewalHTML;
+    if (dashboardRenewalContainer) dashboardRenewalContainer.innerHTML = renewalHTML;
   } else {
-    renewalContainer.innerHTML = `<p class="text-sm text-gray-500">No renewals due yet (${30 - daysSinceDrop} days remaining)</p>`;
+    const pendingMsg = `<p class="text-sm text-gray-500 text-center py-2">No renewals due yet (${30 - daysSinceDrop} days remaining)</p>`;
+    if (renewalContainer) renewalContainer.innerHTML = pendingMsg;
+    if (dashboardRenewalContainer) dashboardRenewalContainer.innerHTML = pendingMsg;
   }
 }
 
@@ -26570,6 +27445,9 @@ function onCampaignsLoaded(res, restoreMailerId = null){
   // Render cards in progress on dashboard
   renderCardsInProgress();
 
+  // Refresh dashboard stats after mailers are loaded
+  refreshDashboard();
+
   // Hide loading overlay - app is now ready
   hideLoadingOverlay();
 }
@@ -26985,7 +27863,7 @@ function renderGettingStartedChecklist() {
       label: 'Review & select prospects from Prospect Pool',
       check: () => gettingStartedState.completed['review_prospects'] ||
         (kanbanState.columns && kanbanState.columns['prospect-list'] && kanbanState.columns['prospect-list'].length > 0),
-      action: () => switchTab('prospects')
+      action: () => switchTab('clients')
     },
     {
       id: 'add_to_pipeline',
@@ -27079,43 +27957,95 @@ function dismissGettingStarted() {
 
 // ========== DASHBOARD STATS ==========
 function renderDashboardStats() {
-  // Count prospects in Pipeline (prospect-list column)
-  const prospectsCount = (kanbanState.columns && kanbanState.columns['prospect-list']) ? kanbanState.columns['prospect-list'].length : 0;
+  // Count unique prospects using deduplication (same logic as renderProspectPool)
+  const seenPlaceIds = new Set();
+  const seenNames = new Set();
+
+  // Helper to normalize name for dedup
+  const normalizeName = (name) => {
+    if (!name) return '';
+    // First, truncate at common separators (•, |, -, :) to get core business name
+    let coreName = name.split(/[•|:\-–—]/)[0];
+    return coreName.toLowerCase()
+      .replace(/['''`´]/g, '')  // Remove all apostrophe variations
+      .replace(/&/g, 'and')
+      .replace(/[^\w\s]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  let prospectsCount = 0;
+
+  // Count from manual prospects (enriched)
+  if (prospectPoolState && prospectPoolState.manualProspects) {
+    prospectPoolState.manualProspects.forEach(p => {
+      const name = p.name || p.businessName || p.title || '';
+      const normalizedName = normalizeName(name);
+      if (p.placeId && !seenPlaceIds.has(p.placeId)) {
+        seenPlaceIds.add(p.placeId);
+        if (normalizedName) seenNames.add(normalizedName);
+        prospectsCount++;
+      } else if (!p.placeId && normalizedName && !seenNames.has(normalizedName)) {
+        seenNames.add(normalizedName);
+        prospectsCount++;
+      }
+    });
+  }
+
+  // Count from places cache (search results) - skip duplicates
+  if (placesCache && placesCache.searches) {
+    Object.values(placesCache.searches).forEach(cached => {
+      if (cached.cachedData && Array.isArray(cached.cachedData)) {
+        cached.cachedData.forEach(p => {
+          const name = p.name || p.businessName || p.title || '';
+          const normalizedName = normalizeName(name);
+          if (p.placeId && !seenPlaceIds.has(p.placeId)) {
+            // Also check if name already seen (catches duplicates with different placeIds)
+            if (!normalizedName || !seenNames.has(normalizedName)) {
+              seenPlaceIds.add(p.placeId);
+              if (normalizedName) seenNames.add(normalizedName);
+              prospectsCount++;
+            }
+          } else if (!p.placeId && normalizedName && !seenNames.has(normalizedName)) {
+            seenNames.add(normalizedName);
+            prospectsCount++;
+          }
+        });
+      }
+    });
+  }
+
   const statsProspects = document.getElementById('statsProspects');
   if (statsProspects) statsProspects.textContent = prospectsCount;
 
-  // Count active leads in pipeline (to-contact, in-progress, committed)
-  const leadsCount = (kanbanState.columns['to-contact'] || []).length +
-                    (kanbanState.columns['in-progress'] || []).length +
-                    (kanbanState.columns['committed'] || []).length;
+  // Count active leads in pipeline from Campaign Boards (attempting, negotiating, invoice-sent, proof-approved)
+  let leadsCount = 0;
+  if (campaignBoardsState && campaignBoardsState.boards) {
+    Object.values(campaignBoardsState.boards).forEach(board => {
+      if (board && board.columns) {
+        leadsCount += (board.columns['attempting'] || []).length;
+        leadsCount += (board.columns['negotiating'] || []).length;
+        leadsCount += (board.columns['invoice-sent'] || []).length;
+        leadsCount += (board.columns['proof-approved'] || []).length;
+      }
+    });
+  }
   const statsLeads = document.getElementById('statsLeads');
   if (statsLeads) statsLeads.textContent = leadsCount;
 
-  // Count active campaigns (postcards with at least 1 reserved/filled spot)
+  // Count total campaigns (all postcards)
   let campaignsCount = 0;
   if (state && state.mailers && Array.isArray(state.mailers)) {
-    campaignsCount = state.mailers.filter(postcard => {
-      // Check both availability object and direct Spot_N properties
-      const availability = postcard.availability || {};
-      for (let i = 1; i <= 18; i++) {
-        // Try availability object first, then direct property
-        const spotStatus = availability[`Spot_${i}`] || postcard[`Spot_${i}`] || "Available";
-        if (typeof spotStatus === 'string') {
-          const statusLower = spotStatus.toLowerCase();
-          // Check if not available (could be "Reserved: Name" or just "Reserved")
-          if (statusLower !== "available" && !statusLower.startsWith("available")) {
-            return true;
-          }
-        }
-      }
-      return false;
-    }).length;
+    campaignsCount = state.mailers.length;
   }
   const statsCampaigns = document.getElementById('statsCampaigns');
   if (statsCampaigns) statsCampaigns.textContent = campaignsCount;
 
-  // Count clients
-  const clientsCount = crmState.clients ? Object.keys(crmState.clients).length : 0;
+  // Count clients (all CRM clients)
+  let clientsCount = 0;
+  if (crmState && crmState.clients) {
+    clientsCount = Object.keys(crmState.clients).length;
+  }
   const statsClients = document.getElementById('statsClients');
   if (statsClients) statsClients.textContent = clientsCount;
 }
@@ -27245,6 +28175,7 @@ function refreshDashboard() {
   renderContractsExpiring();
   renderDashboardTasks();
   renderDashboardFinancials();
+  checkRenewals(); // Update renewal widget on dashboard
 }
 
 // ========== CONTRACTS EXPIRING WIDGET ==========
@@ -29902,8 +30833,8 @@ function showProspectSuccessModal(categorizedResults, totalCount) {
       </div>
 
       <div class="flex gap-3 sticky bottom-0 bg-white pt-4">
-        <button onclick="closeProspectSuccessModal(); switchTab('lead-generation'); setTimeout(() => renderProspectPool(), 100);" class="flex-1 px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 font-black text-base shadow-xl transform hover:scale-105 transition">
-          Review Prospects →
+        <button onclick="closeProspectSuccessModal(); switchTab('clients'); setTimeout(() => renderProspectPool(), 100);" class="flex-1 px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 font-black text-base shadow-xl transform hover:scale-105 transition">
+          View Businesses →
         </button>
         <button onclick="closeProspectSuccessModal();" class="px-4 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-bold transition">
           Generate More
@@ -30124,16 +31055,16 @@ async function confirmProspectReview() {
     rejectedBusinesses.forEach(business => {
       if (!notInterestedState.placeIds.has(business.placeId)) {
         notInterestedState.placeIds.add(business.placeId);
-        notInterestedState.businesses.push({
+        notInterestedState.businesses[business.placeId] = {
           placeId: business.placeId,
           name: business.name,
           removedAt: new Date().toISOString()
-        });
+        };
       }
     });
 
     // Save to localStorage and cloud
-    saveNotInterestedState();
+    saveNotInterestedList();
 
     console.log(`🚫 Marked ${rejectedPlaceIds.size} prospects as "Not Interested"`);
   }
@@ -30166,9 +31097,9 @@ async function confirmProspectReview() {
     markGettingStartedComplete('generate_prospects');
   }
 
-  // Switch to Prospect Pool tab to show results
+  // Switch to Businesses tab to show discovered prospects
   setTimeout(() => {
-    switchTab('lead-generation');
+    switchTab('clients');
     setTimeout(() => renderProspectPool(), 100);
   }, 500);
 }
