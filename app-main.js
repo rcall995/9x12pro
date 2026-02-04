@@ -31987,8 +31987,14 @@ function renderOutreachTable() {
   // Update stats
   const statsEl = document.getElementById('outreachStats');
   if (statsEl) {
-    const phoneCount = prospects.filter(p => p.phone || p.contact?.phone).length;
-    const emailCount = prospects.filter(p => p.email || p.contact?.email).length;
+    const phoneCount = prospects.filter(p => {
+      const ph = p.phone || p.contact?.phone || '';
+      return ph && String(ph).trim();
+    }).length;
+    const emailCount = prospects.filter(p => {
+      const em = p.email || p.contact?.email || '';
+      return em && String(em).trim() && String(em).includes('@');
+    }).length;
     statsEl.textContent = `${prospects.length} to contact • ${phoneCount} with phone • ${emailCount} with email`;
   }
 
@@ -32022,10 +32028,10 @@ function renderOutreachTable() {
 
 function renderOutreachRow(prospect) {
   const phone = prospect.phone || prospect.contact?.phone || '';
-  const email = prospect.email || prospect.contact?.email || '';
-  const hasPhone = !!phone && phone.trim() !== '';
-  const hasEmail = !!email && email.trim() !== '';
-  const hasFB = !!prospect.facebook && prospect.facebook.trim() !== '';
+  const email = prospect.email || prospect.contact?.email || prospect.channelStatus?.email?.address || '';
+  const hasPhone = !!(phone && String(phone).trim());
+  const hasEmail = !!(email && String(email).trim() && String(email).includes('@'));
+  const hasFB = !!(prospect.facebook && String(prospect.facebook).trim());
   const hasIG = !!prospect.instagram && prospect.instagram.trim() !== '';
   const isSelected = outreachState.selectedProspect?.id === prospect.id;
 
@@ -32173,23 +32179,88 @@ function updateOutreachTemplates(prospect) {
   const businessName = prospect.businessName || '[BUSINESS]';
   const category = (prospect.category || 'business').replace(/_/g, ' ');
 
-  // Text template
+  // Load saved custom templates or use defaults
+  const savedTemplates = JSON.parse(localStorage.getItem('outreachTemplates') || '{}');
+
+  const defaultText = `Hey! I'm putting together a community postcard for [ZIP] and wanted to see if [BUSINESS_NAME] would be interested in being featured. You'd be the only [CATEGORY] on the card. Want me to send over the details?`;
+  const defaultEmail = `Hi,
+
+I'm putting together a community postcard going to about 5,000 homes in [ZIP]. I think [BUSINESS_NAME] would be a great fit - you'd be the only [CATEGORY] on the card.
+
+The cost is [SPOT_PRICE] for a premium spot. Interested in learning more?
+
+[YOUR_NAME]`;
+  const defaultSubject = `Quick question about local advertising`;
+
+  // Use saved templates if available, otherwise defaults
+  const textTemplate = savedTemplates.text || defaultText;
+  const emailTemplate = savedTemplates.email || defaultEmail;
+  const subjectTemplate = savedTemplates.subject || defaultSubject;
+
+  // Replace placeholders with prospect data
+  function fillTemplate(template) {
+    return template
+      .replace(/\[ZIP\]/g, zip)
+      .replace(/\[BUSINESS_NAME\]/g, businessName)
+      .replace(/\[BUSINESS\]/g, businessName)
+      .replace(/\[CATEGORY\]/g, category)
+      .replace(/\[SPOT_PRICE\]/g, spotPrice)
+      .replace(/\[YOUR_NAME\]/g, yourName);
+  }
+
+  // Text template (textarea - use .value)
   const textPreview = document.getElementById('outreachTextPreview');
   if (textPreview) {
-    textPreview.textContent = `Hey! I'm putting together a community postcard for ${zip} and wanted to see if ${businessName} would be interested in being featured. You'd be the only ${category} on the card. Want me to send over the details?`;
+    textPreview.value = fillTemplate(textTemplate);
   }
 
-  // Email template
+  // Email subject
+  const emailSubject = document.getElementById('outreachEmailSubject');
+  if (emailSubject) {
+    emailSubject.value = fillTemplate(subjectTemplate);
+  }
+
+  // Email template (textarea - use .value)
   const emailPreview = document.getElementById('outreachEmailPreview');
   if (emailPreview) {
-    emailPreview.textContent = `Hi,
-
-I'm putting together a community postcard going to about 5,000 homes in ${zip}. I think ${businessName} would be a great fit - you'd be the only ${category} on the card.
-
-The cost is ${spotPrice} for a premium spot. Interested in learning more?
-
-${yourName}`;
+    emailPreview.value = fillTemplate(emailTemplate);
   }
+}
+
+function saveOutreachTemplates() {
+  // Save the current textarea content as templates (with placeholders restored)
+  const prospect = outreachState.selectedProspect;
+  if (!prospect) return;
+
+  const savedSettings = JSON.parse(localStorage.getItem('salesToolkitSettings') || '{}');
+  const yourName = savedSettings.yourName || '[YOUR_NAME]';
+  const spotPrice = savedSettings.spotPrice || '$399';
+  const zip = prospect.zipCode || prospect.actualZip || '[ZIP]';
+  const businessName = prospect.businessName || '[BUSINESS]';
+  const category = (prospect.category || 'business').replace(/_/g, ' ');
+
+  // Reverse-fill: replace prospect data back to placeholders
+  function unfillTemplate(text) {
+    let result = text;
+    if (businessName && businessName !== '[BUSINESS]') result = result.replace(new RegExp(businessName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '[BUSINESS_NAME]');
+    if (zip && zip !== '[ZIP]') result = result.replace(new RegExp(zip.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '[ZIP]');
+    if (category && category !== 'business') result = result.replace(new RegExp(category.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '[CATEGORY]');
+    if (spotPrice && spotPrice !== '[SPOT_PRICE]') result = result.replace(new RegExp(spotPrice.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '[SPOT_PRICE]');
+    if (yourName && yourName !== '[YOUR_NAME]') result = result.replace(new RegExp(yourName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '[YOUR_NAME]');
+    return result;
+  }
+
+  const templates = {};
+  const textEl = document.getElementById('outreachTextPreview');
+  const emailEl = document.getElementById('outreachEmailPreview');
+  const subjectEl = document.getElementById('outreachEmailSubject');
+
+  if (textEl) templates.text = unfillTemplate(textEl.value);
+  if (emailEl) templates.email = unfillTemplate(emailEl.value);
+  if (subjectEl) templates.subject = unfillTemplate(subjectEl.value);
+
+  localStorage.setItem('outreachTemplates', JSON.stringify(templates));
+  toast('Templates saved!', true);
 }
 
 function switchOutreachTemplate(templateName) {
@@ -32217,8 +32288,11 @@ function copyOutreachTemplate(type) {
     return;
   }
 
+  // Auto-save template edits
+  saveOutreachTemplates();
+
   if (type === 'text') {
-    const text = document.getElementById('outreachTextPreview')?.textContent || '';
+    const text = document.getElementById('outreachTextPreview')?.value || '';
     navigator.clipboard.writeText(text).then(() => {
       toast('Text copied!', true);
       // Open Google Voice
@@ -32229,12 +32303,13 @@ function copyOutreachTemplate(type) {
       }
     });
   } else if (type === 'email') {
-    const body = document.getElementById('outreachEmailPreview')?.textContent || '';
+    const body = document.getElementById('outreachEmailPreview')?.value || '';
+    const subject = document.getElementById('outreachEmailSubject')?.value || 'Quick question about local advertising';
     const email = prospect.email || prospect.contact?.email || '';
     if (email) {
-      const subject = encodeURIComponent('Quick question about local advertising');
+      const subjectEncoded = encodeURIComponent(subject);
       const bodyEncoded = encodeURIComponent(body);
-      window.open(`mailto:${email}?subject=${subject}&body=${bodyEncoded}`, '_blank');
+      window.open(`mailto:${email}?subject=${subjectEncoded}&body=${bodyEncoded}`, '_blank');
       toast('Opening email...', true);
     } else {
       navigator.clipboard.writeText(body).then(() => {
@@ -32462,6 +32537,7 @@ window.filterOutreachTable = filterOutreachTable;
 window.selectOutreachProspect = selectOutreachProspect;
 window.switchOutreachTemplate = switchOutreachTemplate;
 window.copyOutreachTemplate = copyOutreachTemplate;
+window.saveOutreachTemplates = saveOutreachTemplates;
 window.outreachQuickCall = outreachQuickCall;
 window.outreachQuickText = outreachQuickText;
 window.outreachQuickEmail = outreachQuickEmail;
