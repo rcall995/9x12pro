@@ -1583,8 +1583,9 @@
                                     <option value="">All Categories</option>
                                 </select>
                                 <select id="outreachColumnFilter" onchange="filterOutreachTable()" class="border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white">
-                                    <option value="attempting">To Contact</option>
-                                    <option value="negotiating">Negotiating</option>
+                                    <option value="to-contact">To Contact</option>
+                                    <option value="in-progress">In Progress</option>
+                                    <option value="committed">Committed</option>
                                     <option value="all">All Pipeline</option>
                                 </select>
                             </div>
@@ -1756,9 +1757,8 @@ The cost is [SPOT_PRICE] for a premium spot. Interested in learning more?
                         <div class="p-4 bg-gray-50 border-t border-gray-100">
                             <p class="text-xs font-bold text-gray-500 uppercase mb-2">Move to Stage</p>
                             <div class="flex gap-2">
-                                <button onclick="outreachMoveToStage('negotiating')" class="flex-1 px-2 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-xs font-bold">Negotiating</button>
-                                <button onclick="outreachMoveToStage('won')" class="flex-1 px-2 py-1.5 bg-green-100 hover:bg-green-200 text-green-800 rounded-lg text-xs font-bold">Won!</button>
-                                <button onclick="outreachMoveToStage('lost')" class="flex-1 px-2 py-1.5 bg-red-100 hover:bg-red-200 text-red-800 rounded-lg text-xs font-bold">Lost</button>
+                                <button onclick="outreachMoveToStage('in-progress')" class="flex-1 px-2 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-xs font-bold">In Progress</button>
+                                <button onclick="outreachMoveToStage('committed')" class="flex-1 px-2 py-1.5 bg-green-100 hover:bg-green-200 text-green-800 rounded-lg text-xs font-bold">Committed</button>
                             </div>
                         </div>
                     </div>
