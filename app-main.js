@@ -2736,6 +2736,33 @@ function openQuickActionPopup(leadId, columnKey) {
     return;
   }
 
+  // Check if this is an existing client
+  const existingClient = Object.values(crmState.clients).find(c =>
+    c.businessName && prospect.businessName &&
+    c.businessName.toLowerCase() === (prospect.businessName || prospect.name || '').toLowerCase()
+  );
+
+  if (existingClient) {
+    // Open CRM card for existing client
+    openClientCrmCard(existingClient.id);
+  } else {
+    // Open CRM card for prospect - include columnKey for stage display
+    const prospectWithStage = { ...prospect, columnKey, stage: columnKey };
+    openProspectDetailModal(prospectWithStage, 'prospect');
+  }
+}
+
+// Legacy quick action popup - kept for backward compatibility but now unused
+function openQuickActionPopupLegacy(leadId, columnKey) {
+  // Find the prospect in the specified column
+  const items = kanbanState.columns[columnKey] || [];
+  const prospect = items.find(item => typeof item === 'object' && String(item.id) === String(leadId));
+
+  if (!prospect) {
+    toast('Prospect not found', false);
+    return;
+  }
+
   const businessName = prospect.businessName || prospect.name || 'Unknown Business';
   const isDoNotContact = prospect.doNotContact === true;
 
@@ -19231,7 +19258,7 @@ async function handleCampaignBoardDrop(target, e, isColumn = false) {
   }
 }
 
-// Open quick action popup for campaign board item
+// Open CRM contact card for campaign board item
 function openCampaignBoardQuickAction(leadId, columnKey) {
   const board = getCurrentCampaignBoard();
   if (!board) return;
@@ -19248,8 +19275,20 @@ function openCampaignBoardQuickAction(leadId, columnKey) {
     return;
   }
 
-  // Open the unified business modal for Campaign Board items
-  openCampaignBoardBusinessModal(prospect, columnKey, board);
+  // Check if this is an existing client
+  const existingClient = Object.values(crmState.clients).find(c =>
+    c.businessName && prospect.businessName &&
+    c.businessName.toLowerCase() === (prospect.businessName || prospect.name || '').toLowerCase()
+  );
+
+  if (existingClient) {
+    // Open CRM card for existing client
+    openClientCrmCard(existingClient.id);
+  } else {
+    // Open CRM card for prospect - include columnKey for stage display
+    const prospectWithStage = { ...prospect, columnKey, stage: columnKey };
+    openProspectDetailModal(prospectWithStage, 'prospect');
+  }
 }
 
 // Build outreach history HTML for modal
