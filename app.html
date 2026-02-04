@@ -1564,66 +1564,204 @@
                 </div>
             </div>
 
-            <!-- OUTREACH CONTROLS -->
-            <div class="bg-white rounded-2xl shadow-xl border-2 border-green-100 p-6 md:p-8">
-                <!-- Header with stats and filters -->
-                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-                    <div class="flex items-center gap-3">
-                        <span class="text-3xl">🎯</span>
-                        <div>
-                            <h4 class="text-xl font-black text-gray-900">Prospects to Contact</h4>
-                            <p id="outreachStats" class="text-sm text-gray-500">0 prospects</p>
+            <!-- SPLIT LAYOUT: List + Detail Panel -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- LEFT: Prospect List -->
+                <div class="lg:col-span-2 bg-white rounded-2xl shadow-xl border-2 border-green-100 overflow-hidden">
+                    <!-- Header with filters -->
+                    <div class="p-4 border-b border-gray-100 bg-gray-50">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                            <div class="flex items-center gap-2">
+                                <span class="text-2xl">🎯</span>
+                                <div>
+                                    <h4 class="text-lg font-bold text-gray-900">Prospects</h4>
+                                    <p id="outreachStats" class="text-xs text-gray-500">0 to contact</p>
+                                </div>
+                            </div>
+                            <div class="flex gap-2">
+                                <select id="outreachCategoryFilter" onchange="filterOutreachTable()" class="border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white">
+                                    <option value="">All Categories</option>
+                                </select>
+                                <select id="outreachColumnFilter" onchange="filterOutreachTable()" class="border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white">
+                                    <option value="attempting">To Contact</option>
+                                    <option value="negotiating">Negotiating</option>
+                                    <option value="all">All Pipeline</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
-                    <div class="flex flex-wrap gap-3">
-                        <select id="outreachCategoryFilter" onchange="filterOutreachTable()" class="border-2 border-gray-200 rounded-lg px-3 py-2 text-sm font-medium bg-white">
-                            <option value="">All Categories</option>
-                        </select>
-                        <select id="outreachColumnFilter" onchange="filterOutreachTable()" class="border-2 border-gray-200 rounded-lg px-3 py-2 text-sm font-medium bg-white">
-                            <option value="attempting">To Contact</option>
-                            <option value="negotiating">Negotiating</option>
-                            <option value="all">All Pipeline</option>
-                        </select>
+
+                    <!-- Sortable Table -->
+                    <div class="overflow-x-auto max-h-[600px] overflow-y-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-50 sticky top-0">
+                                <tr>
+                                    <th onclick="sortOutreach('businessName')" class="px-3 py-2 text-left font-bold text-gray-700 cursor-pointer hover:bg-gray-100">
+                                        <span class="flex items-center gap-1">Business <span id="sortIcon_businessName" class="text-xs">▲</span></span>
+                                    </th>
+                                    <th onclick="sortOutreach('category')" class="px-3 py-2 text-left font-bold text-gray-700 cursor-pointer hover:bg-gray-100">
+                                        <span class="flex items-center gap-1">Category <span id="sortIcon_category" class="text-xs text-gray-400">↕</span></span>
+                                    </th>
+                                    <th onclick="sortOutreach('phone')" class="px-3 py-2 text-center font-bold text-gray-700 cursor-pointer hover:bg-gray-100">
+                                        <span class="flex items-center justify-center gap-1">📞 <span id="sortIcon_phone" class="text-xs text-gray-400">↕</span></span>
+                                    </th>
+                                    <th onclick="sortOutreach('email')" class="px-3 py-2 text-center font-bold text-gray-700 cursor-pointer hover:bg-gray-100">
+                                        <span class="flex items-center justify-center gap-1">📧 <span id="sortIcon_email" class="text-xs text-gray-400">↕</span></span>
+                                    </th>
+                                    <th onclick="sortOutreach('facebook')" class="px-3 py-2 text-center font-bold text-gray-700 cursor-pointer hover:bg-gray-100">
+                                        <span class="flex items-center justify-center gap-1">FB <span id="sortIcon_facebook" class="text-xs text-gray-400">↕</span></span>
+                                    </th>
+                                    <th onclick="sortOutreach('instagram')" class="px-3 py-2 text-center font-bold text-gray-700 cursor-pointer hover:bg-gray-100">
+                                        <span class="flex items-center justify-center gap-1">IG <span id="sortIcon_instagram" class="text-xs text-gray-400">↕</span></span>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="outreachTableBody" class="divide-y divide-gray-100">
+                                <!-- Populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Empty state -->
+                    <div id="outreachEmptyState" class="hidden py-12 text-center">
+                        <span class="text-5xl mb-4 block">🎯</span>
+                        <p class="text-lg font-semibold text-gray-600">No prospects in this column</p>
+                        <p class="text-sm text-gray-500 mt-1">Add prospects from Prospect Radar or the Pipeline tab</p>
                     </div>
                 </div>
 
-                <!-- Sortable Table -->
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th onclick="sortOutreach('businessName')" class="px-3 py-3 text-left font-bold text-gray-700 cursor-pointer hover:bg-gray-100 rounded-tl-lg">
-                                    <span class="flex items-center gap-1">Business Name <span id="sortIcon_businessName" class="text-xs">▲</span></span>
-                                </th>
-                                <th onclick="sortOutreach('category')" class="px-3 py-3 text-left font-bold text-gray-700 cursor-pointer hover:bg-gray-100">
-                                    <span class="flex items-center gap-1">Category <span id="sortIcon_category" class="text-xs text-gray-400">↕</span></span>
-                                </th>
-                                <th onclick="sortOutreach('phone')" class="px-3 py-3 text-left font-bold text-gray-700 cursor-pointer hover:bg-gray-100">
-                                    <span class="flex items-center gap-1">Phone <span id="sortIcon_phone" class="text-xs text-gray-400">↕</span></span>
-                                </th>
-                                <th onclick="sortOutreach('email')" class="px-3 py-3 text-left font-bold text-gray-700 cursor-pointer hover:bg-gray-100">
-                                    <span class="flex items-center gap-1">Email <span id="sortIcon_email" class="text-xs text-gray-400">↕</span></span>
-                                </th>
-                                <th onclick="sortOutreach('facebook')" class="px-3 py-3 text-center font-bold text-gray-700 cursor-pointer hover:bg-gray-100">
-                                    <span class="flex items-center justify-center gap-1">FB <span id="sortIcon_facebook" class="text-xs text-gray-400">↕</span></span>
-                                </th>
-                                <th onclick="sortOutreach('instagram')" class="px-3 py-3 text-center font-bold text-gray-700 cursor-pointer hover:bg-gray-100">
-                                    <span class="flex items-center justify-center gap-1">IG <span id="sortIcon_instagram" class="text-xs text-gray-400">↕</span></span>
-                                </th>
-                                <th class="px-3 py-3 text-center font-bold text-gray-700 rounded-tr-lg">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="outreachTableBody" class="divide-y divide-gray-100">
-                            <!-- Populated by JavaScript -->
-                        </tbody>
-                    </table>
-                </div>
+                <!-- RIGHT: Selected Prospect Panel -->
+                <div class="bg-white rounded-2xl shadow-xl border-2 border-green-100 overflow-hidden">
+                    <!-- No prospect selected -->
+                    <div id="outreachNoSelection" class="p-8 text-center">
+                        <span class="text-5xl mb-4 block">👆</span>
+                        <p class="text-lg font-semibold text-gray-600">Select a Prospect</p>
+                        <p class="text-sm text-gray-500 mt-1">Click a row to see details and outreach options</p>
+                    </div>
 
-                <!-- Empty state -->
-                <div id="outreachEmptyState" class="hidden py-12 text-center">
-                    <span class="text-5xl mb-4 block">🎯</span>
-                    <p class="text-lg font-semibold text-gray-600">No prospects in this column</p>
-                    <p class="text-sm text-gray-500 mt-1">Add prospects from Prospect Radar or the Pipeline tab</p>
+                    <!-- Selected prospect details -->
+                    <div id="outreachSelectedPanel" class="hidden">
+                        <!-- Prospect Header -->
+                        <div class="p-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white">
+                            <div class="flex items-center gap-3">
+                                <div id="outreachSelectedIcon" class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl">🏢</div>
+                                <div class="flex-1 min-w-0">
+                                    <h3 id="outreachSelectedName" class="font-bold text-lg truncate">Business Name</h3>
+                                    <p id="outreachSelectedCategory" class="text-sm text-green-100">Category</p>
+                                </div>
+                                <button onclick="openOutreachProspectCRM()" class="px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium" title="Open full CRM card">
+                                    Open CRM
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Contact Info -->
+                        <div class="p-4 border-b border-gray-100">
+                            <div class="grid grid-cols-2 gap-3 text-sm">
+                                <div>
+                                    <span class="text-gray-500 text-xs block">Phone</span>
+                                    <a id="outreachSelectedPhone" href="#" class="text-green-600 font-medium hover:underline">—</a>
+                                </div>
+                                <div>
+                                    <span class="text-gray-500 text-xs block">Email</span>
+                                    <a id="outreachSelectedEmail" href="#" class="text-blue-600 font-medium hover:underline truncate block">—</a>
+                                </div>
+                                <div>
+                                    <span class="text-gray-500 text-xs block">Facebook</span>
+                                    <a id="outreachSelectedFB" href="#" target="_blank" class="text-blue-600 font-medium hover:underline">—</a>
+                                </div>
+                                <div>
+                                    <span class="text-gray-500 text-xs block">Instagram</span>
+                                    <a id="outreachSelectedIG" href="#" target="_blank" class="text-pink-600 font-medium hover:underline">—</a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Quick Actions -->
+                        <div class="p-4 border-b border-gray-100">
+                            <p class="text-xs font-bold text-gray-500 uppercase mb-3">Quick Actions</p>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button onclick="outreachQuickCall()" class="px-3 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-1">
+                                    📞 Call
+                                </button>
+                                <button onclick="outreachQuickText()" class="px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-1">
+                                    💬 Text
+                                </button>
+                                <button onclick="outreachQuickEmail()" class="px-3 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-1">
+                                    📧 Email
+                                </button>
+                                <button onclick="outreachMarkContacted()" class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-1">
+                                    ✓ Contacted
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Templates Section -->
+                        <div class="p-4">
+                            <p class="text-xs font-bold text-gray-500 uppercase mb-3">Message Templates</p>
+                            <!-- Template Tabs -->
+                            <div class="flex gap-1 mb-3">
+                                <button onclick="switchOutreachTemplate('text')" data-outreach-template="text" class="outreach-template-btn flex-1 px-2 py-1.5 text-xs font-bold rounded-lg bg-green-100 text-green-700">💬 Text</button>
+                                <button onclick="switchOutreachTemplate('email')" data-outreach-template="email" class="outreach-template-btn flex-1 px-2 py-1.5 text-xs font-bold rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200">📧 Email</button>
+                                <button onclick="switchOutreachTemplate('phone')" data-outreach-template="phone" class="outreach-template-btn flex-1 px-2 py-1.5 text-xs font-bold rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200">📞 Script</button>
+                            </div>
+
+                            <!-- Text Template -->
+                            <div id="outreachTemplateText" class="outreach-template-pane">
+                                <div class="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 mb-2 min-h-[80px]" id="outreachTextPreview">
+                                    Hey! I'm putting together a community postcard for [ZIP] and wanted to see if [BUSINESS_NAME] would be interested in being featured. You'd be the only [CATEGORY] on the card. Want me to send over the details?
+                                </div>
+                                <button onclick="copyOutreachTemplate('text')" class="w-full px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-bold">Copy & Open Messages</button>
+                            </div>
+
+                            <!-- Email Template -->
+                            <div id="outreachTemplateEmail" class="outreach-template-pane hidden">
+                                <div class="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 mb-2">
+                                    <p class="font-bold text-gray-900 mb-1">Subject: Quick question about local advertising</p>
+                                    <p class="whitespace-pre-wrap min-h-[60px]" id="outreachEmailPreview">Hi,
+
+I'm putting together a community postcard going to about 5,000 homes in [ZIP]. I think [BUSINESS_NAME] would be a great fit - you'd be the only [CATEGORY] on the card.
+
+The cost is [SPOT_PRICE] for a premium spot. Interested in learning more?
+
+[YOUR_NAME]</p>
+                                </div>
+                                <button onclick="copyOutreachTemplate('email')" class="w-full px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-bold">Copy & Open Email</button>
+                            </div>
+
+                            <!-- Phone Script -->
+                            <div id="outreachTemplatePhone" class="outreach-template-pane hidden">
+                                <div class="space-y-2 text-xs">
+                                    <div class="p-2 bg-green-50 rounded-lg">
+                                        <span class="font-bold text-green-800">1. Intro:</span>
+                                        <span class="text-gray-700"> "Hey, this is [YOUR_NAME]. I do local advertising in [ZIP]. Quick question - do you do any direct mail?"</span>
+                                    </div>
+                                    <div class="p-2 bg-emerald-50 rounded-lg">
+                                        <span class="font-bold text-emerald-800">2. Pitch:</span>
+                                        <span class="text-gray-700"> "I'm putting together a postcard for 5,000 homes. You'd be the ONLY [CATEGORY] on it."</span>
+                                    </div>
+                                    <div class="p-2 bg-teal-50 rounded-lg">
+                                        <span class="font-bold text-teal-800">3. Price:</span>
+                                        <span class="text-gray-700"> "It's [SPOT_PRICE]. If even ONE person calls from this, you've made it back."</span>
+                                    </div>
+                                    <div class="p-2 bg-cyan-50 rounded-lg">
+                                        <span class="font-bold text-cyan-800">4. Close:</span>
+                                        <span class="text-gray-700"> "Want me to save your spot?"</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Move to Stage -->
+                        <div class="p-4 bg-gray-50 border-t border-gray-100">
+                            <p class="text-xs font-bold text-gray-500 uppercase mb-2">Move to Stage</p>
+                            <div class="flex gap-2">
+                                <button onclick="outreachMoveToStage('negotiating')" class="flex-1 px-2 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-xs font-bold">Negotiating</button>
+                                <button onclick="outreachMoveToStage('won')" class="flex-1 px-2 py-1.5 bg-green-100 hover:bg-green-200 text-green-800 rounded-lg text-xs font-bold">Won!</button>
+                                <button onclick="outreachMoveToStage('lost')" class="flex-1 px-2 py-1.5 bg-red-100 hover:bg-red-200 text-red-800 rounded-lg text-xs font-bold">Lost</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

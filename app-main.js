@@ -31894,7 +31894,9 @@ const outreachState = {
   sortBy: 'businessName',
   sortDir: 'asc',
   categoryFilter: '',
-  columnFilter: 'attempting' // Default to "To Contact"
+  columnFilter: 'attempting', // Default to "To Contact"
+  selectedProspect: null,
+  currentTemplate: 'text'
 };
 
 function renderOutreachTable() {
@@ -31946,7 +31948,7 @@ function renderOutreachTable() {
   if (statsEl) {
     const phoneCount = prospects.filter(p => p.phone || p.contact?.phone).length;
     const emailCount = prospects.filter(p => p.email || p.contact?.email).length;
-    statsEl.textContent = `${prospects.length} prospects • ${phoneCount} with phone • ${emailCount} with email`;
+    statsEl.textContent = `${prospects.length} to contact • ${phoneCount} with phone • ${emailCount} with email`;
   }
 
   // Show empty state if no prospects
@@ -31973,57 +31975,290 @@ function renderOutreachRow(prospect) {
   const hasEmail = !!email;
   const hasFB = !!prospect.facebook;
   const hasIG = !!prospect.instagram;
+  const isSelected = outreachState.selectedProspect?.id === prospect.id;
 
-  // Format phone for display
-  const cleanPhone = phone.replace(/\D/g, '');
-  const displayPhone = cleanPhone.length === 10
-    ? `(${cleanPhone.slice(0,3)}) ${cleanPhone.slice(3,6)}-${cleanPhone.slice(6)}`
-    : phone;
-
-  // Escape HTML helper (inline for safety)
+  // Escape HTML helper
   const escapeHtml = (str) => {
     if (!str) return '';
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   };
 
   return `
-    <tr class="hover:bg-gray-50 transition-colors" data-id="${prospect.id}">
-      <td class="py-3 px-3">
-        <button onclick="openOutreachProspect('${prospect.id}')" class="text-left font-semibold text-indigo-600 hover:text-indigo-800 hover:underline">
-          ${escapeHtml(prospect.businessName || 'Unknown')}
-        </button>
+    <tr onclick="selectOutreachProspect('${prospect.id}')"
+        class="cursor-pointer transition-colors ${isSelected ? 'bg-green-100 border-l-4 border-green-500' : 'hover:bg-gray-50'}"
+        data-id="${prospect.id}">
+      <td class="py-2.5 px-3">
+        <span class="font-semibold text-gray-900">${escapeHtml(prospect.businessName || 'Unknown')}</span>
       </td>
-      <td class="py-3 px-3">
-        <span class="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
-          ${escapeHtml((prospect.category || 'Uncategorized').replace(/_/g, ' '))}
+      <td class="py-2.5 px-3">
+        <span class="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
+          ${escapeHtml((prospect.category || '?').replace(/_/g, ' '))}
         </span>
       </td>
-      <td class="py-3 px-3">
-        ${hasPhone ? `
-          <div class="flex items-center gap-2">
-            <a href="tel:${cleanPhone}" class="text-green-600 hover:text-green-800 font-medium">${displayPhone}</a>
-            <button onclick="outreachSendSMS('${prospect.id}')" class="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded font-medium" title="Send SMS">Text</button>
-          </div>
-        ` : '<span class="text-gray-400">—</span>'}
+      <td class="py-2.5 px-3 text-center">
+        ${hasPhone ? '<span class="text-green-600">✓</span>' : '<span class="text-gray-300">—</span>'}
       </td>
-      <td class="py-3 px-3">
-        ${hasEmail ? `
-          <a href="mailto:${escapeHtml(email)}" class="text-blue-600 hover:text-blue-800 text-sm hover:underline">${escapeHtml(email.length > 25 ? email.slice(0,22) + '...' : email)}</a>
-        ` : '<span class="text-gray-400">—</span>'}
+      <td class="py-2.5 px-3 text-center">
+        ${hasEmail ? '<span class="text-blue-600">✓</span>' : '<span class="text-gray-300">—</span>'}
       </td>
-      <td class="py-3 px-3 text-center">
-        ${hasFB ? `<a href="${escapeHtml(prospect.facebook)}" target="_blank" class="text-blue-600 hover:text-blue-800 text-lg" title="Open Facebook">📘</a>` : '<span class="text-gray-300">—</span>'}
+      <td class="py-2.5 px-3 text-center">
+        ${hasFB ? '<span class="text-blue-600">✓</span>' : '<span class="text-gray-300">—</span>'}
       </td>
-      <td class="py-3 px-3 text-center">
-        ${hasIG ? `<a href="${escapeHtml(prospect.instagram)}" target="_blank" class="text-pink-600 hover:text-pink-800 text-lg" title="Open Instagram">📷</a>` : '<span class="text-gray-300">—</span>'}
-      </td>
-      <td class="py-3 px-3 text-center">
-        <button onclick="openOutreachProspect('${prospect.id}')" class="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-xs rounded font-medium">
-          Open
-        </button>
+      <td class="py-2.5 px-3 text-center">
+        ${hasIG ? '<span class="text-pink-600">✓</span>' : '<span class="text-gray-300">—</span>'}
       </td>
     </tr>
   `;
+}
+
+function selectOutreachProspect(prospectId) {
+  const board = getCurrentCampaignBoard();
+  if (!board) return;
+
+  // Find prospect
+  let prospect = null;
+  let prospectColumn = null;
+  for (const colName of ['attempting', 'negotiating', 'won', 'lost']) {
+    const found = board.columns[colName]?.find(p => p.id === prospectId);
+    if (found) {
+      prospect = found;
+      prospectColumn = colName;
+      break;
+    }
+  }
+
+  if (!prospect) return;
+
+  outreachState.selectedProspect = { ...prospect, currentColumn: prospectColumn };
+
+  // Update UI - show panel, hide placeholder
+  document.getElementById('outreachNoSelection')?.classList.add('hidden');
+  document.getElementById('outreachSelectedPanel')?.classList.remove('hidden');
+
+  // Update prospect info
+  const categoryIcons = {
+    'restaurant': '🍽️', 'plumber': '🔧', 'electrician': '⚡', 'hvac': '❄️',
+    'landscaping': '🌿', 'roofing': '🏠', 'auto repair': '🚗', 'dentist': '🦷',
+    'salon': '💇', 'gym': '💪', 'lawyer': '⚖️', 'accountant': '📊'
+  };
+  const icon = categoryIcons[prospect.category?.toLowerCase()] || '🏢';
+
+  document.getElementById('outreachSelectedIcon').textContent = icon;
+  document.getElementById('outreachSelectedName').textContent = prospect.businessName || 'Unknown';
+  document.getElementById('outreachSelectedCategory').textContent = (prospect.category || 'Business').replace(/_/g, ' ');
+
+  // Contact info
+  const phone = prospect.phone || prospect.contact?.phone || '';
+  const email = prospect.email || prospect.contact?.email || '';
+  const cleanPhone = phone.replace(/\D/g, '');
+  const displayPhone = cleanPhone.length === 10
+    ? `(${cleanPhone.slice(0,3)}) ${cleanPhone.slice(3,6)}-${cleanPhone.slice(6)}`
+    : phone || '—';
+
+  const phoneEl = document.getElementById('outreachSelectedPhone');
+  const emailEl = document.getElementById('outreachSelectedEmail');
+  const fbEl = document.getElementById('outreachSelectedFB');
+  const igEl = document.getElementById('outreachSelectedIG');
+
+  if (phoneEl) {
+    phoneEl.textContent = displayPhone;
+    phoneEl.href = phone ? `tel:${cleanPhone}` : '#';
+    phoneEl.classList.toggle('text-gray-400', !phone);
+    phoneEl.classList.toggle('text-green-600', !!phone);
+  }
+  if (emailEl) {
+    emailEl.textContent = email || '—';
+    emailEl.href = email ? `mailto:${email}` : '#';
+    emailEl.classList.toggle('text-gray-400', !email);
+    emailEl.classList.toggle('text-blue-600', !!email);
+  }
+  if (fbEl) {
+    fbEl.textContent = prospect.facebook ? 'View Page' : '—';
+    fbEl.href = prospect.facebook || '#';
+    fbEl.classList.toggle('text-gray-400', !prospect.facebook);
+    fbEl.classList.toggle('text-blue-600', !!prospect.facebook);
+  }
+  if (igEl) {
+    igEl.textContent = prospect.instagram ? 'View Profile' : '—';
+    igEl.href = prospect.instagram || '#';
+    igEl.classList.toggle('text-gray-400', !prospect.instagram);
+    igEl.classList.toggle('text-pink-600', !!prospect.instagram);
+  }
+
+  // Update templates with prospect data
+  updateOutreachTemplates(prospect);
+
+  // Re-render table to show selection highlight
+  renderOutreachTable();
+}
+
+function updateOutreachTemplates(prospect) {
+  // Get settings
+  const savedSettings = JSON.parse(localStorage.getItem('salesToolkitSettings') || '{}');
+  const yourName = savedSettings.yourName || '[YOUR_NAME]';
+  const spotPrice = savedSettings.spotPrice || '$399';
+
+  const zip = prospect.zipCode || prospect.actualZip || '[ZIP]';
+  const businessName = prospect.businessName || '[BUSINESS]';
+  const category = (prospect.category || 'business').replace(/_/g, ' ');
+
+  // Text template
+  const textPreview = document.getElementById('outreachTextPreview');
+  if (textPreview) {
+    textPreview.textContent = `Hey! I'm putting together a community postcard for ${zip} and wanted to see if ${businessName} would be interested in being featured. You'd be the only ${category} on the card. Want me to send over the details?`;
+  }
+
+  // Email template
+  const emailPreview = document.getElementById('outreachEmailPreview');
+  if (emailPreview) {
+    emailPreview.textContent = `Hi,
+
+I'm putting together a community postcard going to about 5,000 homes in ${zip}. I think ${businessName} would be a great fit - you'd be the only ${category} on the card.
+
+The cost is ${spotPrice} for a premium spot. Interested in learning more?
+
+${yourName}`;
+  }
+}
+
+function switchOutreachTemplate(templateName) {
+  outreachState.currentTemplate = templateName;
+
+  // Update tab buttons
+  document.querySelectorAll('.outreach-template-btn').forEach(btn => {
+    const isActive = btn.dataset.outreachTemplate === templateName;
+    btn.classList.toggle('bg-green-100', isActive);
+    btn.classList.toggle('text-green-700', isActive);
+    btn.classList.toggle('bg-gray-100', !isActive);
+    btn.classList.toggle('text-gray-600', !isActive);
+  });
+
+  // Show/hide template panes
+  document.querySelectorAll('.outreach-template-pane').forEach(pane => pane.classList.add('hidden'));
+  const activePane = document.getElementById(`outreachTemplate${templateName.charAt(0).toUpperCase() + templateName.slice(1)}`);
+  if (activePane) activePane.classList.remove('hidden');
+}
+
+function copyOutreachTemplate(type) {
+  const prospect = outreachState.selectedProspect;
+  if (!prospect) {
+    toast('Select a prospect first', false);
+    return;
+  }
+
+  if (type === 'text') {
+    const text = document.getElementById('outreachTextPreview')?.textContent || '';
+    navigator.clipboard.writeText(text).then(() => {
+      toast('Text copied!', true);
+      // Open Google Voice
+      const phone = prospect.phone || prospect.contact?.phone || '';
+      if (phone) {
+        const cleanPhone = phone.replace(/\D/g, '');
+        window.open(`https://voice.google.com/u/0/messages?itemId=t.+1${cleanPhone}`, '_blank');
+      }
+    });
+  } else if (type === 'email') {
+    const body = document.getElementById('outreachEmailPreview')?.textContent || '';
+    const email = prospect.email || prospect.contact?.email || '';
+    if (email) {
+      const subject = encodeURIComponent('Quick question about local advertising');
+      const bodyEncoded = encodeURIComponent(body);
+      window.open(`mailto:${email}?subject=${subject}&body=${bodyEncoded}`, '_blank');
+      toast('Opening email...', true);
+    } else {
+      navigator.clipboard.writeText(body).then(() => {
+        toast('Email copied (no email address on file)', true);
+      });
+    }
+  }
+}
+
+// Quick action buttons
+function outreachQuickCall() {
+  const prospect = outreachState.selectedProspect;
+  if (!prospect) return;
+  const phone = prospect.phone || prospect.contact?.phone || '';
+  if (!phone) {
+    toast('No phone number', false);
+    return;
+  }
+  window.open(`tel:${phone.replace(/\D/g, '')}`, '_blank');
+  toast(`Calling ${prospect.businessName}...`, true);
+}
+
+function outreachQuickText() {
+  const prospect = outreachState.selectedProspect;
+  if (!prospect) return;
+  const phone = prospect.phone || prospect.contact?.phone || '';
+  if (!phone) {
+    toast('No phone number', false);
+    return;
+  }
+  const cleanPhone = phone.replace(/\D/g, '');
+  window.open(`https://voice.google.com/u/0/messages?itemId=t.+1${cleanPhone}`, '_blank');
+}
+
+function outreachQuickEmail() {
+  const prospect = outreachState.selectedProspect;
+  if (!prospect) return;
+  const email = prospect.email || prospect.contact?.email || '';
+  if (!email) {
+    toast('No email address', false);
+    return;
+  }
+  window.open(`mailto:${email}`, '_blank');
+}
+
+function outreachMarkContacted() {
+  const prospect = outreachState.selectedProspect;
+  if (!prospect) return;
+
+  // Move from "attempting" to "negotiating" (contacted)
+  if (prospect.currentColumn === 'attempting') {
+    outreachMoveToStage('negotiating');
+    toast(`${prospect.businessName} marked as contacted`, true);
+  } else {
+    toast('Already in negotiating or later stage', true);
+  }
+}
+
+function outreachMoveToStage(toColumn) {
+  const prospect = outreachState.selectedProspect;
+  if (!prospect) return;
+
+  const board = getCurrentCampaignBoard();
+  if (!board) return;
+
+  const fromColumn = prospect.currentColumn;
+  if (fromColumn === toColumn) {
+    toast(`Already in ${toColumn}`, true);
+    return;
+  }
+
+  // Move using campaign board function
+  const success = moveCampaignBoardItem(prospect.id, fromColumn, toColumn, board);
+
+  if (success) {
+    saveCampaignBoards();
+    outreachState.selectedProspect.currentColumn = toColumn;
+    toast(`Moved to ${toColumn}`, true);
+
+    // Re-render if moved out of current filter view
+    if (outreachState.columnFilter !== 'all' && outreachState.columnFilter !== toColumn) {
+      outreachState.selectedProspect = null;
+      document.getElementById('outreachNoSelection')?.classList.remove('hidden');
+      document.getElementById('outreachSelectedPanel')?.classList.add('hidden');
+    }
+    renderOutreachTable();
+    renderKanban(); // Update pipeline view too
+  }
+}
+
+function openOutreachProspectCRM() {
+  const prospect = outreachState.selectedProspect;
+  if (prospect) {
+    openProspectDetailModal(prospect, 'prospect');
+  }
 }
 
 function sortOutreach(column) {
@@ -32031,7 +32266,6 @@ function sortOutreach(column) {
     outreachState.sortDir = outreachState.sortDir === 'asc' ? 'desc' : 'asc';
   } else {
     outreachState.sortBy = column;
-    // Default: desc for contact columns (has it first), asc for text columns
     outreachState.sortDir = ['phone', 'email', 'facebook', 'instagram'].includes(column) ? 'desc' : 'asc';
   }
   renderOutreachTable();
@@ -32045,10 +32279,10 @@ function updateOutreachSortIcons() {
       if (col === outreachState.sortBy) {
         icon.textContent = outreachState.sortDir === 'asc' ? '▲' : '▼';
         icon.classList.remove('text-gray-400');
-        icon.classList.add('text-indigo-600');
+        icon.classList.add('text-green-600');
       } else {
         icon.textContent = '↕';
-        icon.classList.remove('text-indigo-600');
+        icon.classList.remove('text-green-600');
         icon.classList.add('text-gray-400');
       }
     }
@@ -32059,12 +32293,13 @@ function filterOutreachTable() {
   const categorySelect = document.getElementById('outreachCategoryFilter');
   const columnSelect = document.getElementById('outreachColumnFilter');
 
-  if (categorySelect) {
-    outreachState.categoryFilter = categorySelect.value;
-  }
-  if (columnSelect) {
-    outreachState.columnFilter = columnSelect.value;
-  }
+  if (categorySelect) outreachState.categoryFilter = categorySelect.value;
+  if (columnSelect) outreachState.columnFilter = columnSelect.value;
+
+  // Clear selection when changing filters
+  outreachState.selectedProspect = null;
+  document.getElementById('outreachNoSelection')?.classList.remove('hidden');
+  document.getElementById('outreachSelectedPanel')?.classList.add('hidden');
 
   renderOutreachTable();
 }
@@ -32073,19 +32308,13 @@ function populateOutreachCategoryFilter(prospects) {
   const select = document.getElementById('outreachCategoryFilter');
   if (!select) return;
 
-  // Get unique categories
   const categories = [...new Set(prospects.map(p => p.category).filter(Boolean))].sort();
-
-  // Preserve current selection
   const currentValue = select.value;
 
   select.innerHTML = '<option value="">All Categories</option>' +
     categories.map(cat => `<option value="${cat}">${cat.replace(/_/g, ' ')}</option>`).join('');
 
-  // Restore selection if still valid
-  if (categories.includes(currentValue)) {
-    select.value = currentValue;
-  }
+  if (categories.includes(currentValue)) select.value = currentValue;
 }
 
 function showOutreachEmptyState(show, message) {
@@ -32094,65 +32323,26 @@ function showOutreachEmptyState(show, message) {
   if (emptyState) {
     emptyState.classList.toggle('hidden', !show);
     if (message) {
-      emptyState.querySelector('p.text-lg')?.textContent && (emptyState.querySelector('p.text-lg').textContent = message);
+      const msgEl = emptyState.querySelector('p.text-lg');
+      if (msgEl) msgEl.textContent = message;
     }
   }
-  if (tbody) {
-    tbody.innerHTML = show ? '' : tbody.innerHTML;
-  }
-}
-
-function openOutreachProspect(prospectId) {
-  // Find the prospect in the campaign board
-  const board = getCurrentCampaignBoard();
-  if (!board) return;
-
-  let prospect = null;
-  for (const colName of ['attempting', 'negotiating', 'won', 'lost']) {
-    const found = board.columns[colName]?.find(p => p.id === prospectId);
-    if (found) {
-      prospect = found;
-      break;
-    }
-  }
-
-  if (prospect) {
-    openProspectDetailModal(prospect, 'prospect');
-  }
-}
-
-function outreachSendSMS(prospectId) {
-  const board = getCurrentCampaignBoard();
-  if (!board) return;
-
-  let prospect = null;
-  for (const colName of ['attempting', 'negotiating', 'won', 'lost']) {
-    const found = board.columns[colName]?.find(p => p.id === prospectId);
-    if (found) {
-      prospect = found;
-      break;
-    }
-  }
-
-  if (!prospect) return;
-
-  const phone = prospect.phone || prospect.contact?.phone || '';
-  if (!phone) {
-    alert('No phone number available for this prospect');
-    return;
-  }
-
-  // Clean phone number and open Google Voice
-  const cleanPhone = phone.replace(/\D/g, '');
-  window.open(`https://voice.google.com/u/0/messages?itemId=t.+1${cleanPhone}`, '_blank');
+  if (tbody && show) tbody.innerHTML = '';
 }
 
 // Expose functions globally
 window.renderOutreachTable = renderOutreachTable;
 window.sortOutreach = sortOutreach;
 window.filterOutreachTable = filterOutreachTable;
-window.openOutreachProspect = openOutreachProspect;
-window.outreachSendSMS = outreachSendSMS;
+window.selectOutreachProspect = selectOutreachProspect;
+window.switchOutreachTemplate = switchOutreachTemplate;
+window.copyOutreachTemplate = copyOutreachTemplate;
+window.outreachQuickCall = outreachQuickCall;
+window.outreachQuickText = outreachQuickText;
+window.outreachQuickEmail = outreachQuickEmail;
+window.outreachMarkContacted = outreachMarkContacted;
+window.outreachMoveToStage = outreachMoveToStage;
+window.openOutreachProspectCRM = openOutreachProspectCRM;
 
 console.log('✅ app-main.js fully parsed - script end reached');
 console.log('💡 Admin: Run showClientSelector() or cleanupDuplicateClients()');
