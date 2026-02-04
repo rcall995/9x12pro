@@ -1942,21 +1942,48 @@ async function saveClients() {
 function renderClientList() {
   const container = document.getElementById('clientList');
 
-  // Helper to normalize names for deduplication
+  // Helper to normalize names for deduplication (matches cleanupDuplicateClients)
   const normalizeForDedup = (name) => {
     if (!name) return '';
     // Truncate at separators: bullets, pipes, colons, dashes
-    let coreName = name.split(/[•·●|:\-–—►▸‣⁃]/)[0];
-    return coreName.toLowerCase()
-      .replace(/&/g, 'and')
-      .replace(/['''`´]/g, '')
+    let n = name.split(/[•·●|:\-–—►▸‣⁃]/)[0];
+    n = n.toLowerCase()
+      .replace(/&/g, ' and ')  // Normalize all & to and (with or without spaces)
+      .replace(/['''`´",.]/g, '')
       .replace(/\s+/g, ' ')
-      .replace(/[^\w\s]/g, '')
       .trim();
+    // Remove common business suffixes repeatedly (including trailing "and", "of")
+    const suffixes = /\s+(and|of|inc|llc|corp|svce?|services?|the|repair|towing?|automobile|automotive|auto|shop|shoppe|community|preschool|pre-school|school|daycare|day care|childcare|center|centre|salon|spa|studio|learning|early childhood)\s*$/gi;
+    for (let i = 0; i < 5; i++) {
+      n = n.replace(suffixes, '');
+    }
+    return n.trim();
   };
 
   // Combine crmState.clients with pipeline prospects
-  const crmClients = Object.values(crmState.clients);
+  // First, deduplicate crmClients themselves (in case of duplicates in the database)
+  const allCrmClients = Object.values(crmState.clients);
+  const crmClients = [];
+  const seenNormalizedNames = new Set();
+  const seenPlaceIds = new Set();
+
+  // Sort by data quality - prefer records with more info (revenue, contact data)
+  allCrmClients.sort((a, b) => {
+    const scoreA = (a.lifetime?.totalSpent || 0) + (a.monthlyPrice || 0) * 100 + (a.contact?.phone ? 10 : 0) + (a.contact?.email ? 10 : 0);
+    const scoreB = (b.lifetime?.totalSpent || 0) + (b.monthlyPrice || 0) * 100 + (b.contact?.phone ? 10 : 0) + (b.contact?.email ? 10 : 0);
+    return scoreB - scoreA; // Higher score first
+  });
+
+  for (const client of allCrmClients) {
+    const normalizedName = normalizeForDedup(client.businessName);
+    // Skip if we've already seen this normalized name or placeId
+    if (normalizedName && seenNormalizedNames.has(normalizedName)) continue;
+    if (client.placeId && seenPlaceIds.has(client.placeId)) continue;
+
+    crmClients.push(client);
+    if (normalizedName) seenNormalizedNames.add(normalizedName);
+    if (client.placeId) seenPlaceIds.add(client.placeId);
+  }
 
   // Get all prospects from kanban pipeline columns
   const pipelineProspects = [];
@@ -5481,6 +5508,9 @@ const categorySearchTerms = {
   'massage_therapy': ['massage', 'massage therapy', 'spa massage'],
   'dry_cleaning': ['dry cleaning', 'dry cleaner', 'laundry'],
   'dog_grooming': ['dog grooming', 'pet grooming', 'groomer'],
+
+  // CHILDCARE
+  'daycare': ['daycare', 'day care', 'childcare', 'child care', 'preschool', 'early childhood', 'nursery school'],
 
   // RETAIL
   'pet_store': ['pet store', 'pet shop', 'pet supplies'],
@@ -9866,7 +9896,8 @@ async function loadBusinessCategories() {
     const cloudData = await loadFromCloud('businessCategories');
 
     // ONE-TIME MIGRATION: Force update to simplified category list
-    const CATEGORY_VERSION = '2026-02-03-v4';
+    // v5: Added Daycare/Preschool category
+    const CATEGORY_VERSION = '2026-02-04-v5';
     const currentVersion = localStorage.getItem('categoryVersion');
 
     if (currentVersion !== CATEGORY_VERSION) {
@@ -12145,6 +12176,7 @@ function renderProspectPool() {
 
         categorizedProspects[category].push({
           ...business,
+          category: category, // Use search category, not stored category (fixes wrong category from previous searches)
           zipCode: searchedZipCode, // Keep track of which search found this
           actualZip: businessZip, // Store the smart-extracted ZIP
           inSystem: isInSystem
@@ -12368,6 +12400,7 @@ function renderProspectPool() {
 
       unifiedByCategory[category].push({
         ...prospect,
+        category: category, // Use search category from cache key
         isEnriched: false, // From search = no contact info yet
         type: 'search'
       });
@@ -14450,9 +14483,10 @@ function openProspectDetailModal(prospectData, source = 'prospect') {
   const btnEdit = document.getElementById('btnCrmEditClient');
   const btnNotInterested = document.getElementById('btnCrmNotInterested');
 
-  if (btnConvert) btnConvert.classList.toggle('hidden', isClient);
-  if (btnEdit) btnEdit.classList.toggle('hidden', !isClient);
-  if (btnNotInterested) btnNotInterested.classList.toggle('hidden', isClient);
+  // Use direct style manipulation for reliability
+  if (btnConvert) btnConvert.style.display = isClient ? 'none' : 'flex';
+  if (btnEdit) btnEdit.style.display = isClient ? 'flex' : 'none';
+  if (btnNotInterested) btnNotInterested.style.display = isClient ? 'none' : 'flex';
 
   // Show modal
   modal.style.display = 'flex';
@@ -26816,8 +26850,8 @@ function switchTab(tabName) {
     } else if (tabName === 'prospects' || tabName === 'lead-generation') {
         renderProspectPool();
     } else if (tabName === 'outreach') {
-        // Render Close Deals prospect list when switching to that tab
-        renderCloseDealsProspects();
+        // Render Outreach Worksheet table
+        renderOutreachTable();
     }
 }
 
@@ -31725,15 +31759,22 @@ window.cleanupDuplicateClients = async function() {
   const clients = Object.entries(crmState.clients);
   console.log(`\n🔍 Scanning ${clients.length} clients for duplicates...\n`);
 
-  // Normalize name for comparison
+  // Normalize name for comparison (matches renderClientList)
   const normalize = (name) => {
     if (!name) return '';
-    return name.toLowerCase()
-      .split(/[•·●|:\-–—&]/)[0]  // Truncate at separators
-      .replace(/[''"`,\.]/g, '')  // Remove punctuation
-      .replace(/\s+(inc|llc|corp|svce?|service|the)\s*$/i, '')  // Remove suffixes
+    // Truncate at separators first
+    let n = name.split(/[•·●|:\-–—►▸‣⁃]/)[0];
+    n = n.toLowerCase()
+      .replace(/&/g, ' and ')  // Normalize all & to and (with or without spaces)
+      .replace(/['''`´",.]/g, '')
       .replace(/\s+/g, ' ')
       .trim();
+    // Remove common business suffixes repeatedly (including trailing "and", "of")
+    const suffixes = /\s+(and|of|inc|llc|corp|svce?|services?|the|repair|towing?|automobile|automotive|auto|shop|shoppe|community|preschool|pre-school|school|daycare|day care|childcare|center|centre|salon|spa|studio|learning|early childhood)\s*$/gi;
+    for (let i = 0; i < 5; i++) {
+      n = n.replace(suffixes, '');
+    }
+    return n.trim();
   };
 
   // Group by normalized name
@@ -31844,6 +31885,274 @@ window.cleanupDuplicateClients = async function() {
 
   return { merged: totalMerged, deleted: totalDeleted };
 };
+
+// =====================================================
+// OUTREACH WORKSHEET FUNCTIONS
+// =====================================================
+
+const outreachState = {
+  sortBy: 'businessName',
+  sortDir: 'asc',
+  categoryFilter: '',
+  columnFilter: 'attempting' // Default to "To Contact"
+};
+
+function renderOutreachTable() {
+  const board = getCurrentCampaignBoard();
+  if (!board) {
+    showOutreachEmptyState(true, 'No campaign selected');
+    return;
+  }
+
+  let prospects = [];
+
+  // Get prospects from selected column(s)
+  if (outreachState.columnFilter === 'all') {
+    prospects = [...(board.columns['attempting'] || []), ...(board.columns['negotiating'] || [])];
+  } else {
+    prospects = board.columns[outreachState.columnFilter] || [];
+  }
+
+  // Populate category filter dropdown
+  populateOutreachCategoryFilter(prospects);
+
+  // Apply category filter
+  if (outreachState.categoryFilter) {
+    prospects = prospects.filter(p => p.category === outreachState.categoryFilter);
+  }
+
+  // Sort prospects
+  prospects.sort((a, b) => {
+    let valA, valB;
+
+    // Contact columns: sort by has/doesn't have
+    if (['phone', 'email', 'facebook', 'instagram'].includes(outreachState.sortBy)) {
+      const col = outreachState.sortBy;
+      valA = !!(a[col] || a.contact?.[col]) ? 1 : 0;
+      valB = !!(b[col] || b.contact?.[col]) ? 1 : 0;
+      return outreachState.sortDir === 'desc' ? valB - valA : valA - valB;
+    }
+
+    // Text columns: alphabetical
+    valA = (a[outreachState.sortBy] || '').toString().toLowerCase();
+    valB = (b[outreachState.sortBy] || '').toString().toLowerCase();
+    return outreachState.sortDir === 'asc'
+      ? valA.localeCompare(valB)
+      : valB.localeCompare(valA);
+  });
+
+  // Update stats
+  const statsEl = document.getElementById('outreachStats');
+  if (statsEl) {
+    const phoneCount = prospects.filter(p => p.phone || p.contact?.phone).length;
+    const emailCount = prospects.filter(p => p.email || p.contact?.email).length;
+    statsEl.textContent = `${prospects.length} prospects • ${phoneCount} with phone • ${emailCount} with email`;
+  }
+
+  // Show empty state if no prospects
+  if (prospects.length === 0) {
+    showOutreachEmptyState(true);
+    return;
+  }
+  showOutreachEmptyState(false);
+
+  // Render rows
+  const tbody = document.getElementById('outreachTableBody');
+  if (!tbody) return;
+
+  tbody.innerHTML = prospects.map(p => renderOutreachRow(p)).join('');
+
+  // Update sort icons
+  updateOutreachSortIcons();
+}
+
+function renderOutreachRow(prospect) {
+  const phone = prospect.phone || prospect.contact?.phone || '';
+  const email = prospect.email || prospect.contact?.email || '';
+  const hasPhone = !!phone;
+  const hasEmail = !!email;
+  const hasFB = !!prospect.facebook;
+  const hasIG = !!prospect.instagram;
+
+  // Format phone for display
+  const cleanPhone = phone.replace(/\D/g, '');
+  const displayPhone = cleanPhone.length === 10
+    ? `(${cleanPhone.slice(0,3)}) ${cleanPhone.slice(3,6)}-${cleanPhone.slice(6)}`
+    : phone;
+
+  // Escape HTML helper (inline for safety)
+  const escapeHtml = (str) => {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  };
+
+  return `
+    <tr class="hover:bg-gray-50 transition-colors" data-id="${prospect.id}">
+      <td class="py-3 px-3">
+        <button onclick="openOutreachProspect('${prospect.id}')" class="text-left font-semibold text-indigo-600 hover:text-indigo-800 hover:underline">
+          ${escapeHtml(prospect.businessName || 'Unknown')}
+        </button>
+      </td>
+      <td class="py-3 px-3">
+        <span class="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
+          ${escapeHtml((prospect.category || 'Uncategorized').replace(/_/g, ' '))}
+        </span>
+      </td>
+      <td class="py-3 px-3">
+        ${hasPhone ? `
+          <div class="flex items-center gap-2">
+            <a href="tel:${cleanPhone}" class="text-green-600 hover:text-green-800 font-medium">${displayPhone}</a>
+            <button onclick="outreachSendSMS('${prospect.id}')" class="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded font-medium" title="Send SMS">Text</button>
+          </div>
+        ` : '<span class="text-gray-400">—</span>'}
+      </td>
+      <td class="py-3 px-3">
+        ${hasEmail ? `
+          <a href="mailto:${escapeHtml(email)}" class="text-blue-600 hover:text-blue-800 text-sm hover:underline">${escapeHtml(email.length > 25 ? email.slice(0,22) + '...' : email)}</a>
+        ` : '<span class="text-gray-400">—</span>'}
+      </td>
+      <td class="py-3 px-3 text-center">
+        ${hasFB ? `<a href="${escapeHtml(prospect.facebook)}" target="_blank" class="text-blue-600 hover:text-blue-800 text-lg" title="Open Facebook">📘</a>` : '<span class="text-gray-300">—</span>'}
+      </td>
+      <td class="py-3 px-3 text-center">
+        ${hasIG ? `<a href="${escapeHtml(prospect.instagram)}" target="_blank" class="text-pink-600 hover:text-pink-800 text-lg" title="Open Instagram">📷</a>` : '<span class="text-gray-300">—</span>'}
+      </td>
+      <td class="py-3 px-3 text-center">
+        <button onclick="openOutreachProspect('${prospect.id}')" class="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-xs rounded font-medium">
+          Open
+        </button>
+      </td>
+    </tr>
+  `;
+}
+
+function sortOutreach(column) {
+  if (outreachState.sortBy === column) {
+    outreachState.sortDir = outreachState.sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    outreachState.sortBy = column;
+    // Default: desc for contact columns (has it first), asc for text columns
+    outreachState.sortDir = ['phone', 'email', 'facebook', 'instagram'].includes(column) ? 'desc' : 'asc';
+  }
+  renderOutreachTable();
+}
+
+function updateOutreachSortIcons() {
+  const columns = ['businessName', 'category', 'phone', 'email', 'facebook', 'instagram'];
+  columns.forEach(col => {
+    const icon = document.getElementById(`sortIcon_${col}`);
+    if (icon) {
+      if (col === outreachState.sortBy) {
+        icon.textContent = outreachState.sortDir === 'asc' ? '▲' : '▼';
+        icon.classList.remove('text-gray-400');
+        icon.classList.add('text-indigo-600');
+      } else {
+        icon.textContent = '↕';
+        icon.classList.remove('text-indigo-600');
+        icon.classList.add('text-gray-400');
+      }
+    }
+  });
+}
+
+function filterOutreachTable() {
+  const categorySelect = document.getElementById('outreachCategoryFilter');
+  const columnSelect = document.getElementById('outreachColumnFilter');
+
+  if (categorySelect) {
+    outreachState.categoryFilter = categorySelect.value;
+  }
+  if (columnSelect) {
+    outreachState.columnFilter = columnSelect.value;
+  }
+
+  renderOutreachTable();
+}
+
+function populateOutreachCategoryFilter(prospects) {
+  const select = document.getElementById('outreachCategoryFilter');
+  if (!select) return;
+
+  // Get unique categories
+  const categories = [...new Set(prospects.map(p => p.category).filter(Boolean))].sort();
+
+  // Preserve current selection
+  const currentValue = select.value;
+
+  select.innerHTML = '<option value="">All Categories</option>' +
+    categories.map(cat => `<option value="${cat}">${cat.replace(/_/g, ' ')}</option>`).join('');
+
+  // Restore selection if still valid
+  if (categories.includes(currentValue)) {
+    select.value = currentValue;
+  }
+}
+
+function showOutreachEmptyState(show, message) {
+  const emptyState = document.getElementById('outreachEmptyState');
+  const tbody = document.getElementById('outreachTableBody');
+  if (emptyState) {
+    emptyState.classList.toggle('hidden', !show);
+    if (message) {
+      emptyState.querySelector('p.text-lg')?.textContent && (emptyState.querySelector('p.text-lg').textContent = message);
+    }
+  }
+  if (tbody) {
+    tbody.innerHTML = show ? '' : tbody.innerHTML;
+  }
+}
+
+function openOutreachProspect(prospectId) {
+  // Find the prospect in the campaign board
+  const board = getCurrentCampaignBoard();
+  if (!board) return;
+
+  let prospect = null;
+  for (const colName of ['attempting', 'negotiating', 'won', 'lost']) {
+    const found = board.columns[colName]?.find(p => p.id === prospectId);
+    if (found) {
+      prospect = found;
+      break;
+    }
+  }
+
+  if (prospect) {
+    openProspectDetailModal(prospect, 'prospect');
+  }
+}
+
+function outreachSendSMS(prospectId) {
+  const board = getCurrentCampaignBoard();
+  if (!board) return;
+
+  let prospect = null;
+  for (const colName of ['attempting', 'negotiating', 'won', 'lost']) {
+    const found = board.columns[colName]?.find(p => p.id === prospectId);
+    if (found) {
+      prospect = found;
+      break;
+    }
+  }
+
+  if (!prospect) return;
+
+  const phone = prospect.phone || prospect.contact?.phone || '';
+  if (!phone) {
+    alert('No phone number available for this prospect');
+    return;
+  }
+
+  // Clean phone number and open Google Voice
+  const cleanPhone = phone.replace(/\D/g, '');
+  window.open(`https://voice.google.com/u/0/messages?itemId=t.+1${cleanPhone}`, '_blank');
+}
+
+// Expose functions globally
+window.renderOutreachTable = renderOutreachTable;
+window.sortOutreach = sortOutreach;
+window.filterOutreachTable = filterOutreachTable;
+window.openOutreachProspect = openOutreachProspect;
+window.outreachSendSMS = outreachSendSMS;
 
 console.log('✅ app-main.js fully parsed - script end reached');
 console.log('💡 Admin: Run showClientSelector() or cleanupDuplicateClients()');
