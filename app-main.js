@@ -32165,6 +32165,22 @@ function selectOutreachProspect(prospectId) {
   // Update templates with prospect data
   updateOutreachTemplates(prospect);
 
+  // Load notes for this prospect
+  const notesEl = document.getElementById('outreachNotes');
+  if (notesEl) {
+    notesEl.value = loadOutreachNotes(prospect.id);
+  }
+
+  // Show phone number in the text template panel
+  const phoneDisplay = document.getElementById('outreachTextPhoneNumber');
+  if (phoneDisplay) {
+    const cleanPhone = phone.replace(/\D/g, '');
+    const displayPhone = cleanPhone.length === 10
+      ? `(${cleanPhone.slice(0,3)}) ${cleanPhone.slice(3,6)}-${cleanPhone.slice(6)}`
+      : (phone || 'No phone on file');
+    phoneDisplay.textContent = phone ? `📞 ${displayPhone}` : 'No phone on file';
+  }
+
   // Re-render table to show selection highlight
   renderOutreachTable();
 }
@@ -32294,13 +32310,7 @@ function copyOutreachTemplate(type) {
   if (type === 'text') {
     const text = document.getElementById('outreachTextPreview')?.value || '';
     navigator.clipboard.writeText(text).then(() => {
-      toast('Text copied!', true);
-      // Open Google Voice
-      const phone = prospect.phone || prospect.contact?.phone || '';
-      if (phone) {
-        const cleanPhone = phone.replace(/\D/g, '');
-        window.open(`https://voice.google.com/u/0/messages?itemId=t.+1${cleanPhone}`, '_blank');
-      }
+      toast('Message copied! Paste into Google Voice.', true);
     });
   } else if (type === 'email') {
     const body = document.getElementById('outreachEmailPreview')?.value || '';
@@ -32332,7 +32342,7 @@ function outreachQuickCall() {
   toast(`Calling ${prospect.businessName}...`, true);
 }
 
-function outreachQuickText() {
+function outreachOpenGoogleVoice() {
   const prospect = outreachState.selectedProspect;
   if (!prospect) return;
   const phone = prospect.phone || prospect.contact?.phone || '';
@@ -32342,6 +32352,37 @@ function outreachQuickText() {
   }
   const cleanPhone = phone.replace(/\D/g, '');
   window.open(`https://voice.google.com/u/0/messages?itemId=t.+1${cleanPhone}`, '_blank');
+}
+
+function copyOutreachPhone() {
+  const prospect = outreachState.selectedProspect;
+  if (!prospect) return;
+  const phone = prospect.phone || prospect.contact?.phone || '';
+  if (!phone) {
+    toast('No phone number', false);
+    return;
+  }
+  const cleanPhone = phone.replace(/\D/g, '');
+  navigator.clipboard.writeText(cleanPhone).then(() => {
+    toast('Phone number copied!', true);
+  });
+}
+
+// Save notes for the selected prospect
+function saveOutreachNotes() {
+  const prospect = outreachState.selectedProspect;
+  if (!prospect) return;
+
+  const notes = document.getElementById('outreachNotes')?.value || '';
+  const allNotes = JSON.parse(localStorage.getItem('outreachNotes') || '{}');
+  allNotes[prospect.id] = notes;
+  localStorage.setItem('outreachNotes', JSON.stringify(allNotes));
+}
+
+// Load notes for a prospect
+function loadOutreachNotes(prospectId) {
+  const allNotes = JSON.parse(localStorage.getItem('outreachNotes') || '{}');
+  return allNotes[prospectId] || '';
 }
 
 function outreachQuickEmail() {
@@ -32538,8 +32579,11 @@ window.selectOutreachProspect = selectOutreachProspect;
 window.switchOutreachTemplate = switchOutreachTemplate;
 window.copyOutreachTemplate = copyOutreachTemplate;
 window.saveOutreachTemplates = saveOutreachTemplates;
+window.saveOutreachNotes = saveOutreachNotes;
+window.copyOutreachPhone = copyOutreachPhone;
+window.outreachOpenGoogleVoice = outreachOpenGoogleVoice;
 window.outreachQuickCall = outreachQuickCall;
-window.outreachQuickText = outreachQuickText;
+// outreachQuickText removed - replaced by copyOutreachPhone + outreachOpenGoogleVoice
 window.outreachQuickEmail = outreachQuickEmail;
 window.outreachMarkContacted = outreachMarkContacted;
 window.outreachMoveToStage = outreachMoveToStage;
