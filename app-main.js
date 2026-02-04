@@ -2936,6 +2936,23 @@ function openClientModalForProspect(prospectDataOrId) {
       }
     }
 
+    // Search campaign boards
+    if (!prospectData && campaignBoardsState && campaignBoardsState.boards) {
+      for (const boardId of Object.keys(campaignBoardsState.boards)) {
+        const board = campaignBoardsState.boards[boardId];
+        if (board.columns) {
+          for (const columnKey of Object.keys(board.columns)) {
+            const found = board.columns[columnKey].find(item => String(item.id) === itemId || String(item.placeId) === itemId);
+            if (found) {
+              prospectData = found;
+              break;
+            }
+          }
+        }
+        if (prospectData) break;
+      }
+    }
+
     // Search prospect pool manual prospects if not found in kanban
     if (!prospectData) {
       prospectData = prospectPoolState.manualProspects.find(p => String(p.id) === itemId);
@@ -2964,46 +2981,13 @@ function openClientModalForProspect(prospectDataOrId) {
   );
 
   if (existingClient) {
-    // Open existing client
-    openClientModal(existingClient.id);
+    // Open CRM card for existing client
+    openClientCrmCard(existingClient.id);
     return;
   }
 
-  // Open modal in "new client" mode with prospect data pre-filled
-  const modal = document.getElementById('clientModal');
-  const title = document.getElementById('clientModalTitle');
-  const deleteBtn = document.getElementById('btnDeleteClient');
-  const historySection = document.getElementById('clientHistorySection');
-
-  title.textContent = 'New Client (from Prospect)';
-  deleteBtn.classList.add('hidden');
-  historySection.classList.add('hidden');
-
-  // Pre-fill with prospect data
-  document.getElementById('clientId').value = '';
-  document.getElementById('clientBusinessName').value = prospectData.businessName || prospectData.name || '';
-  document.getElementById('clientCategory').value = prospectData.category || '';
-  document.getElementById('clientContactName').value = prospectData.contactName || '';
-  document.getElementById('clientFirstName').value = prospectData.firstName || '';
-  document.getElementById('clientPhone').value = prospectData.phone || '';
-  document.getElementById('clientEmail').value = prospectData.email || '';
-  document.getElementById('clientMonthlyPrice').value = '';
-  document.getElementById('clientStatus').value = 'active';
-
-  // Build notes with all available prospect info
-  let notes = prospectData.notes || '';
-  if (prospectData.address) notes += `\nAddress: ${prospectData.address}`;
-  if (prospectData.website) notes += `\nWebsite: ${prospectData.website}`;
-  if (!notes) notes = `Found via ${prospectData.source || 'Prospect Generator'}`;
-  document.getElementById('clientNotes').value = notes;
-
-  // Set active months to all checked
-  for (let i = 0; i < 12; i++) {
-    document.getElementById(`activeMonth${i}`).checked = true;
-  }
-
-  // Show modal
-  modal.style.display = 'flex';
+  // Open CRM card for prospect
+  openProspectDetailModal(prospectData, 'prospect');
 }
 
 function openClientModal(clientId = null) {
