@@ -21267,6 +21267,140 @@ async function forceReloadCampaignBoards() {
 }
 window.forceReloadCampaignBoards = forceReloadCampaignBoards;
 
+// Recover campaign boards from IndexedDB cache (last resort data recovery)
+// Call from console: recoverBoardsFromCache()
+async function recoverBoardsFromCache() {
+  try {
+    console.log('🔧 Attempting to recover campaign boards from IndexedDB cache...');
+    const cached = await idbGet('mailslot-campaign-boards');
+
+    if (!cached || typeof cached !== 'object') {
+      console.log('❌ No cached campaign boards found in IndexedDB');
+      toast('No cached data found in IndexedDB', false);
+      return;
+    }
+
+    const boardIds = Object.keys(cached);
+    let totalItems = 0;
+    boardIds.forEach(bid => {
+      const b = cached[bid];
+      if (b && b.columns) {
+        const count = Object.values(b.columns).reduce((s, col) => s + (Array.isArray(col) ? col.length : 0), 0);
+        totalItems += count;
+        console.log(`🔧   Cached board "${bid}" (${b.name || 'unnamed'}): ${count} items`);
+        Object.keys(b.columns).forEach(col => {
+          console.log(`🔧     ${col}: ${b.columns[col]?.length || 0}`);
+        });
+      }
+    });
+
+    if (totalItems === 0) {
+      console.log('❌ Cached boards are empty');
+      toast('Cached boards are empty - no data to recover', false);
+      return;
+    }
+
+    // Restore boards from cache
+    campaignBoardsState.boards = cached;
+    campaignBoardsState.cloudDataLoaded = true;
+
+    // Save recovered data back to cloud
+    await saveToCloud('campaign-boards', cached);
+
+    // Re-render
+    renderKanban();
+    refreshContactStatusDashboard();
+    refreshAnalytics();
+
+    toast(`✅ Recovered ${totalItems} items from ${boardIds.length} boards! Saved to cloud.`, true);
+    console.log(`✅ Recovery complete: ${boardIds.length} boards, ${totalItems} items restored and saved to cloud`);
+  } catch (err) {
+    console.error('❌ Recovery failed:', err);
+    toast('Recovery failed: ' + err.message, false);
+  }
+}
+window.recoverBoardsFromCache = recoverBoardsFromCache;
+
+// Debug: Show current state of boards (cloud + local)
+// Call from console: debugBoardSync()
+async function debugBoardSync() {
+  console.log('=== CAMPAIGN BOARDS SYNC DEBUG ===');
+  console.log('cloudDataLoaded:', campaignBoardsState.cloudDataLoaded);
+  console.log('Current Mailer_ID:', state.current?.Mailer_ID);
+  console.log('Current Town:', state.current?.Town || state.current?.town);
+
+  // Show local state
+  const localBoards = campaignBoardsState.boards;
+  const localIds = Object.keys(localBoards);
+  console.log(`\nLOCAL STATE: ${localIds.length} boards`);
+  localIds.forEach(bid => {
+    const b = localBoards[bid];
+    if (b && b.columns) {
+      const count = Object.values(b.columns).reduce((s, col) => s + (Array.isArray(col) ? col.length : 0), 0);
+      console.log(`  "${bid}" (${b.name}): ${count} items`);
+    }
+  });
+
+  // Show IndexedDB cache
+  try {
+    const cached = await idbGet('mailslot-campaign-boards');
+    if (cached) {
+      const cachedIds = Object.keys(cached);
+      let totalCached = 0;
+      console.log(`\nINDEXEDDB CACHE: ${cachedIds.length} boards`);
+      cachedIds.forEach(bid => {
+        const b = cached[bid];
+        if (b && b.columns) {
+          const count = Object.values(b.columns).reduce((s, col) => s + (Array.isArray(col) ? col.length : 0), 0);
+          totalCached += count;
+          console.log(`  "${bid}" (${b.name}): ${count} items`);
+        }
+      });
+      console.log(`  Total cached items: ${totalCached}`);
+    } else {
+      console.log('\nINDEXEDDB CACHE: empty/null');
+    }
+  } catch (e) {
+    console.log('\nINDEXEDDB CACHE: error reading -', e.message);
+  }
+
+  // Show cloud data
+  try {
+    const userEmail = ACTIVE_USER || window.currentAuthUser?.email;
+    const { data, error } = await supabaseClient
+      .from('app_data')
+      .select('data')
+      .eq('user_email', userEmail)
+      .eq('data_type', 'campaign-boards')
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+
+    const cloudData = data?.data;
+    if (cloudData) {
+      const cloudIds = Object.keys(cloudData);
+      let totalCloud = 0;
+      console.log(`\nCLOUD (SUPABASE): ${cloudIds.length} boards`);
+      cloudIds.forEach(bid => {
+        const b = cloudData[bid];
+        if (b && b.columns) {
+          const count = Object.values(b.columns).reduce((s, col) => s + (Array.isArray(col) ? col.length : 0), 0);
+          totalCloud += count;
+          console.log(`  "${bid}" (${b.name}): ${count} items`);
+        }
+      });
+      console.log(`  Total cloud items: ${totalCloud}`);
+    } else {
+      console.log('\nCLOUD (SUPABASE): empty/null');
+    }
+  } catch (e) {
+    console.log('\nCLOUD (SUPABASE): error reading -', e.message);
+  }
+
+  console.log('\n=== END DEBUG ===');
+}
+window.debugBoardSync = debugBoardSync;
+
 // Auto-move to clients when paid in full
 async function autoMoveToClients(businessId, board) {
   const business = findBusinessInBoard(businessId, board);
