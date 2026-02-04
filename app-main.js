@@ -31896,28 +31896,61 @@ const outreachState = {
   categoryFilter: '',
   columnFilter: 'to-contact', // Default to "To Contact" (column 2)
   selectedProspect: null,
-  currentTemplate: 'text'
+  currentTemplate: 'text',
+  usingCampaignBoard: false // Track data source
 };
 
 function renderOutreachTable() {
-  // Use kanbanState.columns (same as Pipeline tab)
-  if (!kanbanState || !kanbanState.columns) {
-    showOutreachEmptyState(true, 'No prospects loaded');
-    return;
-  }
-
   let prospects = [];
 
-  // Get prospects from selected column(s)
-  // Column mapping: to-contact (col 2), in-progress (col 3), committed (col 4)
-  if (outreachState.columnFilter === 'all') {
-    prospects = [
-      ...(kanbanState.columns['to-contact'] || []),
-      ...(kanbanState.columns['in-progress'] || []),
-      ...(kanbanState.columns['committed'] || [])
-    ];
-  } else {
-    prospects = kanbanState.columns[outreachState.columnFilter] || [];
+  // Try Campaign Board first (primary source)
+  const board = getCurrentCampaignBoard();
+  if (board && board.columns) {
+    outreachState.usingCampaignBoard = true;
+
+    // Campaign Board column mapping:
+    // to-contact -> attempting
+    // in-progress -> negotiating
+    // committed -> invoice-sent + proof-approved
+    const columnMap = {
+      'to-contact': 'attempting',
+      'in-progress': 'negotiating',
+      'committed': ['invoice-sent', 'proof-approved']
+    };
+
+    if (outreachState.columnFilter === 'all') {
+      prospects = [
+        ...(board.columns['attempting'] || []),
+        ...(board.columns['negotiating'] || []),
+        ...(board.columns['invoice-sent'] || []),
+        ...(board.columns['proof-approved'] || [])
+      ];
+    } else {
+      const boardCol = columnMap[outreachState.columnFilter];
+      if (Array.isArray(boardCol)) {
+        prospects = boardCol.flatMap(col => board.columns[col] || []);
+      } else {
+        prospects = board.columns[boardCol] || [];
+      }
+    }
+  }
+  // Fall back to legacy kanbanState
+  else if (kanbanState && kanbanState.columns) {
+    outreachState.usingCampaignBoard = false;
+
+    if (outreachState.columnFilter === 'all') {
+      prospects = [
+        ...(kanbanState.columns['to-contact'] || []),
+        ...(kanbanState.columns['in-progress'] || []),
+        ...(kanbanState.columns['committed'] || [])
+      ];
+    } else {
+      prospects = kanbanState.columns[outreachState.columnFilter] || [];
+    }
+  }
+  else {
+    showOutreachEmptyState(true, 'Select a campaign first');
+    return;
   }
 
   // Filter to only include objects (not strings/nulls)
@@ -32034,18 +32067,34 @@ function renderOutreachRow(prospect) {
 }
 
 function selectOutreachProspect(prospectId) {
-  if (!kanbanState || !kanbanState.columns) return;
-
-  // Find prospect in kanban columns
   let prospect = null;
   let prospectColumn = null;
-  for (const colName of ['to-contact', 'in-progress', 'committed']) {
-    const items = kanbanState.columns[colName] || [];
-    const found = items.find(p => typeof p === 'object' && p && String(p.id) === String(prospectId));
-    if (found) {
-      prospect = found;
-      prospectColumn = colName;
-      break;
+
+  // Try Campaign Board first
+  const board = getCurrentCampaignBoard();
+  if (board && board.columns) {
+    // Search Campaign Board columns
+    const searchCols = ['attempting', 'negotiating', 'invoice-sent', 'proof-approved'];
+    for (const colName of searchCols) {
+      const items = board.columns[colName] || [];
+      const found = items.find(p => typeof p === 'object' && p && String(p.id) === String(prospectId));
+      if (found) {
+        prospect = found;
+        prospectColumn = colName;
+        break;
+      }
+    }
+  }
+  // Fall back to legacy kanban
+  else if (kanbanState && kanbanState.columns) {
+    for (const colName of ['to-contact', 'in-progress', 'committed']) {
+      const items = kanbanState.columns[colName] || [];
+      const found = items.find(p => typeof p === 'object' && p && String(p.id) === String(prospectId));
+      if (found) {
+        prospect = found;
+        prospectColumn = colName;
+        break;
+      }
     }
   }
 
@@ -32235,8 +32284,8 @@ function outreachMarkContacted() {
   const prospect = outreachState.selectedProspect;
   if (!prospect) return;
 
-  // Move from "to-contact" to "in-progress" (contacted)
-  if (prospect.currentColumn === 'to-contact') {
+  // Move from "to-contact/attempting" to "in-progress/negotiating"
+  if (prospect.currentColumn === 'to-contact' || prospect.currentColumn === 'attempting') {
     outreachMoveToStage('in-progress');
     toast(`${prospect.businessName} marked as contacted`, true);
   } else {
@@ -32248,49 +32297,86 @@ function outreachMoveToStage(toColumn) {
   const prospect = outreachState.selectedProspect;
   if (!prospect) return;
 
-  if (!kanbanState || !kanbanState.columns) return;
-
   const fromColumn = prospect.currentColumn;
-  if (fromColumn === toColumn) {
-    toast(`Already in ${toColumn}`, true);
-    return;
-  }
 
-  // Find and remove from current column
-  const fromItems = kanbanState.columns[fromColumn] || [];
-  const itemIndex = fromItems.findIndex(p => typeof p === 'object' && p && String(p.id) === String(prospect.id));
-
-  if (itemIndex === -1) {
-    toast('Prospect not found', false);
-    return;
-  }
-
-  // Remove from old column and add to new column
-  const [movedItem] = fromItems.splice(itemIndex, 1);
-  if (!kanbanState.columns[toColumn]) {
-    kanbanState.columns[toColumn] = [];
-  }
-  kanbanState.columns[toColumn].push(movedItem);
-
-  // Save and update UI
-  saveKanban();
-  outreachState.selectedProspect.currentColumn = toColumn;
+  // Map legacy column names to campaign board columns
+  const legacyToBoardMap = {
+    'to-contact': 'attempting',
+    'in-progress': 'negotiating',
+    'committed': 'invoice-sent'
+  };
 
   const columnLabels = {
     'to-contact': 'To Contact',
     'in-progress': 'In Progress',
-    'committed': 'Committed'
+    'committed': 'Committed',
+    'attempting': 'To Contact',
+    'negotiating': 'In Progress',
+    'invoice-sent': 'Committed'
   };
-  toast(`Moved to ${columnLabels[toColumn] || toColumn}`, true);
+
+  // Try Campaign Board first
+  const board = getCurrentCampaignBoard();
+  if (board && board.columns) {
+    // Convert legacy column names to board column names
+    const boardFromCol = legacyToBoardMap[fromColumn] || fromColumn;
+    const boardToCol = legacyToBoardMap[toColumn] || toColumn;
+
+    if (boardFromCol === boardToCol) {
+      toast(`Already in ${columnLabels[toColumn] || toColumn}`, true);
+      return;
+    }
+
+    // Use the campaign board move function
+    const success = moveCampaignBoardItem(prospect.id, boardFromCol, boardToCol, board);
+
+    if (success) {
+      saveCampaignBoards();
+      outreachState.selectedProspect.currentColumn = boardToCol;
+      toast(`Moved to ${columnLabels[toColumn] || toColumn}`, true);
+    } else {
+      toast('Could not move prospect', false);
+      return;
+    }
+  }
+  // Fall back to legacy kanban
+  else if (kanbanState && kanbanState.columns) {
+    if (fromColumn === toColumn) {
+      toast(`Already in ${columnLabels[toColumn] || toColumn}`, true);
+      return;
+    }
+
+    const fromItems = kanbanState.columns[fromColumn] || [];
+    const itemIndex = fromItems.findIndex(p => typeof p === 'object' && p && String(p.id) === String(prospect.id));
+
+    if (itemIndex === -1) {
+      toast('Prospect not found', false);
+      return;
+    }
+
+    const [movedItem] = fromItems.splice(itemIndex, 1);
+    if (!kanbanState.columns[toColumn]) {
+      kanbanState.columns[toColumn] = [];
+    }
+    kanbanState.columns[toColumn].push(movedItem);
+    saveKanban();
+    outreachState.selectedProspect.currentColumn = toColumn;
+    toast(`Moved to ${columnLabels[toColumn] || toColumn}`, true);
+  } else {
+    toast('No data source available', false);
+    return;
+  }
 
   // Re-render if moved out of current filter view
-  if (outreachState.columnFilter !== 'all' && outreachState.columnFilter !== toColumn) {
+  const effectiveToCol = legacyToBoardMap[toColumn] || toColumn;
+  const filterCol = legacyToBoardMap[outreachState.columnFilter] || outreachState.columnFilter;
+  if (outreachState.columnFilter !== 'all' && filterCol !== effectiveToCol) {
     outreachState.selectedProspect = null;
     document.getElementById('outreachNoSelection')?.classList.remove('hidden');
     document.getElementById('outreachSelectedPanel')?.classList.add('hidden');
   }
   renderOutreachTable();
-  renderKanban(); // Update pipeline view too
+  renderKanban();
 }
 
 function openOutreachProspectCRM() {
