@@ -31720,5 +31720,130 @@ async function saveSelectedClients() {
   window._selectorBusinesses = null;
 }
 
+// Clean up duplicate clients by merging similar names
+window.cleanupDuplicateClients = async function() {
+  const clients = Object.entries(crmState.clients);
+  console.log(`\n🔍 Scanning ${clients.length} clients for duplicates...\n`);
+
+  // Normalize name for comparison
+  const normalize = (name) => {
+    if (!name) return '';
+    return name.toLowerCase()
+      .split(/[•·●|:\-–—&]/)[0]  // Truncate at separators
+      .replace(/[''"`,\.]/g, '')  // Remove punctuation
+      .replace(/\s+(inc|llc|corp|svce?|service|the)\s*$/i, '')  // Remove suffixes
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  // Group by normalized name
+  const groups = {};
+  clients.forEach(([id, client]) => {
+    const normalizedName = normalize(client.businessName);
+    if (!groups[normalizedName]) {
+      groups[normalizedName] = [];
+    }
+    groups[normalizedName].push({ id, client });
+  });
+
+  // Find duplicates
+  const duplicateGroups = Object.entries(groups).filter(([_, arr]) => arr.length > 1);
+
+  if (duplicateGroups.length === 0) {
+    console.log('✅ No duplicates found!');
+    return;
+  }
+
+  console.log(`Found ${duplicateGroups.length} groups of duplicates:\n`);
+
+  let totalMerged = 0;
+  let totalDeleted = 0;
+
+  for (const [normalizedName, entries] of duplicateGroups) {
+    console.log(`📋 "${entries[0].client.businessName}" has ${entries.length} duplicates:`);
+    entries.forEach((e, i) => {
+      console.log(`   ${i}: "${e.client.businessName}" (ID: ${e.id.substring(0, 20)}...)`);
+    });
+
+    // Find the "best" record (most data)
+    const scored = entries.map(e => {
+      let score = 0;
+      const c = e.client;
+      if (c.phone || c.contact?.phone) score += 10;
+      if (c.email || c.contact?.email) score += 10;
+      if (c.website) score += 5;
+      if (c.monthlyPrice > 0) score += 20;
+      if (c.contact?.name || c.contact?.firstName) score += 5;
+      if ((c.lifetime?.totalSpent || 0) > 0) score += 15;
+      if ((c.interactions?.length || 0) > 0) score += 5;
+      // Prefer shorter names (less junk in them)
+      score -= (c.businessName?.length || 0) / 10;
+      return { ...e, score };
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+    const keeper = scored[0];
+    const toDelete = scored.slice(1);
+
+    // Merge data from duplicates into keeper
+    for (const dup of toDelete) {
+      const k = keeper.client;
+      const d = dup.client;
+
+      // Merge contact info (keep non-empty values)
+      if (!k.phone && d.phone) k.phone = d.phone;
+      if (!k.email && d.email) k.email = d.email;
+      if (!k.website && d.website) k.website = d.website;
+      if (!k.facebook && d.facebook) k.facebook = d.facebook;
+      if (!k.instagram && d.instagram) k.instagram = d.instagram;
+      if (!k.address && d.address) k.address = d.address;
+
+      if (k.contact && d.contact) {
+        if (!k.contact.phone && d.contact.phone) k.contact.phone = d.contact.phone;
+        if (!k.contact.email && d.contact.email) k.contact.email = d.contact.email;
+        if (!k.contact.name && d.contact.name) k.contact.name = d.contact.name;
+      }
+
+      // Keep higher monthly price
+      if ((d.monthlyPrice || 0) > (k.monthlyPrice || 0)) {
+        k.monthlyPrice = d.monthlyPrice;
+      }
+
+      // Merge lifetime stats
+      if (d.lifetime) {
+        k.lifetime = k.lifetime || { totalSpent: 0, cardsBought: 0 };
+        k.lifetime.totalSpent = Math.max(k.lifetime.totalSpent || 0, d.lifetime.totalSpent || 0);
+        k.lifetime.cardsBought = Math.max(k.lifetime.cardsBought || 0, d.lifetime.cardsBought || 0);
+      }
+
+      // Merge interactions
+      if (d.interactions?.length > 0) {
+        k.interactions = k.interactions || [];
+        k.interactions.push(...d.interactions);
+      }
+
+      // Delete the duplicate
+      delete crmState.clients[dup.id];
+      totalDeleted++;
+    }
+
+    console.log(`   ✅ Kept: "${keeper.client.businessName}", merged ${toDelete.length} duplicate(s)`);
+    totalMerged++;
+  }
+
+  // Save
+  await saveClients();
+
+  console.log(`\n🎉 Cleanup complete!`);
+  console.log(`   - ${totalMerged} groups merged`);
+  console.log(`   - ${totalDeleted} duplicate records removed`);
+  console.log(`   - ${Object.keys(crmState.clients).length} clients remaining\n`);
+
+  // Refresh UI
+  renderClientList();
+
+  return { merged: totalMerged, deleted: totalDeleted };
+};
+
 console.log('✅ app-main.js fully parsed - script end reached');
-console.log('💡 Admin: Run showClientSelector() to mark clients with a visual UI');
+console.log('💡 Admin: Run showClientSelector() or cleanupDuplicateClients()');
