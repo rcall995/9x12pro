@@ -31522,5 +31522,203 @@ window.listClients = function() {
   })));
 };
 
+// Show a visual modal to select clients from a ZIP code
+window.showClientSelector = function(zipCode = '14072') {
+  // Gather all businesses (same logic as markClientsInZip)
+  const allBusinesses = [];
+  const seenNames = new Set();
+
+  // From crmState.clients
+  Object.values(crmState.clients || {}).forEach(client => {
+    const zip = client.zipCode || client.town || '';
+    if (zip.includes(zipCode)) {
+      const normalizedName = (client.businessName || '').toLowerCase().split(/[•·●|:\-–—]/)[0].trim();
+      if (!seenNames.has(normalizedName)) {
+        seenNames.add(normalizedName);
+        allBusinesses.push({
+          id: client.id,
+          name: client.businessName,
+          phone: client.contact?.phone || client.phone || '',
+          isClient: true,
+          data: client
+        });
+      }
+    }
+  });
+
+  // From campaign boards
+  if (campaignBoardsState?.boards) {
+    Object.values(campaignBoardsState.boards).forEach(board => {
+      if (board.columns) {
+        Object.values(board.columns).forEach(column => {
+          column.forEach(prospect => {
+            const zip = prospect.zipCode || prospect.town || prospect.actualZip || '';
+            if (zip.includes(zipCode)) {
+              const name = prospect.businessName || prospect.name || '';
+              const normalizedName = name.toLowerCase().split(/[•·●|:\-–—]/)[0].trim();
+              if (!seenNames.has(normalizedName)) {
+                seenNames.add(normalizedName);
+                allBusinesses.push({
+                  id: prospect.id,
+                  name: name,
+                  phone: prospect.phone || '',
+                  isClient: false,
+                  data: prospect
+                });
+              }
+            }
+          });
+        });
+      }
+    });
+  }
+
+  // From prospect pool
+  (prospectPoolState?.manualProspects || []).forEach(prospect => {
+    const zip = prospect.zipCode || prospect.town || prospect.actualZip || '';
+    if (zip.includes(zipCode)) {
+      const name = prospect.businessName || prospect.name || '';
+      const normalizedName = name.toLowerCase().split(/[•·●|:\-–—]/)[0].trim();
+      if (!seenNames.has(normalizedName)) {
+        seenNames.add(normalizedName);
+        allBusinesses.push({
+          id: prospect.id,
+          name: name,
+          phone: prospect.phone || '',
+          isClient: false,
+          data: prospect
+        });
+      }
+    }
+  });
+
+  // Sort alphabetically
+  allBusinesses.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+  // Build modal HTML
+  const modalHTML = `
+    <div id="clientSelectorModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]" onclick="if(event.target === this) this.remove()">
+      <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[85vh] flex flex-col" onclick="event.stopPropagation()">
+        <div class="p-4 border-b bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-t-xl">
+          <div class="flex justify-between items-center">
+            <div>
+              <h3 class="font-bold text-lg">Select Your Clients in ${zipCode}</h3>
+              <p class="text-sm text-white/80">${allBusinesses.length} businesses found - check the ones that are clients</p>
+            </div>
+            <button onclick="document.getElementById('clientSelectorModal').remove()" class="text-white/80 hover:text-white text-2xl">&times;</button>
+          </div>
+        </div>
+
+        <div class="p-4 overflow-y-auto flex-1">
+          <div class="space-y-2">
+            ${allBusinesses.map((b, i) => `
+              <label class="flex items-center gap-3 p-3 rounded-lg border ${b.isClient ? 'bg-green-50 border-green-300' : 'bg-white border-gray-200 hover:bg-gray-50'} cursor-pointer">
+                <input type="checkbox"
+                  class="client-selector-checkbox w-5 h-5 text-green-600 rounded"
+                  data-index="${i}"
+                  ${b.isClient ? 'checked disabled' : ''}>
+                <div class="flex-1 min-w-0">
+                  <div class="font-medium text-gray-900 ${b.isClient ? 'text-green-700' : ''}">${b.name || 'Unknown'}</div>
+                  <div class="text-sm text-gray-500">${b.phone || 'No phone'}</div>
+                </div>
+                ${b.isClient ? '<span class="text-xs px-2 py-1 bg-green-200 text-green-800 rounded-full font-medium">Already Client</span>' : ''}
+              </label>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="p-4 border-t bg-gray-50 rounded-b-xl flex justify-between items-center">
+          <div class="text-sm text-gray-600">
+            <span id="selectedCount">0</span> selected
+          </div>
+          <div class="flex gap-2">
+            <button onclick="document.getElementById('clientSelectorModal').remove()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">Cancel</button>
+            <button onclick="saveSelectedClients()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">Save as Clients</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Store businesses for the save function
+  window._selectorBusinesses = allBusinesses;
+
+  // Remove existing modal if any
+  const existing = document.getElementById('clientSelectorModal');
+  if (existing) existing.remove();
+
+  // Add modal to DOM
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+  // Add change listener to update count
+  document.querySelectorAll('.client-selector-checkbox:not([disabled])').forEach(cb => {
+    cb.addEventListener('change', updateSelectedCount);
+  });
+};
+
+function updateSelectedCount() {
+  const checked = document.querySelectorAll('.client-selector-checkbox:checked:not([disabled])').length;
+  const countEl = document.getElementById('selectedCount');
+  if (countEl) countEl.textContent = checked;
+}
+
+async function saveSelectedClients() {
+  const checkboxes = document.querySelectorAll('.client-selector-checkbox:checked:not([disabled])');
+  const businesses = window._selectorBusinesses;
+
+  if (!businesses || checkboxes.length === 0) {
+    toast('No businesses selected', false);
+    return;
+  }
+
+  let converted = 0;
+  for (const cb of checkboxes) {
+    const idx = parseInt(cb.dataset.index);
+    const business = businesses[idx];
+    if (!business || business.isClient) continue;
+
+    // Create client record
+    const clientId = business.data.placeId || business.id || Date.now().toString() + Math.random();
+    const clientData = {
+      id: clientId,
+      placeId: business.data.placeId || null,
+      businessName: business.name,
+      category: business.data.category || '',
+      status: 'active',
+      contact: {
+        name: business.data.contactName || business.data.ownerName || '',
+        firstName: '',
+        phone: business.data.phone || '',
+        email: business.data.email || ''
+      },
+      phone: business.data.phone || '',
+      email: business.data.email || '',
+      website: business.data.website || '',
+      facebook: business.data.facebook || '',
+      instagram: business.data.instagram || '',
+      address: business.data.address || business.data.fullAddress || '',
+      zipCode: business.data.zipCode || business.data.town || '',
+      monthlyPrice: 0,
+      history: [],
+      lifetime: { totalSpent: 0, cardsBought: 0 },
+      interactions: business.data.interactions || [],
+      convertedAt: new Date().toISOString()
+    };
+
+    crmState.clients[clientId] = clientData;
+    converted++;
+  }
+
+  if (converted > 0) {
+    await saveClients();
+    toast(`✅ ${converted} businesses marked as clients!`, true);
+    renderClientList();
+  }
+
+  // Close modal
+  document.getElementById('clientSelectorModal')?.remove();
+  window._selectorBusinesses = null;
+}
+
 console.log('✅ app-main.js fully parsed - script end reached');
-console.log('💡 Admin utilities available: markClientsInZip(), convertToClients(), listClients()');
+console.log('💡 Admin: Run showClientSelector() to mark clients with a visual UI');
