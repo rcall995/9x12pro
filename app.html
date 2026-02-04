@@ -1707,10 +1707,19 @@
                                 <button onclick="saveOutreachTemplates()" class="text-xs text-green-600 hover:text-green-800 font-medium">Save as Default</button>
                             </div>
                             <!-- Template Tabs -->
-                            <div class="flex gap-1 mb-3">
+                            <div class="flex gap-1 mb-2">
                                 <button onclick="switchOutreachTemplate('text')" data-outreach-template="text" class="outreach-template-btn flex-1 px-2 py-1.5 text-xs font-bold rounded-lg bg-green-100 text-green-700">💬 Text</button>
                                 <button onclick="switchOutreachTemplate('email')" data-outreach-template="email" class="outreach-template-btn flex-1 px-2 py-1.5 text-xs font-bold rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200">📧 Email</button>
                                 <button onclick="switchOutreachTemplate('phone')" data-outreach-template="phone" class="outreach-template-btn flex-1 px-2 py-1.5 text-xs font-bold rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200">📞 Script</button>
+                            </div>
+                            <!-- Variable Insert Buttons -->
+                            <div id="outreachVariableButtons" class="flex flex-wrap gap-1 mb-2">
+                                <span class="text-xs text-gray-400 mr-1 self-center">Insert:</span>
+                                <button onclick="insertOutreachVariable('BUSINESS_NAME')" class="px-1.5 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded text-xs border border-indigo-200">Business</button>
+                                <button onclick="insertOutreachVariable('CATEGORY')" class="px-1.5 py-0.5 bg-purple-50 hover:bg-purple-100 text-purple-600 rounded text-xs border border-purple-200">Category</button>
+                                <button onclick="insertOutreachVariable('ZIP')" class="px-1.5 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded text-xs border border-blue-200">ZIP</button>
+                                <button onclick="insertOutreachVariable('SPOT_PRICE')" class="px-1.5 py-0.5 bg-green-50 hover:bg-green-100 text-green-600 rounded text-xs border border-green-200">Price</button>
+                                <button onclick="insertOutreachVariable('YOUR_NAME')" class="px-1.5 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded text-xs border border-amber-200">Name</button>
                             </div>
 
                             <!-- Text Template -->

@@ -26468,7 +26468,9 @@ async function loadAllData() {
     loadBusinessCategories(),
     loadUserTemplates(),
     loadDailyGoalState(),
-    loadTemplateEdits()
+    loadTemplateEdits(),
+    loadOutreachTemplatesFromCloud(),
+    loadOutreachNotesFromCloud()
   ]).then(results => {
     const succeeded = results.filter(r => r.status === 'fulfilled').length;
     const failed = results.filter(r => r.status === 'rejected').length;
@@ -32275,8 +32277,57 @@ function saveOutreachTemplates() {
   if (emailEl) templates.email = unfillTemplate(emailEl.value);
   if (subjectEl) templates.subject = unfillTemplate(subjectEl.value);
 
+  // Save locally
   localStorage.setItem('outreachTemplates', JSON.stringify(templates));
+
+  // Save to cloud
+  saveToCloud('outreach-templates', templates);
+
   toast('Templates saved!', true);
+}
+
+// Load outreach templates from cloud on startup
+async function loadOutreachTemplatesFromCloud() {
+  try {
+    const cloudData = await loadFromCloud('outreach-templates');
+    if (cloudData && typeof cloudData === 'object') {
+      // Merge into localStorage (cloud is source of truth)
+      localStorage.setItem('outreachTemplates', JSON.stringify(cloudData));
+      console.log('✅ Outreach templates loaded from cloud');
+    }
+  } catch (e) {
+    console.warn('Could not load outreach templates from cloud:', e);
+  }
+}
+
+// Insert a variable placeholder at cursor position in the active template textarea
+function insertOutreachVariable(variable) {
+  // Determine which textarea is active
+  const activeTemplate = outreachState.currentTemplate;
+  let textarea;
+  if (activeTemplate === 'text') {
+    textarea = document.getElementById('outreachTextPreview');
+  } else if (activeTemplate === 'email') {
+    textarea = document.getElementById('outreachEmailPreview');
+  } else {
+    return; // Phone script isn't editable
+  }
+
+  if (!textarea) return;
+
+  const placeholder = `[${variable}]`;
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const text = textarea.value;
+
+  // Insert at cursor position (or replace selection)
+  textarea.value = text.substring(0, start) + placeholder + text.substring(end);
+
+  // Move cursor after the inserted placeholder
+  const newPos = start + placeholder.length;
+  textarea.selectionStart = newPos;
+  textarea.selectionEnd = newPos;
+  textarea.focus();
 }
 
 function switchOutreachTemplate(templateName) {
@@ -32377,12 +32428,31 @@ function saveOutreachNotes() {
   const allNotes = JSON.parse(localStorage.getItem('outreachNotes') || '{}');
   allNotes[prospect.id] = notes;
   localStorage.setItem('outreachNotes', JSON.stringify(allNotes));
+
+  // Save to cloud (debounced)
+  saveToCloud('outreach-notes', allNotes);
 }
 
 // Load notes for a prospect
 function loadOutreachNotes(prospectId) {
   const allNotes = JSON.parse(localStorage.getItem('outreachNotes') || '{}');
   return allNotes[prospectId] || '';
+}
+
+// Load outreach notes from cloud on startup
+async function loadOutreachNotesFromCloud() {
+  try {
+    const cloudData = await loadFromCloud('outreach-notes');
+    if (cloudData && typeof cloudData === 'object') {
+      // Merge: cloud wins for existing keys, keep local-only keys
+      const localNotes = JSON.parse(localStorage.getItem('outreachNotes') || '{}');
+      const merged = { ...localNotes, ...cloudData };
+      localStorage.setItem('outreachNotes', JSON.stringify(merged));
+      console.log('✅ Outreach notes loaded from cloud');
+    }
+  } catch (e) {
+    console.warn('Could not load outreach notes from cloud:', e);
+  }
 }
 
 function outreachQuickEmail() {
@@ -32579,6 +32649,7 @@ window.selectOutreachProspect = selectOutreachProspect;
 window.switchOutreachTemplate = switchOutreachTemplate;
 window.copyOutreachTemplate = copyOutreachTemplate;
 window.saveOutreachTemplates = saveOutreachTemplates;
+window.insertOutreachVariable = insertOutreachVariable;
 window.saveOutreachNotes = saveOutreachNotes;
 window.copyOutreachPhone = copyOutreachPhone;
 window.outreachOpenGoogleVoice = outreachOpenGoogleVoice;
