@@ -31340,4 +31340,187 @@ document.addEventListener('DOMContentLoaded', function() {
   setTimeout(checkOnboarding, 2000);
 });
 
+// ============================================
+// ADMIN UTILITIES (run from browser console)
+// ============================================
+
+// Show all businesses in a ZIP code and let user mark them as clients
+window.markClientsInZip = async function(zipCode = '14072') {
+  console.log(`\n🔍 Finding businesses in ZIP ${zipCode}...\n`);
+
+  // Gather all businesses from all sources
+  const allBusinesses = [];
+
+  // From crmState.clients
+  Object.values(crmState.clients || {}).forEach(client => {
+    const zip = client.zipCode || client.town || '';
+    if (zip.includes(zipCode)) {
+      allBusinesses.push({
+        source: 'clients',
+        id: client.id,
+        name: client.businessName,
+        zip: zip,
+        phone: client.contact?.phone || client.phone || '',
+        isClient: true,
+        data: client
+      });
+    }
+  });
+
+  // From campaign boards
+  if (campaignBoardsState?.boards) {
+    Object.values(campaignBoardsState.boards).forEach(board => {
+      if (board.columns) {
+        Object.values(board.columns).forEach(column => {
+          column.forEach(prospect => {
+            const zip = prospect.zipCode || prospect.town || prospect.actualZip || '';
+            if (zip.includes(zipCode)) {
+              const alreadyAdded = allBusinesses.some(b =>
+                b.name?.toLowerCase() === (prospect.businessName || prospect.name || '').toLowerCase()
+              );
+              if (!alreadyAdded) {
+                allBusinesses.push({
+                  source: 'campaign',
+                  id: prospect.id,
+                  name: prospect.businessName || prospect.name,
+                  zip: zip,
+                  phone: prospect.phone || '',
+                  isClient: false,
+                  data: prospect
+                });
+              }
+            }
+          });
+        });
+      }
+    });
+  }
+
+  // From prospect pool
+  (prospectPoolState?.manualProspects || []).forEach(prospect => {
+    const zip = prospect.zipCode || prospect.town || prospect.actualZip || '';
+    if (zip.includes(zipCode)) {
+      const alreadyAdded = allBusinesses.some(b =>
+        b.name?.toLowerCase() === (prospect.businessName || prospect.name || '').toLowerCase()
+      );
+      if (!alreadyAdded) {
+        allBusinesses.push({
+          source: 'prospect',
+          id: prospect.id,
+          name: prospect.businessName || prospect.name,
+          zip: zip,
+          phone: prospect.phone || '',
+          isClient: false,
+          data: prospect
+        });
+      }
+    }
+  });
+
+  console.log(`Found ${allBusinesses.length} businesses in ZIP ${zipCode}:\n`);
+
+  // Display as a table
+  const tableData = allBusinesses.map((b, i) => ({
+    '#': i,
+    'Name': b.name?.substring(0, 40) || 'Unknown',
+    'Phone': b.phone || '-',
+    'Source': b.source,
+    'Is Client': b.isClient ? '✅ YES' : '❌ NO'
+  }));
+
+  console.table(tableData);
+
+  console.log('\n📋 To mark businesses as clients, run:');
+  console.log('   convertToClients([0, 1, 5])  // Pass array of row numbers from table above\n');
+
+  // Store for the conversion function
+  window._adminBusinessList = allBusinesses;
+
+  return allBusinesses;
+};
+
+// Convert selected businesses to clients
+window.convertToClients = async function(indices) {
+  if (!window._adminBusinessList) {
+    console.log('❌ Run markClientsInZip() first to see the list');
+    return;
+  }
+
+  if (!Array.isArray(indices) || indices.length === 0) {
+    console.log('❌ Pass an array of row numbers, e.g.: convertToClients([0, 1, 5])');
+    return;
+  }
+
+  let converted = 0;
+
+  for (const idx of indices) {
+    const business = window._adminBusinessList[idx];
+    if (!business) {
+      console.log(`⚠️ Invalid index: ${idx}`);
+      continue;
+    }
+
+    if (business.isClient) {
+      console.log(`⏭️ "${business.name}" is already a client`);
+      continue;
+    }
+
+    // Create client record
+    const clientId = business.data.placeId || business.id || Date.now().toString();
+    const clientData = {
+      id: clientId,
+      placeId: business.data.placeId || null,
+      businessName: business.name,
+      category: business.data.category || '',
+      status: 'active',
+      contact: {
+        name: business.data.contactName || business.data.ownerName || '',
+        firstName: '',
+        phone: business.data.phone || '',
+        email: business.data.email || ''
+      },
+      phone: business.data.phone || '',
+      email: business.data.email || '',
+      website: business.data.website || '',
+      facebook: business.data.facebook || '',
+      instagram: business.data.instagram || '',
+      address: business.data.address || business.data.fullAddress || '',
+      zipCode: business.zip,
+      monthlyPrice: 0,
+      history: [],
+      lifetime: { totalSpent: 0, cardsBought: 0 },
+      interactions: business.data.interactions || [],
+      convertedAt: new Date().toISOString()
+    };
+
+    crmState.clients[clientId] = clientData;
+    converted++;
+    console.log(`✅ Converted: "${business.name}"`);
+  }
+
+  if (converted > 0) {
+    await saveClients();
+    console.log(`\n🎉 Converted ${converted} businesses to clients!`);
+    console.log('Refreshing client list...');
+    renderClientList();
+  }
+
+  // Clear the temp list
+  window._adminBusinessList = null;
+};
+
+// Quick function to list current clients
+window.listClients = function() {
+  const clients = Object.values(crmState.clients || {});
+  console.log(`\n📋 Current Clients (${clients.length} total):\n`);
+  console.table(clients.map(c => ({
+    'Name': c.businessName?.substring(0, 35) || 'Unknown',
+    'ZIP': c.zipCode || c.town || '-',
+    'Phone': c.contact?.phone || c.phone || '-',
+    'Monthly': c.monthlyPrice ? `$${c.monthlyPrice}` : '-',
+    'Status': c.status || 'active'
+  })));
+};
+
 console.log('✅ app-main.js fully parsed - script end reached');
+console.log('💡 Admin utilities available: markClientsInZip(), convertToClients(), listClients()');
