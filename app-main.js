@@ -31964,6 +31964,17 @@ function renderOutreachTable() {
 
   tbody.innerHTML = prospects.map(p => renderOutreachRow(p)).join('');
 
+  // Add click delegation for rows (more reliable than inline onclick)
+  tbody.onclick = function(e) {
+    const row = e.target.closest('tr[data-prospect-id]');
+    if (row) {
+      const prospectId = row.dataset.prospectId;
+      if (prospectId) {
+        selectOutreachProspect(prospectId);
+      }
+    }
+  };
+
   // Update sort icons
   updateOutreachSortIcons();
 }
@@ -31971,22 +31982,25 @@ function renderOutreachTable() {
 function renderOutreachRow(prospect) {
   const phone = prospect.phone || prospect.contact?.phone || '';
   const email = prospect.email || prospect.contact?.email || '';
-  const hasPhone = !!phone;
-  const hasEmail = !!email;
-  const hasFB = !!prospect.facebook;
-  const hasIG = !!prospect.instagram;
+  const hasPhone = !!phone && phone.trim() !== '';
+  const hasEmail = !!email && email.trim() !== '';
+  const hasFB = !!prospect.facebook && prospect.facebook.trim() !== '';
+  const hasIG = !!prospect.instagram && prospect.instagram.trim() !== '';
   const isSelected = outreachState.selectedProspect?.id === prospect.id;
 
   // Escape HTML helper
   const escapeHtml = (str) => {
     if (!str) return '';
-    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   };
 
+  // Safely encode the ID for use in onclick
+  const safeId = escapeHtml(String(prospect.id));
+
   return `
-    <tr onclick="selectOutreachProspect('${prospect.id}')"
+    <tr onclick="selectOutreachProspect('${safeId}')"
         class="cursor-pointer transition-colors ${isSelected ? 'bg-green-100 border-l-4 border-green-500' : 'hover:bg-gray-50'}"
-        data-id="${prospect.id}">
+        data-prospect-id="${safeId}">
       <td class="py-2.5 px-3">
         <span class="font-semibold text-gray-900">${escapeHtml(prospect.businessName || 'Unknown')}</span>
       </td>
@@ -31996,16 +32010,16 @@ function renderOutreachRow(prospect) {
         </span>
       </td>
       <td class="py-2.5 px-3 text-center">
-        ${hasPhone ? '<span class="text-green-600">✓</span>' : '<span class="text-gray-300">—</span>'}
+        ${hasPhone ? '<span class="text-green-600 font-bold">✓</span>' : '<span class="text-gray-300">—</span>'}
       </td>
       <td class="py-2.5 px-3 text-center">
-        ${hasEmail ? '<span class="text-blue-600">✓</span>' : '<span class="text-gray-300">—</span>'}
+        ${hasEmail ? '<span class="text-blue-600 font-bold">✓</span>' : '<span class="text-gray-300">—</span>'}
       </td>
       <td class="py-2.5 px-3 text-center">
-        ${hasFB ? '<span class="text-blue-600">✓</span>' : '<span class="text-gray-300">—</span>'}
+        ${hasFB ? '<span class="text-blue-600 font-bold">✓</span>' : '<span class="text-gray-300">—</span>'}
       </td>
       <td class="py-2.5 px-3 text-center">
-        ${hasIG ? '<span class="text-pink-600">✓</span>' : '<span class="text-gray-300">—</span>'}
+        ${hasIG ? '<span class="text-pink-600 font-bold">✓</span>' : '<span class="text-gray-300">—</span>'}
       </td>
     </tr>
   `;
