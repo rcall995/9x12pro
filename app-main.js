@@ -2153,12 +2153,12 @@ function renderClientList() {
         return;
       }
 
-      // Handle card body clicks (open modal)
+      // Handle card body clicks (open CRM contact card)
       const cardBody = e.target.closest('.client-card-body');
       if (cardBody) {
         const clientId = cardBody.getAttribute('data-client-id');
         if (clientId) {
-          openClientModal(clientId);
+          openClientCrmCard(clientId);
         }
       }
     };
@@ -14965,9 +14965,73 @@ function copyToClipboard(text) {
   });
 }
 
-// Placeholder for edit contact modal
+// Open CRM contact card for a client
+function openClientCrmCard(clientId) {
+  const client = crmState.clients[clientId];
+  if (!client) {
+    // Might be a pipeline prospect shown in client list
+    const allClients = Object.values(crmState.clients);
+    const pipelineClient = allClients.find(c => c.id === clientId);
+    if (pipelineClient) {
+      openProspectDetailModal(pipelineClient, 'client');
+      return;
+    }
+    toast('Client not found', false);
+    return;
+  }
+
+  // Convert client data to prospect format for the CRM card
+  const prospectData = {
+    id: clientId,
+    placeId: client.placeId || clientId,
+    businessName: client.businessName,
+    name: client.businessName,
+    category: client.category,
+    phone: client.contact?.phone || client.phone,
+    email: client.contact?.email || client.email,
+    website: client.website,
+    facebook: client.facebook,
+    instagram: client.instagram,
+    linkedin: client.linkedin,
+    twitter: client.twitter,
+    address: client.address || client.fullAddress,
+    fullAddress: client.fullAddress || client.address,
+    zipCode: client.zipCode || client.town,
+    town: client.town || client.zipCode,
+    rating: client.rating,
+    reviewsCount: client.reviewCount || client.reviewsCount,
+    contactName: client.contact?.name || client.ownerName,
+    ownerName: client.ownerName || client.contact?.name,
+    interactions: client.interactions || [],
+    dealInfo: client.dealInfo || {},
+    bestTimeToContact: client.bestTimeToContact,
+    keyNotes: client.keyNotes || client.notes,
+    tags: client.tags || [],
+    status: client.status,
+    monthlyPrice: client.monthlyPrice,
+    lifetime: client.lifetime,
+    history: client.history,
+    convertedAt: client.convertedAt
+  };
+
+  openProspectDetailModal(prospectData, 'client');
+}
+
+// Open edit contact modal (from CRM card)
 function openEditContactModal() {
-  toast('Edit contact feature coming soon!', true);
+  if (!currentProspectDetail) {
+    toast('No contact selected', false);
+    return;
+  }
+
+  // If it's a client, open the client edit modal
+  if (currentProspectDetail.source === 'client') {
+    const clientId = currentProspectDetail.id;
+    closeProspectDetailModal();
+    openClientModal(clientId);
+  } else {
+    toast('Edit contact feature coming soon!', true);
+  }
 }
 
 // Mark prospect as not interested (called from CRM card footer)
