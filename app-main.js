@@ -1047,7 +1047,8 @@ const campaignBoardsState = {
   activeBoardId: null,
   useLegacyKanban: false, // Campaign Board is now the default (legacy kanban removed)
   globalZipFilter: 'target', // 'target' = show target ZIPs only, 'all' = show all, or specific ZIP code
-  queuedSelection: new Set() // Selected item IDs in queued column
+  queuedSelection: new Set(), // Selected item IDs in queued column
+  cloudDataLoaded: false // Track whether boards were successfully loaded from cloud
 };
 
 // Board structure template (not stored, just documentation):
@@ -20991,6 +20992,19 @@ async function saveCampaignBoards() {
       return;
     }
 
+    // Guard: Don't overwrite cloud data if we haven't loaded from cloud yet
+    if (!campaignBoardsState.cloudDataLoaded) {
+      const totalItems = Object.values(boards).reduce((sum, b) => {
+        if (!b || !b.columns) return sum;
+        return sum + Object.values(b.columns).reduce((s, col) => s + (Array.isArray(col) ? col.length : 0), 0);
+      }, 0);
+
+      if (totalItems === 0) {
+        console.warn('⚠️ Skipping save: cloud data not loaded yet and boards are empty (would overwrite cloud data)');
+        return;
+      }
+    }
+
     // Clean up any null/undefined entries in columns
     Object.keys(boards).forEach(boardId => {
       const board = boards[boardId];
@@ -21005,6 +21019,15 @@ async function saveCampaignBoards() {
         }
       });
     });
+
+    // Log what we're saving for debugging
+    const boardIds = Object.keys(boards);
+    const totalItems = boardIds.reduce((sum, bid) => {
+      const b = boards[bid];
+      if (!b || !b.columns) return sum;
+      return sum + Object.values(b.columns).reduce((s, col) => s + (Array.isArray(col) ? col.length : 0), 0);
+    }, 0);
+    console.log(`☁️ Saving ${boardIds.length} boards (${totalItems} total items) to cloud`);
 
     await saveToCloud('campaign-boards', boards);
     console.log('✅ Campaign boards saved to cloud');
@@ -21068,6 +21091,17 @@ async function loadCampaignBoards() {
   try {
     const data = await loadFromCloud('campaign-boards');
     if (data && typeof data === 'object') {
+      // Log what we loaded from cloud for debugging cross-device sync
+      const boardIds = Object.keys(data);
+      console.log(`☁️ Campaign boards loaded from cloud: ${boardIds.length} boards`);
+      boardIds.forEach(bid => {
+        const b = data[bid];
+        if (b && b.columns) {
+          const total = Object.values(b.columns).reduce((s, col) => s + (Array.isArray(col) ? col.length : 0), 0);
+          console.log(`☁️   Board "${bid}" (${b.name || 'unnamed'}): ${total} total items`);
+        }
+      });
+
       // Validate and repair board structure
       Object.keys(data).forEach(boardId => {
         const board = data[boardId];
@@ -21158,11 +21192,80 @@ async function loadCampaignBoards() {
         }
       });
       campaignBoardsState.boards = data;
+      campaignBoardsState.cloudDataLoaded = true;
+      console.log('✅ Campaign boards cloud data loaded successfully');
+    } else {
+      console.log('☁️ No campaign boards data found in cloud (new user or empty)');
+      campaignBoardsState.cloudDataLoaded = true; // Cloud was checked, just empty
     }
   } catch (err) {
-    console.error('Failed to load campaign boards:', err);
+    console.error('❌ Failed to load campaign boards from cloud:', err);
+    console.error('❌ Cross-device sync may not work until cloud connection is restored');
   }
 }
+
+// Force reload campaign boards from cloud (bypasses IndexedDB cache)
+// Call from console: forceReloadCampaignBoards()
+async function forceReloadCampaignBoards() {
+  try {
+    console.log('🔄 Force reloading campaign boards from cloud...');
+
+    // Direct Supabase query (bypass loadFromCloud which may use IndexedDB fallback)
+    const userEmail = ACTIVE_USER || window.currentAuthUser?.email;
+    if (!userEmail) {
+      console.error('❌ No authenticated user');
+      toast('Not logged in - cannot reload', false);
+      return;
+    }
+
+    const { data, error } = await supabaseClient
+      .from('app_data')
+      .select('data')
+      .eq('user_email', userEmail)
+      .eq('data_type', 'campaign-boards')
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        console.log('☁️ No campaign boards in cloud');
+        toast('No campaign boards found in cloud', false);
+        return;
+      }
+      throw error;
+    }
+
+    const cloudBoards = data?.data;
+    if (cloudBoards && typeof cloudBoards === 'object') {
+      const boardIds = Object.keys(cloudBoards);
+      let totalItems = 0;
+      boardIds.forEach(bid => {
+        const b = cloudBoards[bid];
+        if (b && b.columns) {
+          const count = Object.values(b.columns).reduce((s, col) => s + (Array.isArray(col) ? col.length : 0), 0);
+          totalItems += count;
+          console.log(`☁️   Board "${bid}" (${b.name || 'unnamed'}): ${count} items`);
+        }
+      });
+
+      campaignBoardsState.boards = cloudBoards;
+      campaignBoardsState.cloudDataLoaded = true;
+
+      // Re-render
+      renderKanban();
+      refreshContactStatusDashboard();
+      refreshAnalytics();
+
+      toast(`✅ Reloaded ${boardIds.length} boards (${totalItems} items) from cloud`, true);
+      console.log(`✅ Force reload complete: ${boardIds.length} boards, ${totalItems} items`);
+    } else {
+      toast('No board data found in cloud', false);
+    }
+  } catch (err) {
+    console.error('❌ Force reload failed:', err);
+    toast('Failed to reload from cloud: ' + err.message, false);
+  }
+}
+window.forceReloadCampaignBoards = forceReloadCampaignBoards;
 
 // Auto-move to clients when paid in full
 async function autoMoveToClients(businessId, board) {
@@ -27785,6 +27888,33 @@ function pickCampaign(e){
   }
   const m = state.mailers[i];
   state.current = m;
+
+  // Cross-device sync: Check if board exists and has data
+  // If board is empty, try reloading from cloud (handles race conditions and stale IndexedDB)
+  const boardCheck = campaignBoardsState.boards[m.Mailer_ID];
+  const boardHasData = boardCheck && boardCheck.columns &&
+    Object.values(boardCheck.columns).some(col => Array.isArray(col) && col.length > 0);
+
+  if (!boardHasData) {
+    console.log(`☁️ Board for "${m.Town}" (${m.Mailer_ID}) is empty - attempting cloud reload...`);
+    // Async reload - re-render when done
+    loadCampaignBoards().then(() => {
+      const reloaded = campaignBoardsState.boards[m.Mailer_ID];
+      const reloadedHasData = reloaded && reloaded.columns &&
+        Object.values(reloaded.columns).some(col => Array.isArray(col) && col.length > 0);
+      if (reloadedHasData) {
+        console.log(`✅ Cloud reload found data for "${m.Town}" - re-rendering`);
+        renderKanban();
+        refreshContactStatusDashboard();
+        refreshAnalytics();
+      } else {
+        console.log(`☁️ Cloud reload: no data found for "${m.Town}" (${m.Mailer_ID})`);
+        console.log(`☁️ Available board keys:`, Object.keys(campaignBoardsState.boards));
+      }
+    }).catch(err => {
+      console.error('☁️ Cloud reload failed:', err);
+    });
+  }
 
   // Immediately re-render kanban and dashboards now that we have a Mailer_ID
   renderKanban();
