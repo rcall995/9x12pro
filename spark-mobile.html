@@ -311,39 +311,43 @@
             }
         }
 
-        // Load businesses from kanban 'to-contact' column
+        // Load businesses from campaign board 'attempting' column
         async function loadToContactBusinesses() {
             try {
-                let toContactItems = null;
+                let attemptingItems = null;
 
-                // Try IndexedDB first (key is 'mailslot-kanban')
-                // NOTE: Main app stores as { key, value, timestamp } so we need to access .value
-                const kanbanRecord = await idbGet('mailslot-kanban');
-                console.log('📦 Raw kanban record:', kanbanRecord);
+                // Try IndexedDB first (key is 'mailslot-campaign-boards')
+                const boardsRecord = await idbGet('mailslot-campaign-boards');
+                console.log('📦 Raw campaign boards record:', boardsRecord);
 
                 // Handle both wrapped ({ key, value }) and unwrapped formats
-                const kanbanData = kanbanRecord?.value || kanbanRecord;
+                const boardsData = boardsRecord?.value || boardsRecord;
 
-                if (kanbanData && kanbanData['to-contact']) {
-                    toContactItems = kanbanData['to-contact'];
-                    console.log('✅ Found to-contact in IndexedDB:', toContactItems.length, 'items');
-                }
-
-                // Fallback to localStorage if IndexedDB is empty
-                if (!toContactItems || toContactItems.length === 0) {
-                    console.log('⚠️ Trying localStorage fallback...');
-                    const localData = localStorage.getItem('mailslot-kanban');
-                    if (localData) {
-                        const parsed = JSON.parse(localData);
-                        if (parsed && parsed['to-contact']) {
-                            toContactItems = parsed['to-contact'];
-                            console.log('✅ Found to-contact in localStorage:', toContactItems.length, 'items');
+                if (boardsData && typeof boardsData === 'object') {
+                    // Find the first board with attempting items
+                    for (const boardId of Object.keys(boardsData)) {
+                        const board = boardsData[boardId];
+                        if (board && board.columns && board.columns['attempting'] && board.columns['attempting'].length > 0) {
+                            attemptingItems = board.columns['attempting'];
+                            console.log('✅ Found attempting in board', boardId, ':', attemptingItems.length, 'items');
+                            break;
                         }
                     }
                 }
 
-                if (toContactItems && toContactItems.length > 0) {
-                    sparkState.toContactBusinesses = toContactItems
+                // Fallback to legacy kanban data if no campaign boards found
+                if (!attemptingItems || attemptingItems.length === 0) {
+                    console.log('⚠️ Trying legacy kanban fallback...');
+                    const kanbanRecord = await idbGet('mailslot-kanban');
+                    const kanbanData = kanbanRecord?.value || kanbanRecord;
+                    if (kanbanData && kanbanData['to-contact']) {
+                        attemptingItems = kanbanData['to-contact'];
+                        console.log('✅ Found to-contact in legacy kanban:', attemptingItems.length, 'items');
+                    }
+                }
+
+                if (attemptingItems && attemptingItems.length > 0) {
+                    sparkState.toContactBusinesses = attemptingItems
                         .filter(item => typeof item === 'object' && item.businessName)
                         .map(item => ({
                             id: item.id,
@@ -354,12 +358,12 @@
                             website: item.website || ''
                         }));
                     renderBusinessPicker();
-                    console.log('✅ Loaded', sparkState.toContactBusinesses.length, 'businesses from To Contact');
+                    console.log('✅ Loaded', sparkState.toContactBusinesses.length, 'businesses from Attempting');
                 } else {
-                    console.log('❌ No businesses found in To Contact column');
+                    console.log('❌ No businesses found in Attempting column');
                 }
             } catch (e) {
-                console.error('Error loading kanban data:', e);
+                console.error('Error loading campaign board data:', e);
             }
         }
 

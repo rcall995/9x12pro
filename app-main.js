@@ -291,163 +291,10 @@ setInterval(checkForAppUpdate, 5 * 60 * 1000);
 setTimeout(checkForAppUpdate, 10000);
 
 // Cloud Sync State - Tracks what's syncing and when
-const cloudSyncState = {
-  syncing: false,
-  lastSync: null,
-  pendingSaves: new Set(), // Track which data types need saving (temporary failures)
-  permanentlyFailedSaves: new Set(), // Track data types that are too large (permanent failures)
-  syncErrors: {},
-  userNotified: new Set(), // Track which errors we've already notified user about
-  inProgressSaves: new Map(), // Track saves currently in progress (dataType -> Promise)
-  debouncedSaves: new Map() // Track debounced save timers (dataType -> timeoutId)
-};
-
-// Offline Support - Track online/offline state and queue failed syncs
-const offlineState = {
-  isOnline: navigator.onLine,
-  syncQueue: [], // Queue of {dataType, data, timestamp} for offline saves
-  retryInProgress: false
-};
-
-// Initialize offline sync queue from localStorage
-function initOfflineSupport() {
-  // Load any queued saves from localStorage
-  try {
-    const savedQueue = localStorage.getItem('offlineSyncQueue');
-    if (savedQueue) {
-      offlineState.syncQueue = JSON.parse(savedQueue);
-      updateOfflineUI();
-    }
-  } catch (e) {
-    console.warn('Failed to load offline sync queue:', e);
-  }
-
-  // Listen for online/offline events
-  window.addEventListener('online', handleOnline);
-  window.addEventListener('offline', handleOffline);
-
-  // Initial UI update
-  updateOfflineUI();
-}
-
-// Handle going online - retry queued syncs
-async function handleOnline() {
-  console.log('🌐 Back online!');
-  offlineState.isOnline = true;
-  updateOfflineUI();
-
-  // Retry queued syncs
-  if (offlineState.syncQueue.length > 0 && !offlineState.retryInProgress) {
-    await retryQueuedSyncs();
-  }
-}
-
-// Handle going offline
-function handleOffline() {
-  console.log('📴 Gone offline');
-  offlineState.isOnline = false;
-  updateOfflineUI();
-}
-
-// Update offline/sync UI indicators
-function updateOfflineUI() {
-  const offlineBanner = document.getElementById('offlineBanner');
-  const syncQueueBanner = document.getElementById('syncQueueBanner');
-  const pendingSyncCount = document.getElementById('pendingSyncCount');
-  const syncingCount = document.getElementById('syncingCount');
-
-  if (!offlineBanner) return; // Not loaded yet
-
-  if (!offlineState.isOnline) {
-    // Show offline banner
-    offlineBanner.classList.remove('hidden');
-    if (offlineState.syncQueue.length > 0) {
-      pendingSyncCount.textContent = `${offlineState.syncQueue.length} pending`;
-      pendingSyncCount.classList.remove('hidden');
-    } else {
-      pendingSyncCount.classList.add('hidden');
-    }
-    syncQueueBanner.classList.add('hidden');
-  } else {
-    // Hide offline banner
-    offlineBanner.classList.add('hidden');
-
-    // Show sync banner if retrying
-    if (offlineState.retryInProgress && offlineState.syncQueue.length > 0) {
-      syncQueueBanner.classList.remove('hidden');
-      syncingCount.textContent = offlineState.syncQueue.length;
-    } else {
-      syncQueueBanner.classList.add('hidden');
-    }
-  }
-}
-
-// Queue a save for later when offline
-function queueOfflineSave(dataType, data) {
-  // Remove any existing entry for this dataType (keep latest only)
-  offlineState.syncQueue = offlineState.syncQueue.filter(q => q.dataType !== dataType);
-
-  // Add to queue
-  offlineState.syncQueue.push({
-    dataType,
-    data,
-    timestamp: Date.now()
-  });
-
-  // Persist to localStorage
-  try {
-    localStorage.setItem('offlineSyncQueue', JSON.stringify(offlineState.syncQueue));
-  } catch (e) {
-    console.warn('Failed to save offline sync queue:', e);
-  }
-
-  updateOfflineUI();
-}
-
-// Retry all queued syncs when back online
-async function retryQueuedSyncs() {
-  if (offlineState.retryInProgress || offlineState.syncQueue.length === 0) return;
-
-  offlineState.retryInProgress = true;
-  updateOfflineUI();
-
-  console.log(`🔄 Retrying ${offlineState.syncQueue.length} queued syncs...`);
-
-  const failedItems = [];
-
-  for (const item of offlineState.syncQueue) {
-    try {
-      await saveToCloud(item.dataType, item.data);
-      console.log(`✅ Synced queued ${item.dataType}`);
-    } catch (e) {
-      console.warn(`❌ Failed to sync queued ${item.dataType}:`, e);
-      failedItems.push(item);
-    }
-  }
-
-  // Update queue with only failed items
-  offlineState.syncQueue = failedItems;
-
-  // Persist updated queue
-  try {
-    if (failedItems.length > 0) {
-      localStorage.setItem('offlineSyncQueue', JSON.stringify(failedItems));
-    } else {
-      localStorage.removeItem('offlineSyncQueue');
-    }
-  } catch (e) {
-    console.warn('Failed to update offline sync queue:', e);
-  }
-
-  offlineState.retryInProgress = false;
-  updateOfflineUI();
-
-  if (failedItems.length === 0) {
-    toast('All changes synced successfully!', true);
-  } else {
-    toast(`${failedItems.length} changes failed to sync. Will retry later.`, false);
-  }
-}
+// ========= CLOUD SYNC STATE & OFFLINE SUPPORT (extracted to cloud-sync.js) =========
+// cloudSyncState, offlineState, initOfflineSupport, handleOnline, handleOffline,
+// updateOfflineUI, queueOfflineSave, retryQueuedSyncs
+// are now loaded from cloud-sync.js
 
 // ⚠️ SECURITY WARNING: Never commit real API keys to version control!
 //
@@ -469,200 +316,9 @@ const CLOUD_SYNC_URL_LENGTH_LIMIT = 6000; // Browser URL length limit for GET re
 const CLOUD_SYNC_RETRY_INTERVAL = 60000; // 1 minute in milliseconds
 const DEBOUNCE_RENDER_DELAY = 150; // Milliseconds to debounce kanban rendering
 
-/* ========= LOCALSTORAGE UTILITY ========= */
-
-// Safe localStorage wrapper with quota exceeded handling
-function safeSetItem(key, value) {
-  try {
-    localStorage.setItem(key, value);
-    return true;
-  } catch (err) {
-    // Check if this is a quota exceeded error
-    const isQuotaExceeded = err.name === 'QuotaExceededError' ||
-                            err.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
-                            err.code === 22 || // Chrome
-                            err.code === 1014; // Firefox
-
-    if (isQuotaExceeded) {
-      console.error('localStorage quota exceeded:', {
-        key,
-        valueSize: value.length,
-        error: err.message
-      });
-
-      // Show user-friendly warning (only once per session)
-      if (!window._localStorageQuotaWarningShown) {
-        toast('⚠️ Local storage is full. Some data may not be saved offline. Consider clearing old cached data.', false);
-        window._localStorageQuotaWarningShown = true;
-      }
-
-      // Try to free up space by clearing old cache data
-      try {
-        // Clear places cache (largest non-critical data)
-        localStorage.removeItem('mailslot-places-cache');
-
-        // Retry the save after clearing cache
-        localStorage.setItem(key, value);
-        toast('✓ Freed up space and saved successfully', true);
-        return true;
-      } catch (retryErr) {
-        console.error('Failed to save even after clearing cache:', retryErr);
-        return false;
-      }
-    } else {
-      // Other localStorage error
-      console.error('localStorage error:', err);
-      return false;
-    }
-  }
-}
-
-function safeGetItem(key) {
-  try {
-    return localStorage.getItem(key);
-  } catch (err) {
-    console.error('localStorage getItem error:', err);
-    return null;
-  }
-}
-
-function safeRemoveItem(key) {
-  try {
-    localStorage.removeItem(key);
-    return true;
-  } catch (err) {
-    console.error('localStorage removeItem error:', err);
-    return false;
-  }
-}
-
-/* ========= INDEXEDDB STORAGE ========= */
-// IndexedDB for large data storage (50MB+ vs localStorage's 5MB)
-const IDB_NAME = '9x12pro-db';
-const IDB_VERSION = 1;
-const IDB_STORE = 'appData';
-
-let idbInstance = null;
-
-// Initialize IndexedDB
-function initIndexedDB() {
-  return new Promise((resolve, reject) => {
-    if (idbInstance) {
-      resolve(idbInstance);
-      return;
-    }
-
-    const request = indexedDB.open(IDB_NAME, IDB_VERSION);
-
-    request.onerror = (event) => {
-      console.error('IndexedDB error:', event.target.error);
-      reject(event.target.error);
-    };
-
-    request.onsuccess = (event) => {
-      idbInstance = event.target.result;
-      console.log('✅ IndexedDB initialized');
-      resolve(idbInstance);
-    };
-
-    request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-      if (!db.objectStoreNames.contains(IDB_STORE)) {
-        db.createObjectStore(IDB_STORE, { keyPath: 'key' });
-        console.log('📦 IndexedDB store created');
-      }
-    };
-  });
-}
-
-// Save data to IndexedDB
-async function idbSet(key, value) {
-  try {
-    const db = await initIndexedDB();
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction([IDB_STORE], 'readwrite');
-      const store = transaction.objectStore(IDB_STORE);
-      const request = store.put({ key, value, timestamp: Date.now() });
-
-      request.onsuccess = () => resolve(true);
-      request.onerror = (event) => {
-        console.error(`IndexedDB save error for ${key}:`, event.target.error);
-        reject(event.target.error);
-      };
-    });
-  } catch (err) {
-    console.error('IndexedDB set failed:', err);
-    return false;
-  }
-}
-
-// Get data from IndexedDB
-async function idbGet(key) {
-  try {
-    const db = await initIndexedDB();
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction([IDB_STORE], 'readonly');
-      const store = transaction.objectStore(IDB_STORE);
-      const request = store.get(key);
-
-      request.onsuccess = (event) => {
-        const result = event.target.result;
-        resolve(result ? result.value : null);
-      };
-      request.onerror = (event) => {
-        console.error(`IndexedDB get error for ${key}:`, event.target.error);
-        reject(event.target.error);
-      };
-    });
-  } catch (err) {
-    console.error('IndexedDB get failed:', err);
-    return null;
-  }
-}
-
-// Delete data from IndexedDB
-async function idbDelete(key) {
-  try {
-    const db = await initIndexedDB();
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction([IDB_STORE], 'readwrite');
-      const store = transaction.objectStore(IDB_STORE);
-      const request = store.delete(key);
-
-      request.onsuccess = () => resolve(true);
-      request.onerror = (event) => reject(event.target.error);
-    });
-  } catch (err) {
-    console.error('IndexedDB delete failed:', err);
-    return false;
-  }
-}
-
-// Migrate data from localStorage to IndexedDB (one-time migration)
-async function migrateLocalStorageToIDB() {
-  const migrationKey = 'idb-migration-complete';
-  if (localStorage.getItem(migrationKey)) return; // Already migrated
-
-  console.log('🔄 Migrating localStorage to IndexedDB...');
-
-  const keysToMigrate = ['mailslot-kanban', 'mailslot-places-cache', 'mailslot-prospect-cache'];
-
-  for (const key of keysToMigrate) {
-    try {
-      const data = localStorage.getItem(key);
-      if (data) {
-        await idbSet(key, JSON.parse(data));
-        localStorage.removeItem(key); // Free up localStorage space
-        console.log(`✅ Migrated ${key} to IndexedDB`);
-      }
-    } catch (err) {
-      console.warn(`Failed to migrate ${key}:`, err);
-    }
-  }
-
-  localStorage.setItem(migrationKey, 'true');
-  console.log('✅ IndexedDB migration complete');
-}
+// ========= STORAGE FUNCTIONS (extracted to storage.js) =========
+// safeSetItem, safeGetItem, safeRemoveItem, initIndexedDB, idbSet, idbGet, idbDelete, migrateLocalStorageToIDB
+// are now loaded from storage.js
 
 /* ========= CACHE MANAGEMENT ========= */
 
@@ -735,198 +391,9 @@ function updateCacheStatus() {
 window.clearLocalCache = clearLocalCache;
 window.updateCacheStatus = updateCacheStatus;
 
-/* ========= CLOUD SYNC SYSTEM ========= */
-
-// Unified function to load data from Google Sheets
-async function loadFromCloud(dataType) {
-  try {
-    // Wait for auth if ACTIVE_USER not yet available (race condition fix)
-    let userEmail = ACTIVE_USER;
-    if (!userEmail) {
-      // Try to get it from window.currentAuthUser
-      if (window.currentAuthUser?.email) {
-        userEmail = window.currentAuthUser.email;
-        ACTIVE_USER = userEmail;
-      } else {
-        // Wait up to 3 seconds for auth to complete
-        for (let i = 0; i < 30; i++) {
-          await new Promise(r => setTimeout(r, 100));
-          if (window.currentAuthUser?.email) {
-            userEmail = window.currentAuthUser.email;
-            ACTIVE_USER = userEmail;
-            break;
-          }
-        }
-      }
-    }
-
-    // If still no user, fall back to IndexedDB cache
-    if (!userEmail) {
-      console.warn(`⚠️ No auth user for ${dataType}, using IndexedDB cache`);
-      const cached = await idbGet(`mailslot-${dataType}`);
-      return cached || null;
-    }
-
-    // Query Supabase app_data table for this data type
-    const { data, error } = await supabaseClient
-      .from('app_data')
-      .select('data')
-      .eq('user_email', userEmail)
-      .eq('data_type', dataType)
-      .single();
-
-    if (error) {
-      // If no data found (404), return null (not an error)
-      if (error.code === 'PGRST116') {
-        return null;
-      }
-      throw error;
-    }
-
-    const appData = data?.data || null;
-
-    // Cache to IndexedDB (async, don't block)
-    if (appData !== null && appData !== undefined) {
-      idbSet(`mailslot-${dataType}`, appData).catch(e => console.warn('IDB cache failed:', e));
-    }
-
-    return appData;
-  } catch (err) {
-    console.warn(`⚠️ Failed to load ${dataType} from cloud, using IndexedDB cache:`, err);
-    cloudSyncState.syncErrors[dataType] = err.message;
-
-    // Fallback to IndexedDB
-    const cached = await idbGet(`mailslot-${dataType}`);
-    return cached || null;
-  }
-}
-
-// Unified function to save data to Supabase
-async function saveToCloud(dataType, data, options = {}) {
-  // Always save to IndexedDB first (local backup)
-  await idbSet(`mailslot-${dataType}`, data).catch(e => console.warn('IDB backup failed:', e));
-
-  // If offline, queue for later sync and return success (data is safe in IndexedDB)
-  if (!navigator.onLine) {
-    console.log(`📴 Offline - queuing ${dataType} for later sync`);
-    queueOfflineSave(dataType, data);
-    return { success: true, queued: true };
-  }
-
-  try {
-    // Use upsert to insert or update
-    const { error } = await supabaseClient
-      .from('app_data')
-      .upsert({
-        user_email: ACTIVE_USER,
-        data_type: dataType,
-        data: data
-      }, {
-        onConflict: 'user_email,data_type'
-      });
-
-    if (error) throw error;
-
-    cloudSyncState.lastSync = Date.now();
-    delete cloudSyncState.syncErrors[dataType];
-
-    return { success: true };
-
-  } catch (err) {
-    console.error(`❌ Failed to save ${dataType} to cloud:`, err);
-    cloudSyncState.syncErrors[dataType] = err.message;
-
-    // Check if this is a permanent failure (data too large)
-    if (err.message && err.message.includes('Data too large')) {
-      // Mark as permanently failed (don't retry)
-      cloudSyncState.permanentlyFailedSaves.add(dataType);
-
-      // Show user notification once
-      if (!cloudSyncState.userNotified.has(dataType)) {
-        toast(`⚠️ ${dataType} data is too large for cloud sync. Saved locally only.`, false);
-        cloudSyncState.userNotified.add(dataType);
-      }
-
-      console.warn(`📦 ${dataType} marked as localStorage-only (too large for cloud sync)`);
-    } else if (err.message && (err.message.includes('network') || err.message.includes('fetch') || err.message.includes('Failed to fetch'))) {
-      // Network error - queue for retry
-      console.log(`🔄 Network error - queuing ${dataType} for later sync`);
-      queueOfflineSave(dataType, data);
-      return { success: true, queued: true };
-    } else {
-      // Other temporary failure - add to retry queue
-      cloudSyncState.pendingSaves.add(dataType);
-    }
-
-    throw err;
-  }
-}
-
-// Optimized cloud sync wrapper - prevents duplicate simultaneous saves
-// Optional debouncing for non-critical saves (set debounceMs > 0)
-async function saveToCloudOptimized(dataType, data, debounceMs = 0) {
-  // If this dataType is already being saved, wait for that save to complete
-  // then trigger a new save with the latest data
-  if (cloudSyncState.inProgressSaves.has(dataType)) {
-    try {
-      await cloudSyncState.inProgressSaves.get(dataType);
-    } catch (err) {
-      // Ignore errors from previous save, we'll try again
-    }
-  }
-
-  // Clear any pending debounced save for this dataType (update to latest data)
-  if (cloudSyncState.debouncedSaves.has(dataType)) {
-    clearTimeout(cloudSyncState.debouncedSaves.get(dataType));
-    cloudSyncState.debouncedSaves.delete(dataType);
-  }
-
-  // For non-critical saves with debouncing, delay the save
-  if (debounceMs > 0) {
-    return new Promise((resolve, reject) => {
-      const timeoutId = setTimeout(async () => {
-        cloudSyncState.debouncedSaves.delete(dataType);
-
-        const savePromise = saveToCloud(dataType, data)
-          .finally(() => {
-            cloudSyncState.inProgressSaves.delete(dataType);
-          });
-
-        cloudSyncState.inProgressSaves.set(dataType, savePromise);
-
-        try {
-          const result = await savePromise;
-          resolve(result);
-        } catch (err) {
-          reject(err);
-        }
-      }, debounceMs);
-
-      cloudSyncState.debouncedSaves.set(dataType, timeoutId);
-    });
-  }
-
-  // For immediate/critical saves, execute right away
-  const savePromise = saveToCloud(dataType, data)
-    .finally(() => {
-      cloudSyncState.inProgressSaves.delete(dataType);
-    });
-
-  cloudSyncState.inProgressSaves.set(dataType, savePromise);
-  return savePromise;
-}
-
-// Auto-retry failed syncs (but not permanently failed ones)
-setInterval(() => {
-  // Remove any permanently failed saves from the retry queue
-  cloudSyncState.permanentlyFailedSaves.forEach(dataType => {
-    cloudSyncState.pendingSaves.delete(dataType);
-  });
-
-  if (cloudSyncState.pendingSaves.size > 0 && !cloudSyncState.syncing) {
-    // Will be handled by individual save functions
-  }
-}, CLOUD_SYNC_RETRY_INTERVAL); // Retry every minute
+// ========= CLOUD SYNC FUNCTIONS (extracted to cloud-sync.js) =========
+// loadFromCloud, saveToCloud, saveToCloudOptimized, auto-retry interval
+// are now loaded from cloud-sync.js
 
 const CANONICAL_STATUSES = [
   "Available",
@@ -1024,21 +491,23 @@ const clientSelectionState = {
   selectedIds: new Set()
 };
 
-// KANBAN STATE
+// KANBAN STATE - Getter shim that reads from Campaign Board (single source of truth)
+// All read sites automatically get campaign board data through this proxy.
+// Write sites must be individually updated to write to campaign board directly.
 const kanbanState = {
-  columns: {
-    'prospect-list': [],      // Renamed from 'prospect-list'
-    'to-contact': [],          // Renamed from 'to-contact'
-    'in-progress': [],         // Renamed from 'in-progress'
-    'committed': []            // Renamed from 'committed'
+  get columns() {
+    const board = typeof getCurrentCampaignBoard === 'function' ? getCurrentCampaignBoard() : null;
+    if (!board || !board.columns) {
+      return { 'prospect-list': [], 'to-contact': [], 'in-progress': [], 'committed': [] };
+    }
+    return {
+      'prospect-list': board.columns['queued'] || [],
+      'to-contact': board.columns['attempting'] || [],
+      'in-progress': board.columns['negotiating'] || [],
+      'committed': [...(board.columns['invoice-sent'] || []), ...(board.columns['proof-approved'] || [])]
+    };
   },
-  column1ZipFilter: '',  // ZIP filter for column 1 (empty = show all) - legacy, kept for compatibility
-  zipFilters: {  // ZIP filters for all columns
-    'prospect-list': '',
-    'to-contact': '',
-    'in-progress': '',
-    'committed': ''
-  }
+  zipFilters: {}
 };
 
 // CAMPAIGN BOARDS STATE - New unified pipeline system
@@ -1075,32 +544,7 @@ const campaignBoardsState = {
 // Maps Campaign Board (6 columns) to legacy kanban view (4 columns)
 // This allows Pipeline tab to read from Campaign Board while keeping existing UI
 
-function getLegacyColumnFromBoard(legacyKey) {
-  const board = getCurrentCampaignBoard();
-  if (!board) return [];
-
-  const mapping = {
-    'prospect-list': board.columns['queued'] || [],
-    'to-contact': board.columns['attempting'] || [],
-    'in-progress': board.columns['negotiating'] || [],
-    'committed': [
-      ...(board.columns['invoice-sent'] || []),
-      ...(board.columns['proof-approved'] || [])
-    ]
-  };
-  return mapping[legacyKey] || [];
-}
-
-// Map legacy column movement to Campaign Board columns
-function mapLegacyColumnToCampaignBoard(legacyColumn) {
-  const mapping = {
-    'prospect-list': 'queued',
-    'to-contact': 'attempting',
-    'in-progress': 'negotiating',
-    'committed': 'invoice-sent' // Default committed maps to invoice-sent
-  };
-  return mapping[legacyColumn] || legacyColumn;
-}
+// Legacy mapping functions removed - kanbanState getter shim handles column mapping
 
 // Check if a business is already in any Campaign Board column
 function isInCampaignBoard(placeId) {
@@ -1318,50 +762,9 @@ let lastFocusedElementBeforeModal = null;
 let draggedItem = null;
 let draggedTask = null;
 
-/* ========= UTILITIES ========= */
-const $ = sel => document.querySelector(sel);
-const esc = s => String(s ?? "").replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const ensureHttps = url => {
-  if (!url) return '';
-  const trimmed = url.trim();
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
-  return 'https://' + trimmed;
-};
-const show = (el, on=true) => el && el.classList.toggle("hidden", !on);
-const toast = (msg, ok=true, durationMs=null) => {
-  // Calculate duration based on message length if not specified
-  // Base: 2000ms, +50ms per character over 20 chars, max 6000ms
-  const duration = durationMs || Math.min(2000 + Math.max(0, msg.length - 20) * 50, 6000);
-
-  // Use unified ToastManager if available (stacks toasts properly)
-  if (window.toastManager) {
-    window.toastManager.show(msg, ok ? 'success' : 'warning', duration);
-    return;
-  }
-
-  // Fallback to old toast element
-  const t = document.getElementById("toast");
-  if (t) {
-    t.textContent = msg;
-    t.className = `toast ${ok ? "toast-ok" : "toast-warn"}`;
-    t.classList.remove("hidden");
-    t.removeAttribute("aria-hidden");
-    setTimeout(()=>{ t.classList.add("hidden"); t.setAttribute("aria-hidden","true"); }, duration);
-  }
-};
-
-function formatDate(dateStr) {
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(dateStr));
-}
-
-function isOverdue(dateStr) {
-  // Parse date in LOCAL timezone (not UTC) to avoid timezone issues
-  const parts = dateStr.split('-');
-  const due = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return due < today; // Only overdue if BEFORE today (not today itself)
-}
+// ========= UTILITIES (extracted to utilities.js) =========
+// $, esc, ensureHttps, show, toast, formatDate, isOverdue
+// are now loaded from utilities.js
 
 function updateTaskDate(input) {
   const row = input.closest('.task-row');
@@ -2782,11 +2185,20 @@ function calculateContractTotal() {
   document.getElementById('contractTotalValue').textContent = formatCurrency(total);
 }
 
-// Quick action popup for kanban cards - shows Not Interested and Convert to Client at top
+// Quick action popup for pipeline cards - shows Not Interested and Convert to Client at top
 function openQuickActionPopup(leadId, columnKey) {
-  // Find the prospect in the specified column
-  const items = kanbanState.columns[columnKey] || [];
-  const prospect = items.find(item => typeof item === 'object' && String(item.id) === String(leadId));
+  // Find the prospect in campaign board first
+  let prospect = null;
+  const result = typeof findProspectInCampaignBoard === 'function' ? findProspectInCampaignBoard(leadId) : null;
+  if (result) {
+    prospect = result.item;
+    columnKey = result.column || columnKey;
+  }
+  // Fallback: search via getter shim
+  if (!prospect) {
+    const items = kanbanState.columns[columnKey] || [];
+    prospect = items.find(item => typeof item === 'object' && String(item.id) === String(leadId));
+  }
 
   if (!prospect) {
     toast('Prospect not found', false);
@@ -8168,30 +7580,26 @@ function filterCloseDealsStatus(status) {
   renderCloseDealsProspects();
 }
 
-// Get all prospects from kanban and map to Close Deals statuses
+// Get all prospects from campaign board and map to Close Deals statuses
 function getCloseDealsProspects() {
   const prospects = [];
 
-  // Safety check - kanbanState might not be loaded yet
-  if (!kanbanState || !kanbanState.columns) {
+  const board = typeof getCurrentCampaignBoard === 'function' ? getCurrentCampaignBoard() : null;
+  if (!board || !board.columns) {
     return prospects;
   }
 
-  // Map kanban columns to close deals statuses
-  // Column 1 (prospect-list) is NOT included - it's just a staging area
-  // Only columns 2+ appear in Close Deals
-  // new = to-contact (ready to contact, enriched)
-  // contacted = in-progress (reached out but not committed)
-  // interested (Hot) = committed (ready to close)
-
+  // Map board columns to close deals statuses
+  // queued is NOT included - it's just a staging area
   const columnMapping = {
-    'to-contact': 'new',           // Column 2 = ready to reach out
-    'in-progress': 'contacted',    // Column 3 = actively working
-    'committed': 'interested'      // Column 4 = hot lead
+    'attempting': 'new',
+    'negotiating': 'contacted',
+    'invoice-sent': 'interested',
+    'proof-approved': 'interested'
   };
 
   Object.entries(columnMapping).forEach(([column, status]) => {
-    const items = kanbanState.columns[column] || [];
+    const items = board.columns[column] || [];
     items.forEach(item => {
       if (typeof item === 'object' && item) {
         prospects.push({
@@ -13773,23 +13181,18 @@ function clearAllProspects() {
     p => p.mailerId && p.mailerId !== currentMailerId
   );
 
-  // Clear prospecting column for this card only
-  const prospectingColumn = 'prospect-list';
-  kanbanState.columns[prospectingColumn] = (kanbanState.columns[prospectingColumn] || []).filter(
-    lead => !lead.mailerId || lead.mailerId !== currentMailerId
-  );
-
-  // Clear all other kanban columns for this card
-  ['to-contact', 'in-progress', 'committed'].forEach(column => {
-    kanbanState.columns[column] = (kanbanState.columns[column] || []).filter(
-      lead => !lead.mailerId || lead.mailerId !== currentMailerId
-    );
-  });
+  // Clear campaign board columns for this card
+  const board = getCurrentCampaignBoard();
+  if (board && board.columns) {
+    Object.keys(board.columns).forEach(colKey => {
+      board.columns[colKey] = [];
+    });
+  }
 
   prospectPoolState.selectedIds.clear();
 
   saveManualProspects();
-  saveKanban();
+  saveCampaignBoards();
 
   renderProspectPool();
   renderKanban();
@@ -15168,25 +14571,13 @@ async function markProspectNotInterested() {
     await saveCampaignBoards();
   }
 
-  // Remove from legacy kanban
-  Object.keys(kanbanState.columns).forEach(columnKey => {
-    const items = kanbanState.columns[columnKey];
-    const index = items.findIndex(item =>
-      typeof item === 'object' && (item.placeId === placeId || item.id === placeId)
-    );
-    if (index !== -1) {
-      items.splice(index, 1);
-    }
-  });
-  await saveKanban();
-
   // Close modal and refresh
   closeProspectDetailModal();
   toast(`"${businessName}" marked as not interested`, true);
 
   // Refresh displays
   if (typeof renderCampaignBoards === 'function') renderCampaignBoards();
-  if (typeof renderKanban === 'function') renderKanban();
+  renderKanban();
   if (typeof renderProspectPool === 'function') renderProspectPool();
 }
 
@@ -15239,25 +14630,13 @@ async function convertToClient() {
     await saveCampaignBoards();
   }
 
-  // Remove from legacy kanban
-  Object.keys(kanbanState.columns).forEach(columnKey => {
-    const items = kanbanState.columns[columnKey];
-    const index = items.findIndex(item =>
-      typeof item === 'object' && (item.placeId === placeId || item.id === prospectId)
-    );
-    if (index !== -1) {
-      items.splice(index, 1);
-    }
-  });
-  await saveKanban();
-
   // Close modal
   closeProspectDetailModal();
   toast(`"${businessName}" converted to Client!`, true);
 
   // Refresh displays
   if (typeof renderCampaignBoards === 'function') renderCampaignBoards();
-  if (typeof renderKanban === 'function') renderKanban();
+  renderKanban();
   if (typeof renderClientList === 'function') renderClientList();
   if (typeof renderDashboardStats === 'function') renderDashboardStats();
 }
@@ -16306,43 +15685,17 @@ function closeQuickTemplatePicker() {
 let currentSMSClientId = null;
 let currentEmailClientId = null;
 
-// Move Client to Kanban "To Contact" Column
+// Move Client to Pipeline "Attempting" Column
 function moveClientToKanban(clientId) {
-  console.log('🔵 moveClientToKanban called with clientId:', clientId);
-
   const client = crmState.clients[clientId];
   if (!client) {
-    console.error('❌ Client not found:', clientId);
     toast('Client not found', false);
     return;
   }
 
-  console.log('🔵 Client found:', client.businessName);
-
-  // Check if already in Kanban - only check if they have a valid placeId or exact originalClientId match
-  const alreadyInKanban = Object.values(kanbanState.columns).some(column =>
-    column.some(item => {
-      if (typeof item !== 'object') return false;
-
-      // Check if this exact client is already there via originalClientId
-      if (item.originalClientId && item.originalClientId === client.id) {
-        console.log('🔵 Already in Kanban via originalClientId');
-        return true;
-      }
-
-      // Check placeId only if both exist and are not null/empty
-      if (client.placeId && item.placeId && client.placeId === item.placeId) {
-        console.log('🔵 Already in Kanban via placeId');
-        return true;
-      }
-
-      return false;
-    })
-  );
-
-  if (alreadyInKanban) {
-    console.log('❌ Already in Kanban, stopping');
-    toast(`${client.businessName} is already in the Kanban board`, false);
+  // Check if already in any campaign board
+  if (isInCampaignBoard(client.placeId || clientId)) {
+    toast(`${client.businessName} is already in the pipeline`, false);
     return;
   }
 
@@ -16366,29 +15719,16 @@ function moveClientToKanban(clientId) {
     addedAt: new Date().toISOString()
   };
 
-  console.log('🔵 Created prospect:', prospect);
-
-  // Add to "To Contact" column
-  if (!kanbanState.columns['to-contact']) {
-    kanbanState.columns['to-contact'] = [];
+  // Add to campaign board "attempting" column
+  const board = getCurrentCampaignBoard();
+  if (board && board.columns) {
+    if (!board.columns['attempting']) board.columns['attempting'] = [];
+    board.columns['attempting'].unshift(prospect);
+    saveCampaignBoards();
   }
 
-  console.log('🔵 Before adding - to-contact column length:', kanbanState.columns['to-contact'].length);
-  kanbanState.columns['to-contact'].unshift(prospect); // Add to top
-  console.log('🔵 After adding - to-contact column length:', kanbanState.columns['to-contact'].length);
-
-  // Save kanban state
-  console.log('🔵 Calling saveKanban...');
-  saveKanban();
-  console.log('🔵 saveKanban complete');
-
-  // Re-render Kanban to show the new client immediately
-  console.log('🔵 Calling renderKanban...');
   renderKanban();
-  console.log('🔵 renderKanban complete');
-
-  // Stay on Client Database - just show success message
-  toast(`✅ ${client.businessName} added to Kanban - To Contact`, true);
+  toast(`${client.businessName} added to pipeline - Attempting`, true);
 }
 
 // Complete and Remove Client from Kanban
@@ -17288,17 +16628,19 @@ async function markNotInterested() {
 
   console.log(`Removed ${removedCount} items from prospect pool for: ${businessName}`);
 
-  // Remove from kanban
-  Object.keys(kanbanState.columns).forEach(columnKey => {
-    kanbanState.columns[columnKey] = kanbanState.columns[columnKey].filter(item => {
-      // Keep item unless it matches the one we want to remove
-      if (placeId && item.placeId === placeId) return false;
-      if (prospectId && item.id === prospectId) return false;
-      if (businessName && (item.businessName === businessName || item.name === businessName)) return false;
-      return true;
+  // Remove from campaign board
+  const board = getCurrentCampaignBoard();
+  if (board && board.columns) {
+    Object.keys(board.columns).forEach(columnKey => {
+      board.columns[columnKey] = board.columns[columnKey].filter(item => {
+        if (placeId && item.placeId === placeId) return false;
+        if (prospectId && item.id === prospectId) return false;
+        if (businessName && (item.businessName === businessName || item.name === businessName)) return false;
+        return true;
+      });
     });
-  });
-  saveKanban();
+  }
+  saveCampaignBoards();
 
   toast(`✅ "${businessName}" marked as Not Interested and removed`, true);
   closeProspectDetailModal();
@@ -17402,9 +16744,10 @@ async function loadKanban() {
           );
           if (hasLegacyData) {
             console.log('📦 Found legacy kanban data, migrating to Campaign Board...');
-            // Store in kanbanState temporarily for migration function
-            kanbanState.columns = legacyData;
+            // Pass legacy data directly to migration function
+            kanbanState._legacyData = legacyData;
             await migrateToCampaignBoards();
+            delete kanbanState._legacyData;
             await saveCampaignBoards();
             console.log('✅ Legacy data migrated to Campaign Board');
           } else if (!existingBoard) {
@@ -17425,60 +16768,7 @@ async function loadKanban() {
   refreshAnalytics();
 }
 
-// Remove all duplicate prospects from kanban data (not just rendering)
-function deduplicateKanbanData() {
-  let totalRemoved = 0;
-
-  Object.keys(kanbanState.columns).forEach(columnKey => {
-    const items = kanbanState.columns[columnKey];
-    if (!Array.isArray(items)) return;
-
-    const seenIds = new Set();
-    const seenPlaceIds = new Set();
-    const seenBusinessNames = new Map();
-    const deduped = [];
-
-    items.forEach(item => {
-      if (typeof item !== 'object') {
-        deduped.push(item);
-        return;
-      }
-
-      // First check unique ID (most reliable for all items)
-      if (item.id) {
-        if (seenIds.has(item.id)) {
-          totalRemoved++;
-          return;
-        }
-        seenIds.add(item.id);
-      }
-
-      // Skip if we've seen this placeId (reliable for Google Maps prospects)
-      if (item.placeId) {
-        if (seenPlaceIds.has(item.placeId)) {
-          totalRemoved++;
-          return;
-        }
-        seenPlaceIds.add(item.placeId);
-      }
-      // Fallback to businessName + mailerId for prospects without placeId
-      else if (item.businessName && item.mailerId) {
-        const key = `${item.businessName.toLowerCase()}|${item.mailerId}`;
-        if (seenBusinessNames.has(key)) {
-          totalRemoved++;
-          return;
-        }
-        seenBusinessNames.set(key, true);
-      }
-
-      deduped.push(item);
-    });
-
-    kanbanState.columns[columnKey] = deduped;
-  });
-
-  return totalRemoved;
-}
+// deduplicateKanbanData() removed - campaign board handles deduplication
 
 // Quick save for drag operations - no dedup, no logging, debounced
 // Now redirects to Campaign Board (single source of truth)
@@ -17652,906 +16942,11 @@ function debounce(func, wait) {
 const debouncedRenderKanban = debounce(() => renderKanban(), DEBOUNCE_RENDER_DELAY);
 
 function renderKanban() {
-  try {
-    // Always use Campaign Board - legacy kanban removed
-    // Only fall back to legacy if no campaign board data exists
-    const hasMailer = state.current?.Mailer_ID;
-    const hasCampaignBoard = hasMailer && campaignBoardsState.boards?.[state.current.Mailer_ID];
-
-    if (hasMailer) {
-      renderCampaignBoard();
-      return;
-    }
-
-    const dailyGoalContainer = document.getElementById('dailyGoalContainer');
-    const kanbanColumnsContainer = document.getElementById('salesActivityKanbanColumns');
-
-    // Safety check - if containers don't exist, bail out
-    if (!dailyGoalContainer || !kanbanColumnsContainer) {
-      console.warn('Kanban containers not found, skipping render');
-      return;
-    }
-
-    const currentMailerId = state.current?.Mailer_ID;
-
-  const columnDefs = [
-    { key: 'prospect-list', title: '1. Prospect List', color: 'blue' },
-    { key: 'to-contact', title: '2. To Contact', color: 'purple' },
-    { key: 'in-progress', title: '3. In Progress', color: 'green' },
-    { key: 'committed', title: '4. Committed', color: 'yellow' }
-  ];
-
-  // Cloud Sync UI at top (HIDDEN temporarily - needs more testing)
-  const cloudSyncBar = cloudSyncSelection.showSyncUI
-    ? `
-      <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <span class="font-semibold text-blue-900">☁️ Cloud Sync Mode</span>
-          <span class="text-sm text-blue-700">${cloudSyncSelection.selectedIds.size} selected</span>
-        </div>
-        <div class="flex gap-2">
-          <button onclick="saveSelectedProspectsToCloud()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium" ${cloudSyncSelection.selectedIds.size === 0 ? 'disabled' : ''}>
-            ☁️ Sync to Cloud
-          </button>
-          <button onclick="toggleCloudSyncUI()" class="px-4 py-2 bg-gray-400 text-white rounded hover:bg-gray-500 text-sm">
-            Cancel
-          </button>
-        </div>
-      </div>
-    `
-    : ''; // Hidden for now
-
-  // Collect unique ZIPs from column 1 for the filter dropdown
-  const column1Items = kanbanState.columns['prospect-list'] || [];
-  const column1Zips = new Set();
-  column1Items.forEach(item => {
-    if (item && typeof item === 'object') {
-      // Check multiple possible ZIP properties
-      const zip = item.actualZip || item.zipCode || item.zip;
-      if (zip) column1Zips.add(String(zip));
-    }
-  });
-  const sortedZips = Array.from(column1Zips).sort();
-  console.log('📍 Column 1 ZIPs found:', sortedZips, 'from', column1Items.length, 'items');
-
-  const columnsHTML = columnDefs.map(col => {
-    const rawItems = kanbanState.columns[col.key] || [];
-    console.log(`Rendering column ${col.key}: ${rawItems.length} raw items, currentMailerId: ${currentMailerId}`);
-
-    let items = rawItems
-      .filter(item => item != null); // Filter out null/undefined
-
-      // REMOVED mailerId filter - show all items regardless of campaign
-      // This prevents the kanban from emptying when switching campaigns
-      // Items are stored globally and can be used across all campaigns
-
-    console.log(`After mailerId filter: ${items.length} items`);
-
-    // Deduplicate by placeId (keep first occurrence)
-    const seenPlaceIds = new Set();
-    items = items.filter(item => {
-      if (typeof item !== 'object' || !item.placeId) return true; // Keep items without placeId
-      if (seenPlaceIds.has(item.placeId)) return false; // Skip duplicates
-      seenPlaceIds.add(item.placeId);
-      return true;
-    });
-
-    // Collect unique ZIPs for THIS column BEFORE filtering (for dropdown options)
-    const columnZips = new Set();
-    items.forEach(item => {
-      if (item && typeof item === 'object') {
-        const zip = item.actualZip || item.zipCode || item.zip;
-        if (zip) columnZips.add(String(zip));
-      }
-    });
-    const columnSortedZips = Array.from(columnZips).sort();
-    const unfilteredCount = items.length;
-
-    // Apply ZIP filter for ALL columns
-    const currentZipFilter = kanbanState.zipFilters[col.key] || '';
-    if (currentZipFilter) {
-      items = items.filter(item => {
-        if (typeof item !== 'object') return true;
-        const itemZip = item.actualZip || item.zipCode || item.zip || '';
-        return String(itemZip) === currentZipFilter;
-      });
-    }
-
-    // Sort Prospecting column: items with contact info first
-    if (col.key === 'prospect-list') {
-      items = items.sort((a, b) => {
-        const aHasContact = (a.phone || a.website || a.email) ? 1 : 0;
-        const bHasContact = (b.phone || b.website || b.email) ? 1 : 0;
-        return bHasContact - aHasContact; // Sort descending (with contact first)
-      });
-    }
-
-    // Get selection state for this column
-    const selectionStates = {
-      'prospect-list': prospectingSelectionState,
-      'to-contact': toContactSelectionState,
-      'in-progress': inProgressSelectionState,
-      'committed': committedSelectionState
-    };
-    const selectionState = selectionStates[col.key];
-    const hasSelections = selectionState.selectedIds.size > 0;
-
-    // Define column adjacency for move buttons
-    const columnOrder = ['prospect-list', 'to-contact', 'in-progress', 'committed'];
-    const colIndex = columnOrder.indexOf(col.key);
-    const canMoveLeft = colIndex > 0;
-    const canMoveRight = colIndex < columnOrder.length - 1;
-    const leftColumn = canMoveLeft ? columnOrder[colIndex - 1] : null;
-    const rightColumn = canMoveRight ? columnOrder[colIndex + 1] : null;
-
-    // Selection functions for each column
-    const selectAllFunctions = {
-      'prospect-list': 'selectAllProspects',
-      'to-contact': 'selectAllToContact',
-      'in-progress': 'selectAllInProgress',
-      'committed': 'selectAllCommitted'
-    };
-    const clearFunctions = {
-      'prospect-list': 'clearProspectingSelection',
-      'to-contact': 'clearToContactSelection',
-      'in-progress': 'clearInProgressSelection',
-      'committed': 'clearCommittedSelection'
-    };
-
-    // Move functions for each column
-    const moveLeftFunctions = {
-      'to-contact': 'moveSelectedToProspectList',
-      'in-progress': 'moveSelectedInProgressLeft',
-      'committed': 'moveSelectedCommittedLeft'
-    };
-    const moveRightFunctions = {
-      'prospect-list': 'moveSelectedProspectListRight',
-      'to-contact': 'moveSelectedToContactRight',
-      'in-progress': 'moveSelectedInProgressRight'
-    };
-
-    // ZIP filter dropdown for ALL columns (if they have ZIPs)
-    const zipFilterHTML = columnSortedZips.length > 0 ? `
-      <select onchange="setKanbanZipFilter('${col.key}', this.value)" class="text-xs px-1 py-0.5 border rounded bg-white" title="Filter by ZIP">
-        <option value="">📍 All (${unfilteredCount})</option>
-        ${columnSortedZips.map(zip => `<option value="${zip}" ${currentZipFilter === zip ? 'selected' : ''}>${zip}</option>`).join('')}
-      </select>
-    ` : '';
-
-    // Unified header buttons for ALL columns
-    const buttons = `
-      ${zipFilterHTML}
-      <button onclick="${selectAllFunctions[col.key]}()" class="text-xs px-1.5 py-0.5 bg-gray-500 text-white rounded hover:bg-gray-600" title="Select All">
-        ☑
-      </button>
-      ${hasSelections ? `
-        <button onclick="${clearFunctions[col.key]}()" class="text-xs px-1.5 py-0.5 bg-gray-400 text-white rounded hover:bg-gray-500" title="Clear Selection">
-          ✕
-        </button>
-        ${col.key === 'prospect-list' ? `
-          <button onclick="moveSelectedToPool()" class="text-xs px-1.5 py-0.5 bg-orange-500 text-white rounded hover:bg-orange-600" title="Move to Prospect Pool">
-            📋 Pool ${selectionState.selectedIds.size}
-          </button>
-        ` : ''}
-        ${canMoveLeft && moveLeftFunctions[col.key] ? `
-          <button onclick="${moveLeftFunctions[col.key]}()" class="text-xs px-1.5 py-0.5 bg-purple-500 text-white rounded hover:bg-purple-600" title="Move Left">
-            ⬅ ${selectionState.selectedIds.size}
-          </button>
-        ` : ''}
-        ${canMoveRight && moveRightFunctions[col.key] ? `
-          <button onclick="${moveRightFunctions[col.key]}()" class="text-xs px-1.5 py-0.5 bg-blue-500 text-white rounded hover:bg-blue-600" title="Move Right">
-            ${selectionState.selectedIds.size} ➡
-          </button>
-        ` : ''}
-      ` : ''}
-    `;
-
-    // Empty state messages for each column
-    const emptyStates = {
-      'prospect-list': '<div class="text-center p-4 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg"><span class="text-2xl mb-2 block">📋</span><p class="text-xs font-medium">No prospects yet</p><p class="text-xs">Use the Search tab to find businesses</p></div>',
-      'to-contact': '<div class="text-center p-4 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg"><span class="text-2xl mb-2 block">📞</span><p class="text-xs font-medium">Ready to reach out</p><p class="text-xs">Drag prospects here when ready to contact</p></div>',
-      'in-progress': '<div class="text-center p-4 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg"><span class="text-2xl mb-2 block">💬</span><p class="text-xs font-medium">In conversation</p><p class="text-xs">Move deals here once you\'ve made contact</p></div>',
-      'committed': '<div class="text-center p-4 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg"><span class="text-2xl mb-2 block">🎉</span><p class="text-xs font-medium">Almost there!</p><p class="text-xs">Deals awaiting final confirmation</p></div>'
-    };
-
-    return `
-      <div class="kanban-column" data-column="${col.key}">
-        <div class="flex flex-wrap justify-between items-center mb-2 gap-1">
-          <div class="font-semibold text-sm text-${col.color}-600">${col.title} (${items.length})</div>
-          <div class="flex gap-1 flex-wrap">${buttons}</div>
-        </div>
-        ${items.length === 0 ? emptyStates[col.key] || '' : ''}
-        ${items.map((item, idx) => {
-          // Support both string (legacy) and object format
-          if (!item) return '';
-
-          const leadName = typeof item === 'string' ? item : (item.businessName || item.name || item.title || 'Unnamed Business');
-          const leadId = typeof item === 'string' ? String(idx) : String(item.id || idx);
-          const isDoNotContact = typeof item === 'object' && item.doNotContact === true;
-
-          // Green strip shows if they've been CONTACTED (not just having contact info)
-          const ct = typeof item === 'object' ? (item.contactTracking || {}) : {};
-          const hasBeenContacted = ct.emailed || ct.texted || ct.called || ct.linkedinMessaged || ct.facebookMessaged || ct.dmed;
-
-          // Get selection state for this column
-          const toggleFunctions = {
-            'prospect-list': 'toggleProspectingSelection',
-            'to-contact': 'toggleToContactSelection',
-            'in-progress': 'toggleInProgressSelection',
-            'committed': 'toggleCommittedSelection'
-          };
-          const isSelected = selectionState.selectedIds.has(leadId);
-
-          // Build social icons for Row 3 (only show if available)
-          const socialIcons = [];
-          if (typeof item === 'object') {
-            if (item.phone) socialIcons.push(`<a href="tel:${esc(item.phone)}" onclick="event.stopPropagation()" class="px-1.5 py-0.5 bg-gray-100 rounded hover:bg-gray-200 text-sm" title="Call: ${esc(item.phone)}">📞</a>`);
-            if (item.website) socialIcons.push(`<a href="${esc(ensureHttps(item.website))}" onclick="event.stopPropagation()" target="_blank" class="px-1.5 py-0.5 bg-gray-100 rounded hover:bg-gray-200 text-sm" title="Website">🌐</a>`);
-            if (item.email) socialIcons.push(`<a href="mailto:${esc(item.email)}" onclick="event.stopPropagation()" class="px-1.5 py-0.5 bg-gray-100 rounded hover:bg-gray-200 text-sm" title="Email: ${esc(item.email)}">✉️</a>`);
-            if (item.facebook) socialIcons.push(`<a href="${esc(ensureHttps(item.facebook))}" onclick="event.stopPropagation()" target="_blank" class="px-1.5 py-0.5 bg-blue-50 rounded hover:bg-blue-100 text-sm" title="Facebook">📘</a>`);
-            if (item.instagram) socialIcons.push(`<a href="${esc(ensureHttps(item.instagram))}" onclick="event.stopPropagation()" target="_blank" class="px-1.5 py-0.5 bg-pink-50 rounded hover:bg-pink-100 text-sm" title="Instagram">📷</a>`);
-            if (item.linkedin) socialIcons.push(`<a href="${esc(ensureHttps(item.linkedin))}" onclick="event.stopPropagation()" target="_blank" class="px-1.5 py-0.5 bg-blue-50 rounded hover:bg-blue-100 text-sm" title="LinkedIn">💼</a>`);
-          }
-
-          // UNIFORM CARD LAYOUT FOR ALL 4 COLUMNS
-          return `
-            <div class="kanban-item text-xs p-2 ${isDoNotContact ? 'bg-red-50' : 'bg-white'} border rounded ${hasBeenContacted ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'} relative ${isDoNotContact ? 'opacity-60' : ''}" data-item-id="${leadId}" data-column="${col.key}" ondblclick="openQuickActionPopup('${leadId}', '${col.key}')">
-              ${isDoNotContact ? `
-                <div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-                  <span class="text-6xl text-red-500 font-bold opacity-40">✕</span>
-                </div>
-              ` : ''}
-
-              <!-- Row 1: Checkbox + Business Name -->
-              <div class="flex items-start gap-2 relative z-20">
-                <input
-                  type="checkbox"
-                  ${isSelected ? 'checked' : ''}
-                  onchange="${toggleFunctions[col.key]}('${leadId}')"
-                  onclick="event.stopPropagation()"
-                  class="mt-0.5 w-4 h-4 text-purple-600 rounded cursor-pointer flex-shrink-0"
-                />
-                <div class="flex-1 drag-handle min-w-0">
-                  <div class="font-medium text-xs break-words ${isDoNotContact ? 'line-through text-gray-500' : ''}">${esc(leadName)}</div>
-                </div>
-              </div>
-
-              <!-- Row 2: ZIP, Do Not Contact, View, Delete -->
-              <div class="flex items-center justify-between gap-1 mt-1.5 relative z-20">
-                <div class="text-xs text-gray-500 font-medium">
-                  ${typeof item === 'object' && (item.zipCode || item.actualZip) ? `📍 ${esc(item.zipCode || item.actualZip)}` : ''}
-                </div>
-                <div class="flex gap-1 flex-shrink-0">
-                  ${typeof item === 'object' ? `<button onclick="event.stopPropagation(); toggleDoNotContact('${leadId}', '${col.key}')" class="${isDoNotContact ? 'text-green-600 hover:text-green-800' : 'text-red-600 hover:text-red-800'} text-sm cursor-pointer" title="${isDoNotContact ? 'Remove Do Not Contact' : 'Mark Do Not Contact'}">🚫</button>` : ''}
-                  ${typeof item === 'object' ? `<button onclick="event.stopPropagation(); openQuickActionPopup('${leadId}', '${col.key}')" class="text-indigo-600 hover:text-indigo-800 text-sm cursor-pointer" title="View Details">👁</button>` : ''}
-                  <button onclick="event.stopPropagation(); deleteLeadPermanently('${col.key}', '${leadId}', event)" class="text-red-600 hover:text-red-800 text-sm cursor-pointer" title="Delete from Kanban & Pool">🗑</button>
-                </div>
-              </div>
-
-              <!-- Row 3: Social Icons (only if available) -->
-              ${socialIcons.length > 0 ? `
-                <div class="flex flex-wrap gap-1 items-center justify-center pt-1.5 mt-1.5 border-t border-gray-100 relative z-20">
-                  ${socialIcons.join('')}
-                </div>
-              ` : ''}
-            </div>
-          `;
-        }).join('')}
-      </div>
-    `;
-  }).join('');
-
-  // Daily Goal Tracker UI
-  const dailyGoalHTML = `
-    <div class="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-300 rounded-lg p-4 mb-4">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-4">
-          <div class="text-2xl">🎯</div>
-          <div>
-            <div class="text-sm text-gray-600 font-medium">Daily Outreach Goal</div>
-            <div class="text-2xl font-bold text-purple-700">
-              ${dailyGoalState.todayCount} <span class="text-gray-400">/</span> ${dailyGoalState.dailyGoal}
-              <span class="text-sm text-gray-500 font-normal">contacts today</span>
-            </div>
-          </div>
-        </div>
-        <div class="flex items-center gap-3">
-          <div class="text-right">
-            <div class="text-xs text-gray-500 mb-1">Completion</div>
-            <div class="text-lg font-bold ${dailyGoalState.todayCount >= dailyGoalState.dailyGoal ? 'text-green-600' : 'text-purple-600'}">
-              ${Math.round((dailyGoalState.todayCount / dailyGoalState.dailyGoal) * 100)}%
-            </div>
-          </div>
-          <button onclick="openDailyGoalSettings()" class="px-4 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 font-medium" title="Change daily goal and reset count">
-            ⚙️ Settings
-          </button>
-        </div>
-      </div>
-      <div class="mt-3 w-full h-3 bg-gray-200 rounded-full overflow-hidden">
-        <div class="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full transition-all duration-300" style="width: ${Math.min((dailyGoalState.todayCount / dailyGoalState.dailyGoal) * 100, 100)}%;"></div>
-      </div>
-      ${dailyGoalState.todayCount >= dailyGoalState.dailyGoal ? `
-        <div class="mt-2 text-center text-green-700 font-semibold text-sm">
-          🎉 Goal achieved! Great work today!
-        </div>
-      ` : ''}
-    </div>
-  `;
-
-  // Legacy view message (shown only when no campaign is selected)
-  const viewToggleHTML = `
-    <div class="flex items-center gap-2 mb-3 p-2 bg-yellow-50 rounded-lg border border-yellow-200">
-      <span class="text-sm font-medium text-yellow-700">⚠️ Select a campaign to view the 6-Column Campaign Board</span>
-    </div>
-  `;
-
-  // Wrap columns in flex container
-  const columnsWrapperHTML = `
-    ${viewToggleHTML}
-    <div style="display: flex; gap: 1rem; padding-bottom: 0.5rem; overflow-x: auto; scrollbar-width: thin; -webkit-overflow-scrolling: touch;">
-      ${columnsHTML}
-    </div>
-  `;
-
-  // Set daily goal in its own container (always visible)
-  dailyGoalContainer.innerHTML = dailyGoalHTML;
-
-  // Set kanban columns in collapsible container
-  kanbanColumnsContainer.innerHTML = cloudSyncBar + columnsWrapperHTML;
-
-  setupKanbanDrag();
-  updateMoveToPoolButton();
-  } catch (err) {
-    console.error('Error rendering kanban:', err);
-    toast('⚠️ Error displaying kanban. Please refresh.', false);
-  }
+  try { renderCampaignBoard(); }
+  catch (err) { console.error('Error rendering pipeline:', err); }
 }
 
-function setupKanbanDrag() {
-  // Set draggable attribute and attach listeners to each item
-  const items = document.querySelectorAll('.kanban-item');
-
-  items.forEach(item => {
-    item.setAttribute('draggable', 'true');
-
-    item.ondragstart = function(e) {
-      // ALWAYS allow drag if started from drag handle
-      let element = e.target;
-      let isDragHandle = false;
-
-      while (element && element !== this) {
-        if (element.classList && element.classList.contains('drag-handle')) {
-          isDragHandle = true;
-          break;
-        }
-        element = element.parentElement;
-      }
-
-      // If not from drag handle, prevent drag if click started on interactive elements
-      if (!isDragHandle) {
-        element = e.target;
-        while (element && element !== this) {
-          if (element.tagName === 'INPUT' ||
-              element.tagName === 'BUTTON' ||
-              element.tagName === 'A' ||
-              element.tagName === 'SELECT' ||
-              element.tagName === 'TEXTAREA') {
-            e.preventDefault();
-            e.stopPropagation();
-            return false;
-          }
-          element = element.parentElement;
-        }
-      }
-
-      draggedItem = this;
-      this.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', this.dataset.itemId);
-    };
-
-    item.ondragend = function(e) {
-      this.classList.remove('dragging');
-      draggedItem = null;
-
-      // Clean up all visual indicators
-      document.querySelectorAll('.kanban-item.drag-over').forEach(el => {
-        el.classList.remove('drag-over');
-      });
-      document.querySelectorAll('.kanban-column.drag-over-column').forEach(el => {
-        el.classList.remove('drag-over-column');
-      });
-    };
-
-    // Add drag over for individual items to show drop position
-    item.ondragover = function(e) {
-      e.preventDefault();
-      e.stopPropagation(); // Prevent column ondragover from interfering
-      if (draggedItem && draggedItem !== this) {
-        // Remove previous indicators
-        document.querySelectorAll('.kanban-item.drag-over').forEach(el => {
-          el.classList.remove('drag-over');
-        });
-        // Add indicator to this item
-        this.classList.add('drag-over');
-      }
-    };
-
-    item.ondragleave = function(e) {
-      // Only remove if actually leaving the item
-      if (!this.contains(e.relatedTarget)) {
-        this.classList.remove('drag-over');
-      }
-    };
-
-    // Handle drop on individual items to insert at position
-    item.ondrop = async function(e) {
-      e.preventDefault();
-      e.stopPropagation();
-
-      // Clean up all visual indicators immediately
-      document.querySelectorAll('.kanban-item.drag-over').forEach(el => {
-        el.classList.remove('drag-over');
-      });
-      document.querySelectorAll('.kanban-column.drag-over-column').forEach(el => {
-        el.classList.remove('drag-over-column');
-      });
-
-      if (!draggedItem || draggedItem === this) return;
-
-      const fromColumn = draggedItem.closest('.kanban-column').dataset.column;
-      const toColumn = this.closest('.kanban-column').dataset.column;
-      const itemId = draggedItem.dataset.itemId;
-      const targetItemId = this.dataset.itemId;
-
-      // Find and remove from old column
-      const fromItems = kanbanState.columns[fromColumn] || [];
-      const fromIdx = fromItems.findIndex(item => {
-        if (typeof item === 'string') return false;
-        // Handle both string IDs and numeric IDs
-        return String(item.id) === String(itemId);
-      });
-
-      if (fromIdx > -1) {
-        const itemToMove = fromItems[fromIdx];
-        fromItems.splice(fromIdx, 1);
-
-        // Add to new column at the position BEFORE the target item
-        if (!kanbanState.columns[toColumn]) {
-          kanbanState.columns[toColumn] = [];
-        }
-
-        const toItems = kanbanState.columns[toColumn];
-        const targetIdx = toItems.findIndex(item => {
-          if (typeof item === 'string') return false;
-          // Handle both string IDs and numeric IDs
-          return String(item.id) === String(targetItemId);
-        });
-
-        // Insert before target, or at end if not found
-        if (targetIdx > -1) {
-          toItems.splice(targetIdx, 0, itemToMove);
-        } else {
-          toItems.push(itemToMove);
-        }
-
-        // Track daily goal
-        const businessName = typeof itemToMove === 'string' ? itemToMove : (itemToMove.businessName || 'Unnamed Business');
-        const forwardColumns = ['in-progress', 'committed'];
-
-        if (fromColumn === 'to-contact' && forwardColumns.includes(toColumn)) {
-          incrementDailyGoal(businessName);
-        } else if (forwardColumns.includes(fromColumn) && toColumn === 'to-contact') {
-          decrementDailyGoal(businessName);
-        }
-
-        // FAST: Direct DOM move instead of full re-render
-        const targetColumn = this.closest('.kanban-column');
-        draggedItem.dataset.column = toColumn; // Update data attribute
-        targetColumn.insertBefore(draggedItem, this); // Move in DOM directly
-
-        // Update column counts in headers
-        document.querySelectorAll('.kanban-column').forEach(col => {
-          const colKey = col.dataset.column;
-          const count = (kanbanState.columns[colKey] || []).length;
-          const header = col.querySelector('.font-semibold');
-          if (header) {
-            const titleMap = {
-              'prospect-list': '1. Prospect List',
-              'to-contact': '2. To Contact',
-              'in-progress': '3. In Progress',
-              'committed': '4. Committed'
-            };
-            header.textContent = `${titleMap[colKey]} (${count})`;
-          }
-        });
-
-        const columnTitles = {
-          'prospect-list': '1. Prospect List',
-          'to-contact': '2. To Contact',
-          'in-progress': '3. In Progress',
-          'committed': '4. Committed'
-        };
-        toast(`Moved to ${columnTitles[toColumn] || toColumn}`);
-
-        // Save in background (debounced, non-blocking)
-        saveKanbanQuick();
-      }
-    };
-
-    // Add mobile touch support for drag-and-drop
-    let touchStartX, touchStartY, touchMoveX, touchMoveY;
-    let isTouchDragging = false;
-    let touchClone = null;
-    let touchStartTime = 0;
-
-    item.addEventListener('touchstart', function(e) {
-      // Only allow touch drag from drag handle
-      let element = e.target;
-      let isDragHandle = false;
-
-      while (element && element !== this) {
-        if (element.classList && element.classList.contains('drag-handle')) {
-          isDragHandle = true;
-          break;
-        }
-        element = element.parentElement;
-      }
-
-      if (!isDragHandle) return;
-
-      touchStartX = e.touches[0].clientX;
-      touchStartY = e.touches[0].clientY;
-      touchStartTime = Date.now();
-      isTouchDragging = false;
-
-      // Lock horizontal scroll on kanban container during potential drag
-      const kanbanContainer = document.getElementById('salesActivityKanbanColumns');
-      if (kanbanContainer) {
-        kanbanContainer.style.overflowX = 'hidden';
-      }
-    }, { passive: true });
-
-    item.addEventListener('touchmove', function(e) {
-      // Check if we've moved enough to start dragging
-      if (!isTouchDragging) {
-        const deltaX = Math.abs(e.touches[0].clientX - touchStartX);
-        const deltaY = Math.abs(e.touches[0].clientY - touchStartY);
-        const timeDelta = Date.now() - touchStartTime;
-
-        // Start dragging if moved >10px or held for >150ms
-        if ((deltaX > 10 || deltaY > 10) && timeDelta > 50) {
-          isTouchDragging = true;
-        } else {
-          return; // Not dragging yet, allow normal scrolling
-        }
-      }
-
-      e.preventDefault(); // Prevent scrolling while dragging
-
-      touchMoveX = e.touches[0].clientX;
-      touchMoveY = e.touches[0].clientY;
-
-      if (!draggedItem) {
-        draggedItem = this;
-        this.classList.add('dragging');
-
-        // Create visual clone for touch dragging
-        touchClone = this.cloneNode(true);
-        touchClone.style.position = 'fixed';
-        touchClone.style.zIndex = '10000';
-        touchClone.style.pointerEvents = 'none';
-        touchClone.style.width = this.offsetWidth + 'px';
-        touchClone.style.opacity = '0.8';
-        touchClone.classList.add('dragging');
-        document.body.appendChild(touchClone);
-      }
-
-      // Move clone with finger
-      if (touchClone) {
-        touchClone.style.left = (touchMoveX - (this.offsetWidth / 2)) + 'px';
-        touchClone.style.top = (touchMoveY - 30) + 'px';
-      }
-
-      // Highlight drop zone under finger
-      const elementUnder = document.elementFromPoint(touchMoveX, touchMoveY);
-      if (elementUnder) {
-        const columnUnder = elementUnder.closest('.kanban-column');
-        const itemUnder = elementUnder.closest('.kanban-item:not(.dragging)');
-
-        // Remove previous highlights
-        document.querySelectorAll('.kanban-item.drag-over').forEach(el => {
-          el.classList.remove('drag-over');
-        });
-        document.querySelectorAll('.kanban-column.drag-over-column').forEach(el => {
-          el.classList.remove('drag-over-column');
-        });
-
-        // Add highlights
-        if (itemUnder && itemUnder !== draggedItem) {
-          itemUnder.classList.add('drag-over');
-        } else if (columnUnder) {
-          columnUnder.classList.add('drag-over-column');
-        }
-      }
-    }, { passive: false });
-
-    item.addEventListener('touchend', async function(e) {
-      // Restore horizontal scroll on kanban container
-      const kanbanContainer = document.getElementById('salesActivityKanbanColumns');
-      if (kanbanContainer) {
-        kanbanContainer.style.overflowX = 'auto';
-      }
-
-      if (!isTouchDragging || !draggedItem) {
-        isTouchDragging = false;
-        return;
-      }
-
-      e.preventDefault();
-
-      // Find element under touch point
-      const elementUnder = document.elementFromPoint(touchMoveX, touchMoveY);
-      const targetColumn = elementUnder?.closest('.kanban-column');
-      const targetItem = elementUnder?.closest('.kanban-item:not(.dragging)');
-
-      // Clean up visual clone
-      if (touchClone) {
-        touchClone.remove();
-        touchClone = null;
-      }
-
-      // Clean up highlights
-      document.querySelectorAll('.kanban-item.drag-over').forEach(el => {
-        el.classList.remove('drag-over');
-      });
-      document.querySelectorAll('.kanban-column.drag-over-column').forEach(el => {
-        el.classList.remove('drag-over-column');
-      });
-      this.classList.remove('dragging');
-
-      if (!targetColumn) {
-        draggedItem = null;
-        isTouchDragging = false;
-        return;
-      }
-
-      const fromColumn = draggedItem.dataset.column;
-      const toColumn = targetColumn.dataset.column;
-      const itemId = draggedItem.dataset.itemId;
-
-      // Find and move the item
-      const fromItems = kanbanState.columns[fromColumn] || [];
-      const fromIdx = fromItems.findIndex(item => {
-        if (typeof item === 'string') return false;
-        return String(item.id) === String(itemId);
-      });
-
-      if (fromIdx > -1) {
-        const itemToMove = fromItems[fromIdx];
-        fromItems.splice(fromIdx, 1);
-
-        if (!kanbanState.columns[toColumn]) {
-          kanbanState.columns[toColumn] = [];
-        }
-
-        const toItems = kanbanState.columns[toColumn];
-
-        // If dropped on specific item, insert before it
-        if (targetItem) {
-          const targetItemId = targetItem.dataset.itemId;
-          const targetIdx = toItems.findIndex(item => {
-            if (typeof item === 'string') return false;
-            return String(item.id) === String(targetItemId);
-          });
-          if (targetIdx > -1) {
-            toItems.splice(targetIdx, 0, itemToMove);
-          } else {
-            toItems.push(itemToMove);
-          }
-        } else {
-          toItems.push(itemToMove);
-        }
-
-        // Track daily goal
-        const businessName = typeof itemToMove === 'string' ? itemToMove : (itemToMove.businessName || 'Unnamed Business');
-        const forwardColumns = ['in-progress', 'committed'];
-
-        if (fromColumn === 'to-contact' && forwardColumns.includes(toColumn)) {
-          incrementDailyGoal(businessName);
-        } else if (forwardColumns.includes(fromColumn) && toColumn === 'to-contact') {
-          decrementDailyGoal(businessName);
-        }
-
-        // FAST: Direct DOM move instead of full re-render
-        draggedItem.dataset.column = toColumn; // Update data attribute
-        if (targetItem) {
-          targetColumn.insertBefore(draggedItem, targetItem); // Insert before target
-        } else {
-          targetColumn.appendChild(draggedItem); // Append to end
-        }
-
-        // Update column counts in headers
-        document.querySelectorAll('.kanban-column').forEach(col => {
-          const colKey = col.dataset.column;
-          const count = (kanbanState.columns[colKey] || []).length;
-          const header = col.querySelector('.font-semibold');
-          if (header) {
-            const titleMap = {
-              'prospect-list': '1. Prospect List',
-              'to-contact': '2. To Contact',
-              'in-progress': '3. In Progress',
-              'committed': '4. Committed'
-            };
-            header.textContent = `${titleMap[colKey]} (${count})`;
-          }
-        });
-
-        const columnTitles = {
-          'prospect-list': '1. Prospect List',
-          'to-contact': '2. To Contact',
-          'in-progress': '3. In Progress',
-          'committed': '4. Committed'
-        };
-        toast(`Moved to ${columnTitles[toColumn] || toColumn}`);
-
-        // Save in background (debounced, non-blocking)
-        saveKanbanQuick();
-      }
-
-      draggedItem = null;
-      isTouchDragging = false;
-    }, { passive: false });
-
-    // Handle touch cancel (e.g., incoming call)
-    item.addEventListener('touchcancel', function(e) {
-      // Restore horizontal scroll
-      const kanbanContainer = document.getElementById('salesActivityKanbanColumns');
-      if (kanbanContainer) {
-        kanbanContainer.style.overflowX = 'auto';
-      }
-
-      // Clean up
-      if (touchClone) {
-        touchClone.remove();
-        touchClone = null;
-      }
-      document.querySelectorAll('.kanban-item.drag-over').forEach(el => el.classList.remove('drag-over'));
-      document.querySelectorAll('.kanban-column.drag-over-column').forEach(el => el.classList.remove('drag-over-column'));
-      this.classList.remove('dragging');
-      draggedItem = null;
-      isTouchDragging = false;
-    }, { passive: true });
-  });
-
-  // Set up drop zones on columns
-  const columns = document.querySelectorAll('.kanban-column');
-
-  columns.forEach(col => {
-    col.ondragover = function(e) {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-
-      // Add column highlight
-      if (!this.classList.contains('drag-over-column')) {
-        this.classList.add('drag-over-column');
-      }
-    };
-
-    col.ondragleave = function(e) {
-      // Only remove if leaving the column entirely
-      if (e.target === this) {
-        this.classList.remove('drag-over-column');
-      }
-    };
-
-    col.ondrop = async function(e) {
-      e.preventDefault();
-
-      console.log('🟠 DROP on column - draggedItem exists:', !!draggedItem);
-
-      // Clean up all visual indicators immediately
-      document.querySelectorAll('.kanban-item.drag-over').forEach(el => {
-        el.classList.remove('drag-over');
-      });
-      document.querySelectorAll('.kanban-column.drag-over-column').forEach(el => {
-        el.classList.remove('drag-over-column');
-      });
-
-      if (!draggedItem) {
-        console.log('⚠️ COLUMN DROP ABORTED - draggedItem is null');
-        return;
-      }
-
-      const fromColumn = draggedItem.closest('.kanban-column').dataset.column;
-      const toColumn = this.dataset.column;
-      const itemId = draggedItem.dataset.itemId;
-
-      console.log(`🟡 COLUMN DROP - Moving item ${itemId} from ${fromColumn} to ${toColumn}`);
-
-      // Find and remove from old column
-      const fromItems = kanbanState.columns[fromColumn] || [];
-      const fromIdx = fromItems.findIndex(item => {
-        if (typeof item === 'string') return false;
-        // Handle both string IDs and numeric IDs
-        return String(item.id) === String(itemId);
-      });
-
-      if (fromIdx > -1) {
-        const itemToMove = fromItems[fromIdx];
-        console.log(`Found item to move:`, itemToMove);
-        console.log(`Column ${fromColumn} had ${fromItems.length} items before removal`);
-        fromItems.splice(fromIdx, 1);
-        console.log(`Column ${fromColumn} now has ${fromItems.length} items after removal`);
-
-        // Add to new column
-        if (!kanbanState.columns[toColumn]) {
-          kanbanState.columns[toColumn] = [];
-        }
-
-        // Check if item already exists in destination
-        const alreadyExists = kanbanState.columns[toColumn].some(item => {
-          if (typeof item === 'string') return false;
-          // Handle both string IDs and numeric IDs
-          return String(item.id) === String(itemId);
-        });
-
-        if (!alreadyExists) {
-          kanbanState.columns[toColumn].push(itemToMove);
-        }
-
-        // Track daily goal:
-        // INCREMENT only when moving FORWARD from "To Contact" (to In Progress or Committed)
-        // DECREMENT when moving back TO "To Contact" from forward columns
-        const businessName = typeof itemToMove === 'string' ? itemToMove : (itemToMove.businessName || 'Unnamed Business');
-
-        // Define forward columns (after "To Contact")
-        const forwardColumns = ['in-progress', 'committed'];
-
-        if (fromColumn === 'to-contact' && forwardColumns.includes(toColumn)) {
-          // Moving FORWARD from "To Contact" to "In Progress" or "Committed" - increment
-          incrementDailyGoal(businessName);
-        } else if (forwardColumns.includes(fromColumn) && toColumn === 'to-contact') {
-          // Moving back TO "To Contact" from forward columns - decrement
-          decrementDailyGoal(businessName);
-        }
-        // Moving from "To Contact" to "Prospect List" (backwards) - don't count
-
-        // FAST: Direct DOM move instead of full re-render
-        draggedItem.dataset.column = toColumn; // Update data attribute
-        this.appendChild(draggedItem); // Append to end of column
-
-        // Update column counts in headers
-        document.querySelectorAll('.kanban-column').forEach(col => {
-          const colKey = col.dataset.column;
-          const count = (kanbanState.columns[colKey] || []).length;
-          const header = col.querySelector('.font-semibold');
-          if (header) {
-            const titleMap = {
-              'prospect-list': '1. Prospect List',
-              'to-contact': '2. To Contact',
-              'in-progress': '3. In Progress',
-              'committed': '4. Committed'
-            };
-            header.textContent = `${titleMap[colKey]} (${count})`;
-          }
-        });
-
-        // Map column key to display title
-        const columnTitles = {
-          'prospect-list': '1. Prospect List',
-          'to-contact': '2. To Contact',
-          'in-progress': '3. In Progress',
-          'committed': '4. Committed'
-        };
-        toast(`Moved to ${columnTitles[toColumn] || toColumn}`);
-
-        // Save in background (debounced, non-blocking)
-        saveKanbanQuick();
-      }
-    };
-  });
-}
+// setupKanbanDrag() removed - campaign board has its own drag-and-drop
 
 /* ========= CAMPAIGN BOARDS FUNCTIONS ========= */
 
@@ -20903,7 +19298,8 @@ async function migrateToCampaignBoards() {
   // in-progress → attempting or negotiating (if responded)
   // committed → negotiating
 
-  const legacyColumns = kanbanState.columns;
+  // Use _legacyData if available (set by loadKanban migration), otherwise read from getter shim
+  const legacyColumns = kanbanState._legacyData || kanbanState.columns;
 
   // Helper to check if business has been contacted
   const hasBeenContacted = (item) => {
@@ -22054,55 +20450,7 @@ window.openContactLaterModal = openContactLaterModal;
 window.closeContactLaterModal = closeContactLaterModal;
 window.saveContactLater = saveContactLater;
 
-/**
- * Set ZIP filter for kanban column 1
- */
-function setKanbanColumn1ZipFilter(zip) {
-  kanbanState.column1ZipFilter = zip || '';
-  renderKanban();
-  if (zip) {
-    toast(`📍 Filtering column 1 by ZIP: ${zip}`, true);
-  } else {
-    toast('📍 Showing all ZIPs in column 1', true);
-  }
-}
-window.setKanbanColumn1ZipFilter = setKanbanColumn1ZipFilter;
-
-// Set ZIP filter for any kanban column
-function setKanbanZipFilter(columnKey, zip) {
-  if (!kanbanState.zipFilters) {
-    kanbanState.zipFilters = {};
-  }
-  kanbanState.zipFilters[columnKey] = zip || '';
-  renderKanban();
-  if (zip) {
-    toast(`📍 Filtering by ZIP: ${zip}`, true);
-  } else {
-    toast('📍 Showing all ZIPs', true);
-  }
-}
-window.setKanbanZipFilter = setKanbanZipFilter;
-
-// Sort any kanban column by ZIP code
-async function sortKanbanColumnByZip(columnKey) {
-  const items = kanbanState.columns[columnKey] || [];
-  if (items.length === 0) {
-    toast('No items to sort', false);
-    return;
-  }
-
-  // Sort items by ZIP code (ascending)
-  items.sort((a, b) => {
-    const zipA = (a.actualZip || a.zipCode || a.zip || '99999').toString();
-    const zipB = (b.actualZip || b.zipCode || b.zip || '99999').toString();
-    return zipA.localeCompare(zipB);
-  });
-
-  await saveKanban();
-  renderKanban();
-  toast(`📍 Sorted by ZIP code`, true);
-}
-window.sortKanbanColumnByZip = sortKanbanColumnByZip;
+// Legacy kanban ZIP filter functions removed - campaign board has its own ZIP filtering
 
 // Campaign Board window exports
 window.toggleCampaignBoardView = toggleCampaignBoardView;
@@ -22135,8 +20483,16 @@ function openLeadModal(column = null, leadId = null) {
   const idInput = document.getElementById("leadId");
 
   if (leadId !== null && column) {
-    // Edit existing lead
-    const items = kanbanState.columns[column] || [];
+    // Edit existing lead - search campaign board
+    const legacyToBoard = {
+      'prospect-list': 'queued',
+      'to-contact': 'attempting',
+      'in-progress': 'negotiating',
+      'committed': 'invoice-sent'
+    };
+    const boardColumn = legacyToBoard[column] || column;
+    const board = getCurrentCampaignBoard();
+    const items = (board && board.columns && board.columns[boardColumn]) || [];
     const numericLeadId = typeof leadId === 'string' ? parseFloat(leadId) : leadId;
     const lead = items.find(item => {
       if (typeof item !== 'object') return false;
@@ -22247,24 +20603,36 @@ function saveLeadModal() {
     createdDate: new Date().toISOString()
   };
 
-  if (leadId) {
-    // Edit existing lead
-    const items = kanbanState.columns[column] || [];
-    const index = items.findIndex(item => typeof item === 'object' && item.id === parseFloat(leadId));
-    if (index !== -1) {
-      items[index] = leadData;
-      toast("Lead updated successfully");
+  // Map legacy column names to board columns
+  const legacyToBoard = {
+    'prospect-list': 'queued',
+    'to-contact': 'attempting',
+    'in-progress': 'negotiating',
+    'committed': 'invoice-sent'
+  };
+  const boardColumn = legacyToBoard[column] || column;
+
+  const board = getCurrentCampaignBoard();
+  if (board && board.columns) {
+    if (leadId) {
+      // Edit existing lead
+      const items = board.columns[boardColumn] || [];
+      const index = items.findIndex(item => typeof item === 'object' && item.id === parseFloat(leadId));
+      if (index !== -1) {
+        items[index] = leadData;
+        toast("Lead updated successfully");
+      }
+    } else {
+      // Add new lead
+      if (!board.columns[boardColumn]) {
+        board.columns[boardColumn] = [];
+      }
+      board.columns[boardColumn].push(leadData);
+      toast("Lead added successfully");
     }
-  } else {
-    // Add new lead
-    if (!kanbanState.columns[column]) {
-      kanbanState.columns[column] = [];
-    }
-    kanbanState.columns[column].push(leadData);
-    toast("Lead added successfully");
   }
 
-  saveKanban();
+  saveCampaignBoards();
   renderKanban();
   closeLeadModal();
 }
@@ -22406,11 +20774,16 @@ async function moveProspectBackToPool(leadId, event) {
 
   console.log('🔴 moveProspectBackToPool called with leadId:', leadId);
 
-  // Get direct reference to the column array
-  if (!kanbanState.columns['prospect-list']) {
-    kanbanState.columns['prospect-list'] = [];
+  // Get direct reference to the board column array
+  const board = getCurrentCampaignBoard();
+  if (!board || !board.columns) {
+    toast('No campaign board available', false);
+    return;
   }
-  const items = kanbanState.columns['prospect-list'];
+  if (!board.columns['queued']) {
+    board.columns['queued'] = [];
+  }
+  const items = board.columns['queued'];
 
   console.log('🔴 prospect-list has', items.length, 'items before removal');
 
@@ -22443,10 +20816,10 @@ async function moveProspectBackToPool(leadId, event) {
 
   console.log('🔴 Found prospect at index', index, ':', prospectName);
 
-  // Remove from Prospecting column - directly modify kanbanState
-  kanbanState.columns['prospect-list'].splice(index, 1);
+  // Remove from queued column
+  items.splice(index, 1);
 
-  console.log('🔴 prospect-list has', kanbanState.columns['prospect-list'].length, 'items after removal');
+  console.log('🔴 queued has', items.length, 'items after removal');
 
   // Add to manual prospects in pool ONLY if not already there
   if (!prospectPoolState.manualProspects) {
@@ -22657,8 +21030,13 @@ function handleCommunicating(leadId, event) {
     event.preventDefault();
   }
 
-  // Find lead in to-contact column
-  const items = kanbanState.columns['to-contact'] || [];
+  // Find lead in campaign board attempting column
+  const board = getCurrentCampaignBoard();
+  if (!board || !board.columns) {
+    toast("No campaign board available", false);
+    return;
+  }
+  const items = board.columns['attempting'] || [];
   const numericLeadId = typeof leadId === 'string' ? parseFloat(leadId) : leadId;
   const index = items.findIndex(item => {
     if (typeof item === 'string') return false;
@@ -22671,19 +21049,19 @@ function handleCommunicating(leadId, event) {
     return;
   }
 
-  // Move to in-progress column
+  // Move to negotiating column
   const lead = items[index];
   items.splice(index, 1);
-  kanbanState.columns['in-progress'] = kanbanState.columns['in-progress'] || [];
-  kanbanState.columns['in-progress'].push(lead);
+  if (!board.columns['negotiating']) board.columns['negotiating'] = [];
+  board.columns['negotiating'].push(lead);
 
   // Increment daily goal
   const businessName = typeof lead === 'string' ? lead : (lead.businessName || 'Unnamed Lead');
   incrementDailyGoal(businessName);
 
-  saveKanban();
+  saveCampaignBoards();
   renderKanban();
-  toast(`${businessName} moved to In Progress`);
+  toast(`${businessName} moved to Negotiating`);
 }
 
 // Toggle contact tracking status (emailed, dmed, texted)
@@ -24926,9 +23304,18 @@ async function clearFollowUpDate(leadId, columnKey) {
 
 // Mark a prospect as having responded
 async function markAsResponded(leadId, columnKey) {
-  // Find the prospect
-  const items = kanbanState.columns[columnKey] || [];
-  const prospect = items.find(item => typeof item === 'object' && String(item.id) === String(leadId));
+  // Find the prospect in campaign board
+  const board = getCurrentCampaignBoard();
+  let prospect = null;
+  let actualColumn = columnKey;
+
+  if (board && board.columns) {
+    const result = findProspectInCampaignBoard(leadId);
+    if (result) {
+      prospect = result.item;
+      actualColumn = result.column;
+    }
+  }
 
   if (!prospect) {
     toast('Prospect not found', false);
@@ -24955,20 +23342,23 @@ async function markAsResponded(leadId, columnKey) {
     notes: `Response received: ${responseType || 'General reply'}${responseNotes ? ` - "${responseNotes}"` : ''}`
   });
 
-  // Auto-move "Interested" responses to committed column
-  if (responseType === 'Interested' && columnKey !== 'committed') {
-    // Remove from current column
-    kanbanState.columns[columnKey] = kanbanState.columns[columnKey].filter(
-      p => String(p.id) !== String(leadId)
-    );
-    // Add to committed
-    kanbanState.columns['committed'].push(prospect);
-    toast(`✅ "${prospect.businessName}" marked as Interested and moved to Committed!`, true);
+  // Auto-move "Interested" responses to invoice-sent column
+  if (responseType === 'Interested' && actualColumn !== 'invoice-sent' && actualColumn !== 'proof-approved') {
+    if (board && board.columns) {
+      // Remove from current column
+      board.columns[actualColumn] = (board.columns[actualColumn] || []).filter(
+        p => String(p.id) !== String(leadId)
+      );
+      // Add to invoice-sent
+      if (!board.columns['invoice-sent']) board.columns['invoice-sent'] = [];
+      board.columns['invoice-sent'].push(prospect);
+    }
+    toast(`"${prospect.businessName}" marked as Interested and moved to Invoice Sent!`, true);
   } else {
-    toast(`✅ Response recorded for "${prospect.businessName}"`, true);
+    toast(`Response recorded for "${prospect.businessName}"`, true);
   }
 
-  await saveKanban();
+  await saveCampaignBoards();
   renderKanban();
   refreshFollowUpDashboard();
   refreshContactStatusDashboard();
@@ -24977,9 +23367,12 @@ async function markAsResponded(leadId, columnKey) {
 
 // Clear response status from a prospect
 async function clearResponse(leadId, columnKey) {
-  // Find the prospect
-  const items = kanbanState.columns[columnKey] || [];
-  const prospect = items.find(item => typeof item === 'object' && String(item.id) === String(leadId));
+  // Find the prospect in campaign board
+  let prospect = null;
+  const result = typeof findProspectInCampaignBoard === 'function' ? findProspectInCampaignBoard(leadId) : null;
+  if (result) {
+    prospect = result.item;
+  }
 
   if (!prospect) {
     toast('Prospect not found', false);
@@ -24996,7 +23389,7 @@ async function clearResponse(leadId, columnKey) {
 
   toast(`Response status cleared`, true);
 
-  await saveKanban();
+  await saveCampaignBoards();
   renderKanban();
   refreshFollowUpDashboard();
   refreshContactStatusDashboard();
@@ -25123,9 +23516,9 @@ async function toggleDoNotContact(leadId, columnKey, event) {
 
   // Save to cloud
   try {
-    await saveToCloud('kanban', kanbanState.columns);
+    await saveCampaignBoards();
   } catch (err) {
-    console.error('Failed to save kanban after toggle:', err);
+    console.error('Failed to save after toggle:', err);
   }
 
   // Re-render
@@ -32160,30 +30553,17 @@ const outreachState = {
   sortBy: 'businessName',
   sortDir: 'asc',
   categoryFilter: '',
-  columnFilter: 'to-contact', // Default to "To Contact" (column 2)
+  columnFilter: 'attempting', // Default to "Attempting" (column 2)
   selectedProspect: null,
-  currentTemplate: 'text',
-  usingCampaignBoard: false // Track data source
+  currentTemplate: 'text'
 };
 
 function renderOutreachTable() {
   let prospects = [];
 
-  // Try Campaign Board first (primary source)
+  // Read from Campaign Board (single source of truth)
   const board = getCurrentCampaignBoard();
   if (board && board.columns) {
-    outreachState.usingCampaignBoard = true;
-
-    // Campaign Board column mapping:
-    // to-contact -> attempting
-    // in-progress -> negotiating
-    // committed -> invoice-sent + proof-approved
-    const columnMap = {
-      'to-contact': 'attempting',
-      'in-progress': 'negotiating',
-      'committed': ['invoice-sent', 'proof-approved']
-    };
-
     if (outreachState.columnFilter === 'all') {
       prospects = [
         ...(board.columns['attempting'] || []),
@@ -32192,29 +30572,9 @@ function renderOutreachTable() {
         ...(board.columns['proof-approved'] || [])
       ];
     } else {
-      const boardCol = columnMap[outreachState.columnFilter];
-      if (Array.isArray(boardCol)) {
-        prospects = boardCol.flatMap(col => board.columns[col] || []);
-      } else {
-        prospects = board.columns[boardCol] || [];
-      }
+      prospects = board.columns[outreachState.columnFilter] || [];
     }
-  }
-  // Fall back to legacy kanbanState
-  else if (kanbanState && kanbanState.columns) {
-    outreachState.usingCampaignBoard = false;
-
-    if (outreachState.columnFilter === 'all') {
-      prospects = [
-        ...(kanbanState.columns['to-contact'] || []),
-        ...(kanbanState.columns['in-progress'] || []),
-        ...(kanbanState.columns['committed'] || [])
-      ];
-    } else {
-      prospects = kanbanState.columns[outreachState.columnFilter] || [];
-    }
-  }
-  else {
+  } else {
     showOutreachEmptyState(true, 'Select a campaign first');
     return;
   }
@@ -32342,25 +30702,12 @@ function selectOutreachProspect(prospectId) {
   let prospect = null;
   let prospectColumn = null;
 
-  // Try Campaign Board first
+  // Search Campaign Board columns
   const board = getCurrentCampaignBoard();
   if (board && board.columns) {
-    // Search Campaign Board columns
     const searchCols = ['attempting', 'negotiating', 'invoice-sent', 'proof-approved'];
     for (const colName of searchCols) {
       const items = board.columns[colName] || [];
-      const found = items.find(p => typeof p === 'object' && p && String(p.id) === String(prospectId));
-      if (found) {
-        prospect = found;
-        prospectColumn = colName;
-        break;
-      }
-    }
-  }
-  // Fall back to legacy kanban
-  else if (kanbanState && kanbanState.columns) {
-    for (const colName of ['to-contact', 'in-progress', 'committed']) {
-      const items = kanbanState.columns[colName] || [];
       const found = items.find(p => typeof p === 'object' && p && String(p.id) === String(prospectId));
       if (found) {
         prospect = found;
@@ -32749,78 +31096,38 @@ function outreachMoveToStage(toColumn) {
 
   const fromColumn = prospect.currentColumn;
 
-  // Map legacy column names to campaign board columns
-  const legacyToBoardMap = {
-    'to-contact': 'attempting',
-    'in-progress': 'negotiating',
-    'committed': 'invoice-sent'
-  };
-
   const columnLabels = {
-    'to-contact': 'To Contact',
-    'in-progress': 'In Progress',
-    'committed': 'Committed',
-    'attempting': 'To Contact',
-    'negotiating': 'In Progress',
-    'invoice-sent': 'Committed'
+    'attempting': 'Attempting',
+    'negotiating': 'Negotiating',
+    'invoice-sent': 'Invoice Sent',
+    'proof-approved': 'Proof Approved'
   };
 
-  // Try Campaign Board first
   const board = getCurrentCampaignBoard();
-  if (board && board.columns) {
-    // Convert legacy column names to board column names
-    const boardFromCol = legacyToBoardMap[fromColumn] || fromColumn;
-    const boardToCol = legacyToBoardMap[toColumn] || toColumn;
-
-    if (boardFromCol === boardToCol) {
-      toast(`Already in ${columnLabels[toColumn] || toColumn}`, true);
-      return;
-    }
-
-    // Use the campaign board move function
-    const success = moveCampaignBoardItem(prospect.id, boardFromCol, boardToCol, board);
-
-    if (success) {
-      saveCampaignBoards();
-      outreachState.selectedProspect.currentColumn = boardToCol;
-      toast(`Moved to ${columnLabels[toColumn] || toColumn}`, true);
-    } else {
-      toast('Could not move prospect', false);
-      return;
-    }
+  if (!board || !board.columns) {
+    toast('No campaign board available', false);
+    return;
   }
-  // Fall back to legacy kanban
-  else if (kanbanState && kanbanState.columns) {
-    if (fromColumn === toColumn) {
-      toast(`Already in ${columnLabels[toColumn] || toColumn}`, true);
-      return;
-    }
 
-    const fromItems = kanbanState.columns[fromColumn] || [];
-    const itemIndex = fromItems.findIndex(p => typeof p === 'object' && p && String(p.id) === String(prospect.id));
+  if (fromColumn === toColumn) {
+    toast(`Already in ${columnLabels[toColumn] || toColumn}`, true);
+    return;
+  }
 
-    if (itemIndex === -1) {
-      toast('Prospect not found', false);
-      return;
-    }
+  // Use the campaign board move function
+  const success = moveCampaignBoardItem(prospect.id, fromColumn, toColumn, board);
 
-    const [movedItem] = fromItems.splice(itemIndex, 1);
-    if (!kanbanState.columns[toColumn]) {
-      kanbanState.columns[toColumn] = [];
-    }
-    kanbanState.columns[toColumn].push(movedItem);
-    saveKanban();
+  if (success) {
+    saveCampaignBoards();
     outreachState.selectedProspect.currentColumn = toColumn;
     toast(`Moved to ${columnLabels[toColumn] || toColumn}`, true);
   } else {
-    toast('No data source available', false);
+    toast('Could not move prospect', false);
     return;
   }
 
   // Re-render if moved out of current filter view
-  const effectiveToCol = legacyToBoardMap[toColumn] || toColumn;
-  const filterCol = legacyToBoardMap[outreachState.columnFilter] || outreachState.columnFilter;
-  if (outreachState.columnFilter !== 'all' && filterCol !== effectiveToCol) {
+  if (outreachState.columnFilter !== 'all' && outreachState.columnFilter !== toColumn) {
     outreachState.selectedProspect = null;
     document.getElementById('outreachNoSelection')?.classList.remove('hidden');
     document.getElementById('outreachSelectedPanel')?.classList.add('hidden');
