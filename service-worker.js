@@ -4,8 +4,8 @@
  * Version: 2025-12-11-v77
  */
 
-// Update this version when you want to force a cache refresh
-const CACHE_VERSION = 'v269';
+// Use current date as cache version - changes daily, forces refresh
+const CACHE_VERSION = new Date().toISOString().split('T')[0];
 const CACHE_NAME = `9x12-pro-${CACHE_VERSION}`;
 
 // Core app files to cache on install
@@ -34,7 +34,7 @@ const NEVER_CACHE_RESOURCES = [
 
 // Install event - cache resources and immediately take over
 self.addEventListener('install', (event) => {
-  console.log('Service Worker: Installing v269...');
+  console.log('Service Worker: Installing', CACHE_VERSION);
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
@@ -55,7 +55,7 @@ self.addEventListener('install', (event) => {
 
 // Activate event - clean up old caches and take control of all clients
 self.addEventListener('activate', (event) => {
-  console.log('Service Worker: Activated v269');
+  console.log('Service Worker: Activated', CACHE_VERSION);
   const currentCaches = [CACHE_NAME, CDN_CACHE_NAME];
   event.waitUntil(
     caches.keys()
