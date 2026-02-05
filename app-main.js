@@ -17246,10 +17246,7 @@ function renderCampaignBoard() {
     }).join('')}
   `;
 
-  // Current view phase
-  const currentView = campaignBoardsState.columnView || 'discovery';
-
-  // Campaign info bar with dropdown and global ZIP filter
+  // Campaign info bar with dropdown and global ZIP filter (currentView already defined above)
   const viewToggle = `
     <div class="flex items-center gap-3 mb-3 flex-wrap">
       <div class="flex items-center gap-2">
