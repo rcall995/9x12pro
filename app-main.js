@@ -517,7 +517,7 @@ const campaignBoardsState = {
   useLegacyKanban: false, // Campaign Board is now the default (legacy kanban removed)
   globalZipFilter: 'target', // 'target' = show target ZIPs only, 'all' = show all, or specific ZIP code
   queuedSelection: new Set(), // Selected item IDs in queued column
-  columnView: 'discovery' // 'discovery' (cols 1-3) or 'sales' (cols 4-6)
+  columnView: 'discovery', // 'discovery' (cols 1-3) or 'sales' (cols 4-6)
   cloudDataLoaded: false // Track whether boards were successfully loaded from cloud
 };
 
