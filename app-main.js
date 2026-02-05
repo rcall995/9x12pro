@@ -17240,14 +17240,14 @@ function renderCampaignBoard() {
       <div class="flex items-center gap-2">
         <label class="text-sm font-medium text-gray-600">Campaign:</label>
         <select onchange="switchCampaignFromDropdown(this.value)"
-                class="px-4 py-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+                class="px-4 py-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500" style="touch-action:manipulation">
           ${campaignOptions}
         </select>
       </div>
       <div class="flex items-center gap-2">
         <label class="text-sm font-medium text-gray-600">ZIP:</label>
         <select onchange="setGlobalZipFilter(this.value)"
-                class="px-4 py-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+                class="px-4 py-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500" style="touch-action:manipulation">
           ${zipFilterOptions}
         </select>
       </div>
