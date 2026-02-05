@@ -3633,15 +3633,16 @@ async function savePlacesCacheToCloud() {
   }
 
   try {
-    const fullDataStr = JSON.stringify(placesCache.searches);
-    const fullSizeKB = Math.round(fullDataStr.length / 1024);
+    // Prune before cloud sync (same as local save) to stay under size limits
+    const prunedData = pruneOldCacheEntries(placesCache.searches);
+    const dataStr = JSON.stringify(prunedData);
 
     // Supabase has a reasonable size limit - if under 5MB we're good
-    if (fullDataStr.length <= 5000000) {
-      await saveToCloud('placesCache', placesCache.searches);
+    if (dataStr.length <= 5000000) {
+      await saveToCloud('placesCache', prunedData);
       lastCloudSaveTime = Date.now();
     } else {
-      console.warn('⚠️ Prospect cache too large for cloud sync (>5MB), keeping local only');
+      console.warn('⚠️ Prospect cache too large for cloud sync (>5MB) even after pruning, keeping local only');
     }
   } catch(e) {
     console.error('Error saving places cache to cloud:', e);
