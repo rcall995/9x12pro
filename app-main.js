@@ -17130,9 +17130,10 @@ function renderCampaignBoard() {
       ` : '';
 
       return `
-        <div class="kanban-item campaign-board-item text-xs p-2 ${isDoNotContact ? 'bg-red-50' : isSelected ? 'bg-purple-50 ring-2 ring-purple-300' : 'bg-white'} border rounded ${hasBeenContacted ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'} relative ${isDoNotContact ? 'opacity-60' : ''}"
+        <div class="kanban-item campaign-board-item text-xs p-2 ${isDoNotContact ? 'bg-red-50' : isSelected ? 'bg-purple-50 ring-2 ring-purple-300' : 'bg-white'} border rounded ${hasBeenContacted ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'} relative ${isDoNotContact ? 'opacity-60' : ''} cursor-grab"
+             style="user-select:none;-webkit-user-select:none;-webkit-touch-callout:none"
              data-item-id="${leadId}" data-column="${colKey}"
-             ondblclick="openCampaignBoardQuickAction('${leadId}', '${colKey}')">
+             onclick="openCampaignBoardQuickAction('${leadId}', '${colKey}')">
           ${isDoNotContact ? '<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10"><span class="text-6xl text-red-500 font-bold opacity-40">✕</span></div>' : ''}
 
           <div class="flex items-start gap-2">
