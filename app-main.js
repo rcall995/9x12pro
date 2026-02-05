@@ -16375,62 +16375,6 @@ async function markNotInterested() {
   renderKanban();
 }
 
-// Mark prospect as not interested directly from the pool
-async function markProspectNotInterested(placeId, businessName) {
-  const confirmed = confirm(`Mark "${businessName}" as Not Interested?\n\nThis business will be removed from your prospect pool.`);
-
-  if (!confirmed) return;
-
-  // Add to Not Interested list
-  if (!notInterestedState.placeIds) notInterestedState.placeIds = new Set();
-  if (!notInterestedState.businesses) notInterestedState.businesses = {};
-
-  notInterestedState.placeIds.add(placeId);
-  notInterestedState.businesses[placeId] = {
-    businessName,
-    placeId: placeId,
-    dateMarked: new Date().toISOString(),
-    reason: 'User marked as not interested from prospect pool'
-  };
-
-  // Save to cloud database
-  const cloudData = {
-    placeIds: Array.from(notInterestedState.placeIds),
-    businesses: notInterestedState.businesses
-  };
-
-  try {
-    await saveToCloud('notInterested', cloudData);
-  } catch (err) {
-    console.error('Failed to save not interested to cloud:', err);
-    // Still save to localStorage as backup
-    localStorage.setItem('mailslot-not-interested', JSON.stringify(cloudData));
-  }
-
-  // Remove from prospect pool (searches cache)
-  let removedCount = 0;
-  Object.keys(placesCache.searches).forEach(cacheKey => {
-    const cached = placesCache.searches[cacheKey];
-    if (cached.cachedData) {
-      const beforeLength = cached.cachedData.length;
-      cached.cachedData = cached.cachedData.filter(p => {
-        // Keep item unless it matches the one we want to remove
-        if (p.placeId === placeId) return false;
-        if (p.id === placeId) return false;
-        if (p.name === businessName || p.businessName === businessName) return false;
-        return true;
-      });
-      removedCount += (beforeLength - cached.cachedData.length);
-    }
-  });
-  idbSet('mailslot-places-cache', placesCache.searches);
-
-  toast(`✅ "${businessName}" marked as Not Interested`, true);
-
-  // Refresh prospect pool display
-  renderProspectPool();
-}
-
 // Expose functions globally
 window.openProspectDetailModal = openProspectDetailModal;
 window.closeProspectDetailModal = closeProspectDetailModal;
@@ -16941,9 +16885,7 @@ function renderCampaignBoard() {
   const board = getCurrentCampaignBoard();
 
   if (!board) {
-    // Fall back to legacy kanban if no board
-    campaignBoardsState.useLegacyKanban = true;
-    return renderKanban();
+    return;
   }
 
   const columnKeys = ['queued', 'attempting', 'negotiating', 'invoice-sent', 'proof-approved', 'paid-in-full'];
