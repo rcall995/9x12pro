@@ -42,18 +42,22 @@
       window.googleMapsLoaded = true;
     };
   </script>
+  <!-- Cache-busting: uses timestamp so no manual version sync needed.
+       The display version lives only in config.js (APP_CONFIG.app.version). -->
+  <script>window._v = Date.now();</script>
   <!-- Core Utilities - Load First (synchronous for dependencies) -->
-  <script src="config.js?v=498"></script>
-  <script src="error-handler.js"></script>
-  <script src="utils.js"></script>
-  <script src="storage.js?v=498"></script>
-  <script src="utilities.js?v=498"></script>
-  <script src="cloud-sync.js?v=498"></script>
+  <script>
+    ['config.js','error-handler.js','utils.js','storage.js','utilities.js','cloud-sync.js'].forEach(function(s) {
+      document.write('<script src="' + s + '?v=' + window._v + '"><\/script>');
+    });
+  </script>
 
   <!-- New Modular Components -->
-  <script src="components/Toast.js"></script>
-  <script src="components/BusinessModal.js"></script>
-  <script src="components/FilterBar.js"></script>
+  <script>
+    ['components/Toast.js','components/BusinessModal.js','components/FilterBar.js'].forEach(function(s) {
+      document.write('<script src="' + s + '?v=' + window._v + '"><\/script>');
+    });
+  </script>
 
   <!-- Google Maps JavaScript API - PLACES LIBRARY DISABLED TO PREVENT CHARGES -->
   <script>
@@ -3756,10 +3760,10 @@ The cost is [SPOT_PRICE] for a premium spot. Interested in learning more?
   <script src="performance-loader.js" defer></script>
 
   <!-- Main Application JavaScript (Refactored) -->
-  <script src="app-main.js?v=498" defer></script>
+  <script>document.write('<script src="app-main.js?v=' + window._v + '" defer><\/script>');</script>
 
   <!-- Authentication -->
-  <script src="auth-root.js?v=498"></script>
+  <script>document.write('<script src="auth-root.js?v=' + window._v + '"><\/script>');</script>
 
   <!-- PWA Service Worker Registration -->
   <script>
