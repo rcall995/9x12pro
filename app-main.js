@@ -17240,14 +17240,14 @@ function renderCampaignBoard() {
       <div class="flex items-center gap-2">
         <label class="text-sm font-medium text-gray-600">Campaign:</label>
         <select onchange="switchCampaignFromDropdown(this.value)"
-                class="px-4 py-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500" style="touch-action:manipulation">
+                class="px-4 py-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
           ${campaignOptions}
         </select>
       </div>
       <div class="flex items-center gap-2">
         <label class="text-sm font-medium text-gray-600">ZIP:</label>
         <select onchange="setGlobalZipFilter(this.value)"
-                class="px-4 py-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500" style="touch-action:manipulation">
+                class="px-4 py-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
           ${zipFilterOptions}
         </select>
       </div>
@@ -17290,16 +17290,17 @@ function renderCampaignBoard() {
     </div>
   `;
 
-  // Columns wrapper
+  // Columns wrapper (filters rendered separately for touch responsiveness)
   const columnsWrapperHTML = `
-    ${viewToggle}
     ${phaseHeaders}
-    <div style="display: flex; gap: 0.75rem; padding-bottom: 0.5rem; overflow-x: auto; scrollbar-width: thin; -webkit-overflow-scrolling: touch;">
+    <div style="display: flex; gap: 0.75rem; padding-bottom: 0.5rem; overflow-x: auto; scrollbar-width: thin;">
       ${columnsHTML}
     </div>
   `;
 
   dailyGoalContainer.innerHTML = dailyGoalHTML;
+  const filtersContainer = document.getElementById('campaignBoardFilters');
+  if (filtersContainer) filtersContainer.innerHTML = viewToggle;
   kanbanColumnsContainer.innerHTML = columnsWrapperHTML;
 
   setupCampaignBoardDrag();
