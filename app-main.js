@@ -25632,7 +25632,8 @@ function bulkSendSMS() {
     const selectedCount = toContactSelectionState.selectedIds.size;
 
     if (confirm(`Send SMS to ${selectedCount} selected prospect${selectedCount > 1 ? 's' : ''}?\n\nThis will open your SMS app for each contact with a delay between each.`)) {
-        const toContactColumn = kanbanState.columns['to-contact'] || [];
+        const board = getCurrentCampaignBoard();
+        const toContactColumn = (board && board.columns) ? (board.columns['attempting'] || []) : [];
         const selectedIds = Array.from(toContactSelectionState.selectedIds);
 
         let successCount = 0;
@@ -25712,7 +25713,8 @@ function bulkSendEmail() {
     const selectedCount = toContactSelectionState.selectedIds.size;
 
     if (confirm(`Send Email to ${selectedCount} selected prospect${selectedCount > 1 ? 's' : ''}?\n\nYou'll be prompted before each email.`)) {
-        const toContactColumn = kanbanState.columns['to-contact'] || [];
+        const board = getCurrentCampaignBoard();
+        const toContactColumn = (board && board.columns) ? (board.columns['attempting'] || []) : [];
         const selectedIds = Array.from(toContactSelectionState.selectedIds);
 
         console.log('🔵 Bulk Email - Selected IDs:', selectedIds);
@@ -25815,7 +25817,8 @@ function bulkSendGoogleVoice() {
     const selectedCount = toContactSelectionState.selectedIds.size;
 
     if (confirm(`Send via Google Voice to ${selectedCount} selected prospect${selectedCount > 1 ? 's' : ''}?\n\nThis will:\n1. Copy each message to your clipboard\n2. Open Google Voice for each contact with a delay\n3. You can paste (Ctrl+V) the message and send`)) {
-        const toContactColumn = kanbanState.columns['to-contact'] || [];
+        const board = getCurrentCampaignBoard();
+        const toContactColumn = (board && board.columns) ? (board.columns['attempting'] || []) : [];
         const selectedIds = Array.from(toContactSelectionState.selectedIds);
 
         let successCount = 0;
@@ -25896,7 +25899,8 @@ function bulkOpenLinkedIn() {
     }
 
     const selectedCount = toContactSelectionState.selectedIds.size;
-    const toContactColumn = kanbanState.columns['to-contact'] || [];
+    const board = getCurrentCampaignBoard();
+    const toContactColumn = (board && board.columns) ? (board.columns['attempting'] || []) : [];
     const selectedIds = Array.from(toContactSelectionState.selectedIds);
 
     // Count how many have LinkedIn URLs
@@ -25983,7 +25987,8 @@ function bulkOpenFacebook() {
     }
 
     const selectedCount = toContactSelectionState.selectedIds.size;
-    const toContactColumn = kanbanState.columns['to-contact'] || [];
+    const board = getCurrentCampaignBoard();
+    const toContactColumn = (board && board.columns) ? (board.columns['attempting'] || []) : [];
     const selectedIds = Array.from(toContactSelectionState.selectedIds);
 
     // Count how many have Facebook URLs
