@@ -517,6 +517,7 @@ const campaignBoardsState = {
   useLegacyKanban: false, // Campaign Board is now the default (legacy kanban removed)
   globalZipFilter: 'target', // 'target' = show target ZIPs only, 'all' = show all, or specific ZIP code
   queuedSelection: new Set(), // Selected item IDs in queued column
+  columnView: 'discovery' // 'discovery' (cols 1-3) or 'sales' (cols 4-6)
   cloudDataLoaded: false // Track whether boards were successfully loaded from cloud
 };
 
@@ -16889,7 +16890,12 @@ function renderCampaignBoard() {
     return;
   }
 
-  const columnKeys = ['queued', 'attempting', 'negotiating', 'invoice-sent', 'proof-approved', 'paid-in-full'];
+  const allColumnKeys = ['queued', 'attempting', 'negotiating', 'invoice-sent', 'proof-approved', 'paid-in-full'];
+  const currentView = campaignBoardsState.columnView || 'discovery';
+  // Discovery: cols 1-3, Sales: cols 3-6 (negotiating overlaps as it's the transition)
+  const columnKeys = currentView === 'discovery'
+    ? ['queued', 'attempting', 'negotiating']
+    : ['negotiating', 'invoice-sent', 'proof-approved', 'paid-in-full'];
 
   const dailyGoalContainer = document.getElementById('dailyGoalContainer');
   const kanbanColumnsContainer = document.getElementById('salesActivityKanbanColumns');
@@ -16907,9 +16913,9 @@ function renderCampaignBoard() {
     return zipStr.split('-')[0].substring(0, 5);
   };
 
-  // Collect ALL ZIPs across ALL columns for global filter
+  // Collect ALL ZIPs across ALL columns for global filter (use allColumnKeys, not filtered columnKeys)
   const allZipsSet = new Set();
-  columnKeys.forEach(colKey => {
+  allColumnKeys.forEach(colKey => {
     const colItems = board.columns[colKey] || [];
     colItems.forEach(item => {
       const zip = item.actualZip || item.zipCode || item.zip;
@@ -17160,9 +17166,8 @@ function renderCampaignBoard() {
       ? `${items.length}/${allItems.length}`
       : `${items.length}`;
 
-    // Sales pipeline columns (last 4) can be narrower since they have fewer items
-    const isSalesColumn = ['negotiating', 'invoice-sent', 'proof-approved', 'paid-in-full'].includes(colKey);
-    const columnWidth = isSalesColumn ? 'min-width: 150px;' : 'min-width: 180px;';
+    // All columns equal width since we only show 3-4 at a time now
+    const columnWidth = 'min-width: 280px;';
 
     // Selection controls for queued column
     const selectionControls = colKey === 'queued' && items.length > 0 ? `
@@ -17241,6 +17246,9 @@ function renderCampaignBoard() {
     }).join('')}
   `;
 
+  // Current view phase
+  const currentView = campaignBoardsState.columnView || 'discovery';
+
   // Campaign info bar with dropdown and global ZIP filter
   const viewToggle = `
     <div class="flex items-center gap-3 mb-3 flex-wrap">
@@ -17258,11 +17266,23 @@ function renderCampaignBoard() {
           ${zipFilterOptions}
         </select>
       </div>
-      <button onclick="openCampaignConfigModal()" class="px-3 py-1 text-xs font-medium rounded bg-blue-100 text-blue-700 hover:bg-blue-200">
+      <div class="flex rounded-lg border border-gray-300 overflow-hidden">
+        <button onclick="setCampaignColumnView('discovery')"
+                class="px-4 py-2 text-sm font-medium ${currentView === 'discovery' ? 'bg-purple-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}"
+                style="touch-action:manipulation">
+          📞 Discovery
+        </button>
+        <button onclick="setCampaignColumnView('sales')"
+                class="px-4 py-2 text-sm font-medium ${currentView === 'sales' ? 'bg-green-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}"
+                style="touch-action:manipulation">
+          💰 Sales
+        </button>
+      </div>
+      <button onclick="openCampaignConfigModal()" class="px-3 py-2 text-sm font-medium rounded bg-blue-100 text-blue-700 hover:bg-blue-200" style="touch-action:manipulation">
         ⚙️ Config
       </button>
-      <button onclick="openLogReplyModal()" class="px-3 py-1 text-xs font-medium rounded bg-green-100 text-green-700 hover:bg-green-200">
-        📬 Log a Reply
+      <button onclick="openLogReplyModal()" class="px-3 py-2 text-sm font-medium rounded bg-green-100 text-green-700 hover:bg-green-200" style="touch-action:manipulation">
+        📬 Log Reply
       </button>
     </div>
   `;
@@ -17298,9 +17318,9 @@ function renderCampaignBoard() {
   `;
 
   // Columns wrapper (filters rendered separately for touch responsiveness)
+  // Phase headers removed - the Discovery/Sales toggle makes them redundant
   const columnsWrapperHTML = `
-    ${phaseHeaders}
-    <div style="display: flex; gap: 0.75rem; padding-bottom: 0.5rem; overflow-x: auto; scrollbar-width: thin;">
+    <div style="display: flex; gap: 0.75rem; padding-bottom: 0.5rem;">
       ${columnsHTML}
     </div>
   `;
@@ -18452,6 +18472,13 @@ function setCampaignBoardZipFilter(columnKey, zip) {
 function setGlobalZipFilter(filter) {
   campaignBoardsState.globalZipFilter = filter || 'target';
   console.log(`📍 Global ZIP filter set: "${filter}"`);
+  renderCampaignBoard();
+}
+
+// Toggle between Discovery and Sales column views
+function setCampaignColumnView(view) {
+  campaignBoardsState.columnView = view || 'discovery';
+  console.log(`📊 Column view set: "${view}"`);
   renderCampaignBoard();
 }
 
