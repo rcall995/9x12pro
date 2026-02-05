@@ -3768,55 +3768,15 @@ The cost is [SPOT_PRICE] for a premium spot. Interested in learning more?
   <!-- Authentication -->
   <script>document.write('<script src="auth-root.js?v=' + window._v + '"><\/script>');</script>
 
-  <!-- PWA Service Worker Registration -->
+  <!-- PWA Service Worker - DISABLED for better iPad performance -->
   <script>
-    // Register service worker for PWA functionality
+    // Unregister any existing service workers to clean up
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/service-worker.js')
-          .then((registration) => {
-            console.log('✅ Service Worker registered:', registration.scope);
-
-            // Always check for updates on every page load
-            registration.update().then(() => {
-              console.log('🔍 Service Worker update check completed');
-            }).catch(err => {
-              console.log('⚠️ Service Worker update check failed:', err);
-            });
-
-            // When a new service worker is found
-            registration.addEventListener('updatefound', () => {
-              const newWorker = registration.installing;
-              console.log('📦 New Service Worker found, installing...');
-
-              newWorker.addEventListener('statechange', () => {
-                console.log('📦 New SW state:', newWorker.state);
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  // Check if we already reloaded recently (prevent loops)
-                  const lastReload = sessionStorage.getItem('sw-last-reload');
-                  if (lastReload && (Date.now() - parseInt(lastReload)) < 30000) {
-                    console.log('⏭️ Skipping reload - already reloaded in last 30s');
-                    return;
-                  }
-                  console.log('🔄 New version ready - activating and reloading...');
-                  sessionStorage.setItem('sw-last-reload', Date.now().toString());
-                  newWorker.postMessage({ type: 'SKIP_WAITING' });
-                }
-              });
-            });
-          })
-          .catch((error) => {
-            console.log('❌ Service Worker registration failed:', error);
-          });
-      });
-
-      // Handle service worker controller change - auto-reload to get new version
-      let refreshing = false;
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (refreshing) return;
-        refreshing = true;
-        console.log('🔄 New service worker active - reloading page...');
-        window.location.reload();
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        registrations.forEach(registration => {
+          registration.unregister();
+          console.log('🧹 Service Worker unregistered for better performance');
+        });
       });
     }
   </script>
