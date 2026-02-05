@@ -17174,8 +17174,15 @@ function renderCampaignBoard() {
           <span class="text-xs font-medium text-gray-600">Select All</span>
         </label>
         <span id="queuedSelectionCount" class="text-xs text-gray-500">(${campaignBoardsState.queuedSelection.size} selected)</span>
+        <button onclick="moveQueuedSelectionToAttempting()"
+                class="ml-auto px-3 py-2 text-sm font-medium rounded bg-purple-100 text-purple-700 hover:bg-purple-200 ${campaignBoardsState.queuedSelection.size === 0 ? 'opacity-50 cursor-not-allowed' : ''}"
+                style="touch-action:manipulation"
+                ${campaignBoardsState.queuedSelection.size === 0 ? 'disabled' : ''}>
+          ➡️ Move to Attempting
+        </button>
         <button onclick="sendQueuedSelectionToPool()"
-                class="ml-auto px-2 py-1 text-xs font-medium rounded bg-orange-100 text-orange-700 hover:bg-orange-200 ${campaignBoardsState.queuedSelection.size === 0 ? 'opacity-50 cursor-not-allowed' : ''}"
+                class="px-3 py-2 text-sm font-medium rounded bg-orange-100 text-orange-700 hover:bg-orange-200 ${campaignBoardsState.queuedSelection.size === 0 ? 'opacity-50 cursor-not-allowed' : ''}"
+                style="touch-action:manipulation"
                 ${campaignBoardsState.queuedSelection.size === 0 ? 'disabled' : ''}>
           ↩️ Send to Pool
         </button>
@@ -18364,6 +18371,56 @@ async function sendQueuedSelectionToPool() {
   renderCampaignBoard();
 
   toast(`✅ Moved ${movedCount} business${movedCount > 1 ? 'es' : ''} back to pool`);
+}
+
+// Move selected queued items to Attempting column
+async function moveQueuedSelectionToAttempting() {
+  const selectedIds = Array.from(campaignBoardsState.queuedSelection);
+  if (selectedIds.length === 0) {
+    toast('No businesses selected', false);
+    return;
+  }
+
+  const board = getCurrentCampaignBoard();
+  if (!board) return;
+
+  const queuedItems = board.columns['queued'] || [];
+  if (!board.columns['attempting']) board.columns['attempting'] = [];
+  const attemptingItems = board.columns['attempting'];
+
+  let movedCount = 0;
+
+  // Process each selected item (in reverse to avoid index shifting issues)
+  const idsToMove = [...selectedIds];
+  for (const leadId of idsToMove) {
+    const idx = queuedItems.findIndex(item => String(item.id) === leadId);
+    if (idx !== -1) {
+      const item = queuedItems.splice(idx, 1)[0];
+
+      // Initialize attempt tracking if not present
+      if (!item.attemptTracking) {
+        item.attemptTracking = {
+          currentAttempt: 1,
+          maxAttempts: 4,
+          attemptHistory: []
+        };
+      }
+
+      attemptingItems.push(item);
+      movedCount++;
+    }
+  }
+
+  // Clear selection
+  campaignBoardsState.queuedSelection.clear();
+
+  // Save changes
+  await saveCampaignBoards();
+
+  // Refresh UI
+  renderCampaignBoard();
+
+  toast(`✅ Moved ${movedCount} business${movedCount > 1 ? 'es' : ''} to Attempting`);
 }
 
 // Delete item from campaign board
