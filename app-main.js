@@ -517,6 +517,7 @@ const campaignBoardsState = {
   useLegacyKanban: false, // Campaign Board is now the default (legacy kanban removed)
   globalZipFilter: 'target', // 'target' = show target ZIPs only, 'all' = show all, or specific ZIP code
   queuedSelection: new Set(), // Selected item IDs in queued column
+  attemptingSelection: new Set(), // Selected item IDs in attempting column
   columnView: 'discovery', // 'discovery' (cols 1-3) or 'sales' (cols 4-6)
   cloudDataLoaded: false // Track whether boards were successfully loaded from cloud
 };
@@ -4788,11 +4789,6 @@ async function searchFoursquareBusinesses(zipCode, category, progressInfo = null
   }
 }
 
-// Alias for backward compatibility
-async function searchOutscraperBusinesses(zipCode, category, progressInfo = null) {
-  return await searchFoursquareBusinesses(zipCode, category, progressInfo);
-}
-
 // Legacy Yelp function - now redirects to Foursquare
 async function searchYelpBusinesses(zipCode, category, progressInfo = null) {
   return await searchFoursquareBusinesses(zipCode, category, progressInfo);
@@ -5281,61 +5277,6 @@ async function fetchSmartEnrichment(websiteUrl, businessName) {
       enriched: false,
       source: '9x12pro-scraper',
       pagesScraped: 0
-    };
-  }
-}
-
-// Fetch enriched business details from Outscraper (phone, email, social media)
-// Uses Vercel serverless function as proxy to avoid CORS issues
-async function fetchOutscraperDetails(businessName, address, placeId) {
-  try {
-    // Build search query - use full address for best match
-    const query = `${businessName} ${address}`;
-
-    console.log('🔍 Outscraper enrichment for:', businessName);
-
-    // Call our Vercel serverless function
-    const response = await fetch('/api/outscraper', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        query: query,
-        limit: 1
-      })
-    });
-
-    if (!response.ok) {
-      console.warn('Outscraper API failed:', await response.text());
-      return {
-        phone: '',
-        website: '',
-        email: '',
-        facebook: '',
-        instagram: '',
-        enriched: false,
-        source: 'outscraper',
-        cost: 0
-      };
-    }
-
-    const data = await response.json();
-    console.log('✅ Outscraper data:', data);
-
-    return data;
-
-  } catch(err) {
-    console.error('Error fetching Outscraper details:', err);
-    return {
-      phone: '',
-      website: '',
-      email: '',
-      facebook: '',
-      instagram: '',
-      enriched: false,
-      source: 'outscraper',
-      cost: 0
     };
   }
 }
@@ -6593,654 +6534,6 @@ window.generateInlinePitch = generateInlinePitch;
 window.copyAIResult = copyAIResult;
 window.updateCampaignSettings = updateCampaignSettings;
 window.refineAIPitch = refineAIPitch;
-
-// ========== 🔥 SPARK - Comment Engagement System ==========
-
-// Spark state and settings
-let sparkState = {
-  settings: {
-    groupName: '',
-    hourlyLimit: 5,
-    dailyLimit: 30
-  },
-  usageLog: [], // Array of timestamps when comments were made
-  conversations: [], // Array of { id, businessName, platform, postContent, comment, timestamp, responses: [] }
-  currentComment: '',
-  currentBusiness: '',
-  cooldownInterval: null
-};
-
-// Load Spark settings and data from localStorage
-function loadSparkData() {
-  try {
-    const saved = localStorage.getItem('spark-data');
-    if (saved) {
-      const data = JSON.parse(saved);
-      sparkState.settings = data.settings || sparkState.settings;
-      sparkState.usageLog = data.usageLog || [];
-      sparkState.conversations = data.conversations || [];
-    }
-
-    // Clean old usage entries (older than 24 hours)
-    const now = Date.now();
-    sparkState.usageLog = sparkState.usageLog.filter(ts => now - ts < 24 * 60 * 60 * 1000);
-
-    // Update UI
-    updateSparkUI();
-  } catch (e) {
-    console.error('Error loading Spark data:', e);
-  }
-}
-
-// Save Spark data to localStorage
-function saveSparkData() {
-  try {
-    localStorage.setItem('spark-data', JSON.stringify({
-      settings: sparkState.settings,
-      usageLog: sparkState.usageLog,
-      conversations: sparkState.conversations
-    }));
-  } catch (e) {
-    console.error('Error saving Spark data:', e);
-  }
-}
-
-// Save settings from UI inputs
-function saveSparkSettings() {
-  const groupName = document.getElementById('sparkGroupName')?.value || '';
-  const hourlyLimit = parseInt(document.getElementById('sparkHourlyLimit')?.value) || 5;
-  const dailyLimit = parseInt(document.getElementById('sparkDailyLimit')?.value) || 30;
-
-  sparkState.settings = { groupName, hourlyLimit, dailyLimit };
-  saveSparkData();
-  updateSparkRateLimits();
-}
-
-// Update the entire Spark UI
-function updateSparkUI() {
-  // Populate settings inputs
-  const groupNameEl = document.getElementById('sparkGroupName');
-  const hourlyLimitEl = document.getElementById('sparkHourlyLimit');
-  const dailyLimitEl = document.getElementById('sparkDailyLimit');
-
-  if (groupNameEl) groupNameEl.value = sparkState.settings.groupName || '';
-  if (hourlyLimitEl) hourlyLimitEl.value = sparkState.settings.hourlyLimit || 5;
-  if (dailyLimitEl) dailyLimitEl.value = sparkState.settings.dailyLimit || 30;
-
-  updateSparkRateLimits();
-  renderSparkConversations();
-}
-
-// Calculate and display rate limits
-function updateSparkRateLimits() {
-  const now = Date.now();
-  const hourAgo = now - 60 * 60 * 1000;
-  const dayAgo = now - 24 * 60 * 60 * 1000;
-
-  // Count usage
-  const hourlyUsed = sparkState.usageLog.filter(ts => ts > hourAgo).length;
-  const dailyUsed = sparkState.usageLog.filter(ts => ts > dayAgo).length;
-
-  const { hourlyLimit, dailyLimit } = sparkState.settings;
-
-  // Update display
-  const hourlyEl = document.getElementById('sparkHourlyCount');
-  const dailyEl = document.getElementById('sparkDailyCount');
-
-  if (hourlyEl) {
-    hourlyEl.textContent = `${hourlyUsed}/${hourlyLimit} hr`;
-    hourlyEl.className = `text-xs font-bold ${hourlyUsed >= hourlyLimit ? 'text-red-600' : 'text-green-600'}`;
-  }
-
-  if (dailyEl) {
-    dailyEl.textContent = `${dailyUsed}/${dailyLimit} day`;
-    dailyEl.className = `text-xs font-bold ${dailyUsed >= dailyLimit ? 'text-red-600' : 'text-blue-600'}`;
-  }
-
-  // Check if rate limited
-  const isRateLimited = hourlyUsed >= hourlyLimit || dailyUsed >= dailyLimit;
-  const generateBtn = document.getElementById('sparkGenerateBtn');
-
-  if (generateBtn) {
-    generateBtn.disabled = isRateLimited;
-    if (isRateLimited) {
-      generateBtn.classList.add('opacity-50', 'cursor-not-allowed');
-    } else {
-      generateBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-    }
-  }
-
-  // Show/hide cooldown timer
-  const cooldownEl = document.getElementById('sparkCooldown');
-  if (cooldownEl) {
-    if (isRateLimited) {
-      cooldownEl.classList.remove('hidden');
-      cooldownEl.classList.add('flex');
-      startCooldownTimer();
-    } else {
-      cooldownEl.classList.add('hidden');
-      cooldownEl.classList.remove('flex');
-      if (sparkState.cooldownInterval) {
-        clearInterval(sparkState.cooldownInterval);
-        sparkState.cooldownInterval = null;
-      }
-    }
-  }
-}
-
-// Start cooldown timer
-function startCooldownTimer() {
-  if (sparkState.cooldownInterval) return;
-
-  const updateTimer = () => {
-    const now = Date.now();
-    const hourAgo = now - 60 * 60 * 1000;
-    const { hourlyLimit } = sparkState.settings;
-
-    // Find oldest usage within the hour
-    const hourlyUsage = sparkState.usageLog.filter(ts => ts > hourAgo).sort((a, b) => a - b);
-
-    if (hourlyUsage.length >= hourlyLimit && hourlyUsage.length > 0) {
-      // Calculate when the oldest entry expires
-      const oldestInHour = hourlyUsage[0];
-      const expiresAt = oldestInHour + 60 * 60 * 1000;
-      const remaining = Math.max(0, expiresAt - now);
-
-      const minutes = Math.floor(remaining / 60000);
-      const seconds = Math.floor((remaining % 60000) / 1000);
-
-      const timerEl = document.getElementById('sparkCooldownTimer');
-      if (timerEl) {
-        timerEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-      }
-
-      if (remaining <= 0) {
-        updateSparkRateLimits();
-      }
-    } else {
-      updateSparkRateLimits();
-    }
-  };
-
-  updateTimer();
-  sparkState.cooldownInterval = setInterval(updateTimer, 1000);
-}
-
-// Generate a Spark comment
-async function generateSparkComment() {
-  const businessName = document.getElementById('sparkBusinessName')?.value?.trim();
-  const postContent = document.getElementById('sparkPostContent')?.value?.trim();
-  const platform = document.getElementById('sparkPlatform')?.value || 'facebook';
-  const sellLevel = parseInt(document.getElementById('sparkSellLevel')?.value || '3');
-  const groupName = sparkState.settings.groupName;
-
-  if (!businessName) {
-    toast('❌ Enter the business name', false);
-    return;
-  }
-
-  if (!postContent) {
-    toast('❌ Paste the business post content', false);
-    return;
-  }
-
-  if (!groupName) {
-    toast('❌ Set your group name in settings above', false);
-    return;
-  }
-
-  // Check rate limits
-  const now = Date.now();
-  const hourAgo = now - 60 * 60 * 1000;
-  const dayAgo = now - 24 * 60 * 60 * 1000;
-  const hourlyUsed = sparkState.usageLog.filter(ts => ts > hourAgo).length;
-  const dailyUsed = sparkState.usageLog.filter(ts => ts > dayAgo).length;
-
-  if (hourlyUsed >= sparkState.settings.hourlyLimit) {
-    toast('⏱️ Hourly limit reached. Wait for cooldown.', false);
-    return;
-  }
-
-  if (dailyUsed >= sparkState.settings.dailyLimit) {
-    toast('⏱️ Daily limit reached. Try again tomorrow.', false);
-    return;
-  }
-
-  const generateBtn = document.getElementById('sparkGenerateBtn');
-  const resultEl = document.getElementById('sparkResult');
-  const copyBtn = document.getElementById('sparkCopyBtn');
-  const refineRow = document.getElementById('sparkRefineRow');
-
-  // Show loading
-  if (generateBtn) {
-    generateBtn.innerHTML = '⏳ Generating...';
-    generateBtn.disabled = true;
-  }
-
-  try {
-    // Get campaign settings for context
-    const homeCount = document.getElementById('campaignHomeCount')?.value || campaignSettings.homeCount || 5000;
-    const spotPrice = document.getElementById('campaignSpotPrice')?.value || campaignSettings.spotPrice || '$500';
-
-    const response = await fetch('/api/ai/generate-comment', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        businessName,
-        postContent,
-        platform,
-        groupName,
-        sellLevel,
-        homeCount,
-        spotPrice,
-        refinement: ''
-      })
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to generate');
-    }
-
-    const data = await response.json();
-
-    // Store current comment
-    sparkState.currentComment = data.comment;
-    sparkState.currentBusiness = businessName;
-
-    // Display result
-    if (resultEl) {
-      resultEl.textContent = data.comment;
-      resultEl.classList.remove('hidden');
-    }
-
-    // Show copy button and refine row
-    if (copyBtn) copyBtn.classList.remove('hidden');
-    if (refineRow) refineRow.classList.remove('hidden');
-
-    toast('🔥 Comment generated!', true);
-
-  } catch (error) {
-    console.error('Spark generation error:', error);
-    toast(`❌ ${error.message}`, false);
-  } finally {
-    if (generateBtn) {
-      generateBtn.innerHTML = '🔥 Generate Comment';
-      generateBtn.disabled = false;
-    }
-  }
-}
-
-// Refine the Spark comment
-async function refineSparkComment() {
-  const refinement = document.getElementById('sparkRefine')?.value?.trim();
-
-  if (!refinement) {
-    toast('❌ Enter what you want to change', false);
-    return;
-  }
-
-  if (!sparkState.currentComment) {
-    toast('❌ Generate a comment first', false);
-    return;
-  }
-
-  const businessName = document.getElementById('sparkBusinessName')?.value?.trim();
-  const postContent = document.getElementById('sparkPostContent')?.value?.trim();
-  const platform = document.getElementById('sparkPlatform')?.value || 'facebook';
-  const groupName = sparkState.settings.groupName;
-
-  const generateBtn = document.getElementById('sparkGenerateBtn');
-  const resultEl = document.getElementById('sparkResult');
-
-  if (generateBtn) {
-    generateBtn.innerHTML = '🔄 Refining...';
-    generateBtn.disabled = true;
-  }
-
-  try {
-    const response = await fetch('/api/ai/generate-comment', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        businessName,
-        postContent,
-        platform,
-        groupName,
-        refinement: `Previous comment was: "${sparkState.currentComment}". User wants: ${refinement}`
-      })
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to refine');
-    }
-
-    const data = await response.json();
-
-    sparkState.currentComment = data.comment;
-
-    if (resultEl) {
-      resultEl.textContent = data.comment;
-    }
-
-    // Clear refinement input
-    const refineInput = document.getElementById('sparkRefine');
-    if (refineInput) refineInput.value = '';
-
-    toast('🔄 Comment refined!', true);
-
-  } catch (error) {
-    console.error('Spark refine error:', error);
-    toast(`❌ ${error.message}`, false);
-  } finally {
-    if (generateBtn) {
-      generateBtn.innerHTML = '🔥 Generate Comment';
-      generateBtn.disabled = false;
-    }
-  }
-}
-
-// Copy the comment and log the conversation
-function copySparkComment() {
-  if (!sparkState.currentComment) {
-    toast('❌ Nothing to copy', false);
-    return;
-  }
-
-  const businessName = document.getElementById('sparkBusinessName')?.value?.trim() || 'Unknown Business';
-  const postContent = document.getElementById('sparkPostContent')?.value?.trim() || '';
-  const platform = document.getElementById('sparkPlatform')?.value || 'facebook';
-
-  // Copy to clipboard
-  navigator.clipboard.writeText(sparkState.currentComment).then(() => {
-    // Log usage
-    sparkState.usageLog.push(Date.now());
-
-    // Check if this business already exists in conversations
-    const existingIndex = sparkState.conversations.findIndex(
-      c => c.businessName.toLowerCase() === businessName.toLowerCase()
-    );
-
-    if (existingIndex >= 0) {
-      // Update existing conversation
-      sparkState.conversations[existingIndex].comments.push({
-        comment: sparkState.currentComment,
-        postContent: postContent.substring(0, 200),
-        timestamp: Date.now()
-      });
-    } else {
-      // Create new conversation
-      sparkState.conversations.unshift({
-        id: Date.now().toString(),
-        businessName,
-        platform,
-        comments: [{
-          comment: sparkState.currentComment,
-          postContent: postContent.substring(0, 200),
-          timestamp: Date.now()
-        }],
-        responses: [],
-        createdAt: Date.now()
-      });
-    }
-
-    // Save and update UI
-    saveSparkData();
-    updateSparkRateLimits();
-    renderSparkConversations();
-
-    // Clear form
-    document.getElementById('sparkBusinessName').value = '';
-    document.getElementById('sparkPostContent').value = '';
-    document.getElementById('sparkResult').classList.add('hidden');
-    document.getElementById('sparkCopyBtn').classList.add('hidden');
-    document.getElementById('sparkRefineRow').classList.add('hidden');
-    sparkState.currentComment = '';
-    sparkState.currentBusiness = '';
-
-    toast('📋 Copied & logged!', true);
-
-  }).catch(() => {
-    toast('❌ Failed to copy', false);
-  });
-}
-
-// Render the conversation tracker list
-function renderSparkConversations() {
-  const container = document.getElementById('sparkConversationList');
-  const countEl = document.getElementById('sparkConversationCount');
-
-  if (!container) return;
-
-  if (countEl) {
-    countEl.textContent = `${sparkState.conversations.length} conversation${sparkState.conversations.length !== 1 ? 's' : ''}`;
-  }
-
-  if (sparkState.conversations.length === 0) {
-    container.innerHTML = `
-      <div class="text-center text-gray-400 text-sm py-4">
-        No conversations yet. Generate and copy a comment to start tracking.
-      </div>
-    `;
-    return;
-  }
-
-  container.innerHTML = sparkState.conversations.map(conv => {
-    const platformIcon = conv.platform === 'instagram' ? '📸' : '📘';
-    const timeAgo = getTimeAgo(conv.createdAt);
-    const lastComment = conv.comments[conv.comments.length - 1];
-    const hasResponses = conv.responses && conv.responses.length > 0;
-
-    return `
-      <div class="p-3 bg-white border rounded-lg hover:shadow-sm transition-shadow">
-        <div class="flex items-start justify-between gap-2 mb-2">
-          <div class="flex items-center gap-2">
-            <span>${platformIcon}</span>
-            <span class="font-bold text-gray-800 text-sm">${escapeHtml(conv.businessName)}</span>
-            <span class="text-xs text-gray-400">${timeAgo}</span>
-          </div>
-          <div class="flex gap-1">
-            <button onclick="openSparkResponseModal('${conv.id}')" class="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200" title="Log a response">
-              💬 Response
-            </button>
-            <button onclick="deleteSparkConversation('${conv.id}')" class="px-2 py-1 text-xs bg-red-100 text-red-600 rounded hover:bg-red-200" title="Delete">
-              🗑️
-            </button>
-          </div>
-        </div>
-        <div class="text-xs text-gray-600 mb-2 bg-gray-50 p-2 rounded">
-          <span class="font-medium">Your comment:</span> ${escapeHtml(lastComment.comment.substring(0, 150))}${lastComment.comment.length > 150 ? '...' : ''}
-        </div>
-        ${hasResponses ? `
-          <div class="text-xs border-t pt-2 mt-2">
-            <span class="font-medium text-green-700">📩 ${conv.responses.length} response(s)</span>
-            <div class="mt-1 text-gray-600">${escapeHtml(conv.responses[conv.responses.length - 1].content.substring(0, 100))}...</div>
-          </div>
-        ` : ''}
-        ${hasResponses ? `
-          <button onclick="generateSparkFollowUp('${conv.id}')" class="mt-2 px-3 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200">
-            🤖 AI Suggest Follow-up
-          </button>
-        ` : ''}
-      </div>
-    `;
-  }).join('');
-}
-
-// Open modal to log a response from the business
-function openSparkResponseModal(conversationId) {
-  const conv = sparkState.conversations.find(c => c.id === conversationId);
-  if (!conv) return;
-
-  const response = prompt(`Log a response from ${conv.businessName}:\n\nPaste their reply (DM, comment, etc.):`);
-
-  if (response && response.trim()) {
-    conv.responses.push({
-      content: response.trim(),
-      timestamp: Date.now()
-    });
-
-    saveSparkData();
-    renderSparkConversations();
-    toast('📩 Response logged!', true);
-  }
-}
-
-// Generate AI follow-up suggestion based on their response
-async function generateSparkFollowUp(conversationId) {
-  const conv = sparkState.conversations.find(c => c.id === conversationId);
-  if (!conv || !conv.responses || conv.responses.length === 0) {
-    toast('❌ No responses to follow up on', false);
-    return;
-  }
-
-  const lastResponse = conv.responses[conv.responses.length - 1];
-  const lastComment = conv.comments[conv.comments.length - 1];
-
-  toast('🤖 Generating follow-up suggestion...', true);
-
-  try {
-    const response = await fetch('/api/ai/generate-comment', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        businessName: conv.businessName,
-        postContent: `FOLLOW-UP CONTEXT:\nYour original comment: "${lastComment.comment}"\n\nTheir response: "${lastResponse.content}"`,
-        platform: conv.platform,
-        groupName: sparkState.settings.groupName,
-        refinement: 'Generate a friendly follow-up reply to their response. Keep building the relationship naturally.',
-        isFollowUp: true
-      })
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to generate');
-    }
-
-    const data = await response.json();
-
-    // Show the suggestion in an alert (could be a modal in future)
-    const copyIt = confirm(`🤖 Suggested follow-up:\n\n"${data.comment}"\n\nClick OK to copy this message.`);
-
-    if (copyIt) {
-      navigator.clipboard.writeText(data.comment).then(() => {
-        toast('📋 Follow-up copied!', true);
-      });
-    }
-
-  } catch (error) {
-    console.error('Follow-up generation error:', error);
-    toast(`❌ ${error.message}`, false);
-  }
-}
-
-// Delete a conversation
-function deleteSparkConversation(conversationId) {
-  if (!confirm('Delete this conversation from tracking?')) return;
-
-  sparkState.conversations = sparkState.conversations.filter(c => c.id !== conversationId);
-  saveSparkData();
-  renderSparkConversations();
-  toast('🗑️ Conversation deleted', true);
-}
-
-// Helper: Get time ago string
-function getTimeAgo(timestamp) {
-  const seconds = Math.floor((Date.now() - timestamp) / 1000);
-  if (seconds < 60) return 'just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
-
-// Helper: Escape HTML
-function escapeHtml(str) {
-  if (!str) return '';
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-// Initialize Spark on page load
-document.addEventListener('DOMContentLoaded', () => {
-  setTimeout(loadSparkData, 200);
-
-  // Display version in header
-  const versionEl = document.getElementById('appVersionDisplay');
-  if (versionEl && window.APP_CONFIG?.app?.version) {
-    versionEl.textContent = window.APP_CONFIG.app.version;
-  }
-});
-
-// Open selected prospect's social page based on platform selection
-function openSparkSocial() {
-  const prospect = closeDealsState?.selectedProspect;
-  const platform = document.getElementById('sparkPlatform')?.value || 'facebook';
-
-  if (!prospect) {
-    toast('Select a prospect first', false);
-    return;
-  }
-
-  const businessName = prospect.businessName || document.getElementById('sparkBusinessName')?.value?.trim();
-
-  if (platform === 'instagram') {
-    // Check if prospect has Instagram URL from enrichment
-    if (prospect.instagram) {
-      let igUrl = prospect.instagram;
-      if (!igUrl.startsWith('http')) {
-        igUrl = 'https://' + igUrl;
-      }
-      window.open(igUrl, '_blank');
-      return;
-    }
-    // No Instagram URL - search for them
-    if (businessName) {
-      const searchUrl = `https://www.instagram.com/${encodeURIComponent(businessName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase())}`;
-      window.open(searchUrl, '_blank');
-      toast('Opening Instagram for ' + businessName, true);
-    }
-  } else {
-    // Facebook
-    if (prospect.facebook) {
-      let fbUrl = prospect.facebook;
-      if (!fbUrl.startsWith('http')) {
-        fbUrl = 'https://' + fbUrl;
-      }
-      window.open(fbUrl, '_blank');
-      return;
-    }
-    // No Facebook URL - search for them
-    if (businessName) {
-      const searchUrl = `https://www.facebook.com/search/pages?q=${encodeURIComponent(businessName)}`;
-      window.open(searchUrl, '_blank');
-      toast('Searching Facebook for ' + businessName, true);
-    }
-  }
-
-  if (!businessName) {
-    toast('No business name to search', false);
-  }
-}
-
-// Keep old name for backwards compatibility
-function openSparkFacebook() {
-  openSparkSocial();
-}
-
-// Expose Spark functions globally
-window.openSparkSocial = openSparkSocial;
-window.openSparkFacebook = openSparkFacebook;
-window.generateSparkComment = generateSparkComment;
-window.refineSparkComment = refineSparkComment;
-window.copySparkComment = copySparkComment;
-window.saveSparkSettings = saveSparkSettings;
-window.openSparkResponseModal = openSparkResponseModal;
-window.generateSparkFollowUp = generateSparkFollowUp;
-window.deleteSparkConversation = deleteSparkConversation;
 
 // Switch between outreach sub-tabs (text, email, phone, objections)
 function switchOutreachTab(tabName) {
@@ -9813,8 +9106,11 @@ async function cleanupProspectPoolEnrichment() {
   // Re-render prospect pool
   renderProspectPool();
 
-  toast(`🧹 Restored enrichment data for ${enrichmentRestored} prospects`, true);
-  console.log('✅ Cleanup complete! Enrichment data restored.');
+  // Only show toast if actual work was done
+  if (enrichmentRestored > 0 || townFieldsRemoved > 0) {
+    toast(`🧹 Cleaned up ${townFieldsRemoved} town fields, restored ${enrichmentRestored} enrichment flags`, true);
+  }
+  console.log('✅ Cleanup complete!');
 }
 
 // Expose cleanup function globally (can be called from console)
@@ -13641,11 +12937,27 @@ function switchCrmTab(tabName) {
   // Update tab buttons
   document.querySelectorAll('.crm-tab').forEach(btn => {
     const isActive = btn.dataset.crmTab === tabName;
-    btn.classList.toggle('border-indigo-600', isActive);
-    btn.classList.toggle('text-indigo-600', isActive);
-    btn.classList.toggle('bg-white', isActive);
-    btn.classList.toggle('border-transparent', !isActive);
-    btn.classList.toggle('text-gray-500', !isActive);
+    const isPitchTab = btn.dataset.crmTab === 'pitch';
+
+    // Remove all active states first
+    btn.classList.remove('border-indigo-600', 'text-indigo-600', 'border-purple-600', 'text-purple-600', 'bg-white');
+
+    if (isActive) {
+      btn.classList.add('bg-white');
+      if (isPitchTab) {
+        btn.classList.add('border-purple-600', 'text-purple-600');
+      } else {
+        btn.classList.add('border-indigo-600', 'text-indigo-600');
+      }
+      btn.classList.remove('border-transparent', 'text-gray-500', 'text-purple-500');
+    } else {
+      btn.classList.add('border-transparent');
+      if (isPitchTab) {
+        btn.classList.add('text-purple-500');
+      } else {
+        btn.classList.add('text-gray-500');
+      }
+    }
   });
 
   // Update tab content
@@ -14246,10 +13558,229 @@ function openEditContactModal() {
     const clientId = currentProspectDetail.id;
     closeProspectDetailModal();
     openClientModal(clientId);
-  } else {
-    toast('Edit contact feature coming soon!', true);
+    return;
+  }
+
+  // Populate the edit form with current data
+  const modal = document.getElementById('editContactModal');
+  if (!modal) return;
+
+  document.getElementById('editContactName').value = currentProspectDetail.businessName || currentProspectDetail.name || '';
+  document.getElementById('editContactPhone').value = currentProspectDetail.phone || '';
+  document.getElementById('editContactEmail').value = currentProspectDetail.email || '';
+  document.getElementById('editContactWebsite').value = currentProspectDetail.website || '';
+  document.getElementById('editContactAddress').value = currentProspectDetail.address || currentProspectDetail.fullAddress || '';
+  document.getElementById('editContactFacebook').value = currentProspectDetail.facebook || '';
+  document.getElementById('editContactInstagram').value = currentProspectDetail.instagram || '';
+
+  modal.style.display = 'flex';
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeEditContactModal() {
+  const modal = document.getElementById('editContactModal');
+  if (modal) {
+    modal.style.display = 'none';
+    modal.setAttribute('aria-hidden', 'true');
   }
 }
+
+async function saveEditedContact() {
+  if (!currentProspectDetail) {
+    toast('No contact selected', false);
+    return;
+  }
+
+  // Get updated values
+  const updates = {
+    businessName: document.getElementById('editContactName').value.trim(),
+    name: document.getElementById('editContactName').value.trim(),
+    phone: document.getElementById('editContactPhone').value.trim(),
+    email: document.getElementById('editContactEmail').value.trim(),
+    website: document.getElementById('editContactWebsite').value.trim(),
+    address: document.getElementById('editContactAddress').value.trim(),
+    fullAddress: document.getElementById('editContactAddress').value.trim(),
+    facebook: document.getElementById('editContactFacebook').value.trim(),
+    instagram: document.getElementById('editContactInstagram').value.trim()
+  };
+
+  // Find and update the prospect in campaign board
+  const board = getCurrentCampaignBoard();
+  if (board) {
+    const prospectId = currentProspectDetail.id || currentProspectDetail.placeId;
+    for (const colKey of Object.keys(board.columns)) {
+      const items = board.columns[colKey] || [];
+      const idx = items.findIndex(item => {
+        const itemId = item.id || item.placeId;
+        return String(itemId) === String(prospectId);
+      });
+      if (idx !== -1) {
+        // Update the item
+        Object.assign(items[idx], updates);
+        break;
+      }
+    }
+    // Save campaign boards
+    await saveCampaignBoards();
+  }
+
+  // Update the current prospect detail
+  Object.assign(currentProspectDetail, updates);
+
+  // Update the CRM modal display
+  document.getElementById('detailBusinessName').textContent = updates.businessName || 'Unknown Business';
+  document.getElementById('detailPhone').textContent = updates.phone || '—';
+  document.getElementById('detailEmail').textContent = updates.email || '—';
+  document.getElementById('detailWebsite').textContent = updates.website || '—';
+  document.getElementById('detailAddress').textContent = updates.address || '—';
+
+  // Update button states
+  document.getElementById('btnContactCall').disabled = !updates.phone;
+  document.getElementById('btnContactSMS').disabled = !updates.phone;
+  document.getElementById('btnContactEmail').disabled = !updates.email;
+  document.getElementById('btnContactWebsite').disabled = !updates.website;
+  document.getElementById('btnHeaderCall').disabled = !updates.phone;
+  document.getElementById('btnHeaderSMS').disabled = !updates.phone;
+  document.getElementById('btnHeaderEmail').disabled = !updates.email;
+  document.getElementById('btnHeaderWebsite').disabled = !updates.website;
+
+  // Re-render social links
+  renderSocialLinks(currentProspectDetail);
+
+  // Re-render the campaign board to show updated info
+  renderCampaignBoard();
+
+  closeEditContactModal();
+  toast('Contact info updated!', true);
+}
+
+// AI Pitch generation for CRM modal
+async function generateCrmPitch(type) {
+  if (!currentProspectDetail) {
+    toast('No prospect selected', false);
+    return;
+  }
+
+  const btnId = type === 'text' ? 'crmGenTextBtn' : 'crmGenEmailBtn';
+  const resultId = type === 'text' ? 'crmTextResult' : 'crmEmailResult';
+  const copyBtnId = type === 'text' ? 'crmCopyTextBtn' : 'crmCopyEmailBtn';
+  const subjectId = 'crmEmailSubject';
+
+  const btn = document.getElementById(btnId);
+  const resultEl = document.getElementById(resultId);
+  const copyBtn = document.getElementById(copyBtnId);
+  const subjectEl = document.getElementById(subjectId);
+
+  if (!btn || !resultEl) return;
+
+  // Show loading state
+  const originalText = btn.textContent;
+  btn.textContent = 'Generating...';
+  btn.disabled = true;
+
+  try {
+    // Get campaign settings
+    const mailer = state.current;
+    const homeCount = mailer?.Address_Count || productionState.pricing[mailer?.Mailer_ID]?.homeCount || 5000;
+    const spotPrice = productionState.pricing[mailer?.Mailer_ID]?.singleAd || campaignSettings?.spotPrice || 500;
+
+    // Build business object for API
+    const business = {
+      name: currentProspectDetail.businessName || currentProspectDetail.name || 'Business',
+      category: currentProspectDetail.category || '',
+      rating: currentProspectDetail.rating,
+      review_count: currentProspectDetail.reviewCount || currentProspectDetail.review_count,
+      city: currentProspectDetail.city || '',
+      zip: currentProspectDetail.zipCode || currentProspectDetail.actualZip || mailer?.Town || '',
+      website: currentProspectDetail.website || '',
+      facebook: currentProspectDetail.facebook || '',
+      instagram: currentProspectDetail.instagram || '',
+      contactName: currentProspectDetail.contactName || ''
+    };
+
+    // Get sender info from settings
+    const sender = {
+      name: campaignSettings?.senderName || 'Your Name',
+      company: campaignSettings?.companyName || '9x12 Postcards',
+      phone: campaignSettings?.phone || '',
+      spotPrice: `$${spotPrice}`
+    };
+
+    const platform = type === 'text' ? 'text' : 'email';
+
+    const response = await fetch('/api/ai/generate-pitch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        business,
+        platform,
+        urgency: 'medium',
+        sender,
+        homeCount,
+        deliveryZip: business.zip
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to generate pitch');
+    }
+
+    const data = await response.json();
+
+    // Display result
+    resultEl.textContent = data.message;
+
+    // Show subject for email
+    if (type === 'email' && data.subject && subjectEl) {
+      subjectEl.textContent = `Subject: ${data.subject}`;
+      subjectEl.classList.remove('hidden');
+    }
+
+    // Show copy button
+    if (copyBtn) copyBtn.classList.remove('hidden');
+
+    toast('Pitch generated!', true);
+
+  } catch (error) {
+    console.error('AI pitch generation error:', error);
+    resultEl.textContent = `Error: ${error.message}. Please try again.`;
+    toast(`Failed to generate pitch: ${error.message}`, false);
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+
+function copyCrmPitch(type) {
+  const resultId = type === 'text' ? 'crmTextResult' : 'crmEmailResult';
+  const subjectId = 'crmEmailSubject';
+
+  const resultEl = document.getElementById(resultId);
+  const subjectEl = document.getElementById(subjectId);
+
+  if (!resultEl) return;
+
+  let textToCopy = resultEl.textContent;
+
+  // For email, include subject if available
+  if (type === 'email' && subjectEl && !subjectEl.classList.contains('hidden')) {
+    textToCopy = subjectEl.textContent + '\n\n' + textToCopy;
+  }
+
+  navigator.clipboard.writeText(textToCopy).then(() => {
+    toast('Copied to clipboard!', true);
+  }).catch(() => {
+    toast('Failed to copy', false);
+  });
+}
+
+// Expose edit contact and AI pitch functions
+window.openEditContactModal = openEditContactModal;
+window.closeEditContactModal = closeEditContactModal;
+window.saveEditedContact = saveEditedContact;
+window.generateCrmPitch = generateCrmPitch;
+window.copyCrmPitch = copyCrmPitch;
 
 // Mark prospect as not interested (called from CRM card footer)
 async function markProspectNotInterested() {
@@ -16827,7 +16358,18 @@ function findBusinessInBoard(businessId, board) {
 // Move business between columns in campaign board
 function moveCampaignBoardItem(businessId, fromColumn, toColumn, board) {
   const fromItems = board.columns[fromColumn];
+
+  // Safety check: ensure destination column exists before modifying source
+  if (!board.columns[toColumn]) {
+    console.error(`❌ moveCampaignBoardItem: destination column '${toColumn}' does not exist`);
+    board.columns[toColumn] = []; // Initialize if missing
+  }
   const toItems = board.columns[toColumn];
+
+  if (!fromItems) {
+    console.error(`❌ moveCampaignBoardItem: source column '${fromColumn}' does not exist`);
+    return false;
+  }
 
   const idx = fromItems.findIndex(item => String(item.id) === String(businessId));
   if (idx === -1) return false;
@@ -17119,18 +16661,29 @@ function renderCampaignBoard() {
       if (item.email) socialIcons.push(`<a href="mailto:${esc(item.email)}" onclick="event.stopPropagation()" class="px-1.5 py-0.5 bg-gray-100 rounded hover:bg-gray-200 text-sm" title="Email">✉️</a>`);
       if (item.facebook) socialIcons.push(`<a href="${esc(ensureHttps(item.facebook))}" onclick="event.stopPropagation()" target="_blank" class="px-1.5 py-0.5 bg-blue-50 rounded hover:bg-blue-100 text-sm" title="Facebook">📘</a>`);
 
-      // Checkbox for queued column selection
-      const isSelected = colKey === 'queued' && campaignBoardsState.queuedSelection.has(leadId);
+      // Checkbox for queued and attempting column selection
+      const isQueuedSelected = colKey === 'queued' && campaignBoardsState.queuedSelection.has(leadId);
+      const isAttemptingSelected = colKey === 'attempting' && campaignBoardsState.attemptingSelection.has(leadId);
+      const isSelected = isQueuedSelected || isAttemptingSelected;
       const checkboxHtml = colKey === 'queued' ? `
         <input type="checkbox" class="queued-item-checkbox w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500 flex-shrink-0 mt-0.5"
                data-item-id="${leadId}"
-               ${isSelected ? 'checked' : ''}
+               ${isQueuedSelected ? 'checked' : ''}
                onclick="event.stopPropagation(); toggleQueuedItemSelection('${leadId}')"
+               ondblclick="event.stopPropagation()">
+      ` : colKey === 'attempting' ? `
+        <input type="checkbox" class="attempting-item-checkbox w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 flex-shrink-0 mt-0.5"
+               data-item-id="${leadId}"
+               ${isAttemptingSelected ? 'checked' : ''}
+               onclick="event.stopPropagation(); toggleAttemptingItemSelection('${leadId}')"
                ondblclick="event.stopPropagation()">
       ` : '';
 
+      // Different highlight colors: purple for queued, blue for attempting
+      const selectionClass = isQueuedSelected ? 'bg-purple-50 ring-2 ring-purple-300' : isAttemptingSelected ? 'bg-blue-50 ring-2 ring-blue-300' : 'bg-white';
+
       return `
-        <div class="kanban-item campaign-board-item text-xs p-2 ${isDoNotContact ? 'bg-red-50' : isSelected ? 'bg-purple-50 ring-2 ring-purple-300' : 'bg-white'} border rounded ${hasBeenContacted ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'} relative ${isDoNotContact ? 'opacity-60' : ''} cursor-grab"
+        <div class="kanban-item campaign-board-item text-xs p-2 ${isDoNotContact ? 'bg-red-50' : selectionClass} border rounded ${hasBeenContacted ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'} relative ${isDoNotContact ? 'opacity-60' : ''} cursor-grab"
              style="user-select:none;-webkit-user-select:none;-webkit-touch-callout:none"
              data-item-id="${leadId}" data-column="${colKey}"
              onclick="openCampaignBoardQuickAction('${leadId}', '${colKey}')">
@@ -17171,7 +16724,7 @@ function renderCampaignBoard() {
     const columnWidth = 'min-width: 280px;';
 
     // Selection controls for queued column
-    const selectionControls = colKey === 'queued' && items.length > 0 ? `
+    const queuedSelectionControls = colKey === 'queued' && items.length > 0 ? `
       <div class="flex items-center gap-2 mb-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
         <label class="flex items-center gap-1 cursor-pointer">
           <input type="checkbox" id="queuedSelectAll" onchange="toggleQueuedSelectAll(this.checked)"
@@ -17194,6 +16747,27 @@ function renderCampaignBoard() {
         </button>
       </div>
     ` : '';
+
+    // Selection controls for attempting column
+    const attemptingSelectionControls = colKey === 'attempting' && items.length > 0 ? `
+      <div class="flex items-center gap-2 mb-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
+        <label class="flex items-center gap-1 cursor-pointer">
+          <input type="checkbox" id="attemptingSelectAll" onchange="toggleAttemptingSelectAll(this.checked)"
+                 class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                 ${campaignBoardsState.attemptingSelection.size === items.length && items.length > 0 ? 'checked' : ''}>
+          <span class="text-xs font-medium text-gray-600">Select All</span>
+        </label>
+        <span id="attemptingSelectionCount" class="text-xs text-gray-500">(${campaignBoardsState.attemptingSelection.size} selected)</span>
+        <button onclick="moveAttemptingSelectionToQueued()"
+                class="ml-auto px-3 py-2 text-sm font-medium rounded bg-blue-100 text-blue-700 hover:bg-blue-200 ${campaignBoardsState.attemptingSelection.size === 0 ? 'opacity-50 cursor-not-allowed' : ''}"
+                style="touch-action:manipulation"
+                ${campaignBoardsState.attemptingSelection.size === 0 ? 'disabled' : ''}>
+          ⬅️ Move to Queued
+        </button>
+      </div>
+    ` : '';
+
+    const selectionControls = queuedSelectionControls || attemptingSelectionControls;
 
     return `
       <div class="kanban-column campaign-board-column ${phaseSeparator}" data-column="${colKey}" style="${columnWidth} flex: 1;">
@@ -18435,6 +18009,75 @@ async function moveQueuedSelectionToAttempting() {
   toast(`✅ Moved ${movedCount} business${movedCount > 1 ? 'es' : ''} to Attempting`);
 }
 
+// Toggle selection of a single item in attempting column
+function toggleAttemptingItemSelection(leadId) {
+  if (campaignBoardsState.attemptingSelection.has(leadId)) {
+    campaignBoardsState.attemptingSelection.delete(leadId);
+  } else {
+    campaignBoardsState.attemptingSelection.add(leadId);
+  }
+  renderCampaignBoard();
+}
+
+// Toggle select all for attempting column
+function toggleAttemptingSelectAll(checked) {
+  const board = getCurrentCampaignBoard();
+  if (!board) return;
+
+  const items = board.columns['attempting'] || [];
+  if (checked) {
+    // Select all visible items
+    items.forEach(item => {
+      const id = String(item.id);
+      campaignBoardsState.attemptingSelection.add(id);
+    });
+  } else {
+    // Deselect all
+    campaignBoardsState.attemptingSelection.clear();
+  }
+  renderCampaignBoard();
+}
+
+// Move selected attempting items back to Queued column
+async function moveAttemptingSelectionToQueued() {
+  const selectedIds = Array.from(campaignBoardsState.attemptingSelection);
+  if (selectedIds.length === 0) {
+    toast('No businesses selected', false);
+    return;
+  }
+
+  const board = getCurrentCampaignBoard();
+  if (!board) return;
+
+  const attemptingItems = board.columns['attempting'] || [];
+  if (!board.columns['queued']) board.columns['queued'] = [];
+  const queuedItems = board.columns['queued'];
+
+  let movedCount = 0;
+
+  // Process each selected item
+  const idsToMove = [...selectedIds];
+  for (const leadId of idsToMove) {
+    const idx = attemptingItems.findIndex(item => String(item.id) === leadId);
+    if (idx !== -1) {
+      const item = attemptingItems.splice(idx, 1)[0];
+      queuedItems.push(item);
+      movedCount++;
+    }
+  }
+
+  // Clear selection
+  campaignBoardsState.attemptingSelection.clear();
+
+  // Save changes
+  await saveCampaignBoards();
+
+  // Refresh UI
+  renderCampaignBoard();
+
+  toast(`✅ Moved ${movedCount} business${movedCount > 1 ? 'es' : ''} back to Queued`);
+}
+
 // Delete item from campaign board
 async function deleteCampaignBoardItem(leadId, columnKey) {
   if (!confirm('Remove this business from the campaign board?')) return;
@@ -19170,6 +18813,13 @@ async function saveCampaignBoards() {
     }, 0);
     console.log(`☁️ Saving ${boardIds.length} boards (${totalItems} total items) to cloud`);
 
+    // Create backup in IndexedDB before cloud save (for recovery)
+    try {
+      await idbSet('campaign-boards', JSON.parse(JSON.stringify(boards)));
+    } catch (e) {
+      console.warn('Could not backup to IndexedDB:', e);
+    }
+
     await saveToCloud('campaign-boards', boards);
     console.log('✅ Campaign boards saved to cloud');
   } catch (err) {
@@ -19177,6 +18827,203 @@ async function saveCampaignBoards() {
     toast('Failed to save campaign boards', false);
   }
 }
+
+// Data recovery tool - check all storage locations and help restore lost data
+window.recoverLostBusinesses = async function() {
+  console.log('🔍 CAMPAIGN BOARD DATA RECOVERY TOOL');
+  console.log('=====================================\n');
+
+  const recovery = {
+    cloud: null,
+    indexedDB: null,
+    localStorage: null,
+    prospectPool: []
+  };
+
+  // 1. Check cloud data
+  console.log('1️⃣ Checking cloud storage (Supabase)...');
+  try {
+    const cloudData = await loadFromCloud('campaign-boards');
+    if (cloudData) {
+      recovery.cloud = cloudData;
+      Object.keys(cloudData).forEach(boardId => {
+        const board = cloudData[boardId];
+        if (board?.columns) {
+          console.log(`   Board "${board.name || boardId}":`);
+          Object.keys(board.columns).forEach(col => {
+            const count = board.columns[col]?.length || 0;
+            if (count > 0) {
+              console.log(`     ${col}: ${count} items`);
+              board.columns[col].forEach(item => {
+                console.log(`       - ${item.businessName || item.name || 'Unknown'}`);
+              });
+            }
+          });
+        }
+      });
+    } else {
+      console.log('   ❌ No cloud data found');
+    }
+  } catch (e) {
+    console.error('   ❌ Error loading cloud data:', e);
+  }
+
+  // 2. Check IndexedDB
+  console.log('\n2️⃣ Checking IndexedDB...');
+  try {
+    const idbData = await idbGet('campaign-boards');
+    if (idbData) {
+      recovery.indexedDB = idbData;
+      console.log('   ✅ Found IndexedDB data');
+      Object.keys(idbData).forEach(boardId => {
+        const board = idbData[boardId];
+        if (board?.columns) {
+          const total = Object.values(board.columns).reduce((s, c) => s + (c?.length || 0), 0);
+          console.log(`   Board "${board.name || boardId}": ${total} total items`);
+        }
+      });
+    } else {
+      console.log('   ❌ No IndexedDB data found');
+    }
+  } catch (e) {
+    console.log('   ❌ IndexedDB not available or empty');
+  }
+
+  // 3. Check localStorage backup
+  console.log('\n3️⃣ Checking localStorage backup...');
+  try {
+    const lsData = localStorage.getItem('campaign-boards-backup');
+    if (lsData) {
+      recovery.localStorage = JSON.parse(lsData);
+      console.log('   ✅ Found localStorage backup');
+    } else {
+      console.log('   ❌ No localStorage backup found');
+    }
+  } catch (e) {
+    console.log('   ❌ No localStorage backup');
+  }
+
+  // 4. Check prospect pool for businesses that might need to be re-added
+  console.log('\n4️⃣ Checking prospect pool for potential recovery...');
+  if (prospectPoolState.manualProspects?.length > 0) {
+    // Find prospects with contact tracking that suggests they were in the pipeline
+    const contacted = prospectPoolState.manualProspects.filter(p =>
+      p.contactTracking?.emailed || p.contactTracking?.texted || p.contactTracking?.called ||
+      p.attemptTracking?.attemptHistory?.length > 0
+    );
+    recovery.prospectPool = contacted;
+    console.log(`   Found ${contacted.length} prospects with contact history in pool`);
+    contacted.forEach(p => {
+      console.log(`     - ${p.businessName || p.name} (has contact history)`);
+    });
+  }
+
+  // 5. Summary and recovery options
+  console.log('\n📊 RECOVERY OPTIONS:');
+  console.log('====================');
+
+  if (recovery.indexedDB && recovery.cloud) {
+    // Compare to find missing items
+    const cloudItems = new Set();
+    const idbItems = new Set();
+
+    Object.values(recovery.cloud).forEach(board => {
+      if (board?.columns) {
+        Object.values(board.columns).forEach(col => {
+          col?.forEach(item => cloudItems.add(item.id || item.businessName));
+        });
+      }
+    });
+
+    Object.values(recovery.indexedDB).forEach(board => {
+      if (board?.columns) {
+        Object.values(board.columns).forEach(col => {
+          col?.forEach(item => idbItems.add(item.id || item.businessName));
+        });
+      }
+    });
+
+    const missingFromCloud = [...idbItems].filter(id => !cloudItems.has(id));
+    if (missingFromCloud.length > 0) {
+      console.log(`\n⚠️ ${missingFromCloud.length} items in IndexedDB but NOT in cloud!`);
+      console.log('   Run: restoreFromIndexedDB() to restore these');
+    }
+  }
+
+  console.log('\n💡 Available recovery commands:');
+  console.log('   restoreFromIndexedDB() - Restore from local IndexedDB cache');
+  console.log('   addToAttempting(businessName) - Re-add a business to Attempting column');
+  console.log('\n');
+
+  return recovery;
+};
+
+// Restore campaign boards from IndexedDB
+window.restoreFromIndexedDB = async function() {
+  const idbData = await idbGet('campaign-boards');
+  if (!idbData) {
+    console.log('❌ No IndexedDB data to restore from');
+    return false;
+  }
+
+  console.log('🔄 Restoring from IndexedDB...');
+  campaignBoardsState.boards = idbData;
+  await saveCampaignBoards();
+  renderCampaignBoard();
+  console.log('✅ Restored from IndexedDB');
+  toast('Restored campaign boards from local backup', true);
+  return true;
+};
+
+// Re-add a business to the Attempting column by name
+window.addToAttempting = async function(businessName) {
+  // Search in prospect pool
+  const prospect = prospectPoolState.manualProspects?.find(p =>
+    (p.businessName || p.name || '').toLowerCase().includes(businessName.toLowerCase())
+  );
+
+  if (!prospect) {
+    console.log(`❌ Business "${businessName}" not found in prospect pool`);
+    return false;
+  }
+
+  const board = getCurrentCampaignBoard();
+  if (!board) {
+    console.log('❌ No active campaign board');
+    return false;
+  }
+
+  // Check if already in board
+  const allColumns = ['queued', 'attempting', 'negotiating', 'invoice-sent', 'proof-approved', 'paid-in-full'];
+  for (const col of allColumns) {
+    const exists = board.columns[col]?.some(item =>
+      (item.businessName || item.name) === (prospect.businessName || prospect.name)
+    );
+    if (exists) {
+      console.log(`⚠️ "${prospect.businessName || prospect.name}" already exists in ${col}`);
+      return false;
+    }
+  }
+
+  // Add to attempting column
+  board.columns['attempting'].push({
+    ...prospect,
+    id: prospect.id || `recovered_${Date.now()}`,
+    attemptTracking: prospect.attemptTracking || {
+      currentAttempt: 1,
+      maxAttempts: 4,
+      attemptHistory: [],
+      nextChannel: null,
+      nextActionDate: new Date().toISOString().split('T')[0]
+    }
+  });
+
+  await saveCampaignBoards();
+  renderCampaignBoard();
+  console.log(`✅ Added "${prospect.businessName || prospect.name}" to Attempting column`);
+  toast(`Recovered "${prospect.businessName || prospect.name}" to Attempting`, true);
+  return true;
+};
 
 // Clean up duplicates in campaign board (for users who already migrated)
 async function cleanupCampaignBoardDuplicates() {
@@ -24071,6 +23918,12 @@ window.selectAllCategoriesHandler = function() {
 /* ========= INIT ========= */
 document.addEventListener("DOMContentLoaded", () => {
   console.log('🔧 DOMContentLoaded fired');
+
+  // Display version in header
+  const versionEl = document.getElementById('appVersionDisplay');
+  if (versionEl && window.APP_CONFIG?.app?.version) {
+    versionEl.textContent = window.APP_CONFIG.app.version;
+  }
 
   // Initialize offline support (event listeners, sync queue)
   try {
@@ -30140,9 +29993,9 @@ function outreachMarkContacted() {
   const prospect = outreachState.selectedProspect;
   if (!prospect) return;
 
-  // Move from "to-contact/attempting" to "in-progress/negotiating"
+  // Move from "to-contact/attempting" to "negotiating" (campaign board column name)
   if (prospect.currentColumn === 'to-contact' || prospect.currentColumn === 'attempting') {
-    outreachMoveToStage('in-progress');
+    outreachMoveToStage('negotiating');
     toast(`${prospect.businessName} marked as contacted`, true);
   } else {
     toast('Already in progress or later stage', true);

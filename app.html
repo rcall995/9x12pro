@@ -3480,6 +3480,9 @@ The cost is [SPOT_PRICE] for a premium spot. Interested in learning more?
         <button onclick="switchCrmTab('notes')" data-crm-tab="notes" class="crm-tab flex-1 px-4 py-3 text-sm font-semibold text-center border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50">
           Notes
         </button>
+        <button onclick="switchCrmTab('pitch')" data-crm-tab="pitch" class="crm-tab flex-1 px-4 py-3 text-sm font-semibold text-center border-b-2 border-transparent text-purple-500 hover:text-purple-700 hover:bg-purple-50">
+          AI Pitch
+        </button>
       </div>
 
       <!-- TAB CONTENT AREA -->
@@ -3643,6 +3646,49 @@ The cost is [SPOT_PRICE] for a premium spot. Interested in learning more?
             </div>
           </div>
         </div>
+
+        <!-- AI PITCH TAB -->
+        <div id="crmTabPitch" class="crm-tab-content hidden">
+          <div class="space-y-4">
+            <!-- Text Message Pitch -->
+            <div class="bg-white rounded-xl p-4 border-2 border-purple-200">
+              <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center gap-2">
+                  <span class="text-xl">💬</span>
+                  <span class="font-bold text-purple-800">Text Message</span>
+                </div>
+                <div class="flex gap-2">
+                  <button id="crmGenTextBtn" onclick="generateCrmPitch('text')" class="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700">Generate</button>
+                  <button id="crmCopyTextBtn" onclick="copyCrmPitch('text')" class="hidden px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700">Copy</button>
+                </div>
+              </div>
+              <div id="crmTextResult" class="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg border min-h-[80px]">Click "Generate" to create a personalized text message for this prospect.</div>
+            </div>
+
+            <!-- Email Pitch -->
+            <div class="bg-white rounded-xl p-4 border-2 border-purple-200">
+              <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center gap-2">
+                  <span class="text-xl">📧</span>
+                  <span class="font-bold text-purple-800">Email</span>
+                </div>
+                <div class="flex gap-2">
+                  <button id="crmGenEmailBtn" onclick="generateCrmPitch('email')" class="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700">Generate</button>
+                  <button id="crmCopyEmailBtn" onclick="copyCrmPitch('email')" class="hidden px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700">Copy</button>
+                </div>
+              </div>
+              <div id="crmEmailSubject" class="hidden text-sm font-bold text-purple-700 bg-purple-50 px-3 py-2 rounded-lg border border-purple-200 mb-2"></div>
+              <div id="crmEmailResult" class="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg border min-h-[100px] whitespace-pre-wrap">Click "Generate" to create a personalized email for this prospect.</div>
+            </div>
+
+            <!-- Tips -->
+            <div class="bg-purple-50 rounded-xl p-4 border border-purple-200">
+              <div class="text-xs text-purple-700">
+                <strong>Tips:</strong> The AI uses the prospect's business name, category, and location to create personalized outreach. Generated messages reference your current postcard campaign.
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- FLOATING ADD ACTIVITY BUTTON -->
@@ -3666,6 +3712,60 @@ The cost is [SPOT_PRICE] for a premium spot. Interested in learning more?
             Close
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Contact Modal -->
+  <div id="editContactModal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal" style="max-width: 500px;">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold text-gray-900">Edit Contact Info</h3>
+        <button onclick="closeEditContactModal()" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+      </div>
+
+      <div class="space-y-4">
+        <!-- Business Name -->
+        <div>
+          <label class="text-xs text-gray-500 font-medium uppercase tracking-wide block mb-1">Business Name</label>
+          <input id="editContactName" type="text" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm" placeholder="Business name">
+        </div>
+        <!-- Phone -->
+        <div>
+          <label class="text-xs text-gray-500 font-medium uppercase tracking-wide block mb-1">Phone</label>
+          <input id="editContactPhone" type="tel" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm" placeholder="(555) 123-4567">
+        </div>
+        <!-- Email -->
+        <div>
+          <label class="text-xs text-gray-500 font-medium uppercase tracking-wide block mb-1">Email</label>
+          <input id="editContactEmail" type="email" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm" placeholder="email@business.com">
+        </div>
+        <!-- Website -->
+        <div>
+          <label class="text-xs text-gray-500 font-medium uppercase tracking-wide block mb-1">Website</label>
+          <input id="editContactWebsite" type="url" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm" placeholder="https://www.example.com">
+        </div>
+        <!-- Address -->
+        <div>
+          <label class="text-xs text-gray-500 font-medium uppercase tracking-wide block mb-1">Address</label>
+          <input id="editContactAddress" type="text" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm" placeholder="123 Main St, City, State">
+        </div>
+        <!-- Social Media -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs text-gray-500 font-medium uppercase tracking-wide block mb-1">Facebook</label>
+            <input id="editContactFacebook" type="url" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm" placeholder="facebook.com/...">
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 font-medium uppercase tracking-wide block mb-1">Instagram</label>
+            <input id="editContactInstagram" type="url" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm" placeholder="instagram.com/...">
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 mt-6">
+        <button onclick="closeEditContactModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300">Cancel</button>
+        <button onclick="saveEditedContact()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">Save Changes</button>
       </div>
     </div>
   </div>
@@ -3857,8 +3957,8 @@ The cost is [SPOT_PRICE] for a premium spot. Interested in learning more?
           </div>
           <div class="space-y-3">
             <div class="p-3 bg-green-50 rounded-lg border border-green-200">
-              <strong class="text-green-800">Spark Comments</strong>
-              <p class="text-sm text-green-700">Use AI to generate personalized social media comments that warm up prospects</p>
+              <strong class="text-green-800">AI-Powered Pitches</strong>
+              <p class="text-sm text-green-700">Generate personalized pitch emails tailored to each prospect's business</p>
             </div>
             <div class="p-3 bg-blue-50 rounded-lg border border-blue-200">
               <strong class="text-blue-800">Daily Goal Tracking</strong>
