@@ -11,6 +11,7 @@ export default async function handler(req, res) {
   }
 
   const limit = parseInt(req.query.limit || req.body?.limit || '100');
+  const offset = parseInt(req.query.offset || req.body?.offset || '0');
   const dryRun = req.query.dryRun === 'true' || req.body?.dryRun === true;
 
   // Use env vars with fallback to hardcoded values for testing
@@ -72,8 +73,8 @@ export default async function handler(req, res) {
 
     console.log(`Found ${businessesWithoutEmail.length} businesses without email`);
 
-    // Take requested limit
-    const testBatch = businessesWithoutEmail.slice(0, limit);
+    // Take requested limit with offset for running in batches
+    const testBatch = businessesWithoutEmail.slice(offset, offset + limit);
 
     if (dryRun) {
       const withEmailCount = allBusinesses.filter(b => b.email).length;
@@ -100,10 +101,10 @@ export default async function handler(req, res) {
     let errors = 0;
     const startTime = Date.now();
 
-    // Burst configuration
-    const BURST_SIZE = 25;  // Requests per burst
-    const BURST_DELAY = 1500;  // 1.5s between requests within a burst
-    const BURST_PAUSE = 65000;  // 65s pause between bursts to reset rate limit
+    // Burst configuration - optimized for Vercel timeout limits
+    const BURST_SIZE = parseInt(req.query.burstSize || req.body?.burstSize || '25');
+    const BURST_DELAY = parseInt(req.query.burstDelay || req.body?.burstDelay || '1000');  // 1s between requests
+    const BURST_PAUSE = parseInt(req.query.burstPause || req.body?.burstPause || '5000');  // 5s pause between bursts
 
     for (let i = 0; i < testBatch.length; i++) {
       const business = testBatch[i];
