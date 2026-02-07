@@ -193,6 +193,15 @@ export default async function handler(req, res) {
       'agent.statefarm.com', 'localagent.com', 'insuranceagentlocator.com',
       'agentpronto.com', 'trustedchoice.com', 'agents.farmers.com',
 
+      // Insurance corporate sites (not individual agent sites)
+      'mutualofomaha.com', 'statefarm.com', 'allstate.com', 'farmers.com',
+      'amfam.com', 'nationwide.com', 'libertymutual.com', 'progressive.com',
+      'geico.com', 'usaa.com', 'travelers.com', 'thehartford.com',
+      'metlife.com', 'prudential.com', 'newyorklife.com', 'massmutual.com',
+      'northwesternmutual.com', 'principal.com', 'lincolnfinancial.com',
+      'transamerica.com', 'aig.com', 'aflac.com', 'cigna.com', 'aetna.com',
+      'humana.com', 'anthem.com', 'bluecrossblue', 'uhc.com', 'unitedhealth',
+
       // Healthcare directories
       'healthgrades.com', 'vitals.com', 'zocdoc.com', 'webmd.com',
       'findatopdoc.com', 'ratemds.com', 'wellness.com', 'doctoroogle.com',
@@ -501,6 +510,11 @@ async function fallbackToGoogle(req, res, query, businessName) {
       // Financial/professional directories
       'brokercheck.finra.org', 'smartasset.com', 'nerdwallet.com', 'bankrate.com',
       'wealthminder.com', 'advisorhub.com', 'brightscope.com',
+      // Insurance corporate sites (not individual agent sites)
+      'mutualofomaha.com', 'statefarm.com', 'allstate.com', 'farmers.com',
+      'amfam.com', 'nationwide.com', 'libertymutual.com', 'progressive.com',
+      'geico.com', 'usaa.com', 'metlife.com', 'prudential.com', 'newyorklife.com',
+      'northwesternmutual.com', 'transamerica.com', 'aflac.com', 'cigna.com',
       // Healthcare directories
       'healthgrades.com', 'vitals.com', 'zocdoc.com', 'webmd.com',
       // Legal directories
