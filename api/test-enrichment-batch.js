@@ -1,6 +1,7 @@
 /**
- * Batch Enrichment Test
+ * Batch Enrichment Test v2
  * Finds businesses without emails and tests Scrapingdog on them
+ * Supports offset parameter for running multiple bursts
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -74,7 +75,9 @@ export default async function handler(req, res) {
     console.log(`Found ${businessesWithoutEmail.length} businesses without email`);
 
     // Take requested limit with offset for running in batches
+    console.log(`📊 Batch params: offset=${offset}, limit=${limit}, total=${businessesWithoutEmail.length}`);
     const testBatch = businessesWithoutEmail.slice(offset, offset + limit);
+    console.log(`📊 Test batch: ${testBatch.length} businesses starting with "${testBatch[0]?.name || 'none'}"`);
 
     if (dryRun) {
       const withEmailCount = allBusinesses.filter(b => b.email).length;
@@ -174,6 +177,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       summary: {
         tested: testBatch.length,
+        offset,
         found,
         notFound,
         errors,
