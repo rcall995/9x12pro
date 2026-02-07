@@ -81,103 +81,176 @@ const IDB_VERSION = 1;
 const IDB_STORE = 'appData';
 
 let idbInstance = null;
+let idbUnavailable = false; // Track if IndexedDB is broken to avoid error spam
 
 // Initialize IndexedDB
 function initIndexedDB() {
   return new Promise((resolve, reject) => {
+    // If IndexedDB was previously detected as broken, don't keep trying
+    if (idbUnavailable) {
+      reject(new Error('IndexedDB unavailable'));
+      return;
+    }
+
     if (idbInstance) {
       resolve(idbInstance);
       return;
     }
 
-    const request = indexedDB.open(IDB_NAME, IDB_VERSION);
+    // Check if IndexedDB exists at all
+    if (typeof indexedDB === 'undefined' || !indexedDB) {
+      idbUnavailable = true;
+      console.log('⚠️ IndexedDB not available - using cloud sync only');
+      reject(new Error('IndexedDB not available'));
+      return;
+    }
 
-    request.onerror = (event) => {
-      console.error('IndexedDB error:', event.target.error);
-      reject(event.target.error);
-    };
+    try {
+      const request = indexedDB.open(IDB_NAME, IDB_VERSION);
 
-    request.onsuccess = (event) => {
-      idbInstance = event.target.result;
-      console.log('IndexedDB initialized');
-      resolve(idbInstance);
-    };
+      request.onerror = (event) => {
+        // Mark as unavailable to prevent further attempts
+        idbUnavailable = true;
+        console.log('⚠️ IndexedDB error - will use cloud sync only');
+        reject(event.target.error);
+      };
 
-    request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-      if (!db.objectStoreNames.contains(IDB_STORE)) {
-        db.createObjectStore(IDB_STORE, { keyPath: 'key' });
-        console.log('IndexedDB store created');
-      }
-    };
+      request.onsuccess = (event) => {
+        idbInstance = event.target.result;
+
+        // Handle connection errors (can happen after successful open)
+        idbInstance.onerror = (e) => {
+          console.log('⚠️ IndexedDB connection error - switching to cloud sync');
+          idbUnavailable = true;
+          idbInstance = null;
+        };
+
+        console.log('IndexedDB initialized');
+        resolve(idbInstance);
+      };
+
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains(IDB_STORE)) {
+          db.createObjectStore(IDB_STORE, { keyPath: 'key' });
+          console.log('IndexedDB store created');
+        }
+      };
+
+      // Handle blocked upgrades (another tab has the DB open)
+      request.onblocked = () => {
+        console.log('⚠️ IndexedDB blocked - using cloud sync');
+        idbUnavailable = true;
+        reject(new Error('IndexedDB blocked'));
+      };
+    } catch (err) {
+      // Catch synchronous errors (corrupted browser state)
+      idbUnavailable = true;
+      console.log('⚠️ IndexedDB not functional - using cloud sync only');
+      reject(err);
+    }
   });
 }
 
-// Save data to IndexedDB
+// Save data to IndexedDB (fails silently if IndexedDB is broken)
 async function idbSet(key, value) {
+  // Skip if IndexedDB is known to be broken
+  if (idbUnavailable) return false;
+
   try {
     const db = await initIndexedDB();
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([IDB_STORE], 'readwrite');
-      const store = transaction.objectStore(IDB_STORE);
-      const request = store.put({ key, value, timestamp: Date.now() });
+      try {
+        const transaction = db.transaction([IDB_STORE], 'readwrite');
+        const store = transaction.objectStore(IDB_STORE);
+        const request = store.put({ key, value, timestamp: Date.now() });
 
-      request.onsuccess = () => resolve(true);
-      request.onerror = (event) => {
-        console.error(`IndexedDB save error for ${key}:`, event.target.error);
-        reject(event.target.error);
-      };
+        request.onsuccess = () => resolve(true);
+        request.onerror = () => {
+          // Silent fail - cloud sync is the primary storage
+          resolve(false);
+        };
+
+        transaction.onerror = () => resolve(false);
+        transaction.onabort = () => resolve(false);
+      } catch (txErr) {
+        // Transaction creation failed - mark as unavailable
+        idbUnavailable = true;
+        resolve(false);
+      }
     });
   } catch (err) {
-    console.error('IndexedDB set failed:', err);
+    // Silent fail - IndexedDB initialization failed
     return false;
   }
 }
 
-// Get data from IndexedDB
+// Get data from IndexedDB (returns null if IndexedDB is broken)
 async function idbGet(key) {
+  // Skip if IndexedDB is known to be broken
+  if (idbUnavailable) return null;
+
   try {
     const db = await initIndexedDB();
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([IDB_STORE], 'readonly');
-      const store = transaction.objectStore(IDB_STORE);
-      const request = store.get(key);
+      try {
+        const transaction = db.transaction([IDB_STORE], 'readonly');
+        const store = transaction.objectStore(IDB_STORE);
+        const request = store.get(key);
 
-      request.onsuccess = (event) => {
-        const result = event.target.result;
-        resolve(result ? result.value : null);
-      };
-      request.onerror = (event) => {
-        console.error(`IndexedDB get error for ${key}:`, event.target.error);
-        reject(event.target.error);
-      };
+        request.onsuccess = (event) => {
+          const result = event.target.result;
+          resolve(result ? result.value : null);
+        };
+        request.onerror = () => {
+          // Silent fail - return null to trigger cloud fallback
+          resolve(null);
+        };
+
+        transaction.onerror = () => resolve(null);
+        transaction.onabort = () => resolve(null);
+      } catch (txErr) {
+        // Transaction creation failed - mark as unavailable
+        idbUnavailable = true;
+        resolve(null);
+      }
     });
   } catch (err) {
-    console.error('IndexedDB get failed:', err);
+    // Silent fail - let caller use cloud fallback
     return null;
   }
 }
 
-// Delete data from IndexedDB
+// Delete data from IndexedDB (fails silently if IndexedDB is broken)
 async function idbDelete(key) {
+  // Skip if IndexedDB is known to be broken
+  if (idbUnavailable) return false;
+
   try {
     const db = await initIndexedDB();
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([IDB_STORE], 'readwrite');
-      const store = transaction.objectStore(IDB_STORE);
-      const request = store.delete(key);
+      try {
+        const transaction = db.transaction([IDB_STORE], 'readwrite');
+        const store = transaction.objectStore(IDB_STORE);
+        const request = store.delete(key);
 
-      request.onsuccess = () => resolve(true);
-      request.onerror = (event) => reject(event.target.error);
+        request.onsuccess = () => resolve(true);
+        request.onerror = () => resolve(false);
+      } catch (txErr) {
+        idbUnavailable = true;
+        resolve(false);
+      }
     });
   } catch (err) {
-    console.error('IndexedDB delete failed:', err);
     return false;
   }
 }
 
 // Migrate data from localStorage to IndexedDB (one-time migration)
 async function migrateLocalStorageToIDB() {
+  // Skip migration if IndexedDB is broken
+  if (idbUnavailable) return;
+
   const migrationKey = 'idb-migration-complete';
   if (localStorage.getItem(migrationKey)) return; // Already migrated
 
@@ -189,17 +262,31 @@ async function migrateLocalStorageToIDB() {
     try {
       const data = localStorage.getItem(key);
       if (data) {
-        await idbSet(key, JSON.parse(data));
-        localStorage.removeItem(key); // Free up localStorage space
-        console.log(`Migrated ${key} to IndexedDB`);
+        const success = await idbSet(key, JSON.parse(data));
+        if (success) {
+          localStorage.removeItem(key); // Free up localStorage space
+          console.log(`Migrated ${key} to IndexedDB`);
+        }
       }
     } catch (err) {
-      console.warn(`Failed to migrate ${key}:`, err);
+      // Silent fail - migration is optional
     }
   }
 
   localStorage.setItem(migrationKey, 'true');
   console.log('IndexedDB migration complete');
+}
+
+// Check if IndexedDB is available
+function isIndexedDBAvailable() {
+  return !idbUnavailable && idbInstance !== null;
+}
+
+// Reset IndexedDB availability flag (useful after user clears browser data)
+function resetIndexedDB() {
+  idbUnavailable = false;
+  idbInstance = null;
+  console.log('🔄 IndexedDB reset - will try to reinitialize on next use');
 }
 
 // Expose all functions globally
@@ -211,6 +298,8 @@ window.idbSet = idbSet;
 window.idbGet = idbGet;
 window.idbDelete = idbDelete;
 window.migrateLocalStorageToIDB = migrateLocalStorageToIDB;
+window.isIndexedDBAvailable = isIndexedDBAvailable;
+window.resetIndexedDB = resetIndexedDB;
 
 // Also expose constants for other modules
 window.IDB_NAME = IDB_NAME;
