@@ -176,8 +176,8 @@ export default async function handler(req, res) {
       // Tourism directories
       'iloveny.com', 'visitbuffaloniagara.com',
 
-      // Hosting providers / generic
-      'giecom.net', '.com-place.com',
+      // Hosting providers / generic / spam
+      'giecom.net', '.com-place.com', 'dot-reviews.org', 'rateclubs.com',
 
       // Search engines
       'google.com', 'bing.com', 'duckduckgo.com', 'brave.com/search'
@@ -197,6 +197,12 @@ export default async function handler(req, res) {
 
       // Skip files
       if (skipExtensions.some(ext => urlLower.endsWith(ext))) continue;
+
+      // Skip spam/redirect URLs with suspicious query params
+      if (urlLower.includes('?domain=') || urlLower.includes('&domain=') ||
+          urlLower.includes('?oref=') || urlLower.includes('&oref=') ||
+          urlLower.includes('?redirect=') || urlLower.includes('?url=') ||
+          urlLower.includes('psystem=')) continue;
 
       // Skip deeply nested URLs (likely articles, not homepages)
       try {

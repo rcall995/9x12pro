@@ -197,6 +197,9 @@ export default async function handler(req, res) {
       // Government and education
       '.gov', '.edu',
 
+      // Spam/redirect sites
+      'dot-reviews.org', 'rateclubs.com',
+
       // Search engines
       'google.com', 'bing.com', 'duckduckgo.com'
     ];
@@ -208,6 +211,10 @@ export default async function handler(req, res) {
       const urlLower = url.toLowerCase();
       if (skipDomains.some(domain => urlLower.includes(domain))) return false;
       if (skipExtensions.some(ext => urlLower.endsWith(ext))) return false;
+      // Skip spam/redirect URLs
+      if (urlLower.includes('?domain=') || urlLower.includes('&domain=') ||
+          urlLower.includes('?oref=') || urlLower.includes('&oref=') ||
+          urlLower.includes('?redirect=') || urlLower.includes('psystem=')) return false;
       return true;
     });
 

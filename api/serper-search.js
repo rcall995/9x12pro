@@ -228,7 +228,7 @@ export default async function handler(req, res) {
       'iloveny.com', 'visitbuffaloniagara.com',
 
       // Hosting providers / spam domains
-      'giecom.net', '.com-place.com',
+      'giecom.net', '.com-place.com', 'dot-reviews.org', 'rateclubs.com',
 
       // Search engines
       'google.com', 'bing.com', 'duckduckgo.com', 'ask.com'
@@ -278,6 +278,11 @@ export default async function handler(req, res) {
 
       // Skip PDFs and other non-website files
       if (skipExtensions.some(ext => urlLower.endsWith(ext))) continue;
+
+      // Skip spam/redirect URLs
+      if (urlLower.includes('?domain=') || urlLower.includes('&domain=') ||
+          urlLower.includes('?oref=') || urlLower.includes('&oref=') ||
+          urlLower.includes('?redirect=') || urlLower.includes('psystem=')) continue;
 
       // For Facebook: validate it's a real business page URL AND related to the business
       if (isFacebookSearch) {
@@ -527,6 +532,8 @@ async function fallbackToGoogle(req, res, query, businessName) {
       'healthgrades.com', 'vitals.com', 'zocdoc.com', 'webmd.com',
       // Legal directories
       'avvo.com', 'findlaw.com', 'justia.com', 'lawyers.com', 'martindale.com',
+      // Spam/redirect sites
+      'dot-reviews.org', 'rateclubs.com',
       '.gov', '.edu', 'google.com', 'bing.com'
     ];
 
@@ -551,6 +558,11 @@ async function fallbackToGoogle(req, res, query, businessName) {
 
       // Skip files
       if (skipExtensions.some(ext => urlLower.endsWith(ext))) continue;
+
+      // Skip spam/redirect URLs
+      if (urlLower.includes('?domain=') || urlLower.includes('&domain=') ||
+          urlLower.includes('?oref=') || urlLower.includes('&oref=') ||
+          urlLower.includes('?redirect=') || urlLower.includes('psystem=')) continue;
 
       // Skip article-like URLs
       if (skipUrlPatterns.some(pattern => pattern.test(url))) continue;
