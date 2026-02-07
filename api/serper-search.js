@@ -215,6 +215,7 @@ export default async function handler(req, res) {
       'wordpress.com', 'blogspot.com', 'medium.com', 'substack.com',
       'eventbrite.com', 'meetup.com', 'alignable.com',
       'groupon.com', 'livingsocial.com', 'retailmenot.com', 'coupons.com',
+      'comparably.com', 'citysquares.com', 'chamberorganizer.com',
 
       // Job sites
       'indeed.com', 'glassdoor.com', 'ziprecruiter.com', 'monster.com',
@@ -501,9 +502,15 @@ async function fallbackToGoogle(req, res, query, businessName) {
       'yelp.com', 'yellowpages.com', 'bbb.org', 'tripadvisor.com',
       'foursquare.com', 'mapquest.com', 'manta.com', 'chamberofcommerce.com',
       'bizapedia.com', 'dnb.com', 'zoominfo.com', 'angi.com', 'thumbtack.com',
-      'nextdoor.com', 'linkedin.com/posts', 'twitter.com/search',
-      'hotfrog.com', 'cylex.us', 'brownbook.net', 'superpages.com',
+      'nextdoor.com', 'hotfrog.com', 'cylex.us', 'brownbook.net', 'superpages.com',
       'wnypapers.com', 'newspapers.com', 'news.google.com', 'patch.com',
+      // Social media
+      'facebook.com', 'instagram.com', 'twitter.com', 'tiktok.com',
+      'youtube.com', 'pinterest.com', 'reddit.com', 'linkedin.com',
+      // Coupon/deal sites
+      'groupon.com', 'livingsocial.com', 'retailmenot.com',
+      // More directories
+      'comparably.com', 'citysquares.com', 'chamberorganizer.com',
       // News sites
       'usnews.com', 'forbes.com', 'bloomberg.com', 'cnbc.com', 'cnn.com',
       'wsj.com', 'nytimes.com', 'washingtonpost.com', 'businessinsider.com',

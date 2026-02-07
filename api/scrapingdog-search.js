@@ -192,6 +192,7 @@ export default async function handler(req, res) {
       'wikipedia.org', 'medium.com', 'eventbrite.com', 'meetup.com',
       'crunchbase.com', 'glassdoor.com', 'indeed.com', 'careerbuilder.com',
       'groupon.com', 'livingsocial.com', 'retailmenot.com', 'coupons.com',
+      'comparably.com', 'citysquares.com', 'chamberorganizer.com',
 
       // Government and education
       '.gov', '.edu',
