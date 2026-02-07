@@ -4511,38 +4511,14 @@ async function convertZipToLatLng(zipCode) {
 
 /**
  * Search for business website using multiple APIs in sequence
- * Chain: Brave (2K/mo) → Scrapingdog (1K/mo) → Serper (2.5K/mo)
+ * Chain: Scrapingdog (1K/mo) → Brave (2K/mo) → Serper (2.5K/mo)
  * Total: ~5,500 FREE searches/month
  */
 async function searchBusinessWebsite(searchQuery, businessName) {
   try {
     console.log(`🔍 Searching: "${searchQuery}"`);
 
-    // 1. Try Brave first (2,000 free/month, fastest at ~500ms)
-    try {
-      const braveResponse = await fetch('/api/brave-search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: searchQuery, businessName })
-      });
-
-      if (braveResponse.ok) {
-        const braveData = await braveResponse.json();
-        if (braveData.success && braveData.website) {
-          console.log(`🦁 Brave found:`, braveData.website);
-          return braveData.website;
-        }
-        if (braveData.error === 'quota_exceeded') {
-          console.log(`🦁 Brave quota exceeded, trying Scrapingdog...`);
-        } else if (braveData.error) {
-          console.log(`🦁 Brave error: ${braveData.error}, trying Scrapingdog...`);
-        }
-      }
-    } catch (e) {
-      console.warn(`🦁 Brave failed:`, e.message);
-    }
-
-    // 2. Try Scrapingdog (1,000 free/month, ~4s but good quality)
+    // 1. Try Scrapingdog first (1,000 free/month, best quality via DuckDuckGo)
     try {
       const sdResponse = await fetch('/api/scrapingdog-search', {
         method: 'POST',
@@ -4557,13 +4533,37 @@ async function searchBusinessWebsite(searchQuery, businessName) {
           return sdData.website;
         }
         if (sdData.error === 'quota_exceeded') {
-          console.log(`🐕 Scrapingdog quota exceeded, trying Serper...`);
+          console.log(`🐕 Scrapingdog quota exceeded, trying Brave...`);
         } else if (sdData.error) {
-          console.log(`🐕 Scrapingdog error: ${sdData.error}, trying Serper...`);
+          console.log(`🐕 Scrapingdog error: ${sdData.error}, trying Brave...`);
         }
       }
     } catch (e) {
       console.warn(`🐕 Scrapingdog failed:`, e.message);
+    }
+
+    // 2. Try Brave (2,000 free/month, fast at ~500ms)
+    try {
+      const braveResponse = await fetch('/api/brave-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: searchQuery, businessName })
+      });
+
+      if (braveResponse.ok) {
+        const braveData = await braveResponse.json();
+        if (braveData.success && braveData.website) {
+          console.log(`🦁 Brave found:`, braveData.website);
+          return braveData.website;
+        }
+        if (braveData.error === 'quota_exceeded') {
+          console.log(`🦁 Brave quota exceeded, trying Serper...`);
+        } else if (braveData.error) {
+          console.log(`🦁 Brave error: ${braveData.error}, trying Serper...`);
+        }
+      }
+    } catch (e) {
+      console.warn(`🦁 Brave failed:`, e.message);
     }
 
     // 3. Try Serper (2,500 free/month, falls back to Google CSE)
