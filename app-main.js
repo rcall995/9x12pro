@@ -12744,8 +12744,11 @@ function clearCacheByZip(zipCode) {
       const cache = placesCache.searches[key];
       if (cache && cache.cachedData && Array.isArray(cache.cachedData)) {
         const originalLength = cache.cachedData.length;
+        // Use normalized 5-digit ZIP for comparison
         cache.cachedData = cache.cachedData.filter(b =>
-          (b.actualZip !== zipCode) && (b.zipCode !== zipCode) && (b.zip !== zipCode)
+          truncateZipTo5(b.actualZip) !== normalizedZip &&
+          truncateZipTo5(b.zipCode) !== normalizedZip &&
+          truncateZipTo5(b.zip) !== normalizedZip
         );
         console.log(`🗑️ Removed ${originalLength - cache.cachedData.length} businesses from cache key '${key}'`);
 
@@ -12761,8 +12764,11 @@ function clearCacheByZip(zipCode) {
   // Remove manual prospects with this ZIP
   if (manualCount > 0) {
     const originalLength = prospectPoolState.manualProspects.length;
+    // Use normalized 5-digit ZIP for comparison
     prospectPoolState.manualProspects = prospectPoolState.manualProspects.filter(p =>
-      (p.actualZip !== zipCode) && (p.zipCode !== zipCode) && (p.zip !== zipCode)
+      truncateZipTo5(p.actualZip) !== normalizedZip &&
+      truncateZipTo5(p.zipCode) !== normalizedZip &&
+      truncateZipTo5(p.zip) !== normalizedZip
     );
     console.log(`🗑️ Removed ${originalLength - prospectPoolState.manualProspects.length} manual prospects for ZIP ${zipCode}`);
 
