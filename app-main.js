@@ -99,6 +99,304 @@ function hideLoadingOverlay() {
   }
 }
 
+/* ========= SECURITY: XSS Prevention ========= */
+/**
+ * Escape HTML special characters to prevent XSS attacks
+ * Use this when inserting ANY external/user data into innerHTML
+ * @param {string} str - String to escape
+ * @returns {string} - Escaped string safe for HTML
+ */
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Expose globally for use in templates
+window.escapeHtml = escapeHtml;
+
+/* ========= SUBSCRIPTION TIER & USAGE LIMITS ========= */
+/**
+ * Free Tier Limits:
+ * - 1 postcard campaign
+ * - 25 enrichments per day
+ * - 1 zip code search per day (Prospect Radar)
+ * - 5 category searches per day (Prospect Radar)
+ */
+const FREE_TIER_LIMITS = {
+  campaigns: 1,
+  enrichmentsPerDay: 25,
+  zipSearchesPerDay: 1,
+  categorySearchesPerDay: 5
+};
+
+// User's subscription info (loaded from Supabase)
+let userSubscription = {
+  tier: 'free', // 'free', 'starter', 'pro', 'enterprise'
+  loaded: false
+};
+
+// Today's usage (loaded from Supabase)
+let dailyUsage = {
+  enrichments: 0,
+  zipSearches: 0,
+  categorySearches: 0,
+  zipsSearched: [],
+  categoriesSearched: [],
+  loaded: false
+};
+
+/**
+ * Load user's subscription tier from Supabase
+ */
+async function loadUserSubscription() {
+  if (!window.currentAuthUser?.id) {
+    console.log('⏳ Waiting for auth to load subscription...');
+    return;
+  }
+
+  try {
+    const { data, error } = await supabaseClient
+      .from('user_approvals')
+      .select('subscription_tier')
+      .eq('user_id', window.currentAuthUser.id)
+      .single();
+
+    if (error) {
+      console.error('Error loading subscription:', error);
+      return;
+    }
+
+    userSubscription.tier = data?.subscription_tier || 'free';
+    userSubscription.loaded = true;
+    console.log('📋 Subscription tier:', userSubscription.tier);
+
+    // Apply UI restrictions based on tier
+    if (typeof applyFreeTierSearchRestrictions === 'function') {
+      applyFreeTierSearchRestrictions();
+    }
+  } catch (err) {
+    console.error('Failed to load subscription:', err);
+  }
+}
+
+/**
+ * Load today's usage from Supabase
+ */
+async function loadDailyUsage() {
+  if (!window.currentAuthUser?.id) return;
+
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const { data, error } = await supabaseClient
+      .from('daily_usage')
+      .select('*')
+      .eq('user_id', window.currentAuthUser.id)
+      .eq('usage_date', today)
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows
+      console.error('Error loading daily usage:', error);
+      return;
+    }
+
+    if (data) {
+      dailyUsage.enrichments = data.enrichments_used || 0;
+      dailyUsage.zipSearches = data.zip_searches_used || 0;
+      dailyUsage.categorySearches = data.category_searches_used || 0;
+      dailyUsage.zipsSearched = data.zips_searched || [];
+      dailyUsage.categoriesSearched = data.categories_searched || [];
+    }
+    dailyUsage.loaded = true;
+    console.log('📊 Daily usage loaded:', dailyUsage);
+  } catch (err) {
+    console.error('Failed to load daily usage:', err);
+  }
+}
+
+/**
+ * Check if user is on free tier
+ */
+function isFreeTier() {
+  return userSubscription.tier === 'free';
+}
+
+/**
+ * Check if user can create more campaigns
+ */
+function canCreateCampaign() {
+  if (!isFreeTier()) return { allowed: true };
+
+  // Count existing campaigns
+  const campaigns = Object.keys(state.mailers || {}).length;
+  if (campaigns >= FREE_TIER_LIMITS.campaigns) {
+    return {
+      allowed: false,
+      message: `Free tier is limited to ${FREE_TIER_LIMITS.campaigns} Postcard Campaign. Upgrade to create more.`,
+      upgradeUrl: '/pricing.html'
+    };
+  }
+  return { allowed: true };
+}
+
+/**
+ * Check if user can perform an enrichment
+ */
+function canEnrich() {
+  if (!isFreeTier()) return { allowed: true };
+
+  if (dailyUsage.enrichments >= FREE_TIER_LIMITS.enrichmentsPerDay) {
+    return {
+      allowed: false,
+      message: `Daily enrichment limit reached (${FREE_TIER_LIMITS.enrichmentsPerDay}/day). Upgrade for unlimited enrichments.`,
+      upgradeUrl: '/pricing.html'
+    };
+  }
+  return { allowed: true, remaining: FREE_TIER_LIMITS.enrichmentsPerDay - dailyUsage.enrichments };
+}
+
+/**
+ * Check if user can search a zip code
+ */
+function canSearchZip(zipCode) {
+  if (!isFreeTier()) return { allowed: true };
+
+  // Already searched this zip today - allow it
+  if (dailyUsage.zipsSearched.includes(zipCode)) {
+    return { allowed: true, alreadySearched: true };
+  }
+
+  if (dailyUsage.zipSearches >= FREE_TIER_LIMITS.zipSearchesPerDay) {
+    return {
+      allowed: false,
+      message: `Free tier is limited to ${FREE_TIER_LIMITS.zipSearchesPerDay} zip code per day. Upgrade for unlimited searches.`,
+      upgradeUrl: '/pricing.html'
+    };
+  }
+  return { allowed: true };
+}
+
+/**
+ * Check if user can search a category
+ */
+function canSearchCategory(category) {
+  if (!isFreeTier()) return { allowed: true };
+
+  // Already searched this category today - allow it
+  if (dailyUsage.categoriesSearched.includes(category)) {
+    return { allowed: true, alreadySearched: true };
+  }
+
+  if (dailyUsage.categorySearches >= FREE_TIER_LIMITS.categorySearchesPerDay) {
+    return {
+      allowed: false,
+      message: `Free tier is limited to ${FREE_TIER_LIMITS.categorySearchesPerDay} categories per day. Upgrade for unlimited searches.`,
+      upgradeUrl: '/pricing.html'
+    };
+  }
+  return { allowed: true };
+}
+
+/**
+ * Record an enrichment usage
+ */
+async function recordEnrichmentUsage() {
+  if (!isFreeTier() || !window.currentAuthUser?.id) return;
+
+  dailyUsage.enrichments++;
+
+  try {
+    await supabaseClient.rpc('increment_enrichment_usage', {
+      p_user_id: window.currentAuthUser.id
+    });
+  } catch (err) {
+    console.error('Failed to record enrichment usage:', err);
+  }
+}
+
+/**
+ * Record a zip code search
+ */
+async function recordZipSearch(zipCode) {
+  if (!isFreeTier() || !window.currentAuthUser?.id) return;
+
+  if (!dailyUsage.zipsSearched.includes(zipCode)) {
+    dailyUsage.zipSearches++;
+    dailyUsage.zipsSearched.push(zipCode);
+
+    try {
+      await supabaseClient.rpc('record_zip_search', {
+        p_user_id: window.currentAuthUser.id,
+        p_zip: zipCode
+      });
+    } catch (err) {
+      console.error('Failed to record zip search:', err);
+    }
+  }
+}
+
+/**
+ * Record a category search
+ */
+async function recordCategorySearch(category) {
+  if (!isFreeTier() || !window.currentAuthUser?.id) return;
+
+  if (!dailyUsage.categoriesSearched.includes(category)) {
+    dailyUsage.categorySearches++;
+    dailyUsage.categoriesSearched.push(category);
+
+    try {
+      await supabaseClient.rpc('record_category_search', {
+        p_user_id: window.currentAuthUser.id,
+        p_category: category
+      });
+    } catch (err) {
+      console.error('Failed to record category search:', err);
+    }
+  }
+}
+
+/**
+ * Show upgrade prompt modal
+ */
+function showUpgradePrompt(message) {
+  const modal = document.createElement('div');
+  modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50';
+  modal.innerHTML = `
+    <div class="bg-white rounded-xl shadow-2xl p-6 max-w-md mx-4">
+      <div class="text-center">
+        <div class="text-4xl mb-4">🚀</div>
+        <h3 class="text-xl font-bold text-gray-900 mb-2">Upgrade Your Plan</h3>
+        <p class="text-gray-600 mb-6">${escapeHtml(message)}</p>
+        <div class="flex gap-3 justify-center">
+          <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 text-gray-600 hover:text-gray-800">
+            Maybe Later
+          </button>
+          <a href="/pricing.html" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold">
+            View Plans
+          </a>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.remove();
+  });
+}
+
+// Expose limit functions globally
+window.canCreateCampaign = canCreateCampaign;
+window.canEnrich = canEnrich;
+window.canSearchZip = canSearchZip;
+window.canSearchCategory = canSearchCategory;
+window.showUpgradePrompt = showUpgradePrompt;
+window.isFreeTier = isFreeTier;
+
 /* ========= CONFIG ========= */
 // Supabase client is initialized in HEAD section
 var supabaseClient = window.supabaseClient; // Local reference
@@ -123,6 +421,9 @@ var authCheckInterval = setInterval(function() {
     ACTIVE_USER = window.currentAuthUser.email;
     clearInterval(authCheckInterval);
     console.log('✅ ACTIVE_USER set to:', ACTIVE_USER);
+    // Load subscription tier and daily usage limits
+    loadUserSubscription();
+    loadDailyUsage();
   }
 }, 100);
 
@@ -4179,39 +4480,86 @@ async function convertZipToLatLng(zipCode) {
 }
 
 /**
- * Search Google for business website using Custom Search API
- * This finds the actual business website (not Yelp URL)
+ * Search for business website using multiple APIs in sequence
+ * Chain: Brave (2K/mo) → Scrapingdog (1K/mo) → Serper (2.5K/mo)
+ * Total: ~5,500 FREE searches/month
  */
 async function searchBusinessWebsite(searchQuery, businessName) {
   try {
-    // Use Serper.dev - 2,500 FREE searches/month!
-    // Falls back to Google Custom Search (100/day) if Serper unavailable
     console.log(`🔍 Searching: "${searchQuery}"`);
 
-    const response = await fetch('/api/serper-search', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        query: searchQuery,
-        businessName: businessName
-      })
-    });
+    // 1. Try Brave first (2,000 free/month, fastest at ~500ms)
+    try {
+      const braveResponse = await fetch('/api/brave-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: searchQuery, businessName })
+      });
 
-    if (!response.ok) {
-      console.warn(`🔍 Search API returned ${response.status}`);
-      return '';
+      if (braveResponse.ok) {
+        const braveData = await braveResponse.json();
+        if (braveData.success && braveData.website) {
+          console.log(`🦁 Brave found:`, braveData.website);
+          return braveData.website;
+        }
+        if (braveData.error === 'quota_exceeded') {
+          console.log(`🦁 Brave quota exceeded, trying Scrapingdog...`);
+        } else if (braveData.error) {
+          console.log(`🦁 Brave error: ${braveData.error}, trying Scrapingdog...`);
+        }
+      }
+    } catch (e) {
+      console.warn(`🦁 Brave failed:`, e.message);
     }
 
-    const data = await response.json();
-    console.log(`🔍 Search result:`, data.topUrl || 'none', data.source || 'unknown');
+    // 2. Try Scrapingdog (1,000 free/month, ~4s but good quality)
+    try {
+      const sdResponse = await fetch('/api/scrapingdog-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: searchQuery, businessName })
+      });
 
-    if (!data.success && data.error) {
-      console.warn(`🔍 Search API error: ${data.error}`);
+      if (sdResponse.ok) {
+        const sdData = await sdResponse.json();
+        if (sdData.success && sdData.website) {
+          console.log(`🐕 Scrapingdog found:`, sdData.website);
+          return sdData.website;
+        }
+        if (sdData.error === 'quota_exceeded') {
+          console.log(`🐕 Scrapingdog quota exceeded, trying Serper...`);
+        } else if (sdData.error) {
+          console.log(`🐕 Scrapingdog error: ${sdData.error}, trying Serper...`);
+        }
+      }
+    } catch (e) {
+      console.warn(`🐕 Scrapingdog failed:`, e.message);
     }
 
-    return data.topUrl || '';
+    // 3. Try Serper (2,500 free/month, falls back to Google CSE)
+    try {
+      const serperResponse = await fetch('/api/serper-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: searchQuery, businessName })
+      });
+
+      if (serperResponse.ok) {
+        const serperData = await serperResponse.json();
+        if (serperData.success && serperData.topUrl) {
+          console.log(`🔍 Serper found:`, serperData.topUrl);
+          return serperData.topUrl;
+        }
+        if (serperData.error) {
+          console.warn(`🔍 Serper error: ${serperData.error}`);
+        }
+      }
+    } catch (e) {
+      console.warn(`🔍 Serper failed:`, e.message);
+    }
+
+    console.log(`🔍 No website found for: "${searchQuery}"`);
+    return '';
 
   } catch (error) {
     console.warn('🔍 Website search failed:', error);
@@ -4320,6 +4668,316 @@ async function compareSearchAPIs(businessName = 'Adams Heating Cooling', locatio
 }
 window.compareSearchAPIs = compareSearchAPIs;
 
+// ============================================================================
+// ENRICHMENT PROGRESS MODAL
+// Fun, engaging UI while enriching businesses
+// ============================================================================
+
+const ENRICHMENT_MESSAGES = [
+  { icon: '🔍', text: 'Searching the web...' },
+  { icon: '🌐', text: 'Finding official websites...' },
+  { icon: '📧', text: 'Looking for contact emails...' },
+  { icon: '🎯', text: 'Verifying business info...' },
+  { icon: '✨', text: 'Almost there...' },
+  { icon: '🚀', text: 'Turbocharging your leads...' },
+  { icon: '💼', text: 'Building your prospect list...' },
+  { icon: '🔎', text: 'Digging up gold...' },
+  { icon: '📊', text: 'Analyzing search results...' },
+  { icon: '🎉', text: 'Finding the good stuff...' },
+  { icon: '⚡', text: 'Working at lightning speed...' },
+  { icon: '🧲', text: 'Attracting quality leads...' },
+];
+
+let enrichmentState = {
+  isRunning: false,
+  cancelled: false,
+  total: 0,
+  current: 0,
+  found: 0,
+  startTime: null,
+  messageInterval: null
+};
+
+/**
+ * Show the enrichment progress modal
+ * @param {number} totalBusinesses - Total businesses to enrich
+ */
+function showEnrichmentModal(totalBusinesses) {
+  enrichmentState = {
+    isRunning: true,
+    cancelled: false,
+    total: totalBusinesses,
+    current: 0,
+    found: 0,
+    startTime: Date.now(),
+    messageInterval: null
+  };
+
+  const modal = document.getElementById('enrichmentModal');
+  if (!modal) return;
+
+  // Reset UI
+  document.getElementById('enrichmentProgressBar').style.width = '0%';
+  document.getElementById('enrichmentPercent').textContent = '0%';
+  document.getElementById('enrichmentProgressText').textContent = `Enriching 0 of ${totalBusinesses}...`;
+  document.getElementById('enrichmentFound').textContent = '0';
+  document.getElementById('enrichmentETA').textContent = '--';
+  document.getElementById('enrichmentCurrentBusiness').innerHTML = '<span class="inline-block animate-pulse">Starting...</span>';
+
+  // Calculate time saved estimate (assume 2 min per manual lookup)
+  const manualMinutes = totalBusinesses * 2;
+  const hours = Math.floor(manualMinutes / 60);
+  const mins = manualMinutes % 60;
+  const timeText = hours > 0 ? `~${hours}h ${mins}m manually` : `~${mins} minutes manually`;
+  document.getElementById('enrichmentTimeSaved').textContent = `This would take ${timeText}`;
+
+  // Show modal
+  modal.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+
+  // Start rotating messages
+  let messageIndex = 0;
+  updateEnrichmentMessage(ENRICHMENT_MESSAGES[0]);
+  enrichmentState.messageInterval = setInterval(() => {
+    messageIndex = (messageIndex + 1) % ENRICHMENT_MESSAGES.length;
+    updateEnrichmentMessage(ENRICHMENT_MESSAGES[messageIndex]);
+  }, 3000);
+}
+
+/**
+ * Update the fun rotating message
+ */
+function updateEnrichmentMessage(msg) {
+  const container = document.getElementById('enrichmentMessage');
+  if (!container) return;
+  container.innerHTML = `
+    <span class="text-lg">${msg.icon}</span>
+    <p class="text-gray-700 font-medium mt-1">${msg.text}</p>
+  `;
+}
+
+/**
+ * Update enrichment progress
+ * @param {number} current - Current business number
+ * @param {string} businessName - Name of current business
+ * @param {boolean} foundContact - Whether contact was found
+ */
+function updateEnrichmentProgress(current, businessName, foundContact = false) {
+  if (!enrichmentState.isRunning) return;
+
+  enrichmentState.current = current;
+  if (foundContact) enrichmentState.found++;
+
+  const percent = Math.round((current / enrichmentState.total) * 100);
+  const elapsed = (Date.now() - enrichmentState.startTime) / 1000;
+  const avgTimePerBusiness = elapsed / current;
+  const remaining = enrichmentState.total - current;
+  const etaSeconds = Math.round(remaining * avgTimePerBusiness);
+
+  // Update UI
+  document.getElementById('enrichmentProgressBar').style.width = `${percent}%`;
+  document.getElementById('enrichmentPercent').textContent = `${percent}%`;
+  document.getElementById('enrichmentProgressText').textContent = `Enriching ${current} of ${enrichmentState.total}...`;
+  document.getElementById('enrichmentFound').textContent = enrichmentState.found.toString();
+
+  // Format ETA
+  if (etaSeconds > 60) {
+    const mins = Math.floor(etaSeconds / 60);
+    const secs = etaSeconds % 60;
+    document.getElementById('enrichmentETA').textContent = `${mins}m ${secs}s`;
+  } else {
+    document.getElementById('enrichmentETA').textContent = `${etaSeconds}s`;
+  }
+
+  // Show current business
+  document.getElementById('enrichmentCurrentBusiness').innerHTML = `
+    <span class="text-gray-400">Now processing:</span>
+    <span class="font-medium text-gray-700 ml-1">${businessName}</span>
+  `;
+}
+
+/**
+ * Hide the enrichment modal and show completion
+ */
+function hideEnrichmentModal(success = true) {
+  enrichmentState.isRunning = false;
+
+  if (enrichmentState.messageInterval) {
+    clearInterval(enrichmentState.messageInterval);
+    enrichmentState.messageInterval = null;
+  }
+
+  const modal = document.getElementById('enrichmentModal');
+  if (!modal) return;
+
+  if (success && enrichmentState.found > 0) {
+    // Show success state briefly
+    document.getElementById('enrichmentIcon').textContent = '🎉';
+    document.getElementById('enrichmentIcon').classList.remove('animate-bounce');
+    document.getElementById('enrichmentTitle').textContent = 'Enrichment Complete!';
+    document.getElementById('enrichmentSubtitle').textContent = `Found contact info for ${enrichmentState.found} businesses`;
+    document.getElementById('enrichmentProgressBar').style.width = '100%';
+    document.getElementById('enrichmentPercent').textContent = '100%';
+    document.getElementById('enrichmentStatus').innerHTML = '<span class="text-green-600 font-medium">✓ Done!</span>';
+    document.getElementById('enrichmentCurrentBusiness').textContent = '';
+    document.getElementById('enrichmentCancelBtn').textContent = 'Close';
+
+    // Auto-close after 2 seconds
+    setTimeout(() => {
+      modal.classList.add('hidden');
+      document.body.style.overflow = '';
+      resetEnrichmentModal();
+    }, 2000);
+  } else {
+    // Close immediately
+    modal.classList.add('hidden');
+    document.body.style.overflow = '';
+    resetEnrichmentModal();
+  }
+}
+
+/**
+ * Reset modal to initial state
+ */
+function resetEnrichmentModal() {
+  document.getElementById('enrichmentIcon').textContent = '🔍';
+  document.getElementById('enrichmentIcon').classList.add('animate-bounce');
+  document.getElementById('enrichmentTitle').textContent = 'Finding Contact Info';
+  document.getElementById('enrichmentSubtitle').textContent = "We're doing the tedious work so you don't have to";
+  document.getElementById('enrichmentCancelBtn').textContent = 'Cancel';
+  document.getElementById('enrichmentStatus').innerHTML = '<span class="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse mr-2"></span>Working...';
+}
+
+/**
+ * Cancel enrichment process
+ */
+function cancelEnrichment() {
+  enrichmentState.cancelled = true;
+  enrichmentState.isRunning = false;
+
+  if (enrichmentState.messageInterval) {
+    clearInterval(enrichmentState.messageInterval);
+  }
+
+  const modal = document.getElementById('enrichmentModal');
+  if (modal) {
+    modal.classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+
+  resetEnrichmentModal();
+  console.log('🛑 Enrichment cancelled by user');
+}
+
+/**
+ * Check if enrichment was cancelled
+ */
+function isEnrichmentCancelled() {
+  return enrichmentState.cancelled;
+}
+
+// Expose to window for onclick handlers
+window.cancelEnrichment = cancelEnrichment;
+
+/**
+ * Bulk enrich multiple businesses with progress modal
+ * Uses parallel requests for efficiency (5 concurrent)
+ * @param {Array} businesses - Array of business objects to enrich
+ * @returns {Promise<{success: number, failed: number}>}
+ */
+async function bulkEnrichBusinesses(businesses) {
+  if (!businesses || businesses.length === 0) {
+    return { success: 0, failed: 0 };
+  }
+
+  // Filter to only businesses without website/email
+  const toEnrich = businesses.filter(b => !b.website && !b.email && !b.enriched);
+
+  if (toEnrich.length === 0) {
+    console.log('✅ All businesses already enriched');
+    return { success: 0, failed: 0 };
+  }
+
+  showEnrichmentModal(toEnrich.length);
+
+  let success = 0;
+  let failed = 0;
+  const BATCH_SIZE = 5; // Parallel batch size
+  const BATCH_DELAY = 15000; // 15s between batches
+
+  try {
+    for (let i = 0; i < toEnrich.length; i += BATCH_SIZE) {
+      if (isEnrichmentCancelled()) break;
+
+      const batch = toEnrich.slice(i, i + BATCH_SIZE);
+
+      // Process batch in parallel
+      const results = await Promise.all(
+        batch.map(async (business, idx) => {
+          const businessName = business.name || business.businessName || 'Unknown';
+          updateEnrichmentProgress(i + idx + 1, businessName, false);
+
+          try {
+            // Search for website
+            const location = `${business.city || ''} ${business.state || ''}`.trim();
+            const websiteQuery = `${businessName} ${location} official website`;
+            const website = await searchBusinessWebsite(websiteQuery, businessName);
+
+            if (website) {
+              business.website = website;
+
+              // Try to scrape email from website
+              const enrichedData = await fetchSmartEnrichment(website, businessName);
+              if (enrichedData.email) {
+                business.email = enrichedData.email;
+              }
+              business.facebook = business.facebook || enrichedData.facebook || '';
+              business.instagram = business.instagram || enrichedData.instagram || '';
+              business.enriched = true;
+
+              updateEnrichmentProgress(i + idx + 1, businessName, true);
+              return { success: true, business };
+            }
+            return { success: false, business };
+          } catch (err) {
+            console.error(`Failed to enrich ${businessName}:`, err);
+            return { success: false, business };
+          }
+        })
+      );
+
+      // Count results
+      for (const r of results) {
+        if (r.success) success++;
+        else failed++;
+      }
+
+      // Delay between batches (except for last batch)
+      if (i + BATCH_SIZE < toEnrich.length && !isEnrichmentCancelled()) {
+        await new Promise(r => setTimeout(r, BATCH_DELAY));
+      }
+    }
+  } catch (err) {
+    console.error('Bulk enrichment error:', err);
+  }
+
+  hideEnrichmentModal(!isEnrichmentCancelled());
+
+  // Save updated data
+  if (success > 0) {
+    await saveAllData();
+  }
+
+  console.log(`📊 Bulk enrichment complete: ${success} success, ${failed} failed`);
+  return { success, failed };
+}
+
+// Expose to window
+window.bulkEnrichBusinesses = bulkEnrichBusinesses;
+window.showEnrichmentModal = showEnrichmentModal;
+window.updateEnrichmentProgress = updateEnrichmentProgress;
+window.hideEnrichmentModal = hideEnrichmentModal;
+
 /**
  * Enrich a business with website and social media when added to kanban
  * Runs asynchronously so it doesn't block the UI
@@ -4330,12 +4988,24 @@ async function enrichBusinessWebsite(business) {
     return;
   }
 
+  // Check subscription limits for free tier
+  const enrichCheck = canEnrich();
+  if (!enrichCheck.allowed) {
+    console.log('⛔ Enrichment limit reached for today');
+    // Don't show prompt for every business - just skip silently
+    // User will see the upgrade prompt if they manually try to enrich
+    return;
+  }
+
   const businessName = business.name || business.businessName;
   const location = `${business.city || ''} ${business.state || ''}`.trim();
 
   try {
     console.log(`🔍 Enriching: ${businessName}`);
     let foundItems = [];
+
+    // Record enrichment usage for free tier
+    recordEnrichmentUsage();
 
     // Track usage (informational - Serper primary has 2,500/month shared)
     // No hard blocking - Serper will return errors when quota exhausted
@@ -4427,6 +5097,129 @@ async function enrichBusinessWebsite(business) {
     business.enriched = true; // Mark as enriched to avoid retry
   }
 }
+
+/**
+ * Enrich a single prospect from the Prospect Pool
+ * Called when user clicks "Enrich" button on a card
+ */
+async function enrichSingleProspect(prospectId) {
+  // Check enrichment limits for free tier
+  const enrichCheck = canEnrich();
+  if (!enrichCheck.allowed) {
+    showUpgradePrompt(enrichCheck.message);
+    return;
+  }
+
+  // Find the prospect in placesCache
+  let prospect = null;
+  let cacheKey = null;
+
+  for (const key of Object.keys(placesCache.searches)) {
+    const cached = placesCache.searches[key];
+    if (cached.cachedData) {
+      const found = cached.cachedData.find(b => b.placeId === prospectId);
+      if (found) {
+        prospect = found;
+        cacheKey = key;
+        break;
+      }
+    }
+  }
+
+  // Also check manual prospects
+  if (!prospect) {
+    prospect = prospectPoolState.manualProspects.find(p => p.placeId === prospectId || p.id === prospectId);
+  }
+
+  if (!prospect) {
+    toast('Could not find prospect to enrich', false);
+    return;
+  }
+
+  const businessName = prospect.name || prospect.businessName || 'Unknown';
+  const btn = document.getElementById(`enrich-btn-${prospectId}`);
+
+  // Update button to show loading
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Enriching...';
+    btn.classList.add('opacity-60');
+  }
+
+  try {
+    // Record enrichment usage
+    recordEnrichmentUsage();
+
+    const location = `${prospect.city || ''} ${prospect.state || ''}`.trim();
+    let foundItems = [];
+
+    // 1. Search for website if missing
+    if (!prospect.website) {
+      const websiteQuery = `${businessName} ${location}`;
+      const website = await searchBusinessWebsite(websiteQuery, businessName);
+      if (website) {
+        prospect.website = website;
+        foundItems.push('website');
+      }
+    }
+
+    // 2. Scrape email from website if we have one
+    if (prospect.website && !prospect.email) {
+      try {
+        const response = await fetch('/api/scrape-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ website: prospect.website, businessName })
+        });
+        const data = await response.json();
+        if (data.primaryEmail) {
+          prospect.email = data.primaryEmail;
+          foundItems.push('email');
+        }
+      } catch (e) {
+        console.warn('Email scrape failed:', e);
+      }
+    }
+
+    // Mark as enriched
+    prospect.enriched = true;
+
+    // Calculate contact score
+    let contactScore = 0;
+    if (prospect.phone) contactScore += 3;
+    if (prospect.email) contactScore += 4;
+    if (prospect.website) contactScore += 2;
+    if (prospect.facebook || prospect.instagram) contactScore += 1;
+    prospect.contactScore = Math.min(contactScore, 10);
+
+    // Save updated cache
+    await savePlacesCache();
+
+    // Re-render the pool to show updated card
+    renderProspectPool();
+
+    if (foundItems.length > 0) {
+      toast(`✅ Found ${foundItems.join(', ')} for ${businessName}`, true);
+    } else {
+      toast(`⚠️ No additional contact info found for ${businessName}`, false);
+    }
+
+  } catch (error) {
+    console.error('Enrichment error:', error);
+    prospect.enriched = true; // Mark as enriched to avoid retry
+    toast(`❌ Enrichment failed for ${businessName}`, false);
+
+    // Reset button
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '🔍 Enrich';
+      btn.classList.remove('opacity-60');
+    }
+  }
+}
+
+// Expose to window
+window.enrichSingleProspect = enrichSingleProspect;
 
 /**
  * Enrich a business when moved from Prospect List to To Contact column
@@ -4688,7 +5481,7 @@ async function searchFoursquareBusinesses(zipCode, category, progressInfo = null
   try {
     const cacheKey = `${zipCode}-${category}`;
 
-    // Check cache first
+    // Check cache first (cached searches don't count against limits)
     if (placesCache.searches[cacheKey]) {
       const cached = placesCache.searches[cacheKey];
       const cacheDate = new Date(cached.cachedUntil);
@@ -4697,6 +5490,27 @@ async function searchFoursquareBusinesses(zipCode, category, progressInfo = null
         showSuccess('✅ Using cached results');
         return cached.cachedData || cached.businesses || [];
       }
+    }
+
+    // Check subscription limits for free tier (only for non-cached searches)
+    const zipCheck = canSearchZip(zipCode);
+    if (!zipCheck.allowed) {
+      showUpgradePrompt(zipCheck.message);
+      return [];
+    }
+
+    const categoryCheck = canSearchCategory(category);
+    if (!categoryCheck.allowed) {
+      showUpgradePrompt(categoryCheck.message);
+      return [];
+    }
+
+    // Record usage for free tier (only if this is a new search)
+    if (!zipCheck.alreadySearched) {
+      recordZipSearch(zipCode);
+    }
+    if (!categoryCheck.alreadySearched) {
+      recordCategorySearch(category);
     }
 
     // Get all search terms for this category
@@ -6292,249 +7106,6 @@ function updateCampaignSettings() {
   saveSalesToolkitSettings();
 }
 
-// Generate inline pitch for a specific platform
-async function generateInlinePitch(platform) {
-  const prospect = closeDealsState?.selectedProspect;
-  if (!prospect) {
-    toast('❌ Select a prospect first', false);
-    return;
-  }
-
-  // Determine actual platform for social
-  let actualPlatform = platform;
-  if (platform === 'social') {
-    actualPlatform = document.getElementById('aiSocialPlatform')?.value || 'instagram_dm';
-  }
-
-  // Get button and result elements
-  const genBtn = document.getElementById(`aiGen${platform.charAt(0).toUpperCase() + platform.slice(1)}Btn`);
-  const copyBtn = document.getElementById(`aiCopy${platform.charAt(0).toUpperCase() + platform.slice(1)}Btn`);
-  const resultEl = document.getElementById(`ai${platform.charAt(0).toUpperCase() + platform.slice(1)}Result`);
-  const subjectEl = document.getElementById(`ai${platform.charAt(0).toUpperCase() + platform.slice(1)}Subject`);
-
-  // Show loading state
-  if (genBtn) genBtn.textContent = '⏳ Generating...';
-  if (genBtn) genBtn.disabled = true;
-
-  try {
-    // Get campaign settings from inputs
-    const homeCount = parseInt(document.getElementById('campaignHomeCount')?.value) || 5000;
-    const totalSpots = parseInt(document.getElementById('campaignTotalSpots')?.value) || 18;
-    const spotPrice = document.getElementById('salesToolkitSpotPrice')?.value || '$500';
-    const campaignZip = document.getElementById('campaignZipCode')?.value || '';
-
-    const response = await fetch('/api/ai/generate-pitch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        business: {
-          name: prospect.businessName || prospect.name,
-          category: prospect.category,
-          rating: prospect.rating,
-          review_count: prospect.review_count,
-          price: prospect.price,
-          city: prospect.city,
-          zip: prospect.zipCode || prospect.actualZip,
-          website: prospect.website,
-          facebook: prospect.facebook,
-          instagram: prospect.instagram,
-          contactName: prospect.contactNames?.[0] || prospect.ownerName
-        },
-        platform: actualPlatform,
-        urgency: 'medium',
-        userContext: '',
-        sender: {
-          name: salesToolkitSettings.yourName || 'Your Name',
-          company: salesToolkitSettings.yourCompany || '',
-          phone: salesToolkitSettings.yourPhone || '',
-          spotPrice: spotPrice,
-          totalSpots: totalSpots
-        },
-        homeCount: homeCount,
-        deliveryZip: campaignZip  // ZIP where postcard is being delivered
-      })
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to generate');
-    }
-
-    const data = await response.json();
-
-    // Store result
-    aiInlineResults[platform] = {
-      message: data.message,
-      subject: data.subject || ''
-    };
-
-    // Display result
-    if (resultEl) resultEl.textContent = data.message;
-
-    // Show subject for email
-    if (subjectEl && data.subject && platform === 'email') {
-      subjectEl.textContent = `Subject: ${data.subject}`;
-      subjectEl.classList.remove('hidden');
-    }
-
-    // Show copy button
-    if (copyBtn) copyBtn.classList.remove('hidden');
-
-    toast('✨ Generated!', true);
-
-  } catch (error) {
-    console.error('AI pitch error:', error);
-    toast(`❌ ${error.message}`, false);
-    if (resultEl) resultEl.textContent = `Error: ${error.message}. Click Generate to try again.`;
-  } finally {
-    if (genBtn) {
-      genBtn.textContent = '✨ Generate';
-      genBtn.disabled = false;
-    }
-  }
-}
-
-// Copy AI result for a platform
-function copyAIResult(platform) {
-  const result = aiInlineResults[platform];
-  if (!result?.message) {
-    toast('❌ Nothing to copy', false);
-    return;
-  }
-
-  let textToCopy = result.message;
-  if (platform === 'email' && result.subject) {
-    textToCopy = `Subject: ${result.subject}\n\n${result.message}`;
-  }
-
-  navigator.clipboard.writeText(textToCopy).then(() => {
-    toast('📋 Copied!', true);
-  }).catch(() => {
-    toast('❌ Failed to copy', false);
-  });
-}
-
-// Refine AI pitch with user feedback
-async function refineAIPitch(platform) {
-  const prospect = closeDealsState?.selectedProspect;
-  if (!prospect) {
-    toast('❌ Select a prospect first', false);
-    return;
-  }
-
-  const previousResult = aiInlineResults[platform];
-  if (!previousResult?.message) {
-    toast('❌ Generate a message first, then refine', false);
-    return;
-  }
-
-  // Get the refinement input
-  const refineInput = document.getElementById(`ai${platform.charAt(0).toUpperCase() + platform.slice(1)}Refine`);
-  const refinement = refineInput?.value?.trim();
-
-  if (!refinement) {
-    toast('❌ Enter what you want to change', false);
-    return;
-  }
-
-  // Determine actual platform for social
-  let actualPlatform = platform;
-  if (platform === 'social') {
-    actualPlatform = document.getElementById('aiSocialPlatform')?.value || 'instagram_dm';
-  }
-
-  // Get UI elements
-  const genBtn = document.getElementById(`aiGen${platform.charAt(0).toUpperCase() + platform.slice(1)}Btn`);
-  const resultEl = document.getElementById(`ai${platform.charAt(0).toUpperCase() + platform.slice(1)}Result`);
-  const subjectEl = document.getElementById(`ai${platform.charAt(0).toUpperCase() + platform.slice(1)}Subject`);
-
-  // Show loading state
-  if (genBtn) genBtn.textContent = '🔄 Refining...';
-  if (genBtn) genBtn.disabled = true;
-
-  try {
-    // Get campaign settings
-    const homeCount = parseInt(document.getElementById('campaignHomeCount')?.value) || 5000;
-    const totalSpots = parseInt(document.getElementById('campaignTotalSpots')?.value) || 18;
-    const spotPrice = document.getElementById('salesToolkitSpotPrice')?.value || '$500';
-    const campaignZip = document.getElementById('campaignZipCode')?.value || '';
-
-    const response = await fetch('/api/ai/generate-pitch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        business: {
-          name: prospect.businessName || prospect.name,
-          category: prospect.category,
-          rating: prospect.rating,
-          review_count: prospect.review_count,
-          price: prospect.price,
-          city: prospect.city,
-          zip: prospect.zipCode || prospect.actualZip,
-          website: prospect.website,
-          facebook: prospect.facebook,
-          instagram: prospect.instagram,
-          contactName: prospect.contactNames?.[0] || prospect.ownerName
-        },
-        platform: actualPlatform,
-        urgency: 'medium',
-        userContext: `REFINEMENT REQUEST: The previous message was: "${previousResult.message}". The user wants these changes: ${refinement}`,
-        sender: {
-          name: salesToolkitSettings.yourName || 'Your Name',
-          company: salesToolkitSettings.yourCompany || '',
-          phone: salesToolkitSettings.yourPhone || '',
-          spotPrice: spotPrice,
-          totalSpots: totalSpots
-        },
-        homeCount: homeCount,
-        deliveryZip: campaignZip
-      })
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to refine');
-    }
-
-    const data = await response.json();
-
-    // Store result
-    aiInlineResults[platform] = {
-      message: data.message,
-      subject: data.subject || previousResult.subject
-    };
-
-    // Display result
-    if (resultEl) resultEl.textContent = data.message;
-
-    // Show subject for email
-    if (subjectEl && data.subject && platform === 'email') {
-      subjectEl.textContent = `Subject: ${data.subject}`;
-      subjectEl.classList.remove('hidden');
-    }
-
-    // Clear refinement input
-    if (refineInput) refineInput.value = '';
-
-    toast('🔄 Refined!', true);
-
-  } catch (error) {
-    console.error('AI refine error:', error);
-    toast(`❌ ${error.message}`, false);
-  } finally {
-    if (genBtn) {
-      genBtn.textContent = '✨ Generate';
-      genBtn.disabled = false;
-    }
-  }
-}
-
-// Expose inline AI functions globally
-window.generateInlinePitch = generateInlinePitch;
-window.copyAIResult = copyAIResult;
-window.updateCampaignSettings = updateCampaignSettings;
-window.refineAIPitch = refineAIPitch;
-
 // Switch between outreach sub-tabs (text, email, phone, objections)
 function switchOutreachTab(tabName) {
   // Hide all outreach panes
@@ -7043,308 +7614,6 @@ window.sendEmailToSelected = sendEmailToSelected;
 window.callSelected = callSelected;
 window.updateCloseDealsStatus = updateCloseDealsStatus;
 
-// ========== PIPELINE OUTREACH PANEL FUNCTIONS ==========
-// State for Pipeline Outreach (separate from Close Deals)
-let pipelineOutreachState = {
-  selectedProspect: null,
-  aiResults: {}
-};
-
-// Open Pipeline Outreach panel with selected prospect
-function openPipelineOutreach(prospect) {
-  if (!prospect) return;
-
-  pipelineOutreachState.selectedProspect = prospect;
-
-  const panel = document.getElementById('pipelineOutreachPanel');
-  const nameEl = document.getElementById('pipelineProspectName');
-  const infoEl = document.getElementById('pipelineProspectInfo');
-  const iconEl = document.getElementById('pipelineProspectIcon');
-  const fbBtn = document.getElementById('pipelineFacebookBtn');
-  const igBtn = document.getElementById('pipelineInstagramBtn');
-
-  if (!panel) return;
-
-  // Update display
-  nameEl.textContent = prospect.businessName || prospect.title || 'Unknown Business';
-
-  let infoText = [];
-  if (prospect.zipCode) infoText.push(prospect.zipCode);
-  if (prospect.phone) infoText.push(prospect.phone);
-  infoEl.textContent = infoText.join(' • ') || 'No contact info';
-
-  // Category icon
-  const categoryIcons = {
-    'restaurant': '🍽️', 'auto': '🚗', 'salon': '💇', 'dentist': '🦷',
-    'contractor': '🔨', 'fitness': '💪', 'retail': '🛍️', 'service': '🔧'
-  };
-  iconEl.textContent = categoryIcons[prospect.category] || '🏢';
-
-  // Social buttons
-  if (prospect.facebook) {
-    fbBtn.href = prospect.facebook;
-    fbBtn.classList.remove('hidden');
-    fbBtn.classList.add('flex');
-  } else {
-    fbBtn.classList.add('hidden');
-    fbBtn.classList.remove('flex');
-  }
-
-  if (prospect.instagram) {
-    igBtn.href = prospect.instagram;
-    igBtn.classList.remove('hidden');
-    igBtn.classList.add('flex');
-  } else {
-    igBtn.classList.add('hidden');
-    igBtn.classList.remove('flex');
-  }
-
-  // Clear previous results
-  document.getElementById('pipelineTextResult').textContent = 'Click Generate to create a personalized text message.';
-  document.getElementById('pipelineEmailResult').textContent = 'Click Generate to create a personalized email.';
-  document.getElementById('pipelineEmailSubject').classList.add('hidden');
-  document.getElementById('pipelineCopyTextBtn').classList.add('hidden');
-  document.getElementById('pipelineCopyEmailBtn').classList.add('hidden');
-
-  // Show panel
-  panel.classList.remove('hidden');
-
-  // Scroll to panel
-  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-// Close Pipeline Outreach panel
-function closePipelineOutreach() {
-  const panel = document.getElementById('pipelineOutreachPanel');
-  if (panel) {
-    panel.classList.add('hidden');
-  }
-  pipelineOutreachState.selectedProspect = null;
-}
-
-// Switch Pipeline Outreach tabs
-function switchPipelineOutreachTab(tabName) {
-  // Update buttons
-  document.querySelectorAll('.pipeline-outreach-tab-btn').forEach(btn => {
-    btn.classList.remove('active', 'bg-white', 'shadow', 'text-orange-600');
-    btn.classList.add('text-gray-600');
-  });
-  const activeBtn = document.querySelector(`[data-pipeline-outreach-tab="${tabName}"]`);
-  if (activeBtn) {
-    activeBtn.classList.add('active', 'bg-white', 'shadow', 'text-orange-600');
-    activeBtn.classList.remove('text-gray-600');
-  }
-
-  // Update content
-  document.querySelectorAll('.pipeline-outreach-pane').forEach(pane => pane.classList.add('hidden'));
-  const activePane = document.querySelector(`[data-pipeline-outreach-content="${tabName}"]`);
-  if (activePane) activePane.classList.remove('hidden');
-}
-
-// Generate AI pitch for Pipeline Outreach
-async function generatePipelinePitch(type) {
-  const prospect = pipelineOutreachState.selectedProspect;
-  if (!prospect) {
-    toast('Please select a prospect first', false);
-    return;
-  }
-
-  const btn = document.getElementById(`pipelineGen${type.charAt(0).toUpperCase() + type.slice(1)}Btn`);
-  const resultEl = document.getElementById(`pipeline${type.charAt(0).toUpperCase() + type.slice(1)}Result`);
-  const copyBtn = document.getElementById(`pipelineCopy${type.charAt(0).toUpperCase() + type.slice(1)}Btn`);
-
-  if (!btn || !resultEl) return;
-
-  btn.disabled = true;
-  btn.textContent = '...';
-  resultEl.textContent = 'Generating...';
-
-  try {
-    // Get user settings
-    const yourName = document.getElementById('salesToolkitName')?.value || 'there';
-    const company = document.getElementById('salesToolkitCompany')?.value || '';
-    const spotPrice = document.getElementById('salesToolkitSpotPrice')?.value || '$500';
-    const zipCode = prospect.zipCode || document.getElementById('campaignZipCode')?.value || '';
-
-    const prompt = type === 'text'
-      ? `Write a short, friendly text message (under 160 chars) from ${yourName}${company ? ' at ' + company : ''} to ${prospect.businessName || 'a local business'} about advertising on a community postcard mailing to ${zipCode || 'their area'}. Spot is ${spotPrice}. Be casual and conversational.`
-      : `Write a professional but friendly email from ${yourName}${company ? ' at ' + company : ''} to ${prospect.businessName || 'a local business'} about advertising on a 9x12 community postcard. Include:
-- Going to ~5,000 homes in ${zipCode || 'their area'}
-- They'd be the only ${prospect.category || 'business'} on the card
-- Spot price is ${spotPrice}
-- End with a soft close
-
-Format: Start with "Subject: " line, then the email body.`;
-
-    const response = await fetch('/api/ai/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, type })
-    });
-
-    const data = await response.json();
-
-    if (data.error) throw new Error(data.error);
-
-    const result = data.result || data.text || '';
-
-    if (type === 'email' && result.includes('Subject:')) {
-      const [subjectLine, ...bodyParts] = result.split('\n');
-      document.getElementById('pipelineEmailSubject').textContent = subjectLine;
-      document.getElementById('pipelineEmailSubject').classList.remove('hidden');
-      resultEl.textContent = bodyParts.join('\n').trim();
-    } else {
-      resultEl.textContent = result;
-    }
-
-    pipelineOutreachState.aiResults[type] = result;
-    copyBtn.classList.remove('hidden');
-
-  } catch (error) {
-    console.error('Pipeline AI generation error:', error);
-    resultEl.textContent = 'Error generating message. Please try again.';
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Generate';
-  }
-}
-
-// Copy Pipeline Outreach result
-function copyPipelineResult(type) {
-  const result = pipelineOutreachState.aiResults[type];
-  if (!result) return;
-
-  navigator.clipboard.writeText(result).then(() => {
-    toast('Copied!', true);
-  }).catch(() => {
-    toast('Failed to copy', false);
-  });
-}
-
-// Copy Pipeline call script with filled placeholders
-function copyPipelineCallScript() {
-  const prospect = pipelineOutreachState.selectedProspect;
-  const yourName = document.getElementById('salesToolkitName')?.value || '[YOUR_NAME]';
-  const spotPrice = document.getElementById('salesToolkitSpotPrice')?.value || '[SPOT_PRICE]';
-  const zipCode = prospect?.zipCode || document.getElementById('campaignZipCode')?.value || '[ZIP]';
-  const businessType = prospect?.category || '[BUSINESS_TYPE]';
-  const contactName = prospect?.contactName || prospect?.businessName || '[CONTACT]';
-
-  const script = `1. PATTERN INTERRUPT:
-"Hey, is this ${contactName}? This is ${yourName}, I do local advertising in ${zipCode}. Got a quick question - do you guys do any direct mail marketing?"
-
-2. THE PITCH:
-"I put together a community postcard for about 5,000 homes in ${zipCode}. You'd be the ONLY ${businessType} on the card."
-
-3. PRICE:
-"It's ${spotPrice} for the spot. If even ONE person calls you from this card, you've probably made that back."
-
-4. CLOSE:
-"Want me to save your spot? Just need a quick yes and I'll send over the details."`;
-
-  navigator.clipboard.writeText(script).then(() => {
-    toast('Call script copied!', true);
-  }).catch(() => {
-    toast('Failed to copy', false);
-  });
-}
-
-// Quick action buttons for Pipeline Outreach
-function pipelineSendText() {
-  const prospect = pipelineOutreachState.selectedProspect;
-  if (!prospect?.phone) {
-    toast('No phone number available', false);
-    return;
-  }
-  const message = pipelineOutreachState.aiResults?.text || '';
-  // Copy message and open Google Voice
-  if (message) {
-    navigator.clipboard.writeText(message).catch(() => {});
-  }
-  const formattedPhone = prospect.phone.replace(/\D/g, '');
-  window.open(`https://voice.google.com/u/0/messages?itemId=t.+1${formattedPhone}`, '_blank');
-  toast('📋 Message copied! Google Voice opened', true);
-}
-
-function pipelineSendEmail() {
-  const prospect = pipelineOutreachState.selectedProspect;
-  if (!prospect?.email) {
-    toast('No email available', false);
-    return;
-  }
-  const result = pipelineOutreachState.aiResults?.email || '';
-  let subject = '';
-  let body = result;
-  if (result.includes('Subject:')) {
-    const [subjectLine, ...bodyParts] = result.split('\n');
-    subject = subjectLine.replace('Subject:', '').trim();
-    body = bodyParts.join('\n').trim();
-  }
-  window.open(`mailto:${prospect.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
-}
-
-function pipelineCall() {
-  const prospect = pipelineOutreachState.selectedProspect;
-  if (!prospect?.phone) {
-    toast('No phone number available', false);
-    return;
-  }
-  window.open(`tel:${prospect.phone}`, '_blank');
-}
-
-// Open Pipeline Outreach from kanban card
-function openPipelineOutreachFromKanban(leadId) {
-  // Find the prospect in kanban columns
-  const kanban = crmState.kanban || {};
-  let prospect = null;
-
-  for (const column of Object.values(kanban)) {
-    if (Array.isArray(column)) {
-      const found = column.find(item =>
-        (typeof item === 'object' && item.id === leadId) ||
-        (typeof item === 'string' && item === leadId)
-      );
-      if (found && typeof found === 'object') {
-        prospect = found;
-        break;
-      }
-    }
-  }
-
-  if (!prospect) {
-    // Try to find in prospect pool
-    const prospectPool = crmState.prospectPool || {};
-    for (const zips of Object.values(prospectPool)) {
-      if (Array.isArray(zips)) {
-        const found = zips.find(p => p.id === leadId);
-        if (found) {
-          prospect = found;
-          break;
-        }
-      }
-    }
-  }
-
-  if (!prospect) {
-    toast('Could not find prospect data', false);
-    return;
-  }
-
-  openPipelineOutreach(prospect);
-}
-
-// Expose Pipeline Outreach functions globally
-window.openPipelineOutreach = openPipelineOutreach;
-window.closePipelineOutreach = closePipelineOutreach;
-window.switchPipelineOutreachTab = switchPipelineOutreachTab;
-window.generatePipelinePitch = generatePipelinePitch;
-window.copyPipelineResult = copyPipelineResult;
-window.copyPipelineCallScript = copyPipelineCallScript;
-window.pipelineSendText = pipelineSendText;
-window.pipelineSendEmail = pipelineSendEmail;
-window.pipelineCall = pipelineCall;
-window.openPipelineOutreachFromKanban = openPipelineOutreachFromKanban;
-
 // Load Sales Toolkit settings on page load (for the Close Deals tab)
 document.addEventListener('DOMContentLoaded', function() {
   // Delay slightly to ensure DOM is ready
@@ -7389,6 +7658,12 @@ let zipSearchMode = 'zips'; // 'zips' or 'radius'
 
 // Toggle between ZIP search modes
 function setZipSearchMode(mode) {
+  // Block radius mode for free tier
+  if (mode === 'radius' && isFreeTier()) {
+    showUpgradePrompt('Radius search is available on paid plans. Upgrade to search multiple ZIP codes at once.');
+    return;
+  }
+
   zipSearchMode = mode;
   const zipModeTab = document.getElementById('zipModeTab');
   const radiusModeTab = document.getElementById('radiusModeTab');
@@ -7408,8 +7683,57 @@ function setZipSearchMode(mode) {
   }
 }
 
+// Apply free tier restrictions to search UI
+function applyFreeTierSearchRestrictions() {
+  const zip2 = document.getElementById('bulkPopZip2');
+  const zip3 = document.getElementById('bulkPopZip3');
+  const radiusModeTab = document.getElementById('radiusModeTab');
+
+  if (isFreeTier()) {
+    // Disable and style ZIP 2 & 3 inputs
+    if (zip2) {
+      zip2.disabled = true;
+      zip2.value = '';
+      zip2.placeholder = '🔒 Pro';
+      zip2.classList.add('bg-gray-200', 'cursor-not-allowed', 'opacity-60');
+      zip2.title = 'Upgrade to search multiple ZIP codes';
+    }
+    if (zip3) {
+      zip3.disabled = true;
+      zip3.value = '';
+      zip3.placeholder = '🔒 Pro';
+      zip3.classList.add('bg-gray-200', 'cursor-not-allowed', 'opacity-60');
+      zip3.title = 'Upgrade to search multiple ZIP codes';
+    }
+    // Add lock indicator to radius tab
+    if (radiusModeTab) {
+      radiusModeTab.innerHTML = '🔒 Radius Search';
+      radiusModeTab.title = 'Upgrade to use radius search';
+    }
+  } else {
+    // Enable for paid users
+    if (zip2) {
+      zip2.disabled = false;
+      zip2.placeholder = 'ZIP 2';
+      zip2.classList.remove('bg-gray-200', 'cursor-not-allowed', 'opacity-60');
+      zip2.title = '';
+    }
+    if (zip3) {
+      zip3.disabled = false;
+      zip3.placeholder = 'ZIP 3';
+      zip3.classList.remove('bg-gray-200', 'cursor-not-allowed', 'opacity-60');
+      zip3.title = '';
+    }
+    if (radiusModeTab) {
+      radiusModeTab.innerHTML = 'Radius Search';
+      radiusModeTab.title = '';
+    }
+  }
+}
+
 // Expose to window
 window.setZipSearchMode = setZipSearchMode;
+window.applyFreeTierSearchRestrictions = applyFreeTierSearchRestrictions;
 
 // Get neighboring ZIP codes within a radius
 async function getZipsInRadius(centerZip, radiusMiles) {
@@ -7536,6 +7860,39 @@ async function runBulkAutoPopulate() {
   // Disable button during search (btn already defined above)
   btn.disabled = true;
   btn.innerHTML = '⏳ Searching...';
+
+  // Check free tier limits BEFORE starting searches
+  if (isFreeTier()) {
+    // Check zip code limits
+    const newZips = zipCodes.filter(z => !dailyUsage.zipsSearched.includes(z));
+    const allowedNewZips = FREE_TIER_LIMITS.zipSearchesPerDay - dailyUsage.zipSearches;
+
+    if (newZips.length > allowedNewZips) {
+      btn.disabled = false;
+      btn.innerHTML = originalBtnText;
+      if (allowedNewZips <= 0) {
+        showUpgradePrompt(`You've reached your daily limit of ${FREE_TIER_LIMITS.zipSearchesPerDay} ZIP code search. Upgrade for unlimited searches.`);
+      } else {
+        showUpgradePrompt(`Free tier allows ${FREE_TIER_LIMITS.zipSearchesPerDay} ZIP code per day. You're trying to search ${newZips.length} new ZIP codes. Upgrade for unlimited searches.`);
+      }
+      return;
+    }
+
+    // Check category limits
+    const newCategories = selectedCategories.filter(c => !dailyUsage.categoriesSearched.includes(c));
+    const allowedNewCategories = FREE_TIER_LIMITS.categorySearchesPerDay - dailyUsage.categorySearches;
+
+    if (newCategories.length > allowedNewCategories) {
+      btn.disabled = false;
+      btn.innerHTML = originalBtnText;
+      if (allowedNewCategories <= 0) {
+        showUpgradePrompt(`You've reached your daily limit of ${FREE_TIER_LIMITS.categorySearchesPerDay} category searches. Upgrade for unlimited searches.`);
+      } else {
+        showUpgradePrompt(`Free tier allows ${FREE_TIER_LIMITS.categorySearchesPerDay} categories per day. You're trying to search ${newCategories.length} new categories. Upgrade for unlimited searches.`);
+      }
+      return;
+    }
+  }
 
   try {
     // Track all businesses found across all categories and ZIP codes
@@ -9324,14 +9681,14 @@ function toggleToContactSelection(leadId) {
   renderKanban();
 }
 
-// Select all items in To Contact column (uses Campaign Board)
+// Select all items in Queued column for outreach (uses Campaign Board)
 function selectAllToContact() {
   const board = getCurrentCampaignBoard();
-  // Campaign Board 'attempting' = legacy 'to-contact'
-  const items = board?.columns?.['attempting'] || [];
+  // Outreach is done from Queued column (column 1)
+  const items = board?.columns?.['queued'] || [];
 
   if (items.length === 0) {
-    toast('No items in To Contact column', false);
+    toast('No items in Queued column for outreach', false);
     return;
   }
 
@@ -10960,18 +11317,19 @@ function renderProspectPool() {
         <h3 class="text-lg font-bold text-indigo-900">🎯 Prospect Pool</h3>
         <p class="text-sm text-indigo-700 mt-1">All prospects organized by category - click to add to your pipeline</p>
       </div>
-      <div class="relative">
+      <div class="relative flex items-center">
+        <svg class="absolute left-2 h-4 w-4 text-indigo-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
         <input
           type="text"
           id="prospectPoolSearch"
           placeholder="Search businesses by name..."
           oninput="filterProspectPool(this.value)"
           value="${prospectPoolSearchTerm}"
-          class="w-full px-4 py-2 pl-10 border-2 border-indigo-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+          class="w-full py-2 border-2 border-indigo-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+          style="padding-left: 2rem;"
         />
-        <svg class="absolute left-3 top-3 h-5 w-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-        </svg>
       </div>
     </div>
 
@@ -11016,8 +11374,19 @@ function renderProspectPool() {
               leadScore: p.leadScore || calculateProspectScore(p),
               contactScore: p.contactScore || (p.enriched ? calculateContactScore(p) : 0)
             }))
-            // Sort by physical ZIP code (geographic organization)
+            // Sort: enriched first, then by rating, then by ZIP
             .sort((a, b) => {
+              // Enriched businesses first
+              const aEnriched = a.enriched || a.isEnriched ? 1 : 0;
+              const bEnriched = b.enriched || b.isEnriched ? 1 : 0;
+              if (bEnriched !== aEnriched) return bEnriched - aEnriched;
+
+              // Then by rating (higher first)
+              const ratingA = a.rating || 0;
+              const ratingB = b.rating || 0;
+              if (ratingB !== ratingA) return ratingB - ratingA;
+
+              // Then by ZIP code
               const zipA = a.actualZip || a.zip || a.zipCode || '';
               const zipB = b.actualZip || b.zip || b.zipCode || '';
               return zipA.localeCompare(zipB);
@@ -11266,13 +11635,22 @@ function renderProspectPool() {
                       ${isDisabled ? '<span class="text-xs px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded">In System</span>' : ''}
                     </div>
 
-                    <!-- Enrichment Status (only show if enriched) -->
+                    <!-- Enrichment Status -->
                     ${prospect.enriched ? `
                       <div class="enrichment-status mt-2">
-                        <span class="text-xs text-green-600">✅ Enriched</span>
-                        <span class="text-xs text-gray-600">• Contact Score: ${contactScore}/10</span>
+                        <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700">✅ Enriched</span>
+                        <span class="text-xs text-gray-600 ml-1">Score: ${contactScore}/10</span>
                       </div>
-                    ` : ''}
+                    ` : `
+                      <div class="mt-2">
+                        <button onclick="event.stopPropagation(); enrichSingleProspect('${prospectId}')"
+                                id="enrich-btn-${prospectId}"
+                                class="px-3 py-1 bg-purple-100 text-purple-700 rounded-lg text-xs font-semibold hover:bg-purple-200 transition"
+                                title="Find email, phone & social media">
+                          🔍 Enrich
+                        </button>
+                      </div>
+                    `}
 
                     <!-- Contact Methods -->
                     ${rawContactIcons.length > 0 ? `
@@ -13654,133 +14032,10 @@ async function saveEditedContact() {
   toast('Contact info updated!', true);
 }
 
-// AI Pitch generation for CRM modal
-async function generateCrmPitch(type) {
-  if (!currentProspectDetail) {
-    toast('No prospect selected', false);
-    return;
-  }
-
-  const btnId = type === 'text' ? 'crmGenTextBtn' : 'crmGenEmailBtn';
-  const resultId = type === 'text' ? 'crmTextResult' : 'crmEmailResult';
-  const copyBtnId = type === 'text' ? 'crmCopyTextBtn' : 'crmCopyEmailBtn';
-  const subjectId = 'crmEmailSubject';
-
-  const btn = document.getElementById(btnId);
-  const resultEl = document.getElementById(resultId);
-  const copyBtn = document.getElementById(copyBtnId);
-  const subjectEl = document.getElementById(subjectId);
-
-  if (!btn || !resultEl) return;
-
-  // Show loading state
-  const originalText = btn.textContent;
-  btn.textContent = 'Generating...';
-  btn.disabled = true;
-
-  try {
-    // Get campaign settings
-    const mailer = state.current;
-    const homeCount = mailer?.Address_Count || productionState.pricing[mailer?.Mailer_ID]?.homeCount || 5000;
-    const spotPrice = productionState.pricing[mailer?.Mailer_ID]?.singleAd || campaignSettings?.spotPrice || 500;
-
-    // Build business object for API
-    const business = {
-      name: currentProspectDetail.businessName || currentProspectDetail.name || 'Business',
-      category: currentProspectDetail.category || '',
-      rating: currentProspectDetail.rating,
-      review_count: currentProspectDetail.reviewCount || currentProspectDetail.review_count,
-      city: currentProspectDetail.city || '',
-      zip: currentProspectDetail.zipCode || currentProspectDetail.actualZip || mailer?.Town || '',
-      website: currentProspectDetail.website || '',
-      facebook: currentProspectDetail.facebook || '',
-      instagram: currentProspectDetail.instagram || '',
-      contactName: currentProspectDetail.contactName || ''
-    };
-
-    // Get sender info from settings
-    const sender = {
-      name: campaignSettings?.senderName || 'Your Name',
-      company: campaignSettings?.companyName || '9x12 Postcards',
-      phone: campaignSettings?.phone || '',
-      spotPrice: `$${spotPrice}`
-    };
-
-    const platform = type === 'text' ? 'text' : 'email';
-
-    const response = await fetch('/api/ai/generate-pitch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        business,
-        platform,
-        urgency: 'medium',
-        sender,
-        homeCount,
-        deliveryZip: business.zip
-      })
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to generate pitch');
-    }
-
-    const data = await response.json();
-
-    // Display result
-    resultEl.textContent = data.message;
-
-    // Show subject for email
-    if (type === 'email' && data.subject && subjectEl) {
-      subjectEl.textContent = `Subject: ${data.subject}`;
-      subjectEl.classList.remove('hidden');
-    }
-
-    // Show copy button
-    if (copyBtn) copyBtn.classList.remove('hidden');
-
-    toast('Pitch generated!', true);
-
-  } catch (error) {
-    console.error('AI pitch generation error:', error);
-    resultEl.textContent = `Error: ${error.message}. Please try again.`;
-    toast(`Failed to generate pitch: ${error.message}`, false);
-  } finally {
-    btn.textContent = originalText;
-    btn.disabled = false;
-  }
-}
-
-function copyCrmPitch(type) {
-  const resultId = type === 'text' ? 'crmTextResult' : 'crmEmailResult';
-  const subjectId = 'crmEmailSubject';
-
-  const resultEl = document.getElementById(resultId);
-  const subjectEl = document.getElementById(subjectId);
-
-  if (!resultEl) return;
-
-  let textToCopy = resultEl.textContent;
-
-  // For email, include subject if available
-  if (type === 'email' && subjectEl && !subjectEl.classList.contains('hidden')) {
-    textToCopy = subjectEl.textContent + '\n\n' + textToCopy;
-  }
-
-  navigator.clipboard.writeText(textToCopy).then(() => {
-    toast('Copied to clipboard!', true);
-  }).catch(() => {
-    toast('Failed to copy', false);
-  });
-}
-
-// Expose edit contact and AI pitch functions
+// Expose edit contact functions
 window.openEditContactModal = openEditContactModal;
 window.closeEditContactModal = closeEditContactModal;
 window.saveEditedContact = saveEditedContact;
-window.generateCrmPitch = generateCrmPitch;
-window.copyCrmPitch = copyCrmPitch;
 
 // Mark prospect as not interested (called from CRM card footer)
 async function markProspectNotInterested() {
@@ -23424,6 +23679,13 @@ function loadAdvertisersForCopy() {
 }
 
 async function createNewPostcard() {
+  // Check subscription limits for free tier
+  const campaignCheck = canCreateCampaign();
+  if (!campaignCheck.allowed) {
+    showUpgradePrompt(campaignCheck.message);
+    return;
+  }
+
   // Get form values
   const isNewTown = document.querySelector('input[name="townOption"][value="new"]').checked;
   const town = isNewTown ?
@@ -24540,7 +24802,7 @@ function bulkSendSMS() {
 
     if (confirm(`Send SMS to ${selectedCount} selected prospect${selectedCount > 1 ? 's' : ''}?\n\nThis will open your SMS app for each contact with a delay between each.`)) {
         const board = getCurrentCampaignBoard();
-        const toContactColumn = (board && board.columns) ? (board.columns['attempting'] || []) : [];
+        const toContactColumn = (board && board.columns) ? (board.columns['queued'] || []) : [];
         const selectedIds = Array.from(toContactSelectionState.selectedIds);
 
         let successCount = 0;
@@ -24621,7 +24883,7 @@ function bulkSendEmail() {
 
     if (confirm(`Send Email to ${selectedCount} selected prospect${selectedCount > 1 ? 's' : ''}?\n\nYou'll be prompted before each email.`)) {
         const board = getCurrentCampaignBoard();
-        const toContactColumn = (board && board.columns) ? (board.columns['attempting'] || []) : [];
+        const toContactColumn = (board && board.columns) ? (board.columns['queued'] || []) : [];
         const selectedIds = Array.from(toContactSelectionState.selectedIds);
 
         console.log('🔵 Bulk Email - Selected IDs:', selectedIds);
@@ -24725,7 +24987,7 @@ function bulkSendGoogleVoice() {
 
     if (confirm(`Send via Google Voice to ${selectedCount} selected prospect${selectedCount > 1 ? 's' : ''}?\n\nThis will:\n1. Copy each message to your clipboard\n2. Open Google Voice for each contact with a delay\n3. You can paste (Ctrl+V) the message and send`)) {
         const board = getCurrentCampaignBoard();
-        const toContactColumn = (board && board.columns) ? (board.columns['attempting'] || []) : [];
+        const toContactColumn = (board && board.columns) ? (board.columns['queued'] || []) : [];
         const selectedIds = Array.from(toContactSelectionState.selectedIds);
 
         let successCount = 0;
@@ -24807,7 +25069,7 @@ function bulkOpenLinkedIn() {
 
     const selectedCount = toContactSelectionState.selectedIds.size;
     const board = getCurrentCampaignBoard();
-    const toContactColumn = (board && board.columns) ? (board.columns['attempting'] || []) : [];
+    const toContactColumn = (board && board.columns) ? (board.columns['queued'] || []) : [];
     const selectedIds = Array.from(toContactSelectionState.selectedIds);
 
     // Count how many have LinkedIn URLs
@@ -24895,7 +25157,7 @@ function bulkOpenFacebook() {
 
     const selectedCount = toContactSelectionState.selectedIds.size;
     const board = getCurrentCampaignBoard();
-    const toContactColumn = (board && board.columns) ? (board.columns['attempting'] || []) : [];
+    const toContactColumn = (board && board.columns) ? (board.columns['queued'] || []) : [];
     const selectedIds = Array.from(toContactSelectionState.selectedIds);
 
     // Count how many have Facebook URLs
