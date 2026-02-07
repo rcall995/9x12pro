@@ -104,18 +104,14 @@ export default async function handler(req, res) {
     let errors = 0;
     const startTime = Date.now();
 
-    // Burst configuration - optimized for Vercel timeout limits
-    const BURST_SIZE = parseInt(req.query.burstSize || req.body?.burstSize || '25');
-    const BURST_DELAY = parseInt(req.query.burstDelay || req.body?.burstDelay || '1000');  // 1s between requests
-    const BURST_PAUSE = parseInt(req.query.burstPause || req.body?.burstPause || '5000');  // 5s pause between bursts
+    // Delay configuration - paid tier has 5 concurrency so minimal delay needed
+    const REQUEST_DELAY = parseInt(req.query.delay || req.body?.delay || '500');  // 0.5s between requests
 
     for (let i = 0; i < testBatch.length; i++) {
       const business = testBatch[i];
       const query = `${business.name} ${business.city || ''} ${business.state || ''} official website`.trim();
-      const burstNum = Math.floor(i / BURST_SIZE) + 1;
-      const posInBurst = (i % BURST_SIZE) + 1;
 
-      console.log(`[Burst ${burstNum}, ${posInBurst}/${BURST_SIZE}] Testing: ${business.name}`);
+      console.log(`[${i + 1}/${testBatch.length}] Testing: ${business.name}`);
 
       try {
         const response = await fetch(`https://${req.headers.host}/api/scrapingdog-search`, {
@@ -148,16 +144,9 @@ export default async function handler(req, res) {
 
         results.push(result);
 
-        // Check if we need to pause between bursts or just delay within burst
+        // Small delay between requests (paid tier has 5 concurrency)
         if (i < testBatch.length - 1) {
-          if ((i + 1) % BURST_SIZE === 0) {
-            // End of burst - long pause to reset rate limit
-            console.log(`⏸️ Burst ${burstNum} complete. Pausing ${BURST_PAUSE/1000}s to reset rate limit...`);
-            await new Promise(r => setTimeout(r, BURST_PAUSE));
-          } else {
-            // Within burst - short delay
-            await new Promise(r => setTimeout(r, BURST_DELAY));
-          }
+          await new Promise(r => setTimeout(r, REQUEST_DELAY));
         }
       } catch (e) {
         errors++;
