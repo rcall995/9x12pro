@@ -2,9 +2,17 @@
 // Uses the Zippopotam.us API (free, no key required) to get ZIP info
 // Then calculates nearby ZIPs based on geographic proximity
 
+import { checkRateLimit } from './lib/rate-limit.js';
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Rate limit: 20 requests per minute (makes many external API calls per request)
+  const rateLimited = checkRateLimit(req, res, { limit: 20, window: 60, keyPrefix: 'zip-neighbors' });
+  if (rateLimited) {
+    return res.status(rateLimited.status).json(rateLimited.body);
   }
 
   const { zipCode, radius = 20 } = req.body;

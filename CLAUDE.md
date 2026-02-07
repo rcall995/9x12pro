@@ -1,5 +1,13 @@
 # Project Instructions for Claude
 
+## IMPORTANT: Check TODO List First!
+**Always read `TODO-LAUNCH.md` at the start of each session** to see current progress and priorities.
+- Target launch: 2026-02-20
+- 265 potential SaaS clients ready to contact
+- Payment integration: Square (not Stripe)
+
+---
+
 ## Deployment
 
 - Deploy command: `vercel --prod` (GitHub push does NOT auto-deploy)

@@ -6,15 +6,36 @@
  * - Not a directory/social media page
  */
 
+import { checkRateLimit } from './lib/rate-limit.js';
+import { validateUrl as validateUrlFormat, validateStringLength } from './lib/validation.js';
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Rate limit: 50 requests per minute
+  const rateLimited = checkRateLimit(req, res, { limit: 50, window: 60, keyPrefix: 'validate-website' });
+  if (rateLimited) {
+    return res.status(rateLimited.status).json(rateLimited.body);
   }
 
   const { website, businessName } = req.body;
 
   if (!website) {
     return res.status(400).json({ error: 'Website required' });
+  }
+
+  // Validate URL (SSRF protection)
+  const urlValidation = validateUrlFormat(website);
+  if (!urlValidation.valid) {
+    return res.status(400).json({ error: urlValidation.error });
+  }
+
+  // Validate business name length
+  const nameValidation = validateStringLength(businessName, 200);
+  if (!nameValidation.valid) {
+    return res.status(400).json({ error: nameValidation.error });
   }
 
   try {

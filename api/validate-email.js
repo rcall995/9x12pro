@@ -6,9 +6,17 @@
  * - Disposable email detection
  */
 
+import { checkRateLimit } from './lib/rate-limit.js';
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Rate limit: 100 requests per minute
+  const rateLimited = checkRateLimit(req, res, { limit: 100, window: 60, keyPrefix: 'validate-email' });
+  if (rateLimited) {
+    return res.status(rateLimited.status).json(rateLimited.body);
   }
 
   const { email } = req.body;

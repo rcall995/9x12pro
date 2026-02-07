@@ -3,10 +3,18 @@
 // Fast direct API - no scraping
 // Docs: https://developer.here.com/documentation/geocoding-search-api/dev_guide/topics/endpoint-discover-brief.html
 
+import { checkRateLimit } from './lib/rate-limit.js';
+
 export default async function handler(req, res) {
   // Allow both GET and POST
   if (req.method !== 'POST' && req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Rate limit: 100 requests per minute
+  const rateLimited = checkRateLimit(req, res, { limit: 100, window: 60, keyPrefix: 'here' });
+  if (rateLimited) {
+    return res.status(rateLimited.status).json(rateLimited.body);
   }
 
   // Get params from body (POST) or query (GET)

@@ -6,10 +6,18 @@
  * If you need more, you can upgrade or use caching aggressively
  */
 
+import { checkRateLimit } from './lib/rate-limit.js';
+
 export default async function handler(req, res) {
   // Only allow POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Rate limit: 20 requests per minute (Google has daily limit of 100)
+  const rateLimited = checkRateLimit(req, res, { limit: 20, window: 60, keyPrefix: 'google-search' });
+  if (rateLimited) {
+    return res.status(rateLimited.status).json(rateLimited.body);
   }
 
   try {

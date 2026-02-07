@@ -2,16 +2,37 @@
 // Scrapes business websites for emails, social media, and contact info
 // SMTP verifies emails to ensure they're valid
 
+import { checkRateLimit } from './lib/rate-limit.js';
+import { validateUrl, validateStringLength } from './lib/validation.js';
+
 export default async function handler(req, res) {
   // Only allow POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // Rate limit: 100 requests per minute (supports bulk enrichment of 100+ contacts)
+  const rateLimited = checkRateLimit(req, res, { limit: 100, window: 60, keyPrefix: 'enrich' });
+  if (rateLimited) {
+    return res.status(rateLimited.status).json(rateLimited.body);
+  }
+
   const { websiteUrl, businessName } = req.body;
 
   if (!websiteUrl) {
     return res.status(400).json({ error: 'Website URL required' });
+  }
+
+  // Validate URL (SSRF protection)
+  const urlValidation = validateUrl(websiteUrl);
+  if (!urlValidation.valid) {
+    return res.status(400).json({ error: urlValidation.error });
+  }
+
+  // Validate business name length
+  const nameValidation = validateStringLength(businessName, 200);
+  if (!nameValidation.valid) {
+    return res.status(400).json({ error: nameValidation.error });
   }
 
   try {
@@ -42,11 +63,47 @@ export default async function handler(req, res) {
     // Step 4: Extract contact names if found
     const contactNames = extractContactNames(homepageData.html + contactPageData.html);
 
-    // Step 5: SMTP verify emails (keep only valid ones)
-    console.log(`📧 Found ${allEmails.length} emails, verifying...`);
-    const verifiedEmails = [];
+    // Step 4.5: Filter emails to only those matching the website domain
+    // This prevents scraping wrong emails (web designers, partners, etc.)
+    let websiteDomain = '';
+    try {
+      let normalizedUrl = websiteUrl;
+      if (!normalizedUrl.startsWith('http')) {
+        normalizedUrl = 'https://' + normalizedUrl;
+      }
+      const urlObj = new URL(normalizedUrl);
+      websiteDomain = urlObj.hostname.toLowerCase().replace('www.', '');
+    } catch (e) {
+      // URL parsing failed
+    }
+
+    // Separate domain-matching emails from others
+    const domainMatchEmails = [];
+    const otherEmails = [];
 
     for (const email of allEmails) {
+      const emailDomain = email.toLowerCase().split('@')[1];
+      // Check if email domain contains the main part of the website domain
+      // e.g., voltz99.com should match info@voltz99.com
+      const websiteMainDomain = websiteDomain.split('.')[0]; // "voltz99" from "voltz99.com"
+      if (websiteDomain && emailDomain && emailDomain.includes(websiteMainDomain)) {
+        domainMatchEmails.push(email);
+        console.log(`✨ Domain match email: ${email}`);
+      } else {
+        otherEmails.push(email);
+        console.log(`⚠️ Non-matching email (skipping): ${email} (website: ${websiteDomain})`);
+      }
+    }
+
+    // STRICT MODE: Only use domain-matching emails
+    // This prevents returning random emails from web designers, analytics, etc.
+    const emailsToVerify = domainMatchEmails.length > 0 ? domainMatchEmails : [];
+
+    // Step 5: SMTP verify emails (keep only valid ones)
+    console.log(`📧 Found ${emailsToVerify.length} domain-matching emails, verifying...`);
+    const verifiedEmails = [];
+
+    for (const email of emailsToVerify) {
       const isValid = await verifyEmailSMTP(email);
       if (isValid) {
         verifiedEmails.push(email);

@@ -4,9 +4,18 @@
  * https://brave.com/search/api/
  */
 
+import { checkRateLimit } from './lib/rate-limit.js';
+import { checkApiQuota, recordApiCall } from './lib/api-usage.js';
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Rate limit: 30 requests per minute
+  const rateLimited = checkRateLimit(req, res, { limit: 30, window: 60, keyPrefix: 'brave' });
+  if (rateLimited) {
+    return res.status(rateLimited.status).json(rateLimited.body);
   }
 
   const { query, businessName } = req.body;
@@ -23,6 +32,20 @@ export default async function handler(req, res) {
       success: false,
       source: 'brave',
       error: 'not_configured',
+      website: null
+    });
+  }
+
+  // Check monthly quota before making API call
+  const quota = await checkApiQuota('brave');
+  if (!quota.allowed) {
+    console.log(`🦁 Brave quota exceeded: ${quota.used}/${quota.limit} used`);
+    return res.status(200).json({
+      success: false,
+      source: 'brave',
+      error: 'quota_exceeded',
+      used: quota.used,
+      limit: quota.limit,
       website: null
     });
   }
@@ -48,6 +71,9 @@ export default async function handler(req, res) {
 
     const data = await response.json();
     const results = data.web?.results || [];
+
+    // Record successful API call
+    await recordApiCall('brave');
 
     if (results.length === 0) {
       return res.status(200).json({
@@ -94,15 +120,44 @@ export default async function handler(req, res) {
       'patch.com', 'thrillist.com', 'eater.com', 'timeout.com',
       'onlyinyourstate.com', 'newspapers.com',
 
+      // National news sites and media outlets
+      'usnews.com', 'money.usnews.com', 'forbes.com', 'bloomberg.com',
+      'cnbc.com', 'cnn.com', 'wsj.com', 'nytimes.com', 'washingtonpost.com',
+      'businessinsider.com', 'investopedia.com', 'marketwatch.com',
+      'yahoo.com', 'msn.com', 'aol.com', 'huffpost.com', 'buzzfeed.com',
+      'newsweek.com', 'usatoday.com', 'reuters.com', 'apnews.com',
+
       // Social media
       'facebook.com', 'instagram.com', 'twitter.com', 'tiktok.com',
       'youtube.com', 'pinterest.com', 'reddit.com', 'linkedin.com',
 
-      // Legal
+      // Legal directories
       'avvo.com', 'findlaw.com', 'justia.com', 'lawyers.com',
+      'martindale.com', 'superlawyers.com', 'lawinfo.com', 'nolo.com',
+
+      // Financial advisor/professional directories
+      'brokercheck.finra.org', 'wealthminder.com', 'advisorhub.com',
+      'smartasset.com', 'nerdwallet.com', 'bankrate.com', 'thebalance.com',
+      'wiseradvisor.com', 'brightscope.com', 'adviserinfo.sec.gov',
+      'paladin-investorregistry.com', 'letsmakeaplan.org', 'napfa.org',
+      'indyfin.com', 'advisorinfo.com', 'advisorfinder.com',
+
+      // Insurance/agent directories (NOT actual business sites)
+      'agents.mutualofomaha.com', 'agent.amfam.com', 'agents.allstate.com',
+      'agent.statefarm.com', 'localagent.com', 'insuranceagentlocator.com',
+      'agentpronto.com', 'trustedchoice.com', 'agents.farmers.com',
+
+      // Healthcare directories
+      'healthgrades.com', 'vitals.com', 'zocdoc.com', 'webmd.com',
+      'findatopdoc.com', 'ratemds.com', 'wellness.com', 'doctoroogle.com',
+      'sharecare.com', 'castleconnolly.com', 'ucomparehealth.com',
+
+      // Accounting directories
+      'cpaverify.org', 'cpafinder.com', 'accountant-finder.com',
 
       // Generic platforms
       'wikipedia.org', 'medium.com', 'eventbrite.com', 'meetup.com',
+      'crunchbase.com', 'glassdoor.com', 'indeed.com', 'careerbuilder.com',
 
       // Government and education
       '.gov', '.edu', '.ny.us', '.ca.us', '.tx.us',

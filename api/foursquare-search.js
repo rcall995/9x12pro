@@ -3,10 +3,18 @@
 // Returns: name, address, phone, website, categories
 // Docs: https://docs.foursquare.com/developer/reference/place-search
 
+import { checkRateLimit } from './lib/rate-limit.js';
+
 export default async function handler(req, res) {
   // Allow both GET and POST
   if (req.method !== 'POST' && req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Rate limit: 50 requests per minute
+  const rateLimited = checkRateLimit(req, res, { limit: 50, window: 60, keyPrefix: 'foursquare' });
+  if (rateLimited) {
+    return res.status(rateLimited.status).json(rateLimited.body);
   }
 
   // Get params from body (POST) or query (GET)

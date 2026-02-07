@@ -5,9 +5,18 @@
  * FREE - no external API costs
  */
 
+import { checkRateLimit } from './lib/rate-limit.js';
+import { validateUrl } from './lib/validation.js';
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Rate limit: 100 requests per minute (supports bulk enrichment)
+  const rateLimited = checkRateLimit(req, res, { limit: 100, window: 60, keyPrefix: 'scrape-email' });
+  if (rateLimited) {
+    return res.status(rateLimited.status).json(rateLimited.body);
   }
 
   const { website, url, businessName } = req.body;
@@ -15,6 +24,12 @@ export default async function handler(req, res) {
 
   if (!targetUrl) {
     return res.status(400).json({ error: 'Website URL required' });
+  }
+
+  // Validate URL (SSRF protection)
+  const urlValidation = validateUrl(targetUrl);
+  if (!urlValidation.valid) {
+    return res.status(400).json({ error: urlValidation.error });
   }
 
   try {

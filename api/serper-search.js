@@ -1,7 +1,10 @@
 // Serper.dev Search API - 2,500 FREE searches/month
 // Fast Google search results without scraping
 // https://serper.dev
-// v2 - Enhanced filtering for business websites
+// v3 - Enhanced filtering + quota tracking
+
+import { checkRateLimit } from './lib/rate-limit.js';
+import { checkApiQuota, recordApiCall } from './lib/api-usage.js';
 
 /**
  * Check if a URL/domain could plausibly belong to the business
@@ -45,6 +48,12 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // Rate limit: 100 requests per minute (supports bulk enrichment)
+  const rateLimited = checkRateLimit(req, res, { limit: 100, window: 60, keyPrefix: 'serper' });
+  if (rateLimited) {
+    return res.status(rateLimited.status).json(rateLimited.body);
+  }
+
   const { query, businessName } = req.body;
 
   if (!query) {
@@ -55,6 +64,13 @@ export default async function handler(req, res) {
 
   if (!SERPER_API_KEY) {
     console.log('⚠️ Serper API key not configured, falling back to Google');
+    return fallbackToGoogle(req, res, query, businessName);
+  }
+
+  // Check monthly quota before making API call
+  const quota = await checkApiQuota('serper');
+  if (!quota.allowed) {
+    console.log(`🔍 Serper quota exceeded: ${quota.used}/${quota.limit} used, falling back to Google`);
     return fallbackToGoogle(req, res, query, businessName);
   }
 
@@ -88,6 +104,9 @@ export default async function handler(req, res) {
 
     const data = await response.json();
     const organic = data.organic || [];
+
+    // Record successful API call
+    await recordApiCall('serper');
 
     if (organic.length === 0) {
       return res.status(200).json({
@@ -159,7 +178,28 @@ export default async function handler(req, res) {
 
       // Legal / law firms (often match partial business names)
       'avvo.com', 'findlaw.com', 'justia.com', 'lawyers.com', 'martindale.com',
-      'law.com', 'nolo.com', 'legalmatch.com',
+      'law.com', 'nolo.com', 'legalmatch.com', 'superlawyers.com', 'lawinfo.com',
+
+      // Financial advisor/professional directories
+      'brokercheck.finra.org', 'wealthminder.com', 'advisorhub.com',
+      'smartasset.com', 'nerdwallet.com', 'bankrate.com', 'thebalance.com',
+      'wiseradvisor.com', 'brightscope.com', 'adviserinfo.sec.gov',
+      'paladin-investorregistry.com', 'letsmakeaplan.org', 'napfa.org',
+      'money.usnews.com', 'forbes.com/advisor', 'investopedia.com',
+      'indyfin.com', 'advisorinfo.com', 'advisorfinder.com',
+
+      // Insurance/agent directories (NOT actual business sites)
+      'agents.mutualofomaha.com', 'agent.amfam.com', 'agents.allstate.com',
+      'agent.statefarm.com', 'localagent.com', 'insuranceagentlocator.com',
+      'agentpronto.com', 'trustedchoice.com', 'agents.farmers.com',
+
+      // Healthcare directories
+      'healthgrades.com', 'vitals.com', 'zocdoc.com', 'webmd.com',
+      'findatopdoc.com', 'ratemds.com', 'wellness.com', 'doctoroogle.com',
+      'sharecare.com', 'castleconnolly.com', 'ucomparehealth.com',
+
+      // Accounting directories
+      'cpaverify.org', 'cpafinder.com', 'accountant-finder.com',
 
       // Generic platforms that host businesses but aren't the business
       'wix.com', 'squarespace.com', 'weebly.com', 'godaddy.com',
@@ -454,6 +494,17 @@ async function fallbackToGoogle(req, res, query, businessName) {
       'nextdoor.com', 'linkedin.com/posts', 'twitter.com/search',
       'hotfrog.com', 'cylex.us', 'brownbook.net', 'superpages.com',
       'wnypapers.com', 'newspapers.com', 'news.google.com', 'patch.com',
+      // News sites
+      'usnews.com', 'forbes.com', 'bloomberg.com', 'cnbc.com', 'cnn.com',
+      'wsj.com', 'nytimes.com', 'washingtonpost.com', 'businessinsider.com',
+      'investopedia.com', 'marketwatch.com', 'yahoo.com', 'msn.com',
+      // Financial/professional directories
+      'brokercheck.finra.org', 'smartasset.com', 'nerdwallet.com', 'bankrate.com',
+      'wealthminder.com', 'advisorhub.com', 'brightscope.com',
+      // Healthcare directories
+      'healthgrades.com', 'vitals.com', 'zocdoc.com', 'webmd.com',
+      // Legal directories
+      'avvo.com', 'findlaw.com', 'justia.com', 'lawyers.com', 'martindale.com',
       '.gov', '.edu', 'google.com', 'bing.com'
     ];
 

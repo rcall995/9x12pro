@@ -2,10 +2,18 @@
 // Get detailed info including website, hours, photos
 // Docs: https://docs.developer.yelp.com/reference/v3_business_info
 
+import { checkRateLimit } from './lib/rate-limit.js';
+
 export default async function handler(req, res) {
   // Only allow POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Rate limit: 50 requests per minute
+  const rateLimited = checkRateLimit(req, res, { limit: 50, window: 60, keyPrefix: 'yelp-details' });
+  if (rateLimited) {
+    return res.status(rateLimited.status).json(rateLimited.body);
   }
 
   const { yelp_id } = req.body;

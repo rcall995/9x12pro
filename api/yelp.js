@@ -2,10 +2,18 @@
 // Free tier: 2,500 calls per day - much better than Google Places!
 // Docs: https://docs.developer.yelp.com/reference/v3_business_search
 
+import { checkRateLimit } from './lib/rate-limit.js';
+
 export default async function handler(req, res) {
   // Only allow POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Rate limit: 100 requests per minute (supports bulk operations)
+  const rateLimited = checkRateLimit(req, res, { limit: 100, window: 60, keyPrefix: 'yelp' });
+  if (rateLimited) {
+    return res.status(rateLimited.status).json(rateLimited.body);
   }
 
   const { location, term, radius, limit = 20 } = req.body;

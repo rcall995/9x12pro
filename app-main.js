@@ -981,9 +981,9 @@ const placesCache = {
 
 // Cache size limits to prevent localStorage quota issues
 const CACHE_LIMITS = {
-  MAX_ENTRIES: 600,        // Maximum number of search cache entries
-  MAX_SIZE_KB: 4000,       // Maximum cache size in KB (leaves room for other localStorage data)
-  MIN_ENTRIES_TO_KEEP: 100 // Always keep at least this many recent entries
+  MAX_ENTRIES: 2000,       // Maximum number of search cache entries (increased for power users)
+  MAX_SIZE_KB: 20000,      // Maximum cache size in KB (~20MB - IndexedDB can handle 50MB+)
+  MIN_ENTRIES_TO_KEEP: 500 // Always keep at least this many recent entries
 };
 
 // NOT INTERESTED LIST STATE (permanent exclusion list)
@@ -3875,10 +3875,9 @@ async function loadPlacesCache() {
 
     console.log(`📦 Loaded prospect cache: ${Object.keys(merged).length} searches, ${totalProspects} total prospects`);
 
-    // Save PRUNED data to IndexedDB (no quota issues with 50MB+ limit)
-    const prunedData = pruneOldCacheEntries(merged);
-    await idbSet('mailslot-places-cache', prunedData);
-    console.log(`💾 IndexedDB: ${Object.keys(prunedData).length} searches cached`);
+    // DON'T save pruned data back to IndexedDB on load - this was causing data loss!
+    // IndexedDB is only updated on explicit saves (new searches, enrichments, etc.)
+    // The full data is kept in cloud, IndexedDB is just a backup for offline access
 
   } catch(e) {
     console.error('Error loading places cache:', e);
@@ -5113,6 +5112,7 @@ async function enrichSingleProspect(prospectId) {
   // Find the prospect in placesCache
   let prospect = null;
   let cacheKey = null;
+  let isManualProspect = false;
 
   for (const key of Object.keys(placesCache.searches)) {
     const cached = placesCache.searches[key];
@@ -5129,6 +5129,7 @@ async function enrichSingleProspect(prospectId) {
   // Also check manual prospects
   if (!prospect) {
     prospect = prospectPoolState.manualProspects.find(p => p.placeId === prospectId || p.id === prospectId);
+    if (prospect) isManualProspect = true;
   }
 
   if (!prospect) {
@@ -5192,11 +5193,35 @@ async function enrichSingleProspect(prospectId) {
     if (prospect.facebook || prospect.instagram) contactScore += 1;
     prospect.contactScore = Math.min(contactScore, 10);
 
-    // Save updated cache
-    await savePlacesCache();
+    // Save updated cache (different save path for manual vs cached prospects)
+    if (isManualProspect) {
+      await saveManualProspects();
+    } else {
+      await savePlacesCache();
+    }
 
     // Re-render the pool to show updated card
     renderProspectPool();
+
+    // Scroll to and highlight the enriched card after a short delay for DOM to update
+    setTimeout(() => {
+      // Find the card by prospect ID - it's now in the enriched section
+      const enrichedCard = document.querySelector(`[data-place-id="${prospectId}"]`) ||
+                          document.querySelector(`[onclick*="${prospectId}"]`);
+      if (enrichedCard) {
+        // Scroll into view with smooth animation
+        enrichedCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        // Add highlight animation
+        enrichedCard.classList.add('ring-4', 'ring-emerald-400', 'ring-opacity-75');
+        enrichedCard.style.transition = 'all 0.3s ease';
+
+        // Remove highlight after 3 seconds
+        setTimeout(() => {
+          enrichedCard.classList.remove('ring-4', 'ring-emerald-400', 'ring-opacity-75');
+        }, 3000);
+      }
+    }, 100);
 
     if (foundItems.length > 0) {
       toast(`✅ Found ${foundItems.join(', ')} for ${businessName}`, true);
@@ -5220,6 +5245,63 @@ async function enrichSingleProspect(prospectId) {
 
 // Expose to window
 window.enrichSingleProspect = enrichSingleProspect;
+
+/**
+ * Re-enrich a prospect - clears previous data and searches again
+ */
+async function reEnrichProspect(prospectId) {
+  // Find the prospect in placesCache or manual prospects
+  let prospect = null;
+  let cacheKey = null;
+  let isManualProspect = false;
+
+  for (const key of Object.keys(placesCache.searches)) {
+    const cached = placesCache.searches[key];
+    if (cached.cachedData) {
+      const found = cached.cachedData.find(b => b.placeId === prospectId);
+      if (found) {
+        prospect = found;
+        cacheKey = key;
+        break;
+      }
+    }
+  }
+
+  if (!prospect) {
+    prospect = prospectPoolState.manualProspects.find(p => p.placeId === prospectId || p.id === prospectId);
+    if (prospect) isManualProspect = true;
+  }
+
+  if (!prospect) {
+    toast('Could not find prospect to re-enrich', false);
+    return;
+  }
+
+  const businessName = prospect.name || prospect.businessName || 'Unknown';
+
+  // Clear previous enrichment data
+  prospect.website = null;
+  prospect.email = null;
+  prospect.enriched = false;
+  prospect.contactScore = 0;
+
+  toast(`🔄 Re-enriching ${businessName}...`, true);
+
+  // Save cleared state (different save path for manual vs cached prospects)
+  if (isManualProspect) {
+    await saveManualProspects();
+  } else {
+    await savePlacesCache();
+  }
+  renderProspectPool();
+
+  // Now run enrichment again (with small delay to allow UI to update)
+  setTimeout(() => {
+    enrichSingleProspect(prospectId);
+  }, 100);
+}
+
+window.reEnrichProspect = reEnrichProspect;
 
 /**
  * Enrich a business when moved from Prospect List to To Contact column
@@ -11396,15 +11478,15 @@ function renderProspectPool() {
               const bEnriched = b.enriched || b.isEnriched ? 1 : 0;
               if (bEnriched !== aEnriched) return bEnriched - aEnriched;
 
-              // Then by rating (higher first)
-              const ratingA = a.rating || 0;
-              const ratingB = b.rating || 0;
-              if (ratingB !== ratingA) return ratingB - ratingA;
+              // Then alphabetically by name
+              const nameA = (a.name || a.businessName || a.title || '').toLowerCase();
+              const nameB = (b.name || b.businessName || b.title || '').toLowerCase();
+              if (nameA !== nameB) return nameA.localeCompare(nameB);
 
-              // Then by ZIP code
-              const zipA = a.actualZip || a.zip || a.zipCode || '';
-              const zipB = b.actualZip || b.zip || b.zipCode || '';
-              return zipA.localeCompare(zipB);
+              // Then by lead score (higher first)
+              const scoreA = a.leadScore || 0;
+              const scoreB = b.leadScore || 0;
+              return scoreB - scoreA;
             })
             .map(prospect => {
             // Store prospect in lookup table for later retrieval (avoids unsafe JSON in onclick)
@@ -11413,287 +11495,145 @@ function renderProspectPool() {
               prospectPoolState.renderedProspects[prospectLookupId] = prospect;
             }
 
-            // For enriched prospects (from manual list) - show with green border and contact icons
-            if (prospect.isEnriched) {
-              const hasContact = prospect.phone || prospect.website || prospect.email || prospect.facebook || prospect.instagram || prospect.linkedin || prospect.twitter;
-
-              // Build compact clickable icon display (matching kanban style)
+            // For enriched prospects (isEnriched OR enriched flag) - show with green background
+            if (prospect.isEnriched || prospect.enriched) {
+              // Build compact clickable icon display
               const contactIcons = [];
-              if (prospect.phone) contactIcons.push(`<a href="tel:${esc(prospect.phone)}" onclick="event.stopPropagation()" class="text-lg hover:scale-125 transition-transform" title="📞 ${esc(prospect.phone)}">📞</a>`);
-              if (prospect.website) contactIcons.push(`<a href="${esc(ensureHttps(prospect.website))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="🌐 ${esc(prospect.website)}">🌐</a>`);
-              if (prospect.email) contactIcons.push(`<a href="mailto:${esc(prospect.email)}" onclick="event.stopPropagation()" class="text-lg hover:scale-125 transition-transform" title="✉️ ${esc(prospect.email)}">✉️</a>`);
-              if (prospect.facebook) contactIcons.push(`<a href="${esc(ensureHttps(prospect.facebook))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="📘 ${esc(prospect.facebook)}">📘</a>`);
-              if (prospect.instagram) contactIcons.push(`<a href="${esc(ensureHttps(prospect.instagram))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="📷 ${esc(prospect.instagram)}">📷</a>`);
-              if (prospect.linkedin) contactIcons.push(`<a href="${esc(ensureHttps(prospect.linkedin))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="💼 ${esc(prospect.linkedin)}">💼</a>`);
-              if (prospect.twitter) contactIcons.push(`<a href="${esc(ensureHttps(prospect.twitter))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="🐦 ${esc(prospect.twitter)}">🐦</a>`);
+              if (prospect.phone) contactIcons.push(`<a href="tel:${esc(prospect.phone)}" onclick="event.stopPropagation()" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="${esc(prospect.phone)}">📞</a>`);
+              if (prospect.website) contactIcons.push(`<a href="${esc(ensureHttps(prospect.website))}" onclick="event.stopPropagation()" target="_blank" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="${esc(prospect.website)}">🌐</a>`);
+              if (prospect.email) contactIcons.push(`<a href="mailto:${esc(prospect.email)}" onclick="event.stopPropagation()" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="${esc(prospect.email)}">✉️</a>`);
+              if (prospect.facebook) contactIcons.push(`<a href="${esc(ensureHttps(prospect.facebook))}" onclick="event.stopPropagation()" target="_blank" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="Facebook">📘</a>`);
+              if (prospect.instagram) contactIcons.push(`<a href="${esc(ensureHttps(prospect.instagram))}" onclick="event.stopPropagation()" target="_blank" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="Instagram">📷</a>`);
+              if (prospect.linkedin) contactIcons.push(`<a href="${esc(ensureHttps(prospect.linkedin))}" onclick="event.stopPropagation()" target="_blank" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="LinkedIn">💼</a>`);
+              if (prospect.twitter) contactIcons.push(`<a href="${esc(ensureHttps(prospect.twitter))}" onclick="event.stopPropagation()" target="_blank" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="Twitter">🐦</a>`);
 
-              // Extract address and rating from notes if not available as separate fields
+              // Extract address and rating
               let displayAddress = prospect.address || '';
               let displayRating = prospect.rating || 0;
-
               if (!displayAddress && prospect.notes) {
                 const addressMatch = prospect.notes.match(/Address:\s*([^\n]+)/);
                 if (addressMatch) displayAddress = addressMatch[1];
               }
-
               if (!displayRating && prospect.notes) {
                 const ratingMatch = prospect.notes.match(/Rating:\s*([\d.]+)/);
                 if (ratingMatch) displayRating = parseFloat(ratingMatch[1]);
               }
 
-              // Show actual ZIP code (not the searched ZIP) - DON'T use town as fallback
-              // Filter out invalid values like "undefined", "null", or actual undefined/null
+              // ZIP code
               const rawZipValue = prospect.actualZip || prospect.zipCode || prospect.zip || '';
-              const isValidZip = rawZipValue && rawZipValue !== 'undefined' && rawZipValue !== 'null' && rawZipValue !== 'undefined-undefined';
-              const displayLocation = isValidZip ? `📍 ${rawZipValue}` : '';
+              const isValidZip = rawZipValue && rawZipValue !== 'undefined' && rawZipValue !== 'null';
 
-              // Build metadata line (category only, since ZIP is shown above)
-              const metadata = [];
-              if (prospect.category) {
-                const categoryName = prospect.category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                metadata.push(`<span onclick="event.stopPropagation(); editProspectCategory('${prospect.placeId || prospect.id}', '${esc(prospect.category)}')" class="cursor-pointer hover:text-indigo-600" title="Click to edit category">${categoryName} ✏️</span>`);
-              }
-
-              // Calculate lead score for enriched prospects
-              const enrichedLeadScore = prospect.leadScore || calculateProspectScore(prospect);
-              const enrichedScoreCategory = getScoreCategory(enrichedLeadScore);
+              // Contact score
               const enrichedContactScore = prospect.contactScore || calculateContactScore(prospect);
 
-              // Price level display
-              const priceLevel = prospect.priceLevel || 0;
-              const priceLevelDisplay = priceLevel > 0 ? '$'.repeat(priceLevel) : '';
-
-              // Owner name display
-              const ownerDisplay = prospect.ownerName ? `<div class="text-xs text-gray-600 mb-1">👤 Owner: ${esc(prospect.ownerName)}</div>` : '';
-
-              // Review count with rating
-              const reviewDisplay = displayRating ? `<div class="flex items-center gap-2 mb-2 text-xs text-gray-700">
-                <span class="font-semibold">⭐ ${displayRating}</span>
-                ${prospect.reviewCount ? `<span class="text-gray-500">(${prospect.reviewCount.toLocaleString()} reviews)</span>` : ''}
-                ${priceLevelDisplay ? `<span class="text-green-600 font-bold">${priceLevelDisplay}</span>` : ''}
-              </div>` : '';
-
-              // Check if this enriched prospect is already in system
+              // Status flags
               const isEnrichedInSystem = prospect.inSystem;
               const isPoolDoNotContact = prospect.doNotContact === true;
+              const displayName = prospect.name || prospect.businessName || prospect.title || 'Unnamed';
 
               return `
-                <div class="border-2 ${isPoolDoNotContact ? 'border-red-400 bg-red-50' : (prospect.isExistingClient ? 'border-amber-400 bg-amber-50' : (hasContact ? 'border-green-400 bg-white' : 'border-gray-200 bg-white'))} rounded-lg p-3 ${isEnrichedInSystem || isPoolDoNotContact ? 'opacity-60' : 'hover:shadow-md'} transition cursor-pointer relative" onclick="openClientModalForProspect('${prospect.id}')">
-                  ${isPoolDoNotContact ? `
-                    <div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-                      <span class="text-8xl text-red-500 font-bold opacity-40">✕</span>
+                <div class="rounded-xl overflow-hidden ${isPoolDoNotContact ? 'bg-red-50 border-2 border-red-300' : 'bg-gradient-to-br from-emerald-50 to-green-100 border-l-4 border-l-emerald-500'} ${isEnrichedInSystem || isPoolDoNotContact ? 'opacity-60' : 'hover:shadow-lg hover:scale-[1.02]'} transition-all duration-200 cursor-pointer relative" onclick="openClientModalForProspect('${prospect.id || prospect.placeId}')">
+                  ${isPoolDoNotContact ? `<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10"><span class="text-6xl text-red-400 font-bold opacity-30">✕</span></div>` : ''}
+
+                  <!-- Header with score -->
+                  <div class="px-4 py-3 flex items-start justify-between gap-2">
+                    <div class="flex-1 min-w-0">
+                      <h5 class="font-bold text-gray-900 ${isPoolDoNotContact ? 'line-through' : ''} truncate">${esc(displayName)}</h5>
+                      <div class="flex items-center gap-2 mt-1 text-xs text-gray-600">
+                        ${isValidZip ? `<span>📍 ${rawZipValue}</span>` : ''}
+                        ${displayRating ? `<span>⭐ ${displayRating}</span>` : ''}
+                      </div>
                     </div>
-                  ` : ''}
-                  <!-- Badges (top-right) -->
-                  <div class="absolute top-2 right-2 flex gap-1 z-20">
-                    ${isPoolDoNotContact ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white">🚫 DNC</span>' : ''}
-                    ${prospect.isExistingClient ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white">⭐ Client</span>' : ''}
-                    ${isEnrichedInSystem ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-gray-200 text-gray-600">In System</span>' : ''}
-                    <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">
-                      📞 ${enrichedContactScore}/10
-                    </span>
+                    <div class="flex flex-col items-end gap-1">
+                      ${isPoolDoNotContact ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white">DNC</span>' : ''}
+                      ${isEnrichedInSystem ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-gray-400 text-white">In Pipeline</span>' : ''}
+                      <span class="px-2 py-1 rounded-lg text-xs font-bold bg-emerald-600 text-white shadow-sm">
+                        ${enrichedContactScore}/10
+                      </span>
+                    </div>
                   </div>
 
-                  <h5 class="font-semibold text-sm ${isPoolDoNotContact ? 'line-through text-gray-500' : 'text-gray-900'} mb-1 pr-24 relative z-20">${esc(prospect.businessName)}</h5>
-                  ${displayLocation ? `<p class="text-xs text-gray-600 mt-0.5 mb-2">${esc(displayLocation)}</p>` : ''}
-                  ${displayAddress ? `<p class="text-xs text-gray-600 mb-2">📍 ${esc(displayAddress)}</p>` : ''}
-                  ${ownerDisplay}
-                  ${metadata.length > 0 ? `<p class="text-xs text-gray-500 mb-2">${metadata.join(' • ')}</p>` : ''}
-                  ${reviewDisplay}
-                  ${prospect.description ? `<p class="text-xs text-gray-600 italic mb-2">"${esc(prospect.description.substring(0, 80))}${prospect.description.length > 80 ? '...' : ''}"</p>` : ''}
-                  ${prospect.followUpDate ? `<div class="text-xs text-purple-600 font-medium mb-2">📅 ${prospect.followUpDate}</div>` : ''}
+                  <!-- Contact icons -->
                   ${contactIcons.length > 0 ? `
-                    <div class="flex gap-2 items-center justify-center py-2 mb-2 border-t border-gray-200">
+                    <div class="px-4 pb-2 flex gap-2 flex-wrap">
                       ${contactIcons.join('')}
                     </div>
-                  ` : '<div class="text-gray-400 italic text-center py-2 mb-2 text-xs border-t border-gray-200">No contact info</div>'}
-                  <div class="flex gap-2 flex-wrap">
-                    ${prospect.phone ? `
-                      <button onclick="event.stopPropagation(); sendTextMessage('${prospectLookupId}')" class="flex-1 px-3 py-1.5 bg-teal-500 text-white rounded-md hover:bg-teal-600 font-semibold text-xs" title="Send text message">
-                        💬 Text
-                      </button>
-                    ` : ''}
-                    ${prospect.email ? `
-                      <button onclick="event.stopPropagation(); sendPitchEmail('${prospectLookupId}')" class="flex-1 px-3 py-1.5 bg-orange-500 text-white rounded-md hover:bg-orange-600 font-semibold text-xs" title="Send pitch email">
-                        📧 Email
-                      </button>
-                    ` : ''}
+                  ` : ''}
+
+                  <!-- Action buttons -->
+                  <div class="px-3 pb-3 flex gap-2">
+                    ${prospect.phone ? `<button onclick="event.stopPropagation(); sendTextMessage('${prospectLookupId}')" class="flex-1 px-3 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 font-semibold text-xs shadow-sm">💬 Text</button>` : ''}
+                    ${prospect.email ? `<button onclick="event.stopPropagation(); sendPitchEmail('${prospectLookupId}')" class="flex-1 px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 font-semibold text-xs shadow-sm">📧 Email</button>` : ''}
                     ${isEnrichedInSystem ? `
-                      <span class="flex-1 px-3 py-1.5 bg-gray-300 text-gray-600 rounded-md font-semibold text-xs text-center">
-                        ✓ In Pipeline
-                      </span>
+                      <span class="flex-1 px-3 py-2 bg-gray-300 text-gray-600 rounded-lg font-semibold text-xs text-center">✓ Added</span>
                     ` : `
-                      <button onclick="event.stopPropagation(); moveProspectFromPool('${prospect.placeId || prospect.id}')" class="flex-1 px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-semibold text-xs">
-                        Pipeline →
-                      </button>
+                      <button onclick="event.stopPropagation(); moveProspectFromPool('${prospect.placeId || prospect.id}')" class="flex-1 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold text-xs shadow-sm">Pipeline →</button>
                     `}
-                    <button onclick="event.stopPropagation(); togglePoolDoNotContact('${prospect.placeId || prospect.id}')" class="${isPoolDoNotContact ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'} px-3 py-1.5 text-white rounded-md font-semibold text-xs" title="${isPoolDoNotContact ? 'Remove Do Not Contact' : 'Mark Do Not Contact'}">
-                      🚫
-                    </button>
+                    <button onclick="event.stopPropagation(); reEnrichProspect('${prospect.placeId || prospect.id}')" class="w-9 h-9 flex items-center justify-center bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg font-semibold text-sm transition-colors" title="Re-enrich (search again)">🔄</button>
+                    <button onclick="event.stopPropagation(); togglePoolDoNotContact('${prospect.placeId || prospect.id}')" class="${isPoolDoNotContact ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 hover:bg-red-500'} w-9 h-9 flex items-center justify-center text-white rounded-lg font-semibold text-sm transition-colors" title="${isPoolDoNotContact ? 'Remove DNC' : 'Do Not Contact'}">🚫</button>
                   </div>
                 </div>
               `;
             }
 
-            // For raw prospects (from search results) - show with checkbox
+            // For raw prospects (not enriched) - show with checkbox and prominent Enrich button
             const prospectId = prospect.placeId || prospect.id;
-            // Store prospect in lookup table for later retrieval (avoids unsafe JSON in onclick)
             prospectPoolState.renderedProspects[prospectId] = prospect;
             const isSelected = prospectPoolState.selectedIds.has(prospectId);
             const isDisabled = prospect.inSystem;
-
-            // Handle both name/businessName/title and address field variations
-            // HERE API uses 'title', Google uses 'name', manual uses 'businessName'
-            const displayName = prospect.name || prospect.businessName || prospect.title || 'Unnamed Business';
-            const displayAddress = prospect.address || '';
-
-            // Extract address from notes if not available
-            let addressToShow = displayAddress;
-            if (!addressToShow && prospect.notes) {
-              const addressMatch = prospect.notes.match(/Address:\s*([^\n]+)/);
-              if (addressMatch) addressToShow = addressMatch[1];
-            }
-
-            // Show actual ZIP code (not the searched ZIP) for raw prospects too - DON'T use town as fallback
-            // Check for valid ZIP (not undefined, null, or the string "undefined")
-            const rawZip = prospect.actualZip || prospect.zipCode || prospect.zip;
-            const rawDisplayLocation = (rawZip && rawZip !== 'undefined' && rawZip !== 'null') ? `📍 ${rawZip}` : '';
-
-            // Extract contact info from notes if available
-            let rawPhone = prospect.phone || '';
-            let rawEmail = prospect.email || '';
-            let rawWebsite = prospect.website || '';
-            let rawFacebook = prospect.facebook || '';
-            let rawInstagram = prospect.instagram || '';
-            let rawLinkedIn = prospect.linkedin || '';
-            let rawTwitter = prospect.twitter || '';
-
-            if (!rawPhone && prospect.notes) {
-              const phoneMatch = prospect.notes.match(/Phone:\s*([^\n]+)/);
-              if (phoneMatch) rawPhone = phoneMatch[1];
-            }
-            if (!rawEmail && prospect.notes) {
-              const emailMatch = prospect.notes.match(/Email:\s*([^\n]+)/);
-              if (emailMatch) rawEmail = emailMatch[1];
-            }
-            if (!rawWebsite && prospect.notes) {
-              const websiteMatch = prospect.notes.match(/Website:\s*([^\n]+)/);
-              if (websiteMatch) rawWebsite = websiteMatch[1];
-            }
-
-            // Build compact clickable icon display for raw prospects
-            const rawContactIcons = [];
-            if (rawPhone) rawContactIcons.push(`<a href="tel:${esc(rawPhone)}" onclick="event.stopPropagation()" class="text-lg hover:scale-125 transition-transform" title="📞 ${esc(rawPhone)}">📞</a>`);
-            if (rawWebsite) rawContactIcons.push(`<a href="${esc(ensureHttps(rawWebsite))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="🌐 ${esc(rawWebsite)}">🌐</a>`);
-            if (rawEmail) rawContactIcons.push(`<a href="mailto:${esc(rawEmail)}" onclick="event.stopPropagation()" class="text-lg hover:scale-125 transition-transform" title="✉️ ${esc(rawEmail)}">✉️</a>`);
-            if (rawFacebook) rawContactIcons.push(`<a href="${esc(ensureHttps(rawFacebook))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="📘 ${esc(rawFacebook)}">📘</a>`);
-            if (rawInstagram) rawContactIcons.push(`<a href="${esc(ensureHttps(rawInstagram))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="📷 ${esc(rawInstagram)}">📷</a>`);
-            if (rawLinkedIn) rawContactIcons.push(`<a href="${esc(ensureHttps(rawLinkedIn))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="💼 ${esc(rawLinkedIn)}">💼</a>`);
-            if (rawTwitter) rawContactIcons.push(`<a href="${esc(ensureHttps(rawTwitter))}" onclick="event.stopPropagation()" target="_blank" class="text-lg hover:scale-125 transition-transform" title="🐦 ${esc(rawTwitter)}">🐦</a>`);
-
-            // Build metadata line (category only, since ZIP is shown above)
-            const rawMetadata = [];
-            if (prospect.category) {
-              const categoryName = prospect.category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-              rawMetadata.push(`<span onclick="event.stopPropagation(); editProspectCategory('${prospectId}', '${esc(prospect.category)}')" class="cursor-pointer hover:text-indigo-600" title="Click to edit category">${categoryName} ✏️</span>`);
-            }
-
-            // Get lead score and category
-            const leadScore = prospect.leadScore || 0;
-            const scoreCategory = prospect.scoreCategory || getScoreCategory(leadScore);
-            const contactScore = prospect.contactScore || 0;
-
-            // Determine border color - existing client takes priority
-            let borderColor = 'border-gray-200';
-            let bgColor = 'bg-white';
-            if (prospect.isExistingClient) {
-              borderColor = 'border-amber-400';
-              bgColor = 'bg-amber-50';
-            } else if (scoreCategory.color === 'red') {
-              borderColor = 'border-red-400';
-            } else if (scoreCategory.color === 'orange') {
-              borderColor = 'border-orange-400';
-            } else if (scoreCategory.color === 'blue') {
-              borderColor = 'border-blue-400';
-            }
-
             const isRawDoNotContact = prospect.doNotContact === true;
 
+            const displayName = prospect.name || prospect.businessName || prospect.title || 'Unnamed Business';
+            const rawZip = prospect.actualZip || prospect.zipCode || prospect.zip;
+            const hasValidZip = rawZip && rawZip !== 'undefined' && rawZip !== 'null';
+
             return `
-              <div class="prospect-card border-2 ${isRawDoNotContact ? 'border-red-400' : borderColor} rounded-lg p-3 ${isRawDoNotContact ? 'bg-red-50 opacity-60' : (isDisabled ? 'bg-gray-50 opacity-60' : bgColor + ' hover:shadow-md')} transition relative" data-place-id="${prospectId}">
-                ${isRawDoNotContact ? `
-                  <div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-                    <span class="text-8xl text-red-500 font-bold opacity-40">✕</span>
-                  </div>
-                ` : ''}
-                <div class="absolute top-2 right-2 flex gap-1 z-20">
-                  ${isRawDoNotContact ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white">🚫 DNC</span>' : ''}
-                  ${prospect.isExistingClient ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white">⭐ Client</span>' : ''}
-                </div>
-                <div class="flex items-start gap-2 relative z-20" onclick="openClientModalForProspect('${prospectId}')">
+              <div class="prospect-card rounded-xl overflow-hidden ${isRawDoNotContact ? 'bg-red-50 border-2 border-red-300 opacity-60' : (isDisabled ? 'bg-gray-100 opacity-60' : 'bg-white border border-gray-200 hover:shadow-lg hover:border-purple-300')} transition-all duration-200 relative" data-place-id="${prospectId}">
+                ${isRawDoNotContact ? `<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10"><span class="text-6xl text-red-400 font-bold opacity-30">✕</span></div>` : ''}
+
+                <!-- Header row with checkbox and name -->
+                <div class="px-4 py-3 flex items-start gap-3" onclick="openClientModalForProspect('${prospectId}')">
                   <input
                     type="checkbox"
                     ${isSelected ? 'checked' : ''}
-                    ${isDisabled ? 'disabled' : ''}
+                    ${isDisabled || isRawDoNotContact ? 'disabled' : ''}
                     onchange="event.stopPropagation(); togglePoolProspect('${prospectId}')"
                     onclick="event.stopPropagation()"
-                    class="mt-1 w-4 h-4 text-indigo-600 rounded cursor-pointer flex-shrink-0"
+                    class="mt-1 w-5 h-5 text-purple-600 rounded cursor-pointer flex-shrink-0 border-2 border-gray-300"
                   />
-                  <div class="flex-1 min-w-0 cursor-pointer ${prospect.isExistingClient ? 'pr-16' : ''}">
-                    <h5 class="font-semibold text-sm ${isRawDoNotContact ? 'line-through text-gray-500' : 'text-gray-900'} truncate">${esc(displayName)}</h5>
-                    ${rawDisplayLocation ? `<p class="text-xs text-gray-600 mt-0.5">${esc(rawDisplayLocation)}</p>` : ''}
-                    ${addressToShow ? `<p class="text-xs text-gray-600 mt-0.5">📍 ${esc(addressToShow)}</p>` : ''}
-                    ${rawMetadata.length > 0 ? `<p class="text-xs text-gray-500 mt-0.5">${rawMetadata.join(' • ')}</p>` : ''}
+                  <div class="flex-1 min-w-0 cursor-pointer">
+                    <h5 class="font-bold text-gray-900 ${isRawDoNotContact ? 'line-through' : ''} truncate">${esc(displayName)}</h5>
                     <div class="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                      ${hasValidZip ? `<span>📍 ${rawZip}</span>` : ''}
                       ${prospect.rating ? `<span>⭐ ${prospect.rating}</span>` : ''}
-                      ${prospect.userRatingsTotal ? `<span>(${prospect.userRatingsTotal} reviews)</span>` : ''}
-                      ${isDisabled ? '<span class="text-xs px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded">In System</span>' : ''}
+                      ${isDisabled ? '<span class="px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded text-xs">In System</span>' : ''}
                     </div>
-
-                    <!-- Enrichment Status -->
-                    ${prospect.enriched ? `
-                      <div class="enrichment-status mt-2">
-                        <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700">✅ Enriched</span>
-                        <span class="text-xs text-gray-600 ml-1">Score: ${contactScore}/10</span>
-                      </div>
-                    ` : `
-                      <div class="mt-2">
-                        <button onclick="event.stopPropagation(); enrichSingleProspect('${prospectId}')"
-                                id="enrich-btn-${prospectId}"
-                                class="px-3 py-1 bg-purple-100 text-purple-700 rounded-lg text-xs font-semibold hover:bg-purple-200 transition"
-                                title="Find email, phone & social media">
-                          🔍 Enrich
-                        </button>
-                      </div>
-                    `}
-
-                    <!-- Contact Methods -->
-                    ${rawContactIcons.length > 0 ? `
-                      <div class="contact-methods flex gap-2 items-center mt-2 pt-2 border-t border-gray-200">
-                        ${rawContactIcons.join('')}
-                      </div>
-                    ` : ''}
-
-                    <!-- Action Buttons -->
-                    ${!isDisabled ? `
-                    <div class="flex gap-2 mt-2 pt-2 border-t border-gray-200">
-                      ${rawPhone ? `
-                        <button onclick="event.stopPropagation(); sendTextMessage({name: '${esc(displayName).replace(/'/g, "\\'")}', phone: '${esc(rawPhone)}', category: '${esc(prospect.category || '')}', zipCode: '${esc(prospect.actualZip || prospect.zipCode || '')}'})" class="flex-1 px-2 py-1 bg-teal-500 text-white rounded hover:bg-teal-600 text-xs font-semibold" title="Send text">
-                          💬 Text
-                        </button>
-                      ` : ''}
-                      ${rawEmail ? `
-                        <button onclick="event.stopPropagation(); sendPitchEmail({name: '${esc(displayName).replace(/'/g, "\\'")}', email: '${esc(rawEmail)}', category: '${esc(prospect.category || '')}', zipCode: '${esc(prospect.actualZip || prospect.zipCode || '')}'})" class="flex-1 px-2 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 text-xs font-semibold" title="Send email">
-                          📧 Email
-                        </button>
-                      ` : ''}
-                      <button onclick="event.stopPropagation(); togglePoolDoNotContact('${prospectId}')" class="${isRawDoNotContact ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'} px-2 py-1 text-white rounded text-xs font-semibold" title="${isRawDoNotContact ? 'Remove Do Not Contact' : 'Mark Do Not Contact'}">
-                        🚫
-                      </button>
-                    </div>
-                    ` : ''}
+                  </div>
+                  <div class="flex flex-col items-end gap-1">
+                    ${isRawDoNotContact ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white">DNC</span>' : ''}
+                    ${prospect.isExistingClient ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white">Client</span>' : ''}
                   </div>
                 </div>
+
+                <!-- Prominent Enrich Button -->
+                ${!isDisabled && !isRawDoNotContact ? `
+                <div class="px-4 pb-3">
+                  <button onclick="event.stopPropagation(); enrichSingleProspect('${prospectId}')"
+                          id="enrich-btn-${prospectId}"
+                          class="w-full px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-bold text-sm hover:from-purple-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2">
+                    <span class="text-lg">🔍</span> Find Contact Info
+                  </button>
+                </div>
+                ` : ''}
+
+                <!-- DNC toggle for disabled/DNC cards -->
+                ${isDisabled || isRawDoNotContact ? `
+                <div class="px-4 pb-3">
+                  <button onclick="event.stopPropagation(); togglePoolDoNotContact('${prospectId}')" class="${isRawDoNotContact ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 hover:bg-red-500'} w-full py-2 text-white rounded-lg text-xs font-semibold transition-colors" title="${isRawDoNotContact ? 'Remove DNC' : 'Do Not Contact'}">
+                    ${isRawDoNotContact ? '✓ Remove Do Not Contact' : '🚫 Do Not Contact'}
+                  </button>
+                </div>
+                ` : ''}
               </div>
             `;
           }).join('')}
@@ -14015,10 +13955,12 @@ async function saveEditedContact() {
     instagram: document.getElementById('editContactInstagram').value.trim()
   };
 
-  // Find and update the prospect in campaign board
+  const prospectId = currentProspectDetail.id || currentProspectDetail.placeId;
+  let saved = false;
+
+  // 1. Try to find and update in campaign board
   const board = getCurrentCampaignBoard();
   if (board) {
-    const prospectId = currentProspectDetail.id || currentProspectDetail.placeId;
     for (const colKey of Object.keys(board.columns)) {
       const items = board.columns[colKey] || [];
       const idx = items.findIndex(item => {
@@ -14026,13 +13968,45 @@ async function saveEditedContact() {
         return String(itemId) === String(prospectId);
       });
       if (idx !== -1) {
-        // Update the item
         Object.assign(items[idx], updates);
+        await saveCampaignBoards();
+        saved = true;
         break;
       }
     }
-    // Save campaign boards
-    await saveCampaignBoards();
+  }
+
+  // 2. Try to find and update in placesCache (search results)
+  if (!saved) {
+    for (const key of Object.keys(placesCache.searches || {})) {
+      const cached = placesCache.searches[key];
+      if (cached.cachedData) {
+        const idx = cached.cachedData.findIndex(b => String(b.placeId) === String(prospectId));
+        if (idx !== -1) {
+          Object.assign(cached.cachedData[idx], updates);
+          await savePlacesCache();
+          saved = true;
+          break;
+        }
+      }
+    }
+  }
+
+  // 3. Try to find and update in manual prospects
+  if (!saved) {
+    const idx = prospectPoolState.manualProspects.findIndex(p =>
+      String(p.id) === String(prospectId) || String(p.placeId) === String(prospectId)
+    );
+    if (idx !== -1) {
+      Object.assign(prospectPoolState.manualProspects[idx], updates);
+      await saveManualProspects();
+      saved = true;
+    }
+  }
+
+  // 4. Also update in renderedProspects lookup (for immediate UI consistency)
+  if (prospectPoolState.renderedProspects && prospectPoolState.renderedProspects[prospectId]) {
+    Object.assign(prospectPoolState.renderedProspects[prospectId], updates);
   }
 
   // Update the current prospect detail
@@ -14060,6 +14034,9 @@ async function saveEditedContact() {
 
   // Re-render the campaign board to show updated info
   renderCampaignBoard();
+
+  // Re-render prospect pool to show updated info
+  renderProspectPool();
 
   closeEditContactModal();
   toast('Contact info updated!', true);
@@ -19244,6 +19221,67 @@ window.recoverLostBusinesses = async function() {
   console.log('\n');
 
   return recovery;
+};
+
+// Diagnostic: Check places cache data in cloud vs local
+window.diagnosePlacesCache = async function() {
+  console.log('🔍 PLACES CACHE DIAGNOSTIC');
+  console.log('===========================\n');
+
+  // Check cloud
+  console.log('1️⃣ Checking CLOUD (Supabase)...');
+  try {
+    const cloudData = await loadFromCloud('placesCache');
+    if (cloudData) {
+      const cloudSearches = Object.keys(cloudData).length;
+      const cloudProspects = Object.values(cloudData).reduce((sum, cache) =>
+        sum + (cache.cachedData?.length || 0), 0
+      );
+      console.log(`   ✅ Cloud: ${cloudSearches} searches, ${cloudProspects} total prospects`);
+    } else {
+      console.log('   ❌ No cloud data found');
+    }
+  } catch (e) {
+    console.log('   ❌ Cloud error:', e.message);
+  }
+
+  // Check IndexedDB
+  console.log('\n2️⃣ Checking INDEXEDDB...');
+  try {
+    const idbData = await idbGet('mailslot-places-cache');
+    if (idbData) {
+      const idbSearches = Object.keys(idbData).length;
+      const idbProspects = Object.values(idbData).reduce((sum, cache) =>
+        sum + (cache.cachedData?.length || 0), 0
+      );
+      console.log(`   ✅ IndexedDB: ${idbSearches} searches, ${idbProspects} total prospects`);
+    } else {
+      console.log('   ❌ No IndexedDB data (or IndexedDB unavailable)');
+    }
+  } catch (e) {
+    console.log('   ❌ IndexedDB error:', e.message);
+  }
+
+  // Check current memory
+  console.log('\n3️⃣ Checking CURRENT MEMORY...');
+  const memSearches = Object.keys(placesCache.searches).length;
+  const memProspects = Object.values(placesCache.searches).reduce((sum, cache) =>
+    sum + (cache.cachedData?.length || 0), 0
+  );
+  console.log(`   📦 Memory: ${memSearches} searches, ${memProspects} total prospects`);
+
+  // Check manual prospects
+  console.log('\n4️⃣ Checking MANUAL PROSPECTS...');
+  console.log(`   📋 Manual prospects in memory: ${prospectPoolState.manualProspects?.length || 0}`);
+
+  console.log('\n💡 If cloud has fewer than expected, the data may have been overwritten.');
+  console.log('   Check if you have a backup or can restore from another device.\n');
+
+  return {
+    cloud: await loadFromCloud('placesCache'),
+    memory: placesCache.searches,
+    manualProspects: prospectPoolState.manualProspects?.length || 0
+  };
 };
 
 // Restore campaign boards from IndexedDB
