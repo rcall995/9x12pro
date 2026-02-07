@@ -104,8 +104,8 @@ export default async function handler(req, res) {
     let errors = 0;
     const startTime = Date.now();
 
-    // Delay configuration - paid tier has 5 concurrency so minimal delay needed
-    const REQUEST_DELAY = parseInt(req.query.delay || req.body?.delay || '500');  // 0.5s between requests
+    // Delay configuration - even paid tier has rate limits (~30/min)
+    const REQUEST_DELAY = parseInt(req.query.delay || req.body?.delay || '2000');  // 2s between requests
 
     for (let i = 0; i < testBatch.length; i++) {
       const business = testBatch[i];
