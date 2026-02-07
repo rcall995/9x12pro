@@ -3935,16 +3935,47 @@ async function savePlacesCacheToCloud() {
   }
 
   try {
-    // Prune before cloud sync (same as local save) to stay under size limits
-    const prunedData = pruneOldCacheEntries(placesCache.searches);
-    const dataStr = JSON.stringify(prunedData);
+    // Save FULL data to cloud (cloud has plenty of storage)
+    // Only IndexedDB gets pruned data (for offline backup with limited space)
+    const fullData = placesCache.searches;
+    const currentProspectCount = Object.values(fullData).reduce((sum, cache) =>
+      sum + (cache.cachedData?.length || 0), 0
+    );
 
-    // Supabase has a reasonable size limit - if under 5MB we're good
-    if (dataStr.length <= 5000000) {
+    // SAFETY CHECK: Don't overwrite cloud with significantly less data
+    // This prevents accidental data loss from bugs or partial loads
+    try {
+      const cloudData = await loadFromCloud('placesCache');
+      if (cloudData) {
+        const cloudProspectCount = Object.values(cloudData).reduce((sum, cache) =>
+          sum + (cache.cachedData?.length || 0), 0
+        );
+
+        // If we have less than 50% of what's in cloud, something is wrong - abort save
+        if (currentProspectCount < cloudProspectCount * 0.5 && cloudProspectCount > 1000) {
+          console.warn(`⚠️ SAFETY: Aborting cloud save - would overwrite ${cloudProspectCount} prospects with only ${currentProspectCount}`);
+          console.warn('   This usually means data didnt load correctly. Refresh and try again.');
+          return;
+        }
+      }
+    } catch (checkErr) {
+      // If we can't check, proceed with save
+    }
+
+    const dataStr = JSON.stringify(fullData);
+    const dataSizeMB = (dataStr.length / 1024 / 1024).toFixed(2);
+
+    // Supabase can handle large payloads - try full data first
+    if (dataStr.length <= 50000000) { // 50MB limit
+      await saveToCloud('placesCache', fullData);
+      lastCloudSaveTime = Date.now();
+      console.log(`☁️ Saved ${Object.keys(fullData).length} searches (${currentProspectCount} prospects) to cloud (${dataSizeMB}MB)`);
+    } else {
+      // Only prune if absolutely necessary (over 50MB)
+      console.warn(`⚠️ Prospect cache very large (${dataSizeMB}MB), pruning for cloud save`);
+      const prunedData = pruneOldCacheEntries(fullData);
       await saveToCloud('placesCache', prunedData);
       lastCloudSaveTime = Date.now();
-    } else {
-      console.warn('⚠️ Prospect cache too large for cloud sync (>5MB) even after pruning, keeping local only');
     }
   } catch(e) {
     console.error('Error saving places cache to cloud:', e);
