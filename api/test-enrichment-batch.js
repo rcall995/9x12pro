@@ -93,18 +93,25 @@ export default async function handler(req, res) {
       });
     }
 
-    // Run Scrapingdog on each business
+    // Run Scrapingdog on each business in bursts to avoid rate limiting
     const results = [];
     let found = 0;
     let notFound = 0;
     let errors = 0;
     const startTime = Date.now();
 
+    // Burst configuration
+    const BURST_SIZE = 25;  // Requests per burst
+    const BURST_DELAY = 1500;  // 1.5s between requests within a burst
+    const BURST_PAUSE = 65000;  // 65s pause between bursts to reset rate limit
+
     for (let i = 0; i < testBatch.length; i++) {
       const business = testBatch[i];
       const query = `${business.name} ${business.city || ''} ${business.state || ''} official website`.trim();
+      const burstNum = Math.floor(i / BURST_SIZE) + 1;
+      const posInBurst = (i % BURST_SIZE) + 1;
 
-      console.log(`[${i + 1}/${testBatch.length}] Testing: ${business.name}`);
+      console.log(`[Burst ${burstNum}, ${posInBurst}/${BURST_SIZE}] Testing: ${business.name}`);
 
       try {
         const response = await fetch(`https://${req.headers.host}/api/scrapingdog-search`, {
@@ -137,10 +144,16 @@ export default async function handler(req, res) {
 
         results.push(result);
 
-        // Longer delay to avoid Scrapingdog rate limiting (3 seconds between requests)
-        // Free tier appears to have ~30 requests/minute limit
+        // Check if we need to pause between bursts or just delay within burst
         if (i < testBatch.length - 1) {
-          await new Promise(r => setTimeout(r, 3000));
+          if ((i + 1) % BURST_SIZE === 0) {
+            // End of burst - long pause to reset rate limit
+            console.log(`⏸️ Burst ${burstNum} complete. Pausing ${BURST_PAUSE/1000}s to reset rate limit...`);
+            await new Promise(r => setTimeout(r, BURST_PAUSE));
+          } else {
+            // Within burst - short delay
+            await new Promise(r => setTimeout(r, BURST_DELAY));
+          }
         }
       } catch (e) {
         errors++;
