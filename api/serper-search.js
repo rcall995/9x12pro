@@ -229,6 +229,7 @@ export default async function handler(req, res) {
 
       // Hosting providers / spam domains
       'giecom.net', '.com-place.com', 'dot-reviews.org', 'rateclubs.com',
+      'giftly.com', 'carfax.com', 'autotrader.com', 'cars.com', 'cargurus.com',
 
       // Search engines
       'google.com', 'bing.com', 'duckduckgo.com', 'ask.com'
@@ -534,6 +535,7 @@ async function fallbackToGoogle(req, res, query, businessName) {
       'avvo.com', 'findlaw.com', 'justia.com', 'lawyers.com', 'martindale.com',
       // Spam/redirect sites
       'dot-reviews.org', 'rateclubs.com',
+      'giftly.com', 'carfax.com', 'autotrader.com', 'cars.com', 'cargurus.com',
       '.gov', '.edu', 'google.com', 'bing.com'
     ];
 

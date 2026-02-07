@@ -199,6 +199,7 @@ export default async function handler(req, res) {
 
       // Spam/redirect sites
       'dot-reviews.org', 'rateclubs.com',
+      'giftly.com', 'carfax.com', 'autotrader.com', 'cars.com', 'cargurus.com',
 
       // Search engines
       'google.com', 'bing.com', 'duckduckgo.com'

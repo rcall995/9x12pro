@@ -178,6 +178,7 @@ export default async function handler(req, res) {
 
       // Hosting providers / generic / spam
       'giecom.net', '.com-place.com', 'dot-reviews.org', 'rateclubs.com',
+      'giftly.com', 'carfax.com', 'autotrader.com', 'cars.com', 'cargurus.com',
 
       // Search engines
       'google.com', 'bing.com', 'duckduckgo.com', 'brave.com/search'
