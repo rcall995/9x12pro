@@ -104,17 +104,16 @@ export default async function handler(req, res) {
     let errors = 0;
     const startTime = Date.now();
 
-    // Delay configuration - even paid tier has rate limits (~30/min)
-    const REQUEST_DELAY = parseInt(req.query.delay || req.body?.delay || '2000');  // 2s between requests
+    // Parallel request configuration - utilize 5 concurrency
+    const PARALLEL_BATCH_SIZE = 5;  // Match Scrapingdog's concurrency limit
+    const BATCH_DELAY = parseInt(req.query.delay || req.body?.delay || '12000');  // 12s between batches of 5
 
-    for (let i = 0; i < testBatch.length; i++) {
-      const business = testBatch[i];
+    // Helper function to process a single business
+    async function processBusiness(business, host) {
       const query = `${business.name} ${business.city || ''} ${business.state || ''} official website`.trim();
 
-      console.log(`[${i + 1}/${testBatch.length}] Testing: ${business.name}`);
-
       try {
-        const response = await fetch(`https://${req.headers.host}/api/scrapingdog-search`, {
+        const response = await fetch(`https://${host}/api/scrapingdog-search`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -125,38 +124,56 @@ export default async function handler(req, res) {
 
         const data = await response.json();
 
-        const result = {
+        return {
           name: business.name,
           city: business.city,
           query,
           website: data.website || null,
           responseTime: data.responseTime || 0,
-          error: data.error || null
+          error: data.error || null,
+          success: !!data.website,
+          isError: !!data.error
         };
-
-        if (data.website) {
-          found++;
-        } else if (data.error) {
-          errors++;
-        } else {
-          notFound++;
-        }
-
-        results.push(result);
-
-        // Small delay between requests (paid tier has 5 concurrency)
-        if (i < testBatch.length - 1) {
-          await new Promise(r => setTimeout(r, REQUEST_DELAY));
-        }
       } catch (e) {
-        errors++;
-        results.push({
+        return {
           name: business.name,
           city: business.city,
           query,
           website: null,
-          error: e.message
-        });
+          responseTime: 0,
+          error: e.message,
+          success: false,
+          isError: true
+        };
+      }
+    }
+
+    // Process in parallel batches of 5
+    const host = req.headers.host;
+    for (let i = 0; i < testBatch.length; i += PARALLEL_BATCH_SIZE) {
+      const batch = testBatch.slice(i, i + PARALLEL_BATCH_SIZE);
+      const batchNum = Math.floor(i / PARALLEL_BATCH_SIZE) + 1;
+      const totalBatches = Math.ceil(testBatch.length / PARALLEL_BATCH_SIZE);
+
+      console.log(`🚀 Processing batch ${batchNum}/${totalBatches} (${batch.length} businesses in parallel)`);
+
+      // Fire all 5 requests in parallel
+      const batchResults = await Promise.all(
+        batch.map(business => processBusiness(business, host))
+      );
+
+      // Collect results
+      for (const result of batchResults) {
+        results.push(result);
+        if (result.success) found++;
+        else if (result.isError) errors++;
+        else notFound++;
+      }
+
+      // Delay between batches (not after the last one)
+      if (i + PARALLEL_BATCH_SIZE < testBatch.length) {
+        console.log(`⏸️ Waiting ${BATCH_DELAY/1000}s before next batch...`);
+        await new Promise(r => setTimeout(r, BATCH_DELAY));
       }
     }
 
