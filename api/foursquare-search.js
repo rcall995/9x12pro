@@ -118,8 +118,8 @@ export default async function handler(req, res) {
         fullAddress: formatFullAddress(location),
         city: location.locality || location.region || '',
         state: location.region || '',
-        zip: (location.postcode || zipCode || '').substring(0, 5),
-        zipCode: (location.postcode || zipCode || '').substring(0, 5),
+        zip: (location.postcode || '').substring(0, 5),
+        zipCode: (location.postcode || '').substring(0, 5),
         phone: formatPhone(place.tel),
         website: place.website || '',
         email: place.email || '',
@@ -141,13 +141,13 @@ export default async function handler(req, res) {
       };
     });
 
-    // Filter to businesses in/near the searched ZIP
-    // Foursquare's 'near' parameter is fuzzy, so we keep all results
-    // but mark which ones match the exact ZIP
-    const zipFiltered = businesses.map(biz => ({
-      ...biz,
-      exactZipMatch: biz.zip.substring(0, 5) === zipCode.substring(0, 5)
-    }));
+    // Filter to exact ZIP code match only
+    // Foursquare's 'near' parameter is fuzzy and returns nearby businesses
+    const searchedZip5 = zipCode.substring(0, 5);
+    const zipFiltered = businesses.filter(biz => {
+      if (!biz.zip) return false; // Exclude if no ZIP from Foursquare
+      return biz.zip === searchedZip5; // Exact 5-digit match only
+    });
 
     // Log enrichment stats
     const withEmail = zipFiltered.filter(b => b.email).length;
