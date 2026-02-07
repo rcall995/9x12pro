@@ -106,7 +106,7 @@ export default async function handler(req, res) {
 
     // Parallel request configuration - utilize 5 concurrency
     const PARALLEL_BATCH_SIZE = 5;  // Match Scrapingdog's concurrency limit
-    const BATCH_DELAY = parseInt(req.query.delay || req.body?.delay || '12000');  // 12s between batches of 5
+    const BATCH_DELAY = parseInt(req.query.delay || req.body?.delay || '15000');  // 15s between batches of 5 (~20 req/min)
 
     // Helper function to process a single business
     async function processBusiness(business, host) {
