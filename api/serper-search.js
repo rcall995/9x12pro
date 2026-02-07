@@ -214,6 +214,7 @@ export default async function handler(req, res) {
       'wix.com', 'squarespace.com', 'weebly.com', 'godaddy.com',
       'wordpress.com', 'blogspot.com', 'medium.com', 'substack.com',
       'eventbrite.com', 'meetup.com', 'alignable.com',
+      'groupon.com', 'livingsocial.com', 'retailmenot.com', 'coupons.com',
 
       // Job sites
       'indeed.com', 'glassdoor.com', 'ziprecruiter.com', 'monster.com',
