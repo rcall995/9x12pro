@@ -8239,20 +8239,30 @@ async function addSelectedProspects() {
   let skippedCount = 0;
   const selectedBusinesses = businesses.filter(b => selectedIds.has(b.placeId) && !b.alreadyExists);
 
-  try {
-    for (let i = 0; i < selectedBusinesses.length; i++) {
-      const business = selectedBusinesses[i];
-      const businessId = business.placeId || business.id;
+  // Filter out already existing ones first
+  const toProcess = selectedBusinesses.filter(b => !existingPlaceIds.has(b.placeId || b.id));
+  skippedCount = selectedBusinesses.length - toProcess.length;
 
-      // Skip if already exists
-      if (existingPlaceIds.has(businessId)) {
-        skippedCount++;
-        continue;
+  // Show enrichment modal for better UX
+  if (toProcess.length > 0) {
+    showEnrichmentModal(toProcess.length);
+  }
+
+  try {
+    for (let i = 0; i < toProcess.length; i++) {
+      // Check if user cancelled
+      if (isEnrichmentCancelled()) {
+        console.log('🛑 Enrichment cancelled by user');
+        break;
       }
 
-      btn.textContent = `🔍 Enriching... (${i + 1}/${selectedBusinesses.length})`;
+      const business = toProcess[i];
+      const businessName = business.name || business.businessName || 'Unknown Business';
 
-      // Start with existing data
+      // Update modal progress
+      updateEnrichmentProgress(i + 1, businessName, false);
+
+      // Start with existing data from HERE API
       let details = {
         phone: business.phone || '',
         website: business.website || '',
@@ -8264,14 +8274,7 @@ async function addSelectedProspects() {
         source: business.source || 'search'
       };
 
-      // Fetch basic details if we have a placeId
-      if (business.placeId && !details.phone) {
-        const placeDetails = await fetchPlaceDetails(business.placeId);
-        details.phone = placeDetails.phone || details.phone;
-        details.website = placeDetails.website || details.website;
-      }
-
-      const businessName = business.name || business.businessName || 'Unknown Business';
+      // NOTE: Google Places fetchPlaceDetails removed - HERE API already provides phone/website
       const location = business.address ? business.address.split(',').slice(-2).join(',').trim() : '';
 
       // SERPER ENRICHMENT: Search for website if missing
@@ -8314,15 +8317,23 @@ async function addSelectedProspects() {
       }
 
       // WEBSITE SCRAPING: Get email AND social links from website
+      let foundContact = false;
       if (details.website) {
-        btn.textContent = `📧 Finding email... (${i + 1}/${selectedBusinesses.length})`;
         const enrichedData = await fetchSmartEnrichment(details.website, businessName);
         details.email = enrichedData.email || details.email || '';
         details.facebook = details.facebook || enrichedData.facebook || '';
         details.instagram = details.instagram || enrichedData.instagram || '';
         details.linkedin = details.linkedin || enrichedData.linkedin || '';
         details.twitter = details.twitter || enrichedData.twitter || '';
+
+        // Count as "found" if we got email or website
+        if (details.email || details.website) {
+          foundContact = true;
+        }
       }
+
+      // Update modal with found status
+      updateEnrichmentProgress(i + 1, businessName, foundContact);
 
       // Build notes
       let notes = `Found via ${details.source}\nAddress: ${business.address}\nRating: ${business.rating} (${business.userRatingsTotal} reviews)\n`;
@@ -8363,11 +8374,14 @@ async function addSelectedProspects() {
       board.columns['queued'].push(enhancedLead);
       addedCount++;
 
-      // Small delay to avoid rate limiting
-      if (i < selectedBusinesses.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 300));
+      // Delay between requests to avoid rate limiting (Scrapingdog limit ~30/min)
+      if (i < toProcess.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
     }
+
+    // Hide enrichment modal
+    hideEnrichmentModal(true);
 
     // Save to Campaign Board
     await saveCampaignBoards();
@@ -8387,6 +8401,7 @@ async function addSelectedProspects() {
     }, 100);
   } catch(err) {
     console.error('Error adding prospects:', err);
+    hideEnrichmentModal(false);
     toast('Failed to add prospects. Please try again.', false);
   } finally {
     btn.disabled = false;
@@ -11888,20 +11903,28 @@ async function addFromProspectPool() {
     // Get existing placeIds to prevent duplicates (check Campaign Board - single source of truth)
     const existingPlaceIds = getCampaignBoardPlaceIds();
 
+    // Filter out already existing ones first
+    const toProcess = selectedBusinesses.filter(b => !existingPlaceIds.has(b.placeId || b.id));
+    const skippedCount = selectedBusinesses.length - toProcess.length;
     let addedCount = 0;
-    let skippedCount = 0;
 
-    for (let i = 0; i < selectedBusinesses.length; i++) {
-      const business = selectedBusinesses[i];
-      const businessId = business.placeId || business.id;
+    // Show enrichment modal for better UX
+    if (toProcess.length > 0) {
+      showEnrichmentModal(toProcess.length);
+    }
 
-      // Skip if already exists for this mailer
-      if (existingPlaceIds.has(businessId)) {
-        skippedCount++;
-        continue;
+    for (let i = 0; i < toProcess.length; i++) {
+      // Check if user cancelled
+      if (isEnrichmentCancelled()) {
+        console.log('🛑 Enrichment cancelled by user');
+        break;
       }
 
-      btn.textContent = `⏳ Adding... (${i + 1}/${selectedBusinesses.length})`;
+      const business = toProcess[i];
+      const businessName = business.businessName || business.name || business.title || 'Unknown Business';
+
+      // Update modal progress
+      updateEnrichmentProgress(i + 1, businessName, false);
 
       let newLead;
 
@@ -11922,9 +11945,6 @@ async function addFromProspectPool() {
           twitter: business.twitter || '',
           contactName: business.contactName || ''
         };
-
-        // ENRICHMENT: Search for missing contact info
-        btn.textContent = `🔍 Enriching... (${i + 1}/${selectedBusinesses.length})`;
 
         // Search for website if missing
         if (!manualDetails.website) {
@@ -11966,8 +11986,8 @@ async function addFromProspectPool() {
         }
 
         // Scrape website for email and social links if we have a website
+        let manualFoundContact = false;
         if (manualDetails.website) {
-          btn.textContent = `📧 Finding email... (${i + 1}/${selectedBusinesses.length})`;
           const enrichedData = await fetchSmartEnrichment(manualDetails.website, manualBusinessName);
           manualDetails.email = manualDetails.email || enrichedData.email || '';
           manualDetails.facebook = manualDetails.facebook || enrichedData.facebook || '';
@@ -11977,7 +11997,11 @@ async function addFromProspectPool() {
           if (enrichedData.contactNames && enrichedData.contactNames.length > 0 && !manualDetails.contactName) {
             manualDetails.contactName = enrichedData.contactNames[0];
           }
+          if (manualDetails.email || manualDetails.website) {
+            manualFoundContact = true;
+          }
         }
+        updateEnrichmentProgress(i + 1, manualBusinessName, manualFoundContact);
 
         // Build notes for manual business
         let manualNotes = business.notes || `Manually added business\nAddress: ${business.address || 'N/A'}\nTown: ${business.town || 'N/A'}`;
@@ -12015,9 +12039,8 @@ async function addFromProspectPool() {
         };
         console.log('🔵 Created enriched manual newLead:', newLead);
       } else {
-        // Handle Google Places businesses
+        // Handle HERE/Foursquare businesses
         // IMPORTANT: Use existing data from business object if already available (from cache)
-        btn.textContent = `⏳ Processing... (${i + 1}/${selectedBusinesses.length})`;
 
         // Start with data already in the business object (may be enriched from previous scraping)
         let details = {
@@ -12029,13 +12052,9 @@ async function addFromProspectPool() {
           linkedin: business.linkedin || '',
           twitter: business.twitter || '',
           contactNames: [],
-          source: business.source || 'google-places',
+          source: business.source || 'here',
           enriched: business.enriched || false
         };
-
-        // ENRICHMENT: Run Serper search + website scrape BEFORE adding
-        btn.textContent = `🔍 Enriching... (${i + 1}/${selectedBusinesses.length})`;
-        const businessName = business.name || business.businessName || business.title || 'Unknown Business';
         const location = business.address ? business.address.split(',').slice(-2).join(',').trim() : '';
 
         // Search for website if missing
@@ -12078,8 +12097,8 @@ async function addFromProspectPool() {
         }
 
         // Scrape website for email AND social links if we have a website
+        let foundContact = false;
         if (details.website) {
-          btn.textContent = `📧 Enriching... (${i + 1}/${selectedBusinesses.length})`;
           const enrichedData = await fetchSmartEnrichment(details.website, businessName);
           details.email = details.email || enrichedData.email || '';
           details.facebook = details.facebook || enrichedData.facebook || '';
@@ -12092,7 +12111,14 @@ async function addFromProspectPool() {
             details.pagesScraped = enrichedData.pagesScraped;
             details.source = '9x12pro-scraper';
           }
+          // Count as found if we got email or website
+          if (details.email || details.website) {
+            foundContact = true;
+          }
         }
+
+        // Update modal with found status
+        updateEnrichmentProgress(i + 1, businessName, foundContact);
 
         details.enriched = true;
 
@@ -12152,10 +12178,16 @@ async function addFromProspectPool() {
         board.columns['queued'].push(enhancedLead);
         console.log('📊 Added to Campaign Board queued column:', newLead.businessName);
         addedCount++;
-      } else {
-        skippedCount++;
+      }
+
+      // Delay between requests to avoid rate limiting (Scrapingdog limit ~30/min)
+      if (i < toProcess.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
     }
+
+    // Hide enrichment modal
+    hideEnrichmentModal(true);
 
     // Save Campaign Boards (single source of truth)
     if (addedCount > 0) {
@@ -12186,6 +12218,7 @@ async function addFromProspectPool() {
     switchTab('pipeline');
   } catch(err) {
     console.error('Error adding from pool:', err);
+    hideEnrichmentModal(false);
     toast('Failed to add prospects. Please try again.', false);
   } finally {
     btn.disabled = false;
