@@ -137,9 +137,10 @@ export default async function handler(req, res) {
 
         results.push(result);
 
-        // Longer delay to avoid Scrapingdog rate limiting (1.5 seconds between requests)
+        // Longer delay to avoid Scrapingdog rate limiting (3 seconds between requests)
+        // Free tier appears to have ~30 requests/minute limit
         if (i < testBatch.length - 1) {
-          await new Promise(r => setTimeout(r, 1500));
+          await new Promise(r => setTimeout(r, 3000));
         }
       } catch (e) {
         errors++;
