@@ -4949,7 +4949,7 @@ async function bulkEnrichBusinesses(businesses) {
 
           try {
             // Search for website
-            const location = `${business.city || ''} ${business.state || ''}`.trim();
+            const location = `${business.city || ''} ${business.state || 'NY'} ${business.zipCode || business.zip || ''}`.trim();
             const websiteQuery = `${businessName} ${location} official website`;
             const website = await searchBusinessWebsite(websiteQuery, businessName);
 
@@ -5028,7 +5028,7 @@ async function enrichBusinessWebsite(business) {
   }
 
   const businessName = business.name || business.businessName;
-  const location = `${business.city || ''} ${business.state || ''}`.trim();
+  const location = `${business.city || ''} ${business.state || 'NY'} ${business.zipCode || business.zip || ''}`.trim();
 
   try {
     console.log(`🔍 Enriching: ${businessName}`);
@@ -5182,7 +5182,7 @@ async function enrichSingleProspect(prospectId) {
     // Record enrichment usage
     recordEnrichmentUsage();
 
-    const location = `${prospect.city || ''} ${prospect.state || ''}`.trim();
+    const location = `${prospect.city || ''} ${prospect.state || 'NY'} ${prospect.zipCode || prospect.zip || ''}`.trim();
     let foundItems = [];
 
     // 1. Search for website if missing
@@ -11903,7 +11903,7 @@ async function addFromProspectPool() {
       if (business.type === 'manual') {
         console.log('🔵 Processing manual business:', business.businessName);
         const manualBusinessName = business.businessName || business.name || business.title || 'Unknown Business';
-        const manualLocation = business.address || business.town || '';
+        const manualLocation = `${business.address || business.town || business.city || ''} ${business.state || 'NY'} ${business.zipCode || business.zip || ''}`.trim();
 
         // Start with existing data from manual entry
         let manualDetails = {
