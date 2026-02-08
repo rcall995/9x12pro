@@ -5605,7 +5605,8 @@ function getSearchTermsForCategory(category) {
  * Returns: name, address, phone, website
  * Cost: FREE (250,000/month)
  */
-async function searchFoursquareBusinesses(zipCode, category, progressInfo = null) {
+async function searchFoursquareBusinesses(zipCode, category, progressInfo = null, options = {}) {
+  const { radiusSearch = false } = options;
   try {
     const cacheKey = `${zipCode}-${category}`;
 
@@ -5661,7 +5662,8 @@ async function searchFoursquareBusinesses(zipCode, category, progressInfo = null
           body: JSON.stringify({
             zipCode: zipCode,
             category: term,
-            limit: 50
+            limit: 50,
+            radiusSearch: radiusSearch
           })
         });
 
@@ -5740,8 +5742,8 @@ async function searchYelpBusinesses(zipCode, category, progressInfo = null) {
  * Search for businesses - uses Foursquare API (FREE)
  * Legacy name kept for compatibility with existing code
  */
-async function searchPlaces(zipCode, category, progressInfo = null) {
-  return await searchFoursquareBusinesses(zipCode, category, progressInfo);
+async function searchPlaces(zipCode, category, progressInfo = null, options = {}) {
+  return await searchFoursquareBusinesses(zipCode, category, progressInfo, options);
 }
 
 // Alias for backward compatibility
@@ -8039,7 +8041,8 @@ async function runBulkAutoPopulate() {
             totalSearches: totalSearches,
             totalCategories: selectedCategories.length,
             totalZipCodes: zipCodes.length,
-            totalBusinessesFound: allBusinesses.length // Running total
+            totalBusinessesFound: allBusinesses.length, // Running total
+            radiusSearch: zipSearchMode === 'radius' // Include nearby ZIPs for radius search
           });
 
           let categoryCount = 0;

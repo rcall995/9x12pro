@@ -18,7 +18,7 @@ export default async function handler(req, res) {
   }
 
   // Get params from body (POST) or query (GET)
-  const { zipCode, category, limit = 20 } = req.method === 'POST' ? req.body : req.query;
+  const { zipCode, category, limit = 20, radiusSearch = false } = req.method === 'POST' ? req.body : req.query;
 
   if (!zipCode) {
     return res.status(400).json({ error: 'zipCode parameter required' });
@@ -159,24 +159,29 @@ export default async function handler(req, res) {
       };
     });
 
-    // Filter by ZIP - allow businesses without ZIP or with nearby ZIPs
-    // (HERE searches by coordinates, so results are already geographically close)
     const searchedZip5 = zipCode.substring(0, 5);
 
-    // Include all businesses - they're already near the target coordinates
-    // Just tag them with the searched ZIP for reference
-    const processed = businesses.map(biz => ({
-      ...biz,
-      searchedZipCode: searchedZip5,
-      // Use actual ZIP if available, otherwise use searched ZIP
-      actualZip: biz.zip || searchedZip5
-    }));
-
-    console.log(`✅ Returning ${processed.length} businesses (searched ZIP: ${searchedZip5})`);
+    let filtered;
+    if (radiusSearch) {
+      // Radius search: include all businesses near coordinates (they're geographically close)
+      filtered = businesses.map(biz => ({
+        ...biz,
+        searchedZipCode: searchedZip5,
+        actualZip: biz.zip || searchedZip5
+      }));
+      console.log(`✅ Returning ${filtered.length} businesses (radius search around ${searchedZip5})`);
+    } else {
+      // Regular search: exact ZIP match only
+      filtered = businesses.filter(biz => {
+        if (!biz.zip) return false;
+        return biz.zip === searchedZip5;
+      });
+      console.log(`✅ Returning ${filtered.length} businesses (exact ZIP: ${searchedZip5})`);
+    }
 
     return res.status(200).json({
-      businesses: processed,
-      total: processed.length,
+      businesses: filtered,
+      total: filtered.length,
       source: 'here',
       query: `${searchQuery} near ${zipCode}`,
       cost: 0
