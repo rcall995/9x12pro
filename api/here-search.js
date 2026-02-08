@@ -159,19 +159,24 @@ export default async function handler(req, res) {
       };
     });
 
-    // Filter to exact ZIP code match only
+    // Filter by ZIP - allow businesses without ZIP or with nearby ZIPs
+    // (HERE searches by coordinates, so results are already geographically close)
     const searchedZip5 = zipCode.substring(0, 5);
-    const zipFiltered = businesses.filter(biz => {
-      if (!biz.zip) return false; // Exclude if no ZIP
-      // Exact 5-digit ZIP match only
-      return biz.zip === searchedZip5;
-    });
 
-    console.log(`✅ Returning ${zipFiltered.length} businesses (exact ZIP: ${searchedZip5})`);
+    // Include all businesses - they're already near the target coordinates
+    // Just tag them with the searched ZIP for reference
+    const processed = businesses.map(biz => ({
+      ...biz,
+      searchedZipCode: searchedZip5,
+      // Use actual ZIP if available, otherwise use searched ZIP
+      actualZip: biz.zip || searchedZip5
+    }));
+
+    console.log(`✅ Returning ${processed.length} businesses (searched ZIP: ${searchedZip5})`);
 
     return res.status(200).json({
-      businesses: zipFiltered,
-      total: zipFiltered.length,
+      businesses: processed,
+      total: processed.length,
       source: 'here',
       query: `${searchQuery} near ${zipCode}`,
       cost: 0
