@@ -110,6 +110,12 @@ export default async function handler(req, res) {
       'postmates.com', 'slice.com', 'toasttab.com', 'chownow.com',
       'order.online', 'ordering.app', 'eat24.com', 'caviar.com',
 
+      // Booking platforms (NOT business websites - these are other businesses!)
+      'glossgenius.com', 'vagaro.com', 'styleseat.com', 'booksy.com',
+      'fresha.com', 'schedulicity.com', 'squareup.com/appointments',
+      'square.site', 'acuityscheduling.com', 'calendly.com', 'mindbodyonline.com',
+      'gettimely.com', 'zenoti.com', 'booker.com', 'salonbiz.com',
+
       // Vacation rentals / real estate
       'vrbo.com', 'airbnb.com', 'booking.com', 'hotels.com', 'expedia.com',
       'zillow.com', 'realtor.com', 'redfin.com', 'trulia.com',
@@ -211,18 +217,26 @@ export default async function handler(req, res) {
         const pathSegments = parsedUrl.pathname.split('/').filter(s => s.length > 0);
         if (pathSegments.length > 3) continue;
 
-        // Validate business name appears in domain or title
+        // Validate business name appears in domain or title - STRICT matching
         if (businessName) {
           const hostname = parsedUrl.hostname.toLowerCase().replace('www.', '');
+          // Get significant words (exclude common words)
+          const commonWords = ['the', 'and', 'inc', 'llc', 'of', 'at', 'in', 'on', 'for', 'co', 'company', 'corp', 'studio', 'shop', 'store', 'services', 'service'];
           const bizWords = businessName.toLowerCase()
+            .replace(/[''`´&]/g, '') // Remove apostrophes and ampersands
             .split(/\s+/)
-            .filter(w => w.length > 2 && !['the', 'and', 'inc', 'llc'].includes(w));
+            .filter(w => w.length > 2 && !commonWords.includes(w));
 
-          const domainMatch = bizWords.some(word => hostname.includes(word));
-          const titleMatch = bizWords.some(word => title.includes(word));
+          // Count how many significant words match
+          const domainMatches = bizWords.filter(word => hostname.includes(word)).length;
+          const titleMatches = bizWords.filter(word => title.includes(word)).length;
+          const bestMatch = Math.max(domainMatches, titleMatches);
 
-          if (!domainMatch && !titleMatch) {
-            console.log(`🦁 Skipping unrelated: ${url} for "${businessName}"`);
+          // Require at least 2 words to match, OR if business has only 1-2 significant words, require all to match
+          const minRequired = bizWords.length <= 2 ? bizWords.length : 2;
+
+          if (bestMatch < minRequired) {
+            console.log(`🦁 Skipping weak match: ${url} (${bestMatch}/${bizWords.length} words) for "${businessName}"`);
             continue;
           }
         }

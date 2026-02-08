@@ -138,6 +138,12 @@ export default async function handler(req, res) {
       'grubhub.com', 'doordash.com', 'ubereats.com', 'seamless.com',
       'postmates.com', 'slice.com', 'toasttab.com', 'chownow.com',
 
+      // Booking platforms (NOT business websites - these host OTHER businesses!)
+      'glossgenius.com', 'vagaro.com', 'styleseat.com', 'booksy.com',
+      'fresha.com', 'schedulicity.com', 'squareup.com/appointments',
+      'square.site', 'acuityscheduling.com', 'calendly.com', 'mindbodyonline.com',
+      'gettimely.com', 'zenoti.com', 'booker.com', 'salonbiz.com',
+
       // Vacation rentals / real estate
       'vrbo.com', 'airbnb.com', 'booking.com', 'hotels.com', 'expedia.com',
       'zillow.com', 'realtor.com', 'redfin.com', 'trulia.com',
@@ -223,16 +229,23 @@ export default async function handler(req, res) {
     let website = null;
 
     if (businessName && filteredUrls.length > 0) {
+      // Get significant words (exclude common words)
+      const commonWords = ['the', 'and', 'inc', 'llc', 'of', 'at', 'in', 'on', 'for', 'co', 'company', 'corp', 'studio', 'shop', 'store', 'services', 'service', 'salon', 'barber'];
       const bizWords = businessName.toLowerCase()
+        .replace(/[''`´&]/g, '')
         .split(/\s+/)
-        .filter(w => w.length > 2 && !['the', 'and', 'inc', 'llc'].includes(w));
+        .filter(w => w.length > 2 && !commonWords.includes(w));
 
-      // First try to find domain match
+      // First try to find domain match (require multiple words)
       for (const url of filteredUrls) {
         try {
           const hostname = new URL(url).hostname.toLowerCase().replace('www.', '');
-          const domainMatch = bizWords.some(word => hostname.includes(word));
-          if (domainMatch) {
+          const matchCount = bizWords.filter(word => hostname.includes(word)).length;
+
+          // Require at least 2 words to match, OR if business has only 1-2 significant words, require all
+          const minRequired = bizWords.length <= 2 ? bizWords.length : 2;
+
+          if (matchCount >= minRequired) {
             website = url;
             break;
           }
@@ -241,10 +254,7 @@ export default async function handler(req, res) {
         }
       }
 
-      // If no domain match, take first filtered URL
-      if (!website && filteredUrls.length > 0) {
-        website = filteredUrls[0];
-      }
+      // DO NOT fallback to first URL if no good match - better to return nothing than wrong result
     } else if (filteredUrls.length > 0) {
       website = filteredUrls[0];
     }
