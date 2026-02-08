@@ -105,7 +105,8 @@ export default async function handler(req, res) {
         'autorepairlocal.com', 'wnypapers.com', 'newspapers.com', 'patch.com',
         'bbb.org', 'manta.com', 'superpages.com', 'citysearch.com',
         'local.com', 'foursquare.com', 'tripadvisor.com', 'angieslist.com',
-        'homeadvisor.com', 'thumbtack.com', 'nextdoor.com', 'alignable.com'
+        'homeadvisor.com', 'thumbtack.com', 'nextdoor.com', 'alignable.com',
+        'business.site'
       ];
 
       if (contacts.length > 0) {

@@ -205,7 +205,7 @@ export default async function handler(req, res) {
       '.gov', '.edu',
 
       // Spam/redirect sites and SEO spam domains
-      'dot-reviews.org', 'rateclubs.com', 'inssavelx.com',
+      'dot-reviews.org', 'rateclubs.com', 'inssavelx.com', 'business.site',
       'giftly.com', 'carfax.com', 'autotrader.com', 'cars.com', 'cargurus.com',
 
       // Search engines
