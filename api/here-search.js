@@ -160,7 +160,6 @@ export default async function handler(req, res) {
     });
 
     const searchedZip5 = zipCode.substring(0, 5);
-    const searchedZipPrefix = searchedZip5.substring(0, 3); // First 3 digits = regional area
 
     // Get the state from the geocoded location for validation
     const searchedState = location.address?.stateCode || location.address?.state || '';
@@ -175,33 +174,18 @@ export default async function handler(req, res) {
       }));
       console.log(`✅ Returning ${filtered.length} businesses (radius search around ${searchedZip5})`);
     } else {
-      // Regular search: smart ZIP filtering
-      // 1. Trust businesses with no ZIP (they're geographically close to coordinates)
-      // 2. Accept exact ZIP matches
-      // 3. Reject clearly wrong ZIPs (different region/state)
+      // Regular search: strict ZIP filtering
+      // 1. Accept exact ZIP matches
+      // 2. Trust businesses with no ZIP (they're geographically close to coordinates)
+      // 3. Reject ALL other ZIPs (no neighboring ZIPs allowed)
       filtered = businesses.filter(biz => {
-        // No ZIP? Trust it - HERE found it near our coordinates
-        if (!biz.zip) return true;
-
         // Exact match? Keep it
         if (biz.zip === searchedZip5) return true;
 
-        // Check if ZIP is in same regional area (first 3 digits match)
-        const bizZipPrefix = biz.zip.substring(0, 3);
-        if (bizZipPrefix === searchedZipPrefix) return true;
+        // No ZIP? Trust it - HERE found it near our coordinates
+        if (!biz.zip) return true;
 
-        // Check if state matches (catches cross-state errors)
-        if (searchedState && biz.state) {
-          const bizStateUpper = biz.state.toUpperCase();
-          const searchedStateUpper = searchedState.toUpperCase();
-          // If states don't match, reject
-          if (bizStateUpper !== searchedStateUpper &&
-              bizStateUpper.length === 2 && searchedStateUpper.length === 2) {
-            return false;
-          }
-        }
-
-        // ZIP exists but doesn't match region - reject
+        // Any other ZIP = reject (even if nearby)
         return false;
       }).map(biz => ({
         ...biz,
@@ -211,7 +195,7 @@ export default async function handler(req, res) {
         searchedZipCode: searchedZip5
       }));
 
-      console.log(`✅ Returning ${filtered.length} businesses (smart filter for ${searchedZip5}, state: ${searchedState})`);
+      console.log(`✅ Returning ${filtered.length} businesses (exact ZIP: ${searchedZip5}, state: ${searchedState})`);
     }
 
     return res.status(200).json({
