@@ -15,8 +15,8 @@ const ensureHttps = url => {
 const show = (el, on=true) => el && el.classList.toggle("hidden", !on);
 const toast = (msg, ok=true, durationMs=null) => {
   // Calculate duration based on message length if not specified
-  // Base: 2000ms, +50ms per character over 20 chars, max 6000ms
-  const duration = durationMs || Math.min(2000 + Math.max(0, msg.length - 20) * 50, 6000);
+  // Base: 3000ms, +60ms per character over 20 chars, max 8000ms
+  const duration = durationMs || Math.min(3000 + Math.max(0, msg.length - 20) * 60, 8000);
 
   // Use unified ToastManager if available (stacks toasts properly)
   if (window.toastManager) {

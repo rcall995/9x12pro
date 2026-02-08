@@ -3289,6 +3289,16 @@ async function saveNotInterestedList() {
   }
 }
 
+// Clear the entire Not Interested list
+async function clearNotInterestedList() {
+  const count = notInterestedState.placeIds.size;
+  notInterestedState.placeIds.clear();
+  notInterestedState.businesses = {};
+  await saveNotInterestedList();
+  toast(`Cleared ${count} businesses from Not Interested list`, true);
+  renderProspectPool();
+}
+
 /* ========= USER TEMPLATES FUNCTIONS ========= */
 
 async function loadUserTemplates() {
@@ -7949,21 +7959,28 @@ async function runBulkAutoPopulate() {
   }
   zipCodes = uniqueZips;
 
-  // Get selected categories
-  const categoryCheckboxes = document.querySelectorAll('.category-checkbox:checked');
-  const selectedCategories = [];
-
-  categoryCheckboxes.forEach(checkbox => {
-    if (checkbox.id === 'enableCustomCategory') {
-      // Handle custom category
-      const customInput = document.getElementById('bulkCustomCategory');
-      if (customInput.value.trim()) {
-        selectedCategories.push(customInput.value.trim());
+  // Sync any visible checkbox states into the persistent Set
+  document.querySelectorAll('.category-checkbox').forEach(cb => {
+    if (cb.id !== 'enableCustomCategory') {
+      if (cb.checked) {
+        selectedSearchCategories.add(cb.value);
+      } else {
+        selectedSearchCategories.delete(cb.value);
       }
-    } else {
-      selectedCategories.push(checkbox.value);
     }
   });
+
+  // Get selected categories from the persistent Set
+  const selectedCategories = Array.from(selectedSearchCategories);
+
+  // Handle custom category
+  const customCategoryCheckbox = document.getElementById('enableCustomCategory');
+  if (customCategoryCheckbox && customCategoryCheckbox.checked) {
+    const customInput = document.getElementById('bulkCustomCategory');
+    if (customInput && customInput.value.trim()) {
+      selectedCategories.push(customInput.value.trim());
+    }
+  }
 
   if (selectedCategories.length === 0) {
     toast('Please select at least one business category', false);
@@ -8642,166 +8659,328 @@ let committedSelectionState = {
 };
 
 // Business Categories State
+// Category groups for organized display (sorted by tier - highest value first)
+const CATEGORY_GROUPS = [
+  // TIER 1 - Highest Value (one job pays for months of ads)
+  { id: "contractors", name: "Home Improvement & Contractors", icon: "🏠", tier: 1 },
+
+  // TIER 2 - Strong Value (repeat customers, recurring revenue)
+  { id: "home_services", name: "Home Services", icon: "🧹", tier: 2 },
+  { id: "lawn_outdoor", name: "Lawn & Outdoor", icon: "🌳", tier: 2 },
+  { id: "health_medical", name: "Health & Medical", icon: "⚕️", tier: 2 },
+  { id: "food_dining", name: "Food & Dining", icon: "🍕", tier: 2 },
+  { id: "beauty_personal", name: "Beauty & Personal Care", icon: "💇", tier: 2 },
+  { id: "fitness_wellness", name: "Fitness & Wellness", icon: "💪", tier: 2 },
+  { id: "pet_services", name: "Pet Services", icon: "🐕", tier: 2 },
+  { id: "education_childcare", name: "Education & Childcare", icon: "📚", tier: 2 },
+
+  // TIER 3 - Moderate Value (good ROI with right customer)
+  { id: "automotive", name: "Automotive", icon: "🚗", tier: 3 },
+  { id: "professional", name: "Professional Services", icon: "💼", tier: 3 },
+  { id: "retail", name: "Retail & Shopping", icon: "🛍️", tier: 3 },
+  { id: "events_entertainment", name: "Events & Entertainment", icon: "🎉", tier: 3 },
+  { id: "seasonal_regional", name: "Seasonal & Regional", icon: "🌨️", tier: 3 }
+];
+
+// Category tier definitions for insights
+const CATEGORY_TIERS = {
+  1: { name: "Highest Value", description: "One job = 3-12+ months of ad cost", color: "green" },
+  2: { name: "Strong Value", description: "Repeat customers build recurring revenue", color: "blue" },
+  3: { name: "Moderate Value", description: "Good ROI with right customer", color: "yellow" }
+};
+
 let businessCategories = [
+  // HOME IMPROVEMENT & CONTRACTORS (Tier 1 - Highest Value)
+  { value: "basement_finishing", label: "Basement Finishing", group: "contractors", tier: 1, avgValue: "$20,000-50,000" },
+  { value: "cabinet_maker", label: "Cabinet Maker", group: "contractors", tier: 1, avgValue: "$5,000-20,000" },
+  { value: "carpenter", label: "Carpenter", group: "contractors", tier: 1, avgValue: "$1,000-10,000" },
+  { value: "concrete_contractor", label: "Concrete Contractor", group: "contractors", tier: 1, avgValue: "$3,000-10,000" },
+  { value: "deck_builder", label: "Deck Builder", group: "contractors", tier: 1, avgValue: "$5,000-15,000" },
+  { value: "drywall_contractor", label: "Drywall Contractor", group: "contractors", tier: 1, avgValue: "$1,000-5,000" },
+  { value: "electrician", label: "Electrician", group: "contractors", tier: 1, avgValue: "$500-5,000" },
+  { value: "fence_contractor", label: "Fence Installation", group: "contractors", tier: 1, avgValue: "$3,000-8,000" },
+  { value: "flooring_contractor", label: "Flooring Contractor", group: "contractors", tier: 1, avgValue: "$3,000-10,000" },
+  { value: "foundation_repair", label: "Foundation Repair", group: "contractors", tier: 1, avgValue: "$5,000-15,000" },
+  { value: "garage_door", label: "Garage Door", group: "contractors", tier: 1, avgValue: "$500-3,000" },
+  { value: "general_contractor", label: "General Contractor", group: "contractors", tier: 1, avgValue: "$10,000-100,000" },
+  { value: "gutter_service", label: "Gutter Installation/Repair", group: "contractors", tier: 1, avgValue: "$1,000-3,000" },
+  { value: "handyman", label: "Handyman", group: "contractors", tier: 2, avgValue: "$200-2,000" },
+  { value: "hvac_contractor", label: "HVAC", group: "contractors", tier: 1, avgValue: "$5,000-12,000" },
+  { value: "insulation_contractor", label: "Insulation Contractor", group: "contractors", tier: 1, avgValue: "$2,000-5,000" },
+  { value: "kitchen_remodeling", label: "Kitchen & Bath Remodeling", group: "contractors", tier: 1, avgValue: "$15,000-50,000" },
+  { value: "masonry", label: "Masonry", group: "contractors", tier: 1, avgValue: "$2,000-10,000" },
+  { value: "painter", label: "Painter", group: "contractors", tier: 1, avgValue: "$2,000-8,000" },
+  { value: "paving_asphalt", label: "Paving/Asphalt", group: "contractors", tier: 1, avgValue: "$3,000-10,000" },
+  { value: "plumber", label: "Plumber", group: "contractors", tier: 1, avgValue: "$500-5,000" },
+  { value: "roofing_contractor", label: "Roofer", group: "contractors", tier: 1, avgValue: "$8,000-15,000" },
+  { value: "siding_contractor", label: "Siding Contractor", group: "contractors", tier: 1, avgValue: "$8,000-20,000" },
+  { value: "solar_installation", label: "Solar Installation", group: "contractors", tier: 1, avgValue: "$15,000-30,000" },
+  { value: "waterproofing", label: "Waterproofing", group: "contractors", tier: 1, avgValue: "$5,000-15,000" },
+  { value: "window_installation", label: "Window Installation", group: "contractors", tier: 1, avgValue: "$5,000-15,000" },
+
+  // HOME SERVICES (Tier 2 - Strong recurring value)
+  { value: "air_duct_cleaning", label: "Air Duct Cleaning", group: "home_services", tier: 2, avgValue: "$300-500/job" },
+  { value: "appliance_repair", label: "Appliance Repair", group: "home_services", tier: 2, avgValue: "$150-500/job" },
+  { value: "carpet_cleaning", label: "Carpet Cleaning", group: "home_services", tier: 2, avgValue: "$150-400/job" },
+  { value: "cleaning", label: "Cleaning Service", group: "home_services", tier: 2, avgValue: "$150-400/month" },
+  { value: "gutter_cleaning", label: "Gutter Cleaning", group: "home_services", tier: 2, avgValue: "$100-250/job" },
+  { value: "home_inspection", label: "Home Inspection", group: "home_services", tier: 3, avgValue: "$300-500/job" },
+  { value: "home_security", label: "Home Security/Alarm", group: "home_services", tier: 2, avgValue: "$30-60/month" },
+  { value: "junk_removal", label: "Junk Removal", group: "home_services", tier: 2, avgValue: "$200-800/job" },
+  { value: "locksmith", label: "Locksmith", group: "home_services", tier: 3, avgValue: "$100-300/job" },
+  { value: "mold_remediation", label: "Mold Remediation", group: "home_services", tier: 1, avgValue: "$1,500-5,000" },
+  { value: "moving_company", label: "Moving Company", group: "home_services", tier: 2, avgValue: "$500-3,000" },
+  { value: "pest_control", label: "Pest Control", group: "home_services", tier: 2, avgValue: "$100-200/quarter" },
+  { value: "pressure_washing", label: "Pressure Washing", group: "home_services", tier: 2, avgValue: "$200-500/job" },
+  { value: "water_damage", label: "Water Damage Restoration", group: "home_services", tier: 1, avgValue: "$2,000-10,000" },
+  { value: "window_cleaning", label: "Window Washing", group: "home_services", tier: 2, avgValue: "$150-400/job" },
+
+  // LAWN & OUTDOOR
+  { value: "desert_landscaping", label: "Desert Landscaping/Xeriscaping", group: "lawn_outdoor", tier: 2, avgValue: "$2,000-8,000" },
+  { value: "irrigation_systems", label: "Irrigation Systems", group: "lawn_outdoor", tier: 2, avgValue: "$2,000-5,000" },
+  { value: "landscaping", label: "Landscaping", group: "lawn_outdoor", tier: 2, avgValue: "$2,000-10,000" },
+  { value: "lawn_care", label: "Lawn Care/Mowing", group: "lawn_outdoor", tier: 2, avgValue: "$100-300/month" },
+  { value: "pool_service", label: "Pool Service & Repair", group: "lawn_outdoor", tier: 1, avgValue: "$2,000-10,000" },
+  { value: "tree_service", label: "Tree Service", group: "lawn_outdoor", tier: 1, avgValue: "$500-5,000" },
+
   // AUTOMOTIVE
-  { value: "auto_body_shop", label: "Auto Body Shop" },
-  { value: "auto_detailing", label: "Auto Detailing" },
-  { value: "auto_glass", label: "Auto Glass Repair" },
-  { value: "car_repair", label: "Auto Repair" },
-  { value: "car_dealer", label: "Car Dealer" },
-  { value: "car_wash", label: "Car Wash" },
-  { value: "motorcycle_dealer", label: "Motorcycle Dealer" },
-  { value: "rv_dealer", label: "RV Dealer" },
-  { value: "tire_shop", label: "Tire Shop" },
-  { value: "towing_service", label: "Towing Service" },
-  { value: "truck_repair", label: "Truck Repair" },
-
-  // CONSTRUCTION & CONTRACTORS
-  { value: "cabinet_maker", label: "Cabinet Maker" },
-  { value: "carpenter", label: "Carpenter" },
-  { value: "concrete_contractor", label: "Concrete Contractor" },
-  { value: "deck_builder", label: "Deck Builder" },
-  { value: "drywall_contractor", label: "Drywall Contractor" },
-  { value: "electrician", label: "Electrician" },
-  { value: "fence_contractor", label: "Fence Installation" },
-  { value: "flooring_contractor", label: "Flooring Contractor" },
-  { value: "foundation_repair", label: "Foundation Repair" },
-  { value: "general_contractor", label: "General Contractor" },
-  { value: "gutter_service", label: "Gutter Installation/Repair" },
-  { value: "handyman", label: "Handyman" },
-  { value: "hvac_contractor", label: "HVAC" },
-  { value: "insulation_contractor", label: "Insulation Contractor" },
-  { value: "kitchen_remodeling", label: "Kitchen & Bath Remodeling" },
-  { value: "masonry", label: "Masonry" },
-  { value: "painter", label: "Painter" },
-  { value: "plumber", label: "Plumber" },
-  { value: "roofing_contractor", label: "Roofer" },
-  { value: "siding_contractor", label: "Siding Contractor" },
-  { value: "waterproofing", label: "Waterproofing" },
-  { value: "window_installation", label: "Window Installation" },
-
-  // FOOD & BEVERAGE (Use "Restaurant" for all dining; specific types can be searched via custom category)
-  { value: "bakery", label: "Bakery" },
-  { value: "bar", label: "Bar/Pub" },
-  { value: "cafe", label: "Cafe/Coffee Shop" },
-  { value: "meal_delivery", label: "Catering" },
-  { value: "food_truck", label: "Food Truck" },
-  { value: "restaurant", label: "Restaurant" },
+  { value: "auto_body_shop", label: "Auto Body Shop", group: "automotive", tier: 2, avgValue: "$1,000-5,000" },
+  { value: "auto_detailing", label: "Auto Detailing", group: "automotive", tier: 3, avgValue: "$100-300/visit" },
+  { value: "auto_glass", label: "Auto Glass Repair", group: "automotive", tier: 2, avgValue: "$200-500" },
+  { value: "car_repair", label: "Auto Repair", group: "automotive", tier: 2, avgValue: "$200-2,000" },
+  { value: "car_dealer", label: "Car Dealer", group: "automotive", tier: 2, avgValue: "$20,000-50,000" },
+  { value: "car_wash", label: "Car Wash", group: "automotive", tier: 3, avgValue: "$15-50/visit" },
+  { value: "tire_shop", label: "Tire Shop", group: "automotive", tier: 2, avgValue: "$400-1,200" },
+  { value: "truck_repair", label: "Truck Repair", group: "automotive", tier: 2, avgValue: "$500-3,000" },
 
   // HEALTH & MEDICAL
-  { value: "acupuncture", label: "Acupuncture" },
-  { value: "chiropractor", label: "Chiropractor" },
-  { value: "dentist", label: "Dentist" },
-  { value: "doctor", label: "Doctor/Physician" },
-  { value: "hearing_aid", label: "Hearing Aid Provider" },
-  { value: "medical_spa", label: "Medical Spa" },
-  { value: "mental_health", label: "Mental Health Services" },
-  { value: "optometrist", label: "Optometrist" },
-  { value: "pediatrician", label: "Pediatrician" },
-  { value: "pharmacy", label: "Pharmacy" },
-  { value: "physiotherapist", label: "Physical Therapy" },
-  { value: "senior_care", label: "Senior Care/Assisted Living" },
-  { value: "urgent_care", label: "Urgent Care" },
-  { value: "veterinary_care", label: "Veterinarian" },
+  { value: "acupuncture", label: "Acupuncture", group: "health_medical", tier: 2, avgValue: "$75-150/visit" },
+  { value: "chiropractor", label: "Chiropractor", group: "health_medical", tier: 2, avgValue: "$100-300/visit" },
+  { value: "dentist", label: "Dentist", group: "health_medical", tier: 2, avgValue: "$200-2,000/year" },
+  { value: "doctor", label: "Doctor/Physician", group: "health_medical", tier: 3, avgValue: "Varies" },
+  { value: "hearing_aid", label: "Hearing Aid Provider", group: "health_medical", tier: 2, avgValue: "$2,000-6,000" },
+  { value: "medical_spa", label: "Medical Spa", group: "health_medical", tier: 2, avgValue: "$300-1,000/visit" },
+  { value: "mental_health", label: "Mental Health Services", group: "health_medical", tier: 2, avgValue: "$100-200/session" },
+  { value: "optometrist", label: "Optometrist", group: "health_medical", tier: 2, avgValue: "$200-600/year" },
+  { value: "oral_surgeon", label: "Oral Surgeon", group: "health_medical", tier: 1, avgValue: "$1,000-5,000" },
+  { value: "orthodontist", label: "Orthodontist", group: "health_medical", tier: 1, avgValue: "$3,000-7,000" },
+  { value: "pediatrician", label: "Pediatrician", group: "health_medical", tier: 3, avgValue: "Varies" },
+  { value: "pharmacy", label: "Pharmacy", group: "health_medical", tier: 3, avgValue: "Recurring" },
+  { value: "physiotherapist", label: "Physical Therapy", group: "health_medical", tier: 2, avgValue: "$100-300/visit" },
+  { value: "senior_care", label: "Senior Care/Assisted Living", group: "health_medical", tier: 1, avgValue: "$3,000-8,000/month" },
+  { value: "senior_home_care", label: "Senior Home Care", group: "health_medical", tier: 1, avgValue: "$2,000-5,000/month" },
+  { value: "urgent_care", label: "Urgent Care", group: "health_medical", tier: 3, avgValue: "$100-300/visit" },
+  { value: "veterinary_care", label: "Veterinarian", group: "health_medical", tier: 2, avgValue: "$200-1,000/year" },
 
-  // HOME & OUTDOOR SERVICES
-  { value: "cleaning", label: "Cleaning Service" },
-  { value: "gutter_cleaning", label: "Gutter Cleaning" },
-  { value: "home_inspection", label: "Home Inspection" },
-  { value: "junk_removal", label: "Junk Removal" },
-  { value: "landscaping", label: "Landscaping" },
-  { value: "lawn_care", label: "Lawn Care/Mowing" },
-  { value: "locksmith", label: "Locksmith" },
-  { value: "moving_company", label: "Moving Company" },
-  { value: "pest_control", label: "Pest Control" },
-  { value: "pool_service", label: "Pool Service & Repair" },
-  { value: "pressure_washing", label: "Pressure Washing" },
-  { value: "septic_service", label: "Septic Service" },
-  { value: "tree_service", label: "Tree Service" },
-  { value: "well_drilling", label: "Well Drilling & Repair" },
-  { value: "window_cleaning", label: "Window Washing" },
+  // FOOD & DINING
+  { value: "bakery", label: "Bakery", group: "food_dining", tier: 3, avgValue: "$20-100/visit" },
+  { value: "bar", label: "Bar/Pub", group: "food_dining", tier: 3, avgValue: "$30-80/visit" },
+  { value: "cafe", label: "Cafe/Coffee Shop", group: "food_dining", tier: 3, avgValue: "$5-15/visit" },
+  { value: "meal_delivery", label: "Catering", group: "food_dining", tier: 2, avgValue: "$500-5,000/event" },
+  { value: "food_truck", label: "Food Truck", group: "food_dining", tier: 3, avgValue: "$10-20/visit" },
+  { value: "pizza", label: "Pizza", group: "food_dining", tier: 2, avgValue: "$25-40/order" },
+  { value: "restaurant", label: "Restaurant", group: "food_dining", tier: 2, avgValue: "$30-80/visit" },
 
-  // REGIONAL: NORTHERN STATES (Snow/Winter)
-  { value: "firewood_delivery", label: "Firewood Delivery" },
-  { value: "heating_oil", label: "Heating Oil Delivery" },
-  { value: "ice_dam_removal", label: "Ice Dam Removal" },
-  { value: "snowplowing", label: "Snow Plowing" },
-  { value: "snow_removal", label: "Snow Removal" },
+  // BEAUTY & PERSONAL CARE
+  { value: "barber", label: "Barber Shop", group: "beauty_personal", tier: 2, avgValue: "$25-40/visit" },
+  { value: "beauty_salon", label: "Hair & Beauty Salon", group: "beauty_personal", tier: 2, avgValue: "$50-150/visit" },
+  { value: "day_spa", label: "Spa/Massage", group: "beauty_personal", tier: 2, avgValue: "$80-200/visit" },
+  { value: "dry_cleaning", label: "Dry Cleaner", group: "beauty_personal", tier: 2, avgValue: "$30-100/month" },
+  { value: "nail_salon", label: "Nail Salon", group: "beauty_personal", tier: 2, avgValue: "$40-80/visit" },
+  { value: "tattoo_shop", label: "Tattoo Shop", group: "beauty_personal", tier: 3, avgValue: "$200-2,000" },
 
-  // REGIONAL: SOUTHERN/COASTAL (Hurricane/Tropical)
-  { value: "hurricane_shutters", label: "Hurricane Shutters" },
-  { value: "storm_cleanup", label: "Storm Cleanup & Restoration" },
+  // FITNESS & WELLNESS
+  { value: "gym", label: "Gym/Fitness Center", group: "fitness_wellness", tier: 2, avgValue: "$30-100/month" },
+  { value: "martial_arts", label: "Martial Arts Studio", group: "fitness_wellness", tier: 2, avgValue: "$100-200/month" },
+  { value: "personal_trainer", label: "Personal Trainer", group: "fitness_wellness", tier: 2, avgValue: "$200-500/month" },
+  { value: "yoga_studio", label: "Yoga/Pilates Studio", group: "fitness_wellness", tier: 2, avgValue: "$100-200/month" },
 
-  // REGIONAL: SOUTHWEST (Desert/Arid)
-  { value: "desert_landscaping", label: "Desert Landscaping/Xeriscaping" },
-  { value: "irrigation_systems", label: "Irrigation Systems" },
-
-  // REGIONAL: COASTAL (Marine)
-  { value: "boat_repair", label: "Boat Repair & Service" },
-  { value: "dock_builder", label: "Dock & Pier Construction" },
-  { value: "marina", label: "Marina" },
-
-  // PERSONAL SERVICES
-  { value: "barber", label: "Barber Shop" },
-  { value: "beauty_salon", label: "Hair & Beauty Salon" },
-  { value: "day_spa", label: "Spa/Massage" },
-  { value: "dog_grooming", label: "Pet Grooming" },
-  { value: "dry_cleaning", label: "Dry Cleaner" },
-  { value: "gym", label: "Gym/Fitness Center" },
-  { value: "laundromat", label: "Laundromat" },
-  { value: "nail_salon", label: "Nail Salon" },
-  { value: "tanning_salon", label: "Tanning Salon" },
-  { value: "tattoo_shop", label: "Tattoo Shop" },
-  { value: "yoga_studio", label: "Yoga/Pilates Studio" },
+  // PET SERVICES
+  { value: "dog_grooming", label: "Pet Grooming", group: "pet_services", tier: 2, avgValue: "$50-100/visit" },
+  { value: "dog_training", label: "Dog Training", group: "pet_services", tier: 2, avgValue: "$500-2,000" },
+  { value: "pet_sitting", label: "Pet Sitting/Dog Walking", group: "pet_services", tier: 2, avgValue: "$200-600/month" },
+  { value: "pet_store", label: "Pet Store", group: "pet_services", tier: 3, avgValue: "$50-200/visit" },
 
   // PROFESSIONAL SERVICES
-  { value: "accountant", label: "Accountant/CPA" },
-  { value: "attorney", label: "Attorney/Lawyer" },
-  { value: "financial_advisor", label: "Financial Advisor" },
-  { value: "insurance_agency", label: "Insurance Agency" },
-  { value: "marketing_agency", label: "Marketing Agency" },
-  { value: "photographer", label: "Photography" },
-  { value: "printing_service", label: "Printing Service" },
-  { value: "real_estate_agency", label: "Real Estate" },
-  { value: "tax_service", label: "Tax Preparation" },
-  { value: "web_design", label: "Web Design" },
-
-  // RETAIL
-  { value: "antique_store", label: "Antique Store" },
-  { value: "bicycle_store", label: "Bicycle Shop" },
-  { value: "boat_dealer", label: "Boat Dealer" },
-  { value: "boutique", label: "Boutique" },
-  { value: "furniture_store", label: "Furniture Store" },
-  { value: "garden_center", label: "Garden Center/Nursery" },
-  { value: "gun_shop", label: "Gun Shop" },
-  { value: "hardware_store", label: "Hardware Store" },
-  { value: "jewelry_store", label: "Jewelry Store" },
-  { value: "liquor_store", label: "Liquor Store" },
-  { value: "mattress_store", label: "Mattress Store" },
-  { value: "pet_store", label: "Pet Store" },
-  { value: "sporting_goods", label: "Sporting Goods" },
-  { value: "thrift_store", label: "Thrift Store" },
-
-  // RECREATION & ENTERTAINMENT
-  { value: "bowling_alley", label: "Bowling Alley" },
-  { value: "golf_course", label: "Golf Course" },
-  { value: "mini_golf", label: "Mini Golf" },
-  { value: "movie_theater", label: "Movie Theater" },
+  { value: "accountant", label: "Accountant/CPA", group: "professional", tier: 2, avgValue: "$300-2,000/year" },
+  { value: "attorney", label: "Attorney/Lawyer", group: "professional", tier: 2, avgValue: "$1,000-10,000+" },
+  { value: "financial_advisor", label: "Financial Advisor", group: "professional", tier: 2, avgValue: "Lifetime value" },
+  { value: "insurance_agency", label: "Insurance Agency", group: "professional", tier: 2, avgValue: "Recurring premiums" },
+  { value: "interior_designer", label: "Interior Designer", group: "professional", tier: 2, avgValue: "$5,000-50,000" },
+  { value: "marketing_agency", label: "Marketing Agency", group: "professional", tier: 3, avgValue: "$1,000-5,000/month" },
+  { value: "photographer", label: "Photography", group: "professional", tier: 3, avgValue: "$500-5,000" },
+  { value: "printing_service", label: "Printing Service", group: "professional", tier: 3, avgValue: "$100-1,000" },
+  { value: "real_estate_agency", label: "Real Estate", group: "professional", tier: 2, avgValue: "$5,000-20,000 commission" },
+  { value: "tax_service", label: "Tax Preparation", group: "professional", tier: 2, avgValue: "$200-500/year" },
+  { value: "web_design", label: "Web Design", group: "professional", tier: 3, avgValue: "$2,000-10,000" },
 
   // EDUCATION & CHILDCARE
-  { value: "dance_studio", label: "Dance Studio" },
-  { value: "daycare", label: "Daycare/Preschool" },
-  { value: "martial_arts", label: "Martial Arts Studio" },
-  { value: "music_school", label: "Music School" },
-  { value: "tutoring", label: "Tutoring Service" },
+  { value: "dance_studio", label: "Dance Studio", group: "education_childcare", tier: 2, avgValue: "$100-200/month" },
+  { value: "daycare", label: "Daycare/Preschool", group: "education_childcare", tier: 1, avgValue: "$800-2,000/month" },
+  { value: "music_lessons", label: "Music Lessons", group: "education_childcare", tier: 2, avgValue: "$100-300/month" },
+  { value: "music_school", label: "Music School", group: "education_childcare", tier: 2, avgValue: "$150-400/month" },
+  { value: "tutoring", label: "Tutoring Service", group: "education_childcare", tier: 2, avgValue: "$200-500/month" },
 
-  // OTHER SERVICES
-  { value: "event_planning", label: "Event Planning" },
-  { value: "florist", label: "Florist" },
-  { value: "funeral_home", label: "Funeral Home" },
-  { value: "hotel", label: "Hotel/Motel" },
-  { value: "storage", label: "Storage Facility" },
-  { value: "wedding_venue", label: "Wedding Venue" }
+  // RETAIL & SHOPPING
+  { value: "bicycle_store", label: "Bicycle Shop", group: "retail", tier: 3, avgValue: "$300-3,000" },
+  { value: "boutique", label: "Boutique", group: "retail", tier: 3, avgValue: "$50-300/visit" },
+  { value: "furniture_store", label: "Furniture Store", group: "retail", tier: 2, avgValue: "$500-5,000" },
+  { value: "garden_center", label: "Garden Center/Nursery", group: "retail", tier: 2, avgValue: "$100-500/visit" },
+  { value: "gun_shop", label: "Gun Shop", group: "retail", tier: 3, avgValue: "$300-2,000" },
+  { value: "hardware_store", label: "Hardware Store", group: "retail", tier: 3, avgValue: "$50-500/visit" },
+  { value: "home_organizer", label: "Home Organizer", group: "retail", tier: 2, avgValue: "$500-2,000" },
+  { value: "jewelry_store", label: "Jewelry Store", group: "retail", tier: 2, avgValue: "$500-5,000" },
+  { value: "liquor_store", label: "Liquor Store", group: "retail", tier: 3, avgValue: "$30-100/visit" },
+  { value: "mattress_store", label: "Mattress Store", group: "retail", tier: 2, avgValue: "$800-3,000" },
+  { value: "sporting_goods", label: "Sporting Goods", group: "retail", tier: 3, avgValue: "$100-1,000" },
+
+  // EVENTS & ENTERTAINMENT
+  { value: "event_planning", label: "Event Planning", group: "events_entertainment", tier: 2, avgValue: "$2,000-20,000" },
+  { value: "florist", label: "Florist", group: "events_entertainment", tier: 3, avgValue: "$50-500" },
+  { value: "golf_course", label: "Golf Course", group: "events_entertainment", tier: 2, avgValue: "$50-150/round" },
+  { value: "storage", label: "Storage Facility", group: "events_entertainment", tier: 2, avgValue: "$100-300/month" },
+  { value: "wedding_venue", label: "Wedding Venue", group: "events_entertainment", tier: 2, avgValue: "$5,000-20,000" },
+
+  // SEASONAL & REGIONAL
+  { value: "boat_repair", label: "Boat Repair & Service", group: "seasonal_regional", tier: 2, avgValue: "$500-5,000" },
+  { value: "dock_builder", label: "Dock & Pier Construction", group: "seasonal_regional", tier: 1, avgValue: "$5,000-30,000" },
+  { value: "firewood_delivery", label: "Firewood Delivery", group: "seasonal_regional", tier: 3, avgValue: "$200-500" },
+  { value: "heating_oil", label: "Heating Oil Delivery", group: "seasonal_regional", tier: 2, avgValue: "$300-600/delivery" },
+  { value: "hurricane_shutters", label: "Hurricane Shutters", group: "seasonal_regional", tier: 1, avgValue: "$2,000-8,000" },
+  { value: "ice_dam_removal", label: "Ice Dam Removal", group: "seasonal_regional", tier: 2, avgValue: "$400-1,500" },
+  { value: "septic_service", label: "Septic Service", group: "seasonal_regional", tier: 1, avgValue: "$3,000-10,000" },
+  { value: "snowplowing", label: "Snow Plowing", group: "seasonal_regional", tier: 2, avgValue: "$50-150/visit" },
+  { value: "snow_removal", label: "Snow Removal", group: "seasonal_regional", tier: 2, avgValue: "$100-500/visit" },
+  { value: "storm_cleanup", label: "Storm Cleanup & Restoration", group: "seasonal_regional", tier: 1, avgValue: "$1,000-10,000" },
+  { value: "well_drilling", label: "Well Drilling & Repair", group: "seasonal_regional", tier: 1, avgValue: "$5,000-15,000" },
+
+  // ===== ADDITIONAL CATEGORIES (v7 expansion) =====
+
+  // MORE CONTRACTORS
+  { value: "closet_organizer", label: "Closet Organizer/Installer", group: "contractors", tier: 2, avgValue: "$1,500-5,000" },
+  { value: "glass_installation", label: "Glass & Mirror Installation", group: "contractors", tier: 2, avgValue: "$500-3,000" },
+  { value: "stucco_contractor", label: "Stucco Contractor", group: "contractors", tier: 1, avgValue: "$3,000-10,000" },
+  { value: "countertop_installer", label: "Countertop Installation", group: "contractors", tier: 1, avgValue: "$2,000-8,000" },
+  { value: "fireplace_installer", label: "Fireplace Installation", group: "contractors", tier: 1, avgValue: "$3,000-10,000" },
+  { value: "shower_installer", label: "Shower/Bath Installation", group: "contractors", tier: 1, avgValue: "$3,000-12,000" },
+  { value: "tile_contractor", label: "Tile Contractor", group: "contractors", tier: 1, avgValue: "$2,000-8,000" },
+  { value: "home_theater", label: "Home Theater Installation", group: "contractors", tier: 2, avgValue: "$2,000-15,000" },
+
+  // MORE HOME SERVICES
+  { value: "chimney_sweep", label: "Chimney Sweep", group: "home_services", tier: 2, avgValue: "$150-400/job" },
+  { value: "dryer_vent_cleaning", label: "Dryer Vent Cleaning", group: "home_services", tier: 2, avgValue: "$100-200/job" },
+  { value: "upholstery_cleaning", label: "Upholstery Cleaning", group: "home_services", tier: 2, avgValue: "$150-400/job" },
+  { value: "hot_tub_service", label: "Hot Tub Service", group: "home_services", tier: 2, avgValue: "$200-500/visit" },
+  { value: "generator_service", label: "Generator Service/Install", group: "home_services", tier: 1, avgValue: "$3,000-10,000" },
+  { value: "garage_organizer", label: "Garage Organization", group: "home_services", tier: 2, avgValue: "$500-3,000" },
+  { value: "fireplace_cleaning", label: "Fireplace Cleaning", group: "home_services", tier: 2, avgValue: "$150-300/job" },
+
+  // MORE LAWN & OUTDOOR
+  { value: "hardscaping", label: "Hardscaping", group: "lawn_outdoor", tier: 1, avgValue: "$5,000-20,000" },
+  { value: "outdoor_lighting", label: "Outdoor Lighting", group: "lawn_outdoor", tier: 2, avgValue: "$1,000-5,000" },
+  { value: "patio_installer", label: "Patio/Paver Installation", group: "lawn_outdoor", tier: 1, avgValue: "$3,000-15,000" },
+  { value: "pergola_builder", label: "Pergola/Gazebo Builder", group: "lawn_outdoor", tier: 1, avgValue: "$3,000-15,000" },
+  { value: "retaining_wall", label: "Retaining Wall", group: "lawn_outdoor", tier: 1, avgValue: "$3,000-10,000" },
+  { value: "stump_removal", label: "Stump Removal", group: "lawn_outdoor", tier: 2, avgValue: "$150-500/stump" },
+  { value: "sprinkler_repair", label: "Sprinkler Repair", group: "lawn_outdoor", tier: 2, avgValue: "$100-400/job" },
+
+  // MORE AUTOMOTIVE
+  { value: "motorcycle_repair", label: "Motorcycle Repair", group: "automotive", tier: 2, avgValue: "$200-1,500" },
+  { value: "rv_repair", label: "RV Repair & Service", group: "automotive", tier: 2, avgValue: "$500-3,000" },
+  { value: "transmission_repair", label: "Transmission Repair", group: "automotive", tier: 2, avgValue: "$1,500-4,000" },
+  { value: "oil_change", label: "Oil Change/Lube", group: "automotive", tier: 3, avgValue: "$30-80/visit" },
+  { value: "towing_service", label: "Towing Service", group: "automotive", tier: 2, avgValue: "$100-300/tow" },
+  { value: "auto_upholstery", label: "Auto Upholstery", group: "automotive", tier: 2, avgValue: "$500-2,000" },
+  { value: "brake_shop", label: "Brake Shop", group: "automotive", tier: 2, avgValue: "$200-800" },
+
+  // MORE HEALTH & MEDICAL
+  { value: "dermatologist", label: "Dermatologist", group: "health_medical", tier: 2, avgValue: "$150-500/visit" },
+  { value: "podiatrist", label: "Podiatrist", group: "health_medical", tier: 2, avgValue: "$100-400/visit" },
+  { value: "weight_loss_clinic", label: "Weight Loss Clinic", group: "health_medical", tier: 2, avgValue: "$200-1,000/month" },
+  { value: "cosmetic_surgery", label: "Cosmetic Surgery", group: "health_medical", tier: 1, avgValue: "$5,000-20,000" },
+  { value: "laser_hair_removal", label: "Laser Hair Removal", group: "health_medical", tier: 2, avgValue: "$200-500/session" },
+  { value: "cbd_store", label: "CBD/Wellness Store", group: "health_medical", tier: 3, avgValue: "$50-200/visit" },
+
+  // MORE FOOD & DINING
+  { value: "ice_cream_shop", label: "Ice Cream Shop", group: "food_dining", tier: 3, avgValue: "$5-15/visit" },
+  { value: "deli", label: "Deli/Sandwich Shop", group: "food_dining", tier: 3, avgValue: "$10-20/visit" },
+  { value: "juice_bar", label: "Juice Bar/Smoothie", group: "food_dining", tier: 3, avgValue: "$8-15/visit" },
+  { value: "donut_shop", label: "Donut Shop", group: "food_dining", tier: 3, avgValue: "$5-15/visit" },
+  { value: "chinese_restaurant", label: "Chinese Restaurant", group: "food_dining", tier: 2, avgValue: "$15-40/visit" },
+  { value: "mexican_restaurant", label: "Mexican Restaurant", group: "food_dining", tier: 2, avgValue: "$15-40/visit" },
+  { value: "italian_restaurant", label: "Italian Restaurant", group: "food_dining", tier: 2, avgValue: "$25-60/visit" },
+  { value: "steakhouse", label: "Steakhouse", group: "food_dining", tier: 2, avgValue: "$40-100/visit" },
+  { value: "seafood_restaurant", label: "Seafood Restaurant", group: "food_dining", tier: 2, avgValue: "$30-80/visit" },
+  { value: "bbq_restaurant", label: "BBQ Restaurant", group: "food_dining", tier: 2, avgValue: "$20-50/visit" },
+  { value: "sushi_restaurant", label: "Sushi Restaurant", group: "food_dining", tier: 2, avgValue: "$25-60/visit" },
+  { value: "wings_restaurant", label: "Wings/Sports Bar", group: "food_dining", tier: 2, avgValue: "$20-50/visit" },
+  { value: "breakfast_restaurant", label: "Breakfast/Brunch", group: "food_dining", tier: 2, avgValue: "$15-30/visit" },
+
+  // MORE BEAUTY & PERSONAL
+  { value: "waxing_salon", label: "Waxing Salon", group: "beauty_personal", tier: 2, avgValue: "$40-100/visit" },
+  { value: "tanning_salon", label: "Tanning Salon", group: "beauty_personal", tier: 3, avgValue: "$30-80/month" },
+  { value: "lash_studio", label: "Lash & Brow Studio", group: "beauty_personal", tier: 2, avgValue: "$100-300/visit" },
+  { value: "skincare_clinic", label: "Skincare/Facial Clinic", group: "beauty_personal", tier: 2, avgValue: "$100-300/visit" },
+  { value: "mens_grooming", label: "Men's Grooming", group: "beauty_personal", tier: 2, avgValue: "$30-60/visit" },
+
+  // MORE FITNESS & WELLNESS
+  { value: "crossfit_gym", label: "CrossFit Gym", group: "fitness_wellness", tier: 2, avgValue: "$150-250/month" },
+  { value: "boxing_gym", label: "Boxing/MMA Gym", group: "fitness_wellness", tier: 2, avgValue: "$100-200/month" },
+  { value: "swim_lessons", label: "Swimming Lessons", group: "fitness_wellness", tier: 2, avgValue: "$100-200/month" },
+  { value: "tennis_club", label: "Tennis Club", group: "fitness_wellness", tier: 2, avgValue: "$100-300/month" },
+  { value: "golf_lessons", label: "Golf Lessons", group: "fitness_wellness", tier: 2, avgValue: "$75-150/lesson" },
+  { value: "nutrition_coach", label: "Nutrition Coach", group: "fitness_wellness", tier: 2, avgValue: "$200-500/month" },
+
+  // MORE PET SERVICES
+  { value: "pet_boarding", label: "Pet Boarding/Kennel", group: "pet_services", tier: 2, avgValue: "$30-75/night" },
+  { value: "emergency_vet", label: "Emergency Vet", group: "pet_services", tier: 2, avgValue: "$200-2,000" },
+  { value: "aquarium_service", label: "Aquarium Service", group: "pet_services", tier: 2, avgValue: "$100-300/month" },
+  { value: "mobile_pet_grooming", label: "Mobile Pet Grooming", group: "pet_services", tier: 2, avgValue: "$60-120/visit" },
+
+  // MORE PROFESSIONAL SERVICES
+  { value: "notary", label: "Notary Public", group: "professional", tier: 3, avgValue: "$25-100/signing" },
+  { value: "staffing_agency", label: "Staffing Agency", group: "professional", tier: 2, avgValue: "Commission based" },
+  { value: "consulting", label: "Business Consulting", group: "professional", tier: 2, avgValue: "$100-300/hour" },
+  { value: "video_production", label: "Video Production", group: "professional", tier: 2, avgValue: "$1,000-10,000" },
+  { value: "graphic_design", label: "Graphic Design", group: "professional", tier: 3, avgValue: "$500-3,000" },
+
+  // MORE EDUCATION & CHILDCARE
+  { value: "art_classes", label: "Art Classes", group: "education_childcare", tier: 2, avgValue: "$100-200/month" },
+  { value: "after_school", label: "After School Programs", group: "education_childcare", tier: 2, avgValue: "$300-800/month" },
+  { value: "language_school", label: "Language School", group: "education_childcare", tier: 2, avgValue: "$150-400/month" },
+  { value: "test_prep", label: "SAT/ACT Test Prep", group: "education_childcare", tier: 2, avgValue: "$500-2,000" },
+  { value: "driving_school", label: "Driving School", group: "education_childcare", tier: 2, avgValue: "$300-600" },
+  { value: "coding_classes", label: "Coding Classes for Kids", group: "education_childcare", tier: 2, avgValue: "$150-300/month" },
+
+  // MORE RETAIL
+  { value: "appliance_store", label: "Appliance Store", group: "retail", tier: 2, avgValue: "$500-3,000" },
+  { value: "electronics_store", label: "Electronics Store", group: "retail", tier: 3, avgValue: "$100-1,000" },
+  { value: "antique_store", label: "Antique Store", group: "retail", tier: 3, avgValue: "$100-2,000" },
+  { value: "consignment_shop", label: "Consignment Shop", group: "retail", tier: 3, avgValue: "$50-300" },
+  { value: "flooring_store", label: "Flooring Store", group: "retail", tier: 2, avgValue: "$2,000-10,000" },
+  { value: "lighting_store", label: "Lighting Store", group: "retail", tier: 2, avgValue: "$200-2,000" },
+  { value: "bridal_shop", label: "Bridal Shop", group: "retail", tier: 2, avgValue: "$1,000-5,000" },
+  { value: "smoke_shop", label: "Smoke/Vape Shop", group: "retail", tier: 3, avgValue: "$20-100/visit" },
+
+  // MORE EVENTS & ENTERTAINMENT
+  { value: "dj_service", label: "DJ Service", group: "events_entertainment", tier: 2, avgValue: "$500-2,000/event" },
+  { value: "photo_booth", label: "Photo Booth Rental", group: "events_entertainment", tier: 2, avgValue: "$300-800/event" },
+  { value: "party_rental", label: "Party Rental", group: "events_entertainment", tier: 2, avgValue: "$200-1,000/event" },
+  { value: "limo_service", label: "Limousine Service", group: "events_entertainment", tier: 2, avgValue: "$300-1,000/event" },
+  { value: "bowling_alley", label: "Bowling Alley", group: "events_entertainment", tier: 3, avgValue: "$20-50/visit" },
+  { value: "escape_room", label: "Escape Room", group: "events_entertainment", tier: 3, avgValue: "$25-40/person" },
+  { value: "mini_golf", label: "Mini Golf", group: "events_entertainment", tier: 3, avgValue: "$10-20/person" },
+  { value: "laser_tag", label: "Laser Tag/Arcade", group: "events_entertainment", tier: 3, avgValue: "$15-30/person" },
+  { value: "trampoline_park", label: "Trampoline Park", group: "events_entertainment", tier: 3, avgValue: "$15-30/person" },
+  { value: "axe_throwing", label: "Axe Throwing", group: "events_entertainment", tier: 3, avgValue: "$25-40/person" },
+  { value: "karaoke_bar", label: "Karaoke Bar", group: "events_entertainment", tier: 3, avgValue: "$20-50/visit" },
+
+  // MORE SEASONAL & REGIONAL
+  { value: "christmas_lights", label: "Christmas Light Installation", group: "seasonal_regional", tier: 2, avgValue: "$300-1,500" },
+  { value: "lawn_aeration", label: "Lawn Aeration/Seeding", group: "seasonal_regional", tier: 2, avgValue: "$100-300/job" },
+  { value: "leaf_removal", label: "Leaf Removal", group: "seasonal_regional", tier: 2, avgValue: "$150-400/job" },
+  { value: "mosquito_control", label: "Mosquito Control", group: "seasonal_regional", tier: 2, avgValue: "$50-100/treatment" },
+  { value: "screen_repair", label: "Screen Repair/Enclosure", group: "seasonal_regional", tier: 2, avgValue: "$200-3,000" }
 ];
 
 // Load business categories from cloud/localStorage
@@ -8809,28 +8988,31 @@ async function loadBusinessCategories() {
   try {
     const cloudData = await loadFromCloud('businessCategories');
 
-    // ONE-TIME MIGRATION: Force update to simplified category list
-    // v5: Added Daycare/Preschool category
-    const CATEGORY_VERSION = '2026-02-04-v5';
+    // ONE-TIME MIGRATION: Force update to grouped category list with tiers
+    // v7: Expanded categories - added 90+ new business types across all groups
+    const CATEGORY_VERSION = '2026-02-08-v7';
     const currentVersion = localStorage.getItem('categoryVersion');
 
     if (currentVersion !== CATEGORY_VERSION) {
-      console.log('🔄 Migrating to simplified business categories (consolidated similar categories)');
-      // Use the new default categories
-      businessCategories.sort((a, b) => a.label.localeCompare(b.label));
+      console.log('🔄 Migrating to grouped business categories with tiers');
+      // Use the new default categories (already defined with groups and tiers)
       await saveToCloud('businessCategories', businessCategories);
       localStorage.setItem('categoryVersion', CATEGORY_VERSION);
       console.log('✅ Categories migrated and saved to cloud');
     } else if (cloudData && Array.isArray(cloudData) && cloudData.length > 0) {
-      businessCategories = cloudData;
+      // Only use cloud data if it has the new group structure
+      if (cloudData[0] && cloudData[0].group) {
+        businessCategories = cloudData;
+      } else {
+        // Cloud data is old format, use new defaults
+        console.log('🔄 Cloud data is old format, using new grouped categories');
+        await saveToCloud('businessCategories', businessCategories);
+      }
     }
 
-    // Sort alphabetically by label
-    businessCategories.sort((a, b) => a.label.localeCompare(b.label));
     renderBusinessCategories();
   } catch(err) {
     console.warn('Using default business categories:', err);
-    businessCategories.sort((a, b) => a.label.localeCompare(b.label));
     renderBusinessCategories();
   }
 }
@@ -8848,17 +9030,436 @@ async function saveBusinessCategories() {
   }
 }
 
-// Render business categories dynamically
+// Helper function to get the group for a category value
+function getCategoryGroup(categoryValue) {
+  if (!categoryValue) return 'other';
+  const searchVal = categoryValue.toLowerCase().replace(/[\s_-]+/g, '');
+
+  // Try exact match first
+  let cat = businessCategories.find(c => c.value === categoryValue);
+  if (cat) return cat.group;
+
+  // Try normalized match
+  cat = businessCategories.find(c => {
+    const catVal = c.value.toLowerCase().replace(/[\s_-]+/g, '');
+    const catLabel = c.label.toLowerCase().replace(/[\s_-]+/g, '');
+    return catVal === searchVal || catLabel === searchVal;
+  });
+  if (cat) return cat.group;
+
+  // Try partial/contains match (e.g., "hvac" matches "hvac_contractor")
+  cat = businessCategories.find(c => {
+    const catVal = c.value.toLowerCase().replace(/[\s_-]+/g, '');
+    const catLabel = c.label.toLowerCase().replace(/[\s_-]+/g, '');
+    return catVal.includes(searchVal) || searchVal.includes(catVal) ||
+           catLabel.includes(searchVal) || searchVal.includes(catLabel);
+  });
+  if (cat) return cat.group;
+
+  return 'other';
+}
+
+// Helper function to get group info by group id
+function getGroupInfo(groupId) {
+  return CATEGORY_GROUPS.find(g => g.id === groupId) || { id: 'other', name: 'Other', icon: '📋', tier: 3 };
+}
+
+// Track which category groups are expanded (for search)
+let expandedCategoryGroups = new Set(); // All groups collapsed by default
+
+// Track selected categories for search (persists across collapse/expand)
+let selectedSearchCategories = new Set();
+
+// Track which category groups are expanded (for business pool)
+let expandedPoolGroups = new Set(); // All groups collapsed by default
+
+// Toggle pool category group expansion
+function togglePoolGroup(groupId) {
+  if (expandedPoolGroups.has(groupId)) {
+    expandedPoolGroups.delete(groupId);
+  } else {
+    expandedPoolGroups.add(groupId);
+  }
+  renderProspectPool();
+}
+
+// Select all prospects in a pool group
+function selectAllInPoolGroup(groupId) {
+  // Get the group info for display name
+  const groupInfo = CATEGORY_GROUPS.find(g => g.id === groupId) || { name: groupId.replace(/_/g, ' '), icon: '📋' };
+
+  // Get all prospects from the pool that belong to this group
+  const allProspects = [];
+
+  // Collect from rendered prospects lookup
+  Object.values(prospectPoolState.renderedProspects).forEach(prospect => {
+    const category = prospect.category || '';
+    const prospectGroupId = getCategoryGroup(category);
+    if (prospectGroupId === groupId && !prospect.inSystem && !prospect.doNotContact) {
+      const id = prospect.placeId || prospect.id;
+      if (id) allProspects.push(id);
+    }
+  });
+
+  // Also check manual prospects
+  prospectPoolState.manualProspects.forEach(prospect => {
+    const category = prospect.category || '';
+    const prospectGroupId = getCategoryGroup(category);
+    if (prospectGroupId === groupId && !prospect.inSystem && !prospect.doNotContact) {
+      const id = prospect.placeId || prospect.id;
+      if (id && !allProspects.includes(id)) allProspects.push(id);
+    }
+  });
+
+  // Add all to selected
+  allProspects.forEach(id => prospectPoolState.selectedIds.add(id));
+
+  toast(`${groupInfo.icon} Selected ${allProspects.length} prospects from ${groupInfo.name}`, true);
+  updatePoolSelectedCount();
+  renderProspectPool();
+}
+
+// Render grouped categories for Business Pool
+function renderGroupedPoolCategories(filteredByCategory) {
+  // Organize categories by group
+  const groupedData = {};
+  CATEGORY_GROUPS.forEach(g => groupedData[g.id] = { info: g, categories: {} });
+  groupedData['other'] = { info: { id: 'other', name: 'Other', icon: '📋', tier: 3 }, categories: {} };
+
+  Object.keys(filteredByCategory).forEach(category => {
+    const prospects = filteredByCategory[category];
+    if (!prospects || prospects.length === 0) return;
+
+    const groupId = getCategoryGroup(category);
+    if (!groupedData[groupId]) {
+      groupedData[groupId] = { info: getGroupInfo(groupId), categories: {} };
+    }
+    groupedData[groupId].categories[category] = prospects;
+  });
+
+  // Sort groups by tier, then render
+  const sortedGroups = Object.keys(groupedData)
+    .filter(gid => Object.keys(groupedData[gid].categories).length > 0)
+    .sort((a, b) => {
+      const tierA = groupedData[a].info.tier || 3;
+      const tierB = groupedData[b].info.tier || 3;
+      return tierA - tierB;
+    });
+
+  return sortedGroups.map(groupId => {
+    const group = groupedData[groupId];
+    // Auto-expand "other" group so nothing is hidden
+    const isExpanded = expandedPoolGroups.has(groupId) || groupId === 'other';
+    const tierInfo = CATEGORY_TIERS[group.info.tier] || CATEGORY_TIERS[3];
+    const tierBadgeColor = tierInfo.color === 'green' ? 'bg-green-500' :
+                           tierInfo.color === 'blue' ? 'bg-blue-500' : 'bg-yellow-500';
+
+    // Count totals for this group
+    let groupTotal = 0;
+    let groupEnriched = 0;
+    let groupAvailable = 0;
+    Object.values(group.categories).forEach(prospects => {
+      groupTotal += prospects.length;
+      groupEnriched += prospects.filter(p => p.isEnriched || p.enriched).length;
+      groupAvailable += prospects.filter(p => !p.inSystem && !p.doNotContact).length;
+    });
+
+    const categoryCount = Object.keys(group.categories).length;
+
+    return `
+      <div class="mb-4 pool-group-section" data-group-id="${groupId}">
+        <div class="flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg hover:from-gray-100 hover:to-gray-200 transition-all border border-gray-200">
+          <div class="flex items-center gap-3 cursor-pointer flex-1" onclick="togglePoolGroup('${groupId}')">
+            <span class="text-xl transform transition-transform ${isExpanded ? '' : '-rotate-90'}">▼</span>
+            <span class="text-2xl">${group.info.icon}</span>
+            <div>
+              <span class="font-bold text-gray-900">${group.info.name}</span>
+              <span class="text-sm text-gray-500 ml-2">(${categoryCount} categories, ${groupTotal} prospects)</span>
+            </div>
+            <span class="text-xs px-2 py-0.5 rounded-full ${tierBadgeColor} text-white">Tier ${group.info.tier}</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-green-600 font-medium">${groupEnriched} enriched</span>
+            ${groupAvailable > 0 ? `
+              <button onclick="event.stopPropagation(); selectAllInPoolGroup('${groupId}')"
+                      class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all flex items-center gap-1">
+                <span>☑️</span> Select All ${groupAvailable}
+              </button>
+            ` : '<span class="text-xs text-gray-400 italic">All in pipeline</span>'}
+          </div>
+        </div>
+        ${isExpanded ? renderPoolGroupCategories(group.categories) : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+// Render categories within a pool group
+function renderPoolGroupCategories(categories) {
+  return Object.keys(categories).sort().map(category => {
+    const prospects = categories[category];
+    if (!prospects || prospects.length === 0) return '';
+
+    const categoryName = category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    const enrichedCount = prospects.filter(p => p.isEnriched || p.enriched).length;
+    const rawCount = prospects.filter(p => !p.isEnriched && !p.enriched).length;
+    const availableToAdd = prospects.filter(p => !p.inSystem).length;
+
+    return `
+      <div class="ml-6 mt-4 mb-6 category-section" id="category-${category}">
+        <div class="flex items-center justify-between mb-3 pb-2 border-b border-gray-200">
+          <div class="flex items-center gap-3">
+            <button onclick="scrollToNextCategory('${category}')" class="p-1.5 bg-gray-100 hover:bg-indigo-100 rounded transition-colors" title="Next category">
+              <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+            </button>
+            <div>
+              <h4 class="font-bold text-gray-800">${categoryName}</h4>
+              <p class="text-xs text-gray-500">${prospects.length} total • <span class="text-green-600">${enrichedCount} enriched</span> • <span class="text-blue-600">${rawCount} raw</span></p>
+            </div>
+          </div>
+          ${availableToAdd > 0 ? `
+          <button onclick="selectAllInCategory('${category}')" class="px-2 py-1 bg-purple-600 text-white text-xs font-bold rounded hover:bg-purple-700 transition-all">
+            ☑️ Select All ${availableToAdd}
+          </button>
+          ` : '<span class="text-xs text-gray-400 italic">All added</span>'}
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          ${renderPoolProspectCards(prospects)}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Render individual prospect cards (extracted for reuse)
+function renderPoolProspectCards(prospects) {
+  return prospects
+    .map(p => ({
+      ...p,
+      leadScore: p.leadScore || calculateProspectScore(p),
+      contactScore: p.contactScore || (p.enriched ? calculateContactScore(p) : 0)
+    }))
+    .sort((a, b) => {
+      const aEnriched = a.enriched || a.isEnriched ? 1 : 0;
+      const bEnriched = b.enriched || b.isEnriched ? 1 : 0;
+      if (bEnriched !== aEnriched) return bEnriched - aEnriched;
+      const nameA = (a.name || a.businessName || a.title || '').toLowerCase();
+      const nameB = (b.name || b.businessName || b.title || '').toLowerCase();
+      return nameA.localeCompare(nameB);
+    })
+    .map(prospect => {
+      const prospectLookupId = prospect.placeId || prospect.id;
+      if (prospectLookupId) {
+        prospectPoolState.renderedProspects[prospectLookupId] = prospect;
+      }
+      return renderSinglePoolProspect(prospect);
+    }).join('');
+}
+
+// Render a single prospect card (enriched or raw)
+function renderSinglePoolProspect(prospect) {
+  const prospectLookupId = prospect.placeId || prospect.id;
+
+  // For enriched prospects
+  if (prospect.isEnriched || prospect.enriched) {
+    const contactIcons = [];
+    if (prospect.phone) contactIcons.push(`<a href="tel:${esc(prospect.phone)}" onclick="event.stopPropagation()" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="${esc(prospect.phone)}">📞</a>`);
+    if (prospect.website) contactIcons.push(`<a href="${esc(ensureHttps(prospect.website))}" onclick="event.stopPropagation()" target="_blank" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="${esc(prospect.website)}">🌐</a>`);
+    if (prospect.email) contactIcons.push(`<a href="mailto:${esc(prospect.email)}" onclick="event.stopPropagation()" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="${esc(prospect.email)}">✉️</a>`);
+    if (prospect.facebook) contactIcons.push(`<a href="${esc(ensureHttps(prospect.facebook))}" onclick="event.stopPropagation()" target="_blank" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="Facebook">📘</a>`);
+    if (prospect.instagram) contactIcons.push(`<a href="${esc(ensureHttps(prospect.instagram))}" onclick="event.stopPropagation()" target="_blank" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="Instagram">📷</a>`);
+    if (prospect.linkedin) contactIcons.push(`<a href="${esc(ensureHttps(prospect.linkedin))}" onclick="event.stopPropagation()" target="_blank" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="LinkedIn">💼</a>`);
+
+    let displayAddress = prospect.address || '';
+    let displayRating = prospect.rating || 0;
+    if (!displayAddress && prospect.notes) {
+      const addressMatch = prospect.notes.match(/Address:\s*([^\n]+)/);
+      if (addressMatch) displayAddress = addressMatch[1];
+    }
+    if (!displayRating && prospect.notes) {
+      const ratingMatch = prospect.notes.match(/Rating:\s*([\d.]+)/);
+      if (ratingMatch) displayRating = parseFloat(ratingMatch[1]);
+    }
+
+    const rawZipValue = prospect.actualZip || prospect.zipCode || prospect.zip || '';
+    const isValidZip = rawZipValue && rawZipValue !== 'undefined' && rawZipValue !== 'null';
+    const enrichedContactScore = prospect.contactScore || calculateContactScore(prospect);
+    const isEnrichedInSystem = prospect.inSystem;
+    const isPoolDoNotContact = prospect.doNotContact === true;
+    const displayName = prospect.name || prospect.businessName || prospect.title || 'Unnamed';
+
+    return `
+      <div class="rounded-xl overflow-hidden ${isPoolDoNotContact ? 'bg-red-50 border-2 border-red-300' : 'bg-gradient-to-br from-emerald-50 to-green-100 border-l-4 border-l-emerald-500'} ${isEnrichedInSystem || isPoolDoNotContact ? 'opacity-60' : 'hover:shadow-lg hover:scale-[1.02]'} transition-all duration-200 cursor-pointer relative" onclick="openClientModalForProspect('${prospect.id || prospect.placeId}')">
+        ${isPoolDoNotContact ? '<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10"><span class="text-6xl text-red-400 font-bold opacity-30">✕</span></div>' : ''}
+        <div class="px-4 py-3 flex items-start justify-between gap-2">
+          <div class="flex-1 min-w-0">
+            <h5 class="font-bold text-gray-900 ${isPoolDoNotContact ? 'line-through' : ''} truncate">${esc(displayName)}</h5>
+            <div class="flex items-center gap-2 mt-1 text-xs text-gray-600">
+              ${isValidZip ? '<span>📍 ' + rawZipValue + '</span>' : ''}
+              ${displayRating ? '<span>⭐ ' + displayRating + '</span>' : ''}
+            </div>
+          </div>
+          <div class="flex flex-col items-end gap-1">
+            ${isPoolDoNotContact ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white">DNC</span>' : ''}
+            ${isEnrichedInSystem ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-gray-400 text-white">In Pipeline</span>' : ''}
+            <span class="px-2 py-1 rounded-lg text-xs font-bold bg-emerald-600 text-white shadow-sm">${enrichedContactScore}/10</span>
+          </div>
+        </div>
+        ${contactIcons.length > 0 ? '<div class="px-4 pb-2 flex gap-2 flex-wrap">' + contactIcons.join('') + '</div>' : ''}
+        <div class="px-3 pb-3 flex gap-2">
+          ${prospect.phone ? '<button onclick="event.stopPropagation(); sendTextMessage(\'' + prospectLookupId + '\')" class="flex-1 px-3 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 font-semibold text-xs shadow-sm">💬 Text</button>' : ''}
+          ${prospect.email ? '<button onclick="event.stopPropagation(); sendPitchEmail(\'' + prospectLookupId + '\')" class="flex-1 px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 font-semibold text-xs shadow-sm">📧 Email</button>' : ''}
+          ${isEnrichedInSystem ? '<span class="flex-1 px-3 py-2 bg-gray-300 text-gray-600 rounded-lg font-semibold text-xs text-center">✓ Added</span>' : '<button onclick="event.stopPropagation(); moveProspectFromPool(\'' + (prospect.placeId || prospect.id) + '\')" class="flex-1 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold text-xs shadow-sm">Pipeline →</button>'}
+          <button onclick="event.stopPropagation(); reEnrichProspect('${prospect.placeId || prospect.id}')" class="w-9 h-9 flex items-center justify-center bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg font-semibold text-sm transition-colors" title="Re-enrich">🔄</button>
+          <button onclick="event.stopPropagation(); togglePoolDoNotContact('${prospect.placeId || prospect.id}')" class="${isPoolDoNotContact ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 hover:bg-red-500'} w-9 h-9 flex items-center justify-center text-white rounded-lg font-semibold text-sm transition-colors" title="${isPoolDoNotContact ? 'Remove DNC' : 'Do Not Contact'}">🚫</button>
+        </div>
+      </div>
+    `;
+  }
+
+  // For raw prospects (not enriched)
+  const prospectId = prospect.placeId || prospect.id;
+  const isSelected = prospectPoolState.selectedIds.has(prospectId);
+  const isDisabled = prospect.inSystem;
+  const isRawDoNotContact = prospect.doNotContact === true;
+  const displayName = prospect.name || prospect.businessName || prospect.title || 'Unnamed Business';
+  const rawZip = prospect.actualZip || prospect.zipCode || prospect.zip;
+  const hasValidZip = rawZip && rawZip !== 'undefined' && rawZip !== 'null';
+
+  return `
+    <div class="prospect-card rounded-xl overflow-hidden ${isRawDoNotContact ? 'bg-red-50 border-2 border-red-300 opacity-60' : (isDisabled ? 'bg-gray-100 opacity-60' : 'bg-white border border-gray-200 hover:shadow-lg hover:border-purple-300')} transition-all duration-200 relative" data-place-id="${prospectId}">
+      ${isRawDoNotContact ? '<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10"><span class="text-6xl text-red-400 font-bold opacity-30">✕</span></div>' : ''}
+      <div class="px-4 py-3 flex items-start gap-3" onclick="openClientModalForProspect('${prospectId}')">
+        <input type="checkbox" ${isSelected ? 'checked' : ''} ${isDisabled || isRawDoNotContact ? 'disabled' : ''} onchange="event.stopPropagation(); togglePoolProspect('${prospectId}')" onclick="event.stopPropagation()" class="mt-1 w-5 h-5 text-purple-600 rounded cursor-pointer flex-shrink-0 border-2 border-gray-300" />
+        <div class="flex-1 min-w-0 cursor-pointer">
+          <h5 class="font-bold text-gray-900 ${isRawDoNotContact ? 'line-through' : ''} truncate">${esc(displayName)}</h5>
+          <div class="flex items-center gap-2 mt-1 text-xs text-gray-500">
+            ${hasValidZip ? '<span>📍 ' + rawZip + '</span>' : ''}
+            ${prospect.rating ? '<span>⭐ ' + prospect.rating + '</span>' : ''}
+            ${isDisabled ? '<span class="px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded text-xs">In System</span>' : ''}
+          </div>
+        </div>
+        <div class="flex flex-col items-end gap-1">
+          ${isRawDoNotContact ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white">DNC</span>' : ''}
+          ${prospect.isExistingClient ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white">Client</span>' : ''}
+        </div>
+      </div>
+      ${!isDisabled && !isRawDoNotContact ? '<div class="px-4 pb-3"><button onclick="event.stopPropagation(); enrichSingleProspect(\'' + prospectId + '\')" id="enrich-btn-' + prospectId + '" class="w-full px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-bold text-sm hover:from-purple-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"><span class="text-lg">🔍</span> Find Contact Info</button></div>' : ''}
+      ${isDisabled || isRawDoNotContact ? '<div class="px-4 pb-3"><button onclick="event.stopPropagation(); togglePoolDoNotContact(\'' + prospectId + '\')" class="' + (isRawDoNotContact ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 hover:bg-red-500') + ' w-full py-2 text-white rounded-lg text-xs font-semibold transition-colors">' + (isRawDoNotContact ? '✓ Remove Do Not Contact' : '🚫 Do Not Contact') + '</button></div>' : ''}
+    </div>
+  `;
+}
+
+// Toggle category group expansion
+function toggleCategoryGroup(groupId) {
+  if (expandedCategoryGroups.has(groupId)) {
+    expandedCategoryGroups.delete(groupId);
+  } else {
+    expandedCategoryGroups.add(groupId);
+  }
+  renderBusinessCategories();
+}
+
+// Select/deselect all categories in a group
+function toggleGroupSelection(groupId, selectAll) {
+  // Get all categories in this group
+  const groupCats = businessCategories.filter(cat => cat.group === groupId);
+
+  // Update the persistent selection state
+  groupCats.forEach(cat => {
+    if (selectAll) {
+      selectedSearchCategories.add(cat.value);
+    } else {
+      selectedSearchCategories.delete(cat.value);
+    }
+  });
+
+  // Re-render to update UI (will preserve selections from the Set)
+  renderBusinessCategories();
+}
+
+// Render business categories dynamically with groups
 function renderBusinessCategories() {
   const container = document.getElementById('categoryCheckboxContainer');
   if (!container) return;
 
-  container.innerHTML = businessCategories.map(cat => `
-    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-2 rounded transition">
-      <input type="checkbox" value="${cat.value}" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" />
-      <span>${cat.label}</span>
-    </label>
-  `).join('');
+  // Sync DOM checkbox states into the persistent Set (for checkboxes that are currently visible)
+  container.querySelectorAll('.category-checkbox').forEach(cb => {
+    if (cb.checked) {
+      selectedSearchCategories.add(cb.value);
+    } else {
+      selectedSearchCategories.delete(cb.value);
+    }
+  });
+
+  // Use the persistent Set as the source of truth
+  const checkedValues = selectedSearchCategories;
+
+  // Group categories by their group property
+  const groupedCategories = {};
+  CATEGORY_GROUPS.forEach(g => groupedCategories[g.id] = []);
+
+  businessCategories.forEach(cat => {
+    const group = cat.group || 'other';
+    if (groupedCategories[group]) {
+      groupedCategories[group].push(cat);
+    }
+  });
+
+  // Build HTML for each group
+  let html = '';
+
+  CATEGORY_GROUPS.forEach(group => {
+    const cats = groupedCategories[group.id] || [];
+    if (cats.length === 0) return;
+
+    const isExpanded = expandedCategoryGroups.has(group.id);
+    const tierInfo = CATEGORY_TIERS[group.tier];
+    const tierBadgeColor = tierInfo.color === 'green' ? 'bg-green-500' :
+                           tierInfo.color === 'blue' ? 'bg-blue-500' : 'bg-yellow-500';
+
+    // Check selection state for this group
+    const selectedInGroup = cats.filter(cat => checkedValues.has(cat.value)).length;
+    const allSelected = selectedInGroup === cats.length;
+    const someSelected = selectedInGroup > 0 && selectedInGroup < cats.length;
+
+    html += `
+      <div class="category-group mb-2">
+        <div class="flex items-center justify-between p-2 bg-white/10 rounded-lg cursor-pointer hover:bg-white/20 transition">
+          <div class="flex items-center gap-2" onclick="toggleCategoryGroup('${group.id}')">
+            <span class="text-lg transform transition-transform ${isExpanded ? 'rotate-90' : ''}">${isExpanded ? '▼' : '▶'}</span>
+            <span class="text-lg">${group.icon}</span>
+            <span class="font-semibold">${group.name}</span>
+            <span class="text-xs text-white/60">(${cats.length})</span>
+            <span class="text-xs px-2 py-0.5 rounded-full ${tierBadgeColor} text-white">Tier ${group.tier}</span>
+          </div>
+          <div class="flex items-center gap-2" onclick="event.stopPropagation()">
+            ${selectedInGroup > 0 ? `<span class="text-xs text-green-300 font-medium">${selectedInGroup} selected</span>` : ''}
+            <label class="flex items-center gap-1 px-2 py-1 bg-purple-600 hover:bg-purple-700 rounded cursor-pointer transition" title="Select all ${cats.length} categories in ${group.name}">
+              <input type="checkbox"
+                     ${allSelected ? 'checked' : ''}
+                     ${someSelected ? 'class="indeterminate"' : ''}
+                     onchange="toggleGroupSelection('${group.id}', this.checked)"
+                     class="w-4 h-4 rounded text-purple-300 focus:ring-purple-500 cursor-pointer" />
+              <span class="text-xs text-white">All</span>
+            </label>
+          </div>
+        </div>
+        ${isExpanded ? `
+          <div class="grid grid-cols-2 gap-1 mt-2 ml-6">
+            ${cats.map(cat => `
+              <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white/10 p-1.5 rounded transition">
+                <input type="checkbox" value="${cat.value}" data-group="${group.id}" class="category-checkbox rounded text-purple-600 focus:ring-purple-500" ${checkedValues.has(cat.value) ? 'checked' : ''} />
+                <span class="truncate" title="${cat.label}">${cat.label}</span>
+              </label>
+            `).join('')}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
 
   // Also update client category dropdowns
   populateClientCategoryDropdowns();
@@ -8946,6 +9547,136 @@ function closeManageCategoriesModal() {
   if (input) input.value = '';
 }
 
+// Open Category Insights Modal
+function openCategoryInsightsModal() {
+  const modal = document.getElementById('categoryInsightsModal');
+  if (!modal) return;
+
+  // Populate the insights content
+  renderCategoryInsightsContent();
+
+  lastFocusedElementBeforeModal = document.activeElement;
+  modal.style.display = "flex";
+  modal.setAttribute('aria-hidden', 'false');
+  trapModalFocus(modal);
+}
+
+// Close Category Insights Modal
+function closeCategoryInsightsModal() {
+  const modal = document.getElementById('categoryInsightsModal');
+  if (!modal) return;
+
+  modal.style.display = "none";
+  modal.setAttribute('aria-hidden', 'true');
+  releaseModalFocus(modal);
+  if (lastFocusedElementBeforeModal) lastFocusedElementBeforeModal.focus();
+}
+
+// Render the Category Insights content
+function renderCategoryInsightsContent() {
+  const container = document.getElementById('categoryInsightsContent');
+  if (!container) return;
+
+  // Group categories by tier
+  const tier1 = businessCategories.filter(c => c.tier === 1);
+  const tier2 = businessCategories.filter(c => c.tier === 2);
+  const tier3 = businessCategories.filter(c => c.tier === 3);
+
+  // Further group by category group within each tier
+  const groupByGroup = (cats) => {
+    const grouped = {};
+    cats.forEach(cat => {
+      const groupInfo = CATEGORY_GROUPS.find(g => g.id === cat.group);
+      const groupName = groupInfo ? groupInfo.name : 'Other';
+      const groupIcon = groupInfo ? groupInfo.icon : '📋';
+      if (!grouped[cat.group]) {
+        grouped[cat.group] = { name: groupName, icon: groupIcon, categories: [] };
+      }
+      grouped[cat.group].categories.push(cat);
+    });
+    return grouped;
+  };
+
+  const renderTierSection = (tierNum, tierCats, color, bgColor, borderColor) => {
+    const grouped = groupByGroup(tierCats);
+    const tierInfo = CATEGORY_TIERS[tierNum];
+
+    return `
+      <div class="border-2 ${borderColor} rounded-xl overflow-hidden">
+        <div class="${bgColor} px-4 py-3">
+          <h4 class="font-bold text-lg flex items-center gap-2">
+            <span class="w-4 h-4 ${color} rounded-full"></span>
+            Tier ${tierNum}: ${tierInfo.name}
+            <span class="text-sm font-normal opacity-75">(${tierCats.length} categories)</span>
+          </h4>
+          <p class="text-sm opacity-80">${tierInfo.description}</p>
+        </div>
+        <div class="p-4 bg-white">
+          ${Object.entries(grouped).map(([groupId, group]) => `
+            <div class="mb-4 last:mb-0">
+              <h5 class="font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                <span>${group.icon}</span> ${group.name}
+              </h5>
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                ${group.categories.map(cat => `
+                  <div class="flex justify-between items-center bg-gray-50 px-3 py-2 rounded-lg text-sm">
+                    <span class="font-medium">${cat.label}</span>
+                    <span class="text-gray-500 text-xs">${cat.avgValue || ''}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  };
+
+  container.innerHTML = `
+    ${renderTierSection(1, tier1, 'bg-green-500', 'bg-green-100', 'border-green-300')}
+    ${renderTierSection(2, tier2, 'bg-blue-500', 'bg-blue-100', 'border-blue-300')}
+    ${renderTierSection(3, tier3, 'bg-yellow-500', 'bg-yellow-100', 'border-yellow-300')}
+
+    <div class="bg-gray-50 rounded-xl p-4 border border-gray-200">
+      <h4 class="font-bold text-gray-800 mb-3">🎯 Sales Tips by Category Type</h4>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+        <div>
+          <h5 class="font-semibold text-green-700 mb-1">For Tier 1 (Contractors):</h5>
+          <ul class="list-disc list-inside text-gray-600 space-y-1">
+            <li>Emphasize: "One new roof/HVAC job pays for a year of ads"</li>
+            <li>Show ROI math: $300/month x 12 = $3,600 vs $10,000+ job</li>
+            <li>Highlight: reaching homeowners directly, no lead fees</li>
+          </ul>
+        </div>
+        <div>
+          <h5 class="font-semibold text-blue-700 mb-1">For Tier 2 (Recurring):</h5>
+          <ul class="list-disc list-inside text-gray-600 space-y-1">
+            <li>Emphasize: "5 new monthly customers = $500+/month revenue"</li>
+            <li>Highlight: building local brand recognition</li>
+            <li>For restaurants: "Coupons drive immediate traffic"</li>
+          </ul>
+        </div>
+        <div>
+          <h5 class="font-semibold text-purple-700 mb-1">Pizza & Restaurants:</h5>
+          <ul class="list-disc list-inside text-gray-600 space-y-1">
+            <li>Offer coupon/special deal design help</li>
+            <li>Emphasize: "Every household = potential weekly orders"</li>
+            <li>Track redemptions with unique codes</li>
+          </ul>
+        </div>
+        <div>
+          <h5 class="font-semibold text-orange-700 mb-1">General Tips:</h5>
+          <ul class="list-disc list-inside text-gray-600 space-y-1">
+            <li>Lead with their average job/customer value</li>
+            <li>Compare to Google/Facebook ad costs (often higher CPL)</li>
+            <li>Offer to help design an effective ad</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 // Render the categories list in the manage modal
 function renderManageCategoriesList() {
   const container = document.getElementById('manageCategoriesList');
@@ -8994,14 +9725,14 @@ function addNewCategory() {
   // Create a value from the label (lowercase, replace spaces with hyphens)
   const newValue = newLabel.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
-  // Add the new category
+  // Add the new category (custom categories go to 'professional' group with tier 3)
   businessCategories.push({
     value: newValue,
-    label: newLabel
+    label: newLabel,
+    group: 'professional',
+    tier: 3,
+    avgValue: 'Custom'
   });
-
-  // Sort alphabetically
-  businessCategories.sort((a, b) => a.label.localeCompare(b.label));
 
   // Re-render the list
   renderManageCategoriesList();
@@ -11188,11 +11919,12 @@ function renderProspectPool() {
   let manualProspectsSkipped = 0;
 
   // Helper to normalize business name for deduplication (handles "& vs and", spacing, apostrophes, etc)
+  // NOTE: Less aggressive - only split on bullets/pipes, NOT dashes (dashes are common in business names)
   const normalizeNameForDedup = (name) => {
     if (!name) return '';
-    // First, truncate at common separators to get core business name
-    // Includes: bullets (•·●), pipes (|), colons (:), dashes (-–—), and other separators
-    let coreName = name.split(/[•·●|:\-–—►▸‣⁃]/)[0];
+    // Only truncate at very distinct separators (bullets, pipes) - NOT dashes or colons
+    // Dashes are too common in legit business names like "Joe's Pizza - Grand Island"
+    let coreName = name.split(/[•·●|►▸‣⁃]/)[0];
     return coreName.toLowerCase()
       .replace(/&/g, 'and')
       .replace(/['''`´]/g, '')  // Remove all apostrophe variations
@@ -11461,217 +12193,7 @@ function renderProspectPool() {
       </div>
     </div>
 
-    ${Object.keys(filteredByCategory).sort().map(category => {
-    const prospects = filteredByCategory[category];
-
-    // Hide categories with zero businesses
-    if (!prospects || prospects.length === 0) {
-      return '';
-    }
-
-    const categoryName = category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-    const enrichedCount = prospects.filter(p => p.isEnriched || p.enriched).length;
-    const rawCount = prospects.filter(p => !p.isEnriched && !p.enriched).length;
-
-    // Count how many are NOT already in system (available to add)
-    const availableToAdd = prospects.filter(p => !p.inSystem).length;
-
-    return `
-      <div class="mb-8 category-section" id="category-${category}">
-        <div class="flex items-center justify-between mb-4 pb-2 border-b-2 border-gray-200">
-          <div class="flex items-center gap-3">
-            <button onclick="scrollToNextCategory('${category}')" class="p-2 bg-gray-100 hover:bg-indigo-100 rounded-lg transition-colors group" title="Next category">
-              <svg class="w-5 h-5 text-gray-500 group-hover:text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
-            </button>
-            <div>
-              <h4 class="text-lg font-bold text-gray-900">${categoryName}</h4>
-              <p class="text-sm text-gray-600">${prospects.length} total • <span class="text-green-600">${enrichedCount} enriched</span> • <span class="text-blue-600">${rawCount} raw</span></p>
-            </div>
-          </div>
-          ${availableToAdd > 0 ? `
-          <button onclick="selectAllInCategory('${category}')" class="px-3 py-1.5 bg-purple-600 text-white text-sm font-bold rounded-lg hover:bg-purple-700 transition-all flex items-center gap-2">
-            ☑️ Select All ${availableToAdd}
-          </button>
-          ` : `<span class="text-xs text-gray-400 italic">All added</span>`}
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          ${prospects
-            // Calculate scores for all prospects
-            .map(p => ({
-              ...p,
-              leadScore: p.leadScore || calculateProspectScore(p),
-              contactScore: p.contactScore || (p.enriched ? calculateContactScore(p) : 0)
-            }))
-            // Sort: enriched first, then by rating, then by ZIP
-            .sort((a, b) => {
-              // Enriched businesses first
-              const aEnriched = a.enriched || a.isEnriched ? 1 : 0;
-              const bEnriched = b.enriched || b.isEnriched ? 1 : 0;
-              if (bEnriched !== aEnriched) return bEnriched - aEnriched;
-
-              // Then alphabetically by name
-              const nameA = (a.name || a.businessName || a.title || '').toLowerCase();
-              const nameB = (b.name || b.businessName || b.title || '').toLowerCase();
-              if (nameA !== nameB) return nameA.localeCompare(nameB);
-
-              // Then by lead score (higher first)
-              const scoreA = a.leadScore || 0;
-              const scoreB = b.leadScore || 0;
-              return scoreB - scoreA;
-            })
-            .map(prospect => {
-            // Store prospect in lookup table for later retrieval (avoids unsafe JSON in onclick)
-            const prospectLookupId = prospect.placeId || prospect.id;
-            if (prospectLookupId) {
-              prospectPoolState.renderedProspects[prospectLookupId] = prospect;
-            }
-
-            // For enriched prospects (isEnriched OR enriched flag) - show with green background
-            if (prospect.isEnriched || prospect.enriched) {
-              // Build compact clickable icon display
-              const contactIcons = [];
-              if (prospect.phone) contactIcons.push(`<a href="tel:${esc(prospect.phone)}" onclick="event.stopPropagation()" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="${esc(prospect.phone)}">📞</a>`);
-              if (prospect.website) contactIcons.push(`<a href="${esc(ensureHttps(prospect.website))}" onclick="event.stopPropagation()" target="_blank" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="${esc(prospect.website)}">🌐</a>`);
-              if (prospect.email) contactIcons.push(`<a href="mailto:${esc(prospect.email)}" onclick="event.stopPropagation()" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="${esc(prospect.email)}">✉️</a>`);
-              if (prospect.facebook) contactIcons.push(`<a href="${esc(ensureHttps(prospect.facebook))}" onclick="event.stopPropagation()" target="_blank" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="Facebook">📘</a>`);
-              if (prospect.instagram) contactIcons.push(`<a href="${esc(ensureHttps(prospect.instagram))}" onclick="event.stopPropagation()" target="_blank" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="Instagram">📷</a>`);
-              if (prospect.linkedin) contactIcons.push(`<a href="${esc(ensureHttps(prospect.linkedin))}" onclick="event.stopPropagation()" target="_blank" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="LinkedIn">💼</a>`);
-              if (prospect.twitter) contactIcons.push(`<a href="${esc(ensureHttps(prospect.twitter))}" onclick="event.stopPropagation()" target="_blank" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="Twitter">🐦</a>`);
-
-              // Extract address and rating
-              let displayAddress = prospect.address || '';
-              let displayRating = prospect.rating || 0;
-              if (!displayAddress && prospect.notes) {
-                const addressMatch = prospect.notes.match(/Address:\s*([^\n]+)/);
-                if (addressMatch) displayAddress = addressMatch[1];
-              }
-              if (!displayRating && prospect.notes) {
-                const ratingMatch = prospect.notes.match(/Rating:\s*([\d.]+)/);
-                if (ratingMatch) displayRating = parseFloat(ratingMatch[1]);
-              }
-
-              // ZIP code
-              const rawZipValue = prospect.actualZip || prospect.zipCode || prospect.zip || '';
-              const isValidZip = rawZipValue && rawZipValue !== 'undefined' && rawZipValue !== 'null';
-
-              // Contact score
-              const enrichedContactScore = prospect.contactScore || calculateContactScore(prospect);
-
-              // Status flags
-              const isEnrichedInSystem = prospect.inSystem;
-              const isPoolDoNotContact = prospect.doNotContact === true;
-              const displayName = prospect.name || prospect.businessName || prospect.title || 'Unnamed';
-
-              return `
-                <div class="rounded-xl overflow-hidden ${isPoolDoNotContact ? 'bg-red-50 border-2 border-red-300' : 'bg-gradient-to-br from-emerald-50 to-green-100 border-l-4 border-l-emerald-500'} ${isEnrichedInSystem || isPoolDoNotContact ? 'opacity-60' : 'hover:shadow-lg hover:scale-[1.02]'} transition-all duration-200 cursor-pointer relative" onclick="openClientModalForProspect('${prospect.id || prospect.placeId}')">
-                  ${isPoolDoNotContact ? `<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10"><span class="text-6xl text-red-400 font-bold opacity-30">✕</span></div>` : ''}
-
-                  <!-- Header with score -->
-                  <div class="px-4 py-3 flex items-start justify-between gap-2">
-                    <div class="flex-1 min-w-0">
-                      <h5 class="font-bold text-gray-900 ${isPoolDoNotContact ? 'line-through' : ''} truncate">${esc(displayName)}</h5>
-                      <div class="flex items-center gap-2 mt-1 text-xs text-gray-600">
-                        ${isValidZip ? `<span>📍 ${rawZipValue}</span>` : ''}
-                        ${displayRating ? `<span>⭐ ${displayRating}</span>` : ''}
-                      </div>
-                    </div>
-                    <div class="flex flex-col items-end gap-1">
-                      ${isPoolDoNotContact ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white">DNC</span>' : ''}
-                      ${isEnrichedInSystem ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-gray-400 text-white">In Pipeline</span>' : ''}
-                      <span class="px-2 py-1 rounded-lg text-xs font-bold bg-emerald-600 text-white shadow-sm">
-                        ${enrichedContactScore}/10
-                      </span>
-                    </div>
-                  </div>
-
-                  <!-- Contact icons -->
-                  ${contactIcons.length > 0 ? `
-                    <div class="px-4 pb-2 flex gap-2 flex-wrap">
-                      ${contactIcons.join('')}
-                    </div>
-                  ` : ''}
-
-                  <!-- Action buttons -->
-                  <div class="px-3 pb-3 flex gap-2">
-                    ${prospect.phone ? `<button onclick="event.stopPropagation(); sendTextMessage('${prospectLookupId}')" class="flex-1 px-3 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 font-semibold text-xs shadow-sm">💬 Text</button>` : ''}
-                    ${prospect.email ? `<button onclick="event.stopPropagation(); sendPitchEmail('${prospectLookupId}')" class="flex-1 px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 font-semibold text-xs shadow-sm">📧 Email</button>` : ''}
-                    ${isEnrichedInSystem ? `
-                      <span class="flex-1 px-3 py-2 bg-gray-300 text-gray-600 rounded-lg font-semibold text-xs text-center">✓ Added</span>
-                    ` : `
-                      <button onclick="event.stopPropagation(); moveProspectFromPool('${prospect.placeId || prospect.id}')" class="flex-1 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold text-xs shadow-sm">Pipeline →</button>
-                    `}
-                    <button onclick="event.stopPropagation(); reEnrichProspect('${prospect.placeId || prospect.id}')" class="w-9 h-9 flex items-center justify-center bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg font-semibold text-sm transition-colors" title="Re-enrich (search again)">🔄</button>
-                    <button onclick="event.stopPropagation(); togglePoolDoNotContact('${prospect.placeId || prospect.id}')" class="${isPoolDoNotContact ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 hover:bg-red-500'} w-9 h-9 flex items-center justify-center text-white rounded-lg font-semibold text-sm transition-colors" title="${isPoolDoNotContact ? 'Remove DNC' : 'Do Not Contact'}">🚫</button>
-                  </div>
-                </div>
-              `;
-            }
-
-            // For raw prospects (not enriched) - show with checkbox and prominent Enrich button
-            const prospectId = prospect.placeId || prospect.id;
-            prospectPoolState.renderedProspects[prospectId] = prospect;
-            const isSelected = prospectPoolState.selectedIds.has(prospectId);
-            const isDisabled = prospect.inSystem;
-            const isRawDoNotContact = prospect.doNotContact === true;
-
-            const displayName = prospect.name || prospect.businessName || prospect.title || 'Unnamed Business';
-            const rawZip = prospect.actualZip || prospect.zipCode || prospect.zip;
-            const hasValidZip = rawZip && rawZip !== 'undefined' && rawZip !== 'null';
-
-            return `
-              <div class="prospect-card rounded-xl overflow-hidden ${isRawDoNotContact ? 'bg-red-50 border-2 border-red-300 opacity-60' : (isDisabled ? 'bg-gray-100 opacity-60' : 'bg-white border border-gray-200 hover:shadow-lg hover:border-purple-300')} transition-all duration-200 relative" data-place-id="${prospectId}">
-                ${isRawDoNotContact ? `<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10"><span class="text-6xl text-red-400 font-bold opacity-30">✕</span></div>` : ''}
-
-                <!-- Header row with checkbox and name -->
-                <div class="px-4 py-3 flex items-start gap-3" onclick="openClientModalForProspect('${prospectId}')">
-                  <input
-                    type="checkbox"
-                    ${isSelected ? 'checked' : ''}
-                    ${isDisabled || isRawDoNotContact ? 'disabled' : ''}
-                    onchange="event.stopPropagation(); togglePoolProspect('${prospectId}')"
-                    onclick="event.stopPropagation()"
-                    class="mt-1 w-5 h-5 text-purple-600 rounded cursor-pointer flex-shrink-0 border-2 border-gray-300"
-                  />
-                  <div class="flex-1 min-w-0 cursor-pointer">
-                    <h5 class="font-bold text-gray-900 ${isRawDoNotContact ? 'line-through' : ''} truncate">${esc(displayName)}</h5>
-                    <div class="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                      ${hasValidZip ? `<span>📍 ${rawZip}</span>` : ''}
-                      ${prospect.rating ? `<span>⭐ ${prospect.rating}</span>` : ''}
-                      ${isDisabled ? '<span class="px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded text-xs">In System</span>' : ''}
-                    </div>
-                  </div>
-                  <div class="flex flex-col items-end gap-1">
-                    ${isRawDoNotContact ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white">DNC</span>' : ''}
-                    ${prospect.isExistingClient ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white">Client</span>' : ''}
-                  </div>
-                </div>
-
-                <!-- Prominent Enrich Button -->
-                ${!isDisabled && !isRawDoNotContact ? `
-                <div class="px-4 pb-3">
-                  <button onclick="event.stopPropagation(); enrichSingleProspect('${prospectId}')"
-                          id="enrich-btn-${prospectId}"
-                          class="w-full px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-bold text-sm hover:from-purple-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2">
-                    <span class="text-lg">🔍</span> Find Contact Info
-                  </button>
-                </div>
-                ` : ''}
-
-                <!-- DNC toggle for disabled/DNC cards -->
-                ${isDisabled || isRawDoNotContact ? `
-                <div class="px-4 pb-3">
-                  <button onclick="event.stopPropagation(); togglePoolDoNotContact('${prospectId}')" class="${isRawDoNotContact ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 hover:bg-red-500'} w-full py-2 text-white rounded-lg text-xs font-semibold transition-colors" title="${isRawDoNotContact ? 'Remove DNC' : 'Do Not Contact'}">
-                    ${isRawDoNotContact ? '✓ Remove Do Not Contact' : '🚫 Do Not Contact'}
-                  </button>
-                </div>
-                ` : ''}
-              </div>
-            `;
-          }).join('')}
-        </div>
-      </div>
-    `;
-  }).join('')}
+    ${renderGroupedPoolCategories(filteredByCategory)}
   `;
 
   // ZIP code filter is now handled by checkboxes above
@@ -12727,7 +13249,7 @@ function clearCacheByZip(zipCode) {
   if (otherBusinessCount > 0) messageParts.push(`${otherBusinessCount} from other cache entries`);
   if (manualCount > 0) messageParts.push(`${manualCount} manual prospects`);
 
-  const message = `Clear all prospects for ZIP ${zipCode}?\n\nThis will remove ${totalBusinesses} businesses:\n- ${messageParts.join('\n- ')}\n\nYou can re-run searches to get fresh results.`;
+  const message = `Clear all prospects for ZIP ${zipCode}?\n\nThis will remove ${totalBusinesses} businesses from the Prospect Pool:\n- ${messageParts.join('\n- ')}\n\nYour CRM clients and pipeline leads are NOT affected.\nYou can re-run searches to get fresh results.`;
 
   if (!confirm(message)) {
     return;
@@ -13961,6 +14483,16 @@ function openEditContactModal() {
   document.getElementById('editContactFacebook').value = currentProspectDetail.facebook || '';
   document.getElementById('editContactInstagram').value = currentProspectDetail.instagram || '';
 
+  // Populate category dropdown
+  const categorySelect = document.getElementById('editContactCategory');
+  if (categorySelect) {
+    const options = businessCategories.map(cat =>
+      `<option value="${esc(cat.label)}">${esc(cat.label)}</option>`
+    ).join('');
+    categorySelect.innerHTML = `<option value="">Select category...</option>${options}`;
+    categorySelect.value = currentProspectDetail.category || '';
+  }
+
   modal.style.display = 'flex';
   modal.setAttribute('aria-hidden', 'false');
 }
@@ -13980,6 +14512,7 @@ async function saveEditedContact() {
   }
 
   // Get updated values
+  const newCategory = document.getElementById('editContactCategory')?.value.trim() || '';
   const updates = {
     businessName: document.getElementById('editContactName').value.trim(),
     name: document.getElementById('editContactName').value.trim(),
@@ -13991,6 +14524,11 @@ async function saveEditedContact() {
     facebook: document.getElementById('editContactFacebook').value.trim(),
     instagram: document.getElementById('editContactInstagram').value.trim()
   };
+
+  // Add category if changed
+  if (newCategory) {
+    updates.category = newCategory;
+  }
 
   const prospectId = currentProspectDetail.id || currentProspectDetail.placeId;
   let saved = false;
@@ -14056,6 +14594,12 @@ async function saveEditedContact() {
   document.getElementById('detailWebsite').textContent = updates.website || '—';
   document.getElementById('detailAddress').textContent = updates.address || '—';
 
+  // Update category display in header if changed
+  if (updates.category) {
+    const categoryText = document.getElementById('detailCategoryText');
+    if (categoryText) categoryText.textContent = updates.category;
+  }
+
   // Update button states
   document.getElementById('btnContactCall').disabled = !updates.phone;
   document.getElementById('btnContactSMS').disabled = !updates.phone;
@@ -14076,7 +14620,8 @@ async function saveEditedContact() {
   renderProspectPool();
 
   closeEditContactModal();
-  toast('Contact info updated!', true);
+  const categoryNote = updates.category ? ` Category: ${updates.category}` : '';
+  toast(`Contact info updated!${categoryNote}`, true);
 }
 
 // Expose edit contact functions
@@ -24556,6 +25101,11 @@ async function loadAllData() {
   window.addFromProspectPool = addFromProspectPool;
   window.clearProspectPool = clearProspectPool;
   window.renderProspectPool = renderProspectPool;
+  window.toggleCategoryGroup = toggleCategoryGroup;
+  window.toggleGroupSelection = toggleGroupSelection;
+  window.togglePoolGroup = togglePoolGroup;
+  window.selectAllInPoolGroup = selectAllInPoolGroup;
+  window.clearNotInterestedList = clearNotInterestedList;
   window.switchTab = switchTab;
   window.deleteCurrentPostcard = deleteCurrentPostcard;
 }
@@ -25465,6 +26015,7 @@ function onCampaignsLoaded(res, restoreMailerId = null){
 
   // Populate town and month dropdowns
   populateTownAndMonthSelectors();
+  populateOutreachCampaignSelectors();
 
   renderAll();
 
@@ -25643,6 +26194,185 @@ function updatePostcardFromSelectors() {
   }
 }
 
+/* ========= OUTREACH CAMPAIGN SELECTORS ========= */
+// Populate the outreach tab campaign selectors
+function populateOutreachCampaignSelectors() {
+  const townSelect = document.getElementById("outreachTownSelect");
+  if (!townSelect) return;
+
+  // Get unique towns (sorted alphabetically)
+  const towns = [...new Set(state.mailers.map(m => m.Town))].sort();
+
+  // Populate town dropdown
+  townSelect.innerHTML = '<option value="">— Select Town —</option>' +
+    towns.map(town => `<option value="${esc(town)}">${esc(town)}</option>`).join('');
+
+  // Month dropdown will be populated when town is selected
+  const monthSelect = document.getElementById("outreachMonthSelect");
+  if (monthSelect) {
+    monthSelect.innerHTML = '<option value="">— Select Town First —</option>';
+    monthSelect.disabled = true;
+  }
+
+  // Sync with current selection
+  syncOutreachCampaignSelectors();
+}
+
+// When outreach town dropdown changes
+function onOutreachTownChanged() {
+  const townSelect = document.getElementById("outreachTownSelect");
+  const monthSelect = document.getElementById("outreachMonthSelect");
+
+  if (!townSelect || !monthSelect) return;
+
+  const selectedTown = townSelect.value;
+
+  if (!selectedTown) {
+    monthSelect.innerHTML = '<option value="">— Select Town First —</option>';
+    monthSelect.disabled = true;
+    updateOutreachCampaignLabel();
+    return;
+  }
+
+  // Filter mailers for this town only
+  const townMailers = state.mailers.filter(m => m.Town === selectedTown);
+
+  if (townMailers.length === 0) {
+    monthSelect.innerHTML = '<option value="">— No cards for this town —</option>';
+    monthSelect.disabled = true;
+    return;
+  }
+
+  // Get months for this town (sorted by date descending - newest first)
+  const monthDates = townMailers.map(m => m.Mail_Date).sort((a, b) => b.localeCompare(a));
+
+  // Enable and populate month dropdown
+  monthSelect.disabled = false;
+  monthSelect.innerHTML = '<option value="">— Select Month —</option>' +
+    monthDates.map(date => {
+      const mailer = townMailers.find(m => m.Mail_Date === date);
+      let displayDate = date;
+      if (/^\d{4}-\d{2}-\d{2}/.test(date)) {
+        const [year, month] = date.split('-');
+        const monthNames = ["", "January", "February", "March", "April", "May", "June",
+                            "July", "August", "September", "October", "November", "December"];
+        displayDate = `${monthNames[parseInt(month)]} ${year}`;
+      }
+      const sizeLabel = mailer?.Postcard_Size ? ` (${mailer.Postcard_Size})` : '';
+      return `<option value="${esc(date)}">${esc(displayDate)}${sizeLabel}</option>`;
+    }).join('');
+
+  // If there's only one month for this town, auto-select it
+  if (monthDates.length === 1) {
+    monthSelect.value = monthDates[0];
+    onOutreachMonthChanged();
+  }
+}
+
+// When outreach month dropdown changes
+function onOutreachMonthChanged() {
+  const townSelect = document.getElementById("outreachTownSelect");
+  const monthSelect = document.getElementById("outreachMonthSelect");
+
+  if (!townSelect || !monthSelect) return;
+
+  const selectedTown = townSelect.value;
+  const selectedMonth = monthSelect.value;
+
+  if (!selectedTown || !selectedMonth) {
+    updateOutreachCampaignLabel();
+    return;
+  }
+
+  // Find the postcard that matches both town and month
+  const matchingIndex = state.mailers.findIndex(m =>
+    m.Town === selectedTown && m.Mail_Date === selectedMonth
+  );
+
+  if (matchingIndex !== -1) {
+    // Use pickCampaign to properly switch campaigns
+    pickCampaign({ target: { value: matchingIndex.toString() } });
+
+    // Sync header selectors
+    state.updatingSelectors = true;
+    const headerTownSelect = document.getElementById("headerTownSelect");
+    const headerMonthSelect = document.getElementById("headerMonthSelect");
+    if (headerTownSelect) headerTownSelect.value = selectedTown;
+    if (headerMonthSelect) {
+      // Need to populate month options first
+      onTownChanged();
+      headerMonthSelect.value = selectedMonth;
+    }
+    state.updatingSelectors = false;
+
+    updateOutreachCampaignLabel();
+  }
+}
+
+// Sync outreach selectors when campaign changes elsewhere
+function syncOutreachCampaignSelectors() {
+  const townSelect = document.getElementById("outreachTownSelect");
+  const monthSelect = document.getElementById("outreachMonthSelect");
+
+  if (!townSelect || !state.current) {
+    updateOutreachCampaignLabel();
+    return;
+  }
+
+  // Set town
+  townSelect.value = state.current.Town || '';
+
+  // Populate and set month
+  if (townSelect.value) {
+    // Trigger month dropdown population
+    const townMailers = state.mailers.filter(m => m.Town === state.current.Town);
+    const monthDates = townMailers.map(m => m.Mail_Date).sort((a, b) => b.localeCompare(a));
+
+    if (monthSelect) {
+      monthSelect.disabled = false;
+      monthSelect.innerHTML = '<option value="">— Select Month —</option>' +
+        monthDates.map(date => {
+          const mailer = townMailers.find(m => m.Mail_Date === date);
+          let displayDate = date;
+          if (/^\d{4}-\d{2}-\d{2}/.test(date)) {
+            const [year, month] = date.split('-');
+            const monthNames = ["", "January", "February", "March", "April", "May", "June",
+                                "July", "August", "September", "October", "November", "December"];
+            displayDate = `${monthNames[parseInt(month)]} ${year}`;
+          }
+          const sizeLabel = mailer?.Postcard_Size ? ` (${mailer.Postcard_Size})` : '';
+          return `<option value="${esc(date)}">${esc(displayDate)}${sizeLabel}</option>`;
+        }).join('');
+
+      monthSelect.value = state.current.Mail_Date || '';
+    }
+  }
+
+  updateOutreachCampaignLabel();
+
+  // Refresh outreach table if we're on the outreach tab
+  const outreachPane = document.querySelector('[data-content="outreach"]');
+  if (outreachPane && !outreachPane.classList.contains('hidden')) {
+    renderOutreachTable();
+  }
+}
+
+// Update the campaign label next to dropdowns
+function updateOutreachCampaignLabel() {
+  const label = document.getElementById("outreachCampaignLabel");
+  if (!label) return;
+
+  if (state.current) {
+    const board = campaignBoardsState.boards[state.current.Mailer_ID];
+    const count = board ? Object.values(board.columns).reduce((sum, col) => sum + (col?.length || 0), 0) : 0;
+    label.textContent = `(${count} prospects in pipeline)`;
+    label.className = "text-sm text-green-600 font-medium ml-2";
+  } else {
+    label.textContent = "No campaign selected";
+    label.className = "text-sm text-gray-500 ml-2";
+  }
+}
+
 /* ========= LEGEND & SORT ========= */
 function renderLegend(){
   const grid = document.getElementById("legendGrid");
@@ -25730,6 +26460,7 @@ function pickCampaign(e){
   refreshFollowUpDashboard();
   refreshContactStatusDashboard();
   refreshAnalytics();
+  syncOutreachCampaignSelectors();
 
   // Save selected campaign to localStorage for page refresh persistence
   if (m.Mailer_ID) {
@@ -29835,7 +30566,7 @@ const outreachState = {
   sortBy: 'businessName',
   sortDir: 'asc',
   categoryFilter: '',
-  columnFilter: 'attempting', // Default to "Attempting" (column 2)
+  columnFilter: 'all', // Default to show all pipeline columns
   selectedProspect: null,
   currentTemplate: 'text'
 };
@@ -29848,6 +30579,7 @@ function renderOutreachTable() {
   if (board && board.columns) {
     if (outreachState.columnFilter === 'all') {
       prospects = [
+        ...(board.columns['queued'] || []),
         ...(board.columns['attempting'] || []),
         ...(board.columns['negotiating'] || []),
         ...(board.columns['invoice-sent'] || []),
