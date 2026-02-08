@@ -477,8 +477,9 @@ function findContactPageUrl(baseUrl, html) {
     for (const match of matches) {
       let url = match[1];
 
-      // Skip anchors and javascript
-      if (url.startsWith('#') || url.startsWith('javascript:')) continue;
+      // Skip anchors, javascript, mailto, and tel links
+      if (url.startsWith('#') || url.startsWith('javascript:') ||
+          url.startsWith('mailto:') || url.startsWith('tel:')) continue;
 
       // Convert relative URLs to absolute
       if (url.startsWith('/')) {
