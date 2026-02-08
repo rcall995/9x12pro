@@ -4524,16 +4524,18 @@ async function convertZipToLatLng(zipCode) {
  * Chain: Scrapingdog (1K/mo) → Brave (2K/mo) → Serper (2.5K/mo)
  * Total: ~5,500 FREE searches/month
  */
-async function searchBusinessWebsite(searchQuery, businessName) {
+async function searchBusinessWebsite(searchQuery, businessName, locationInfo = {}) {
+  const { zipCode, city, state } = locationInfo;
+
   try {
-    console.log(`🔍 Searching: "${searchQuery}"`);
+    console.log(`🔍 Searching: "${searchQuery}" (ZIP: ${zipCode || 'none'})`);
 
     // 1. Try Scrapingdog first (1,000 free/month, best quality via DuckDuckGo)
     try {
       const sdResponse = await fetch('/api/scrapingdog-search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: searchQuery, businessName })
+        body: JSON.stringify({ query: searchQuery, businessName, zipCode, city, state })
       });
 
       if (sdResponse.ok) {
@@ -4557,7 +4559,7 @@ async function searchBusinessWebsite(searchQuery, businessName) {
       const braveResponse = await fetch('/api/brave-search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: searchQuery, businessName })
+        body: JSON.stringify({ query: searchQuery, businessName, zipCode, city, state })
       });
 
       if (braveResponse.ok) {
@@ -4581,7 +4583,7 @@ async function searchBusinessWebsite(searchQuery, businessName) {
       const serperResponse = await fetch('/api/serper-search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: searchQuery, businessName })
+        body: JSON.stringify({ query: searchQuery, businessName, zipCode, city, state })
       });
 
       if (serperResponse.ok) {
@@ -5192,13 +5194,16 @@ async function enrichSingleProspect(prospectId) {
     // Record enrichment usage
     recordEnrichmentUsage();
 
-    const location = `${prospect.city || ''} ${prospect.state || 'NY'} ${prospect.zipCode || prospect.zip || ''}`.trim();
+    const city = prospect.city || '';
+    const state = prospect.state || 'NY';
+    const zipCode = prospect.zipCode || prospect.zip || prospect.searchedZipCode || '';
+    const location = `${city} ${state} ${zipCode}`.trim();
     let foundItems = [];
 
     // 1. Search for website if missing
     if (!prospect.website) {
       const websiteQuery = `${businessName} ${location}`;
-      const website = await searchBusinessWebsite(websiteQuery, businessName);
+      const website = await searchBusinessWebsite(websiteQuery, businessName, { zipCode, city, state });
       if (website) {
         prospect.website = website;
         foundItems.push('website');

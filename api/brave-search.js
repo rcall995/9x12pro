@@ -18,7 +18,7 @@ export default async function handler(req, res) {
     return res.status(rateLimited.status).json(rateLimited.body);
   }
 
-  const { query, businessName } = req.body;
+  const { query, businessName, zipCode, city, state } = req.body;
 
   if (!query) {
     return res.status(400).json({ error: 'Query required' });
@@ -238,6 +238,26 @@ export default async function handler(req, res) {
           if (bestMatch < minRequired) {
             console.log(`🦁 Skipping weak match: ${url} (${bestMatch}/${bizWords.length} words) for "${businessName}"`);
             continue;
+          }
+        }
+
+        // Validate location (ZIP code or city) appears in result - prevents wrong state matches
+        if (zipCode || city) {
+          const description = (result.description || '').toLowerCase();
+          const combinedText = `${title} ${description}`;
+
+          const hasZipMatch = zipCode && combinedText.includes(zipCode);
+          const hasCityMatch = city && combinedText.includes(city.toLowerCase());
+          const hasStateMatch = state && combinedText.includes(state.toLowerCase());
+
+          // Require ZIP match, OR city+state match
+          if (!hasZipMatch && !(hasCityMatch && hasStateMatch)) {
+            // Check if it's a national/chain business (these won't have local info)
+            const isLikelyChain = hostname.includes('.com') && !hostname.includes(city?.toLowerCase() || 'xxxxx');
+            if (isLikelyChain) {
+              console.log(`🦁 Skipping non-local result: ${url} (no ZIP ${zipCode} or city ${city})`);
+              continue;
+            }
           }
         }
       } catch {

@@ -54,7 +54,7 @@ export default async function handler(req, res) {
     return res.status(rateLimited.status).json(rateLimited.body);
   }
 
-  const { query, businessName } = req.body;
+  const { query, businessName, zipCode, city, state } = req.body;
 
   if (!query) {
     return res.status(400).json({ error: 'Query required' });
@@ -437,6 +437,22 @@ export default async function handler(req, res) {
 
             if (bestMatch < minRequired) {
               console.log(`🔍 Skipping weak match "${hostname}" (${bestMatch}/${bizWords.length} words) for "${businessName}"`);
+              continue;
+            }
+          }
+
+          // Validate location (ZIP code or city) appears in result
+          if (zipCode || city) {
+            const snippet = (result.snippet || '').toLowerCase();
+            const combinedText = `${resultTitle} ${snippet}`;
+
+            const hasZipMatch = zipCode && combinedText.includes(zipCode);
+            const hasCityMatch = city && combinedText.includes(city.toLowerCase());
+            const hasStateMatch = state && combinedText.includes(state.toLowerCase());
+
+            // Require ZIP match, OR city+state match
+            if (!hasZipMatch && !(hasCityMatch && hasStateMatch)) {
+              console.log(`🔍 Skipping non-local result: ${url} (no ZIP ${zipCode} or city ${city})`);
               continue;
             }
           }

@@ -19,7 +19,7 @@ export default async function handler(req, res) {
     return res.status(rateLimited.status).json(rateLimited.body);
   }
 
-  const { query, businessName } = req.body;
+  const { query, businessName, zipCode, city, state } = req.body;
 
   if (!query) {
     return res.status(400).json({ error: 'Query required' });
