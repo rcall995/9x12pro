@@ -30796,7 +30796,7 @@ function selectOutreachProspect(prospectId) {
   // Search Campaign Board columns
   const board = getCurrentCampaignBoard();
   if (board && board.columns) {
-    const searchCols = ['attempting', 'negotiating', 'invoice-sent', 'proof-approved'];
+    const searchCols = ['queued', 'attempting', 'negotiating', 'invoice-sent', 'proof-approved'];
     for (const colName of searchCols) {
       const items = board.columns[colName] || [];
       const found = items.find(p => typeof p === 'object' && p && String(p.id) === String(prospectId));
