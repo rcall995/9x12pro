@@ -356,6 +356,14 @@ function extractSocialLinks(html, baseUrl) {
     twitter: ['/share', '/intent', '/widgets']
   };
 
+  // Platform social accounts to filter out (these are website builders, not business accounts)
+  const platformAccounts = {
+    facebook: ['wix', 'weebly', 'squarespace', 'godaddy', 'wordpress', 'hubbiz', 'hub.biz', 'jimdo', 'webflow', 'duda'],
+    instagram: ['wix', 'weebly', 'squarespace', 'godaddy', 'wordpress', 'hubbiz'],
+    linkedin: ['wix', 'weebly', 'squarespace', 'godaddy'],
+    twitter: ['wix', 'weebly', 'squarespace', 'godaddy', 'bolt-performance', 'boltperformance', 'bolt_performance']
+  };
+
   // Facebook - find all matches and filter
   const fbMatches = html.match(/(?:https?:\/\/)?(?:www\.)?facebook\.com\/[A-Za-z0-9._-]+/gi) || [];
   for (const match of fbMatches) {
@@ -365,16 +373,19 @@ function extractSocialLinks(html, baseUrl) {
     if (isValid && url.split('/').length >= 4) { // Must have username/page
       // Extract the page name (last part of URL)
       const pageName = url.split('/').pop().split('?')[0]; // Remove query params
+      const pageNameLower = pageName.toLowerCase();
 
       // Skip if page name is:
       // - Too short (< 3 chars) - likely generic
       // - All numeric (years like '2008', IDs like '12345')
       // - Common generic words
+      // - Platform accounts (wix, weebly, etc.)
       const isNumericOnly = /^\d+$/.test(pageName);
       const isTooShort = pageName.length < 3;
-      const isGeneric = ['page', 'pages', 'home', 'index'].includes(pageName.toLowerCase());
+      const isGeneric = ['page', 'pages', 'home', 'index'].includes(pageNameLower);
+      const isPlatform = platformAccounts.facebook.some(p => pageNameLower.includes(p));
 
-      if (!isNumericOnly && !isTooShort && !isGeneric) {
+      if (!isNumericOnly && !isTooShort && !isGeneric && !isPlatform) {
         links.facebook = url;
         break;
       }
@@ -389,10 +400,12 @@ function extractSocialLinks(html, baseUrl) {
 
     if (isValid && url.split('/').length >= 4) { // Must have username
       const username = url.split('/').pop().split('?')[0];
+      const usernameLower = username.toLowerCase();
       const isNumericOnly = /^\d+$/.test(username);
       const isTooShort = username.length < 3;
+      const isPlatform = platformAccounts.instagram.some(p => usernameLower.includes(p));
 
-      if (!isNumericOnly && !isTooShort) {
+      if (!isNumericOnly && !isTooShort && !isPlatform) {
         links.instagram = url;
         break;
       }
@@ -405,8 +418,14 @@ function extractSocialLinks(html, baseUrl) {
     const url = match.startsWith('http') ? match : 'https://' + match;
     const isValid = !invalidPatterns.linkedin.some(pattern => url.toLowerCase().includes(pattern));
     if (isValid) {
-      links.linkedin = url;
-      break;
+      const companyName = url.split('/company/').pop()?.split('/')[0]?.split('?')[0] || '';
+      const companyNameLower = companyName.toLowerCase();
+      const isPlatform = platformAccounts.linkedin.some(p => companyNameLower.includes(p));
+
+      if (!isPlatform) {
+        links.linkedin = url;
+        break;
+      }
     }
   }
 
@@ -418,10 +437,12 @@ function extractSocialLinks(html, baseUrl) {
 
     if (isValid && url.split('/').length >= 4) { // Must have username
       const username = url.split('/').pop().split('?')[0];
+      const usernameLower = username.toLowerCase();
       const isNumericOnly = /^\d+$/.test(username);
       const isTooShort = username.length < 2; // Twitter allows 2-char usernames
+      const isPlatform = platformAccounts.twitter.some(p => usernameLower.includes(p));
 
-      if (!isNumericOnly && !isTooShort) {
+      if (!isNumericOnly && !isTooShort && !isPlatform) {
         links.twitter = url;
         break;
       }
