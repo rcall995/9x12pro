@@ -39,6 +39,7 @@ export default async function handler(req, res) {
 
   // Check monthly quota before making API call
   const quota = await checkApiQuota('scrapingdog');
+  console.log(`🐕 Scrapingdog quota check: ${quota.used}/${quota.limit} used, allowed: ${quota.allowed}`);
   if (!quota.allowed) {
     console.log(`🐕 Scrapingdog quota exceeded: ${quota.used}/${quota.limit} used`);
     return res.status(200).json({

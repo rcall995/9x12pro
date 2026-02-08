@@ -441,18 +441,22 @@ export default async function handler(req, res) {
             }
           }
 
-          // Validate location (ZIP code or city) appears in result
-          if (zipCode || city) {
+          // Location validation - only skip if result clearly mentions a DIFFERENT state
+          if (state) {
             const snippet = (result.snippet || '').toLowerCase();
             const combinedText = `${resultTitle} ${snippet}`;
 
-            const hasZipMatch = zipCode && combinedText.includes(zipCode);
-            const hasCityMatch = city && combinedText.includes(city.toLowerCase());
-            const hasStateMatch = state && combinedText.includes(state.toLowerCase());
+            // List of US states to check for wrong-state matches
+            const otherStates = ['california', 'texas', 'florida', 'ohio', 'pennsylvania', 'illinois', 'georgia', 'michigan', 'arizona', 'washington', 'colorado', 'massachusetts', 'virginia', 'new jersey', 'north carolina', 'tennessee', 'indiana', 'missouri', 'maryland', 'wisconsin', 'minnesota', 'oregon', 'kentucky', 'louisiana', 'oklahoma', 'connecticut', 'nevada', 'utah', 'arkansas', 'kansas', 'mississippi', 'new mexico', 'nebraska', 'idaho', 'hawaii', 'maine', 'montana', 'delaware', 'south dakota', 'north dakota', 'alaska', 'vermont', 'wyoming', ' ca ', ' tx ', ' fl ', ' oh ', ' pa ', ' il ', ' ga ', ' mi ', ' az ', ' wa ', ' co ', ' ma ', ' va ', ' nj ', ' nc ', ' tn ', ' in ', ' mo ', ' md ', ' wi ', ' mn ', ' or ', ' ky ', ' la ', ' ok ', ' ct ', ' nv ', ' ut ', ' ar ', ' ks ', ' ms ', ' nm ', ' ne ', ' id ', ' hi ', ' me ', ' mt ', ' de ', ' sd ', ' nd ', ' ak ', ' vt ', ' wy '];
 
-            // Require ZIP match, OR city+state match
-            if (!hasZipMatch && !(hasCityMatch && hasStateMatch)) {
-              console.log(`🔍 Skipping non-local result: ${url} (no ZIP ${zipCode} or city ${city})`);
+            // Skip if result mentions a different state (but not the target state)
+            const targetState = state.toLowerCase();
+            const mentionsDifferentState = otherStates.some(s =>
+              combinedText.includes(s) && !combinedText.includes(targetState)
+            );
+
+            if (mentionsDifferentState) {
+              console.log(`🔍 Skipping wrong-state result: ${url}`);
               continue;
             }
           }
