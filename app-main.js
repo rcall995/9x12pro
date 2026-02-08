@@ -6907,38 +6907,27 @@ function updateQuickApiUsage() {
 
 // Toggle all category checkboxes
 function toggleAllCategories(event) {
-  console.log('toggleAllCategories called');
-  console.log('Event:', event);
-  console.log('Event target:', event?.target);
-
   // Get the checkbox - either from event or by ID
   let selectAllCheckbox = event?.target || document.getElementById('selectAllCategories');
 
-  console.log('selectAllCheckbox:', selectAllCheckbox);
-  console.log('selectAllCheckbox checked:', selectAllCheckbox?.checked);
-
   if (!selectAllCheckbox) {
-    console.error('selectAllCategories checkbox not found');
     toast('Error: Select All checkbox not found', false);
     return;
   }
 
-  const categoryCheckboxes = document.querySelectorAll('.category-checkbox');
-  console.log('Found category checkboxes:', categoryCheckboxes.length);
+  const shouldCheck = selectAllCheckbox.checked;
 
-  if (categoryCheckboxes.length === 0) {
-    console.error('No category checkboxes found with class .category-checkbox');
-    toast('No categories to select', false);
-    return;
+  // Update the persistent Set directly (works even when groups are collapsed)
+  if (shouldCheck) {
+    businessCategories.forEach(cat => selectedSearchCategories.add(cat.value));
+  } else {
+    selectedSearchCategories.clear();
   }
 
-  const shouldCheck = selectAllCheckbox.checked;
-  categoryCheckboxes.forEach(checkbox => {
-    checkbox.checked = shouldCheck;
-  });
+  // Re-render to update UI
+  renderBusinessCategories();
 
-  console.log('Set all', categoryCheckboxes.length, 'checkboxes to:', shouldCheck);
-  toast(shouldCheck ? `Selected all ${categoryCheckboxes.length} categories` : 'Cleared all categories', true);
+  toast(shouldCheck ? `Selected all ${businessCategories.length} categories` : 'Cleared all categories', true);
 
   // Also update custom category input state when Select All is toggled
   const customCategoryCheckbox = document.getElementById('enableCustomCategory');
@@ -9312,6 +9301,7 @@ function renderSinglePoolProspect(prospect) {
           ${isEnrichedInSystem ? '<span class="flex-1 px-3 py-2 bg-gray-300 text-gray-600 rounded-lg font-semibold text-xs text-center">✓ Added</span>' : '<button onclick="event.stopPropagation(); moveProspectFromPool(\'' + (prospect.placeId || prospect.id) + '\')" class="flex-1 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold text-xs shadow-sm">Pipeline →</button>'}
           <button onclick="event.stopPropagation(); reEnrichProspect('${prospect.placeId || prospect.id}')" class="w-9 h-9 flex items-center justify-center bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg font-semibold text-sm transition-colors" title="Re-enrich">🔄</button>
           <button onclick="event.stopPropagation(); togglePoolDoNotContact('${prospect.placeId || prospect.id}')" class="${isPoolDoNotContact ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 hover:bg-red-500'} w-9 h-9 flex items-center justify-center text-white rounded-lg font-semibold text-sm transition-colors" title="${isPoolDoNotContact ? 'Remove DNC' : 'Do Not Contact'}">🚫</button>
+          <button onclick="event.stopPropagation(); deleteBusinessPermanently('${prospect.placeId || prospect.id}')" class="w-9 h-9 flex items-center justify-center bg-red-100 hover:bg-red-500 text-red-600 hover:text-white rounded-lg font-semibold text-sm transition-colors" title="Delete permanently">🗑️</button>
         </div>
       </div>
     `;
@@ -9344,8 +9334,8 @@ function renderSinglePoolProspect(prospect) {
           ${prospect.isExistingClient ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white">Client</span>' : ''}
         </div>
       </div>
-      ${!isDisabled && !isRawDoNotContact ? '<div class="px-4 pb-3"><button onclick="event.stopPropagation(); enrichSingleProspect(\'' + prospectId + '\')" id="enrich-btn-' + prospectId + '" class="w-full px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-bold text-sm hover:from-purple-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"><span class="text-lg">🔍</span> Find Contact Info</button></div>' : ''}
-      ${isDisabled || isRawDoNotContact ? '<div class="px-4 pb-3"><button onclick="event.stopPropagation(); togglePoolDoNotContact(\'' + prospectId + '\')" class="' + (isRawDoNotContact ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 hover:bg-red-500') + ' w-full py-2 text-white rounded-lg text-xs font-semibold transition-colors">' + (isRawDoNotContact ? '✓ Remove Do Not Contact' : '🚫 Do Not Contact') + '</button></div>' : ''}
+      ${!isDisabled && !isRawDoNotContact ? '<div class="px-4 pb-3 flex gap-2"><button onclick="event.stopPropagation(); enrichSingleProspect(\'' + prospectId + '\')" id="enrich-btn-' + prospectId + '" class="flex-1 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-bold text-sm hover:from-purple-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"><span class="text-lg">🔍</span> Find Contact Info</button><button onclick="event.stopPropagation(); deleteBusinessPermanently(\'' + prospectId + '\')" class="w-10 h-10 flex items-center justify-center bg-red-100 hover:bg-red-500 text-red-600 hover:text-white rounded-lg text-sm transition-colors" title="Delete permanently">🗑️</button></div>' : ''}
+      ${isDisabled || isRawDoNotContact ? '<div class="px-4 pb-3 flex gap-2"><button onclick="event.stopPropagation(); togglePoolDoNotContact(\'' + prospectId + '\')" class="' + (isRawDoNotContact ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 hover:bg-red-500') + ' flex-1 py-2 text-white rounded-lg text-xs font-semibold transition-colors">' + (isRawDoNotContact ? '✓ Remove Do Not Contact' : '🚫 Do Not Contact') + '</button><button onclick="event.stopPropagation(); deleteBusinessPermanently(\'' + prospectId + '\')" class="w-10 h-10 flex items-center justify-center bg-red-100 hover:bg-red-500 text-red-600 hover:text-white rounded-lg text-sm transition-colors" title="Delete permanently">🗑️</button></div>' : ''}
     </div>
   `;
 }
@@ -23453,6 +23443,85 @@ async function togglePoolDoNotContact(prospectId) {
 }
 
 window.togglePoolDoNotContact = togglePoolDoNotContact;
+
+// Permanently delete a business from all caches
+async function deleteBusinessPermanently(prospectId) {
+  if (!confirm('Permanently delete this business from your database?\n\nThis cannot be undone.')) {
+    return;
+  }
+
+  const idStr = String(prospectId);
+  let deletedName = 'Business';
+
+  // Helper to match prospect by ID
+  const matchesId = (b) => {
+    if (!b) return false;
+    return String(b.placeId) === idStr ||
+           String(b.id) === idStr ||
+           String(b.businessId) === idStr;
+  };
+
+  // Helper to filter out matching business
+  const filterOut = (arr) => arr.filter(b => !matchesId(b));
+
+  // Remove from allBusinesses
+  if (prospectPoolState.allBusinesses) {
+    const found = prospectPoolState.allBusinesses.find(matchesId);
+    if (found) deletedName = found.name || found.businessName || deletedName;
+    prospectPoolState.allBusinesses = filterOut(prospectPoolState.allBusinesses);
+  }
+
+  // Remove from manualProspects
+  if (prospectPoolState.manualProspects) {
+    const found = prospectPoolState.manualProspects.find(matchesId);
+    if (found) deletedName = found.name || found.businessName || deletedName;
+    prospectPoolState.manualProspects = filterOut(prospectPoolState.manualProspects);
+    await saveManualProspects();
+  }
+
+  // Remove from categories
+  if (prospectPoolState.categories) {
+    for (const categoryKey of Object.keys(prospectPoolState.categories)) {
+      if (prospectPoolState.categories[categoryKey].businesses) {
+        const found = prospectPoolState.categories[categoryKey].businesses.find(matchesId);
+        if (found) deletedName = found.name || found.businessName || deletedName;
+        prospectPoolState.categories[categoryKey].businesses = filterOut(prospectPoolState.categories[categoryKey].businesses);
+      }
+    }
+  }
+
+  // Remove from placesCache.searches
+  if (placesCache && placesCache.searches) {
+    for (const cacheKey of Object.keys(placesCache.searches)) {
+      const cached = placesCache.searches[cacheKey];
+      if (cached && cached.cachedData) {
+        const found = cached.cachedData.find(matchesId);
+        if (found) deletedName = found.name || found.businessName || deletedName;
+        cached.cachedData = filterOut(cached.cachedData);
+      }
+      if (cached && cached.businesses) {
+        const found = cached.businesses.find(matchesId);
+        if (found) deletedName = found.name || found.businessName || deletedName;
+        cached.businesses = filterOut(cached.businesses);
+      }
+    }
+    await savePlacesCache();
+  }
+
+  // Remove from renderedProspects
+  if (prospectPoolState.renderedProspects && prospectPoolState.renderedProspects[prospectId]) {
+    delete prospectPoolState.renderedProspects[prospectId];
+  }
+
+  // Remove from selectedIds
+  prospectPoolState.selectedIds.delete(prospectId);
+
+  // Re-render
+  renderProspectPool();
+  toast(`🗑️ "${deletedName}" permanently deleted`, true);
+}
+
+window.deleteBusinessPermanently = deleteBusinessPermanently;
 
 // Handle "Not Interested" button click
 function handleNotInterested(leadId, event) {
