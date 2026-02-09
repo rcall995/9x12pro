@@ -44,31 +44,47 @@ export default async function handler(req, res) {
 
     // Create audience if name provided but no ID
     if (!audienceId && audienceName) {
-      const createResponse = await fetch(`${RESEND_API_BASE}/audiences`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${RESEND_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ name: audienceName })
+      console.log('📧 Creating/finding audience:', audienceName);
+
+      // First, try to find existing audience
+      const listResponse = await fetch(`${RESEND_API_BASE}/audiences`, {
+        headers: { 'Authorization': `Bearer ${RESEND_API_KEY}` }
       });
 
-      if (!createResponse.ok) {
-        // Might already exist - try to find it
-        const listResponse = await fetch(`${RESEND_API_BASE}/audiences`, {
-          headers: { 'Authorization': `Bearer ${RESEND_API_KEY}` }
-        });
-        const audiences = await listResponse.json();
-        const existing = audiences.data?.find(a => a.name === audienceName);
+      if (!listResponse.ok) {
+        const listError = await listResponse.text();
+        console.error('Failed to list audiences:', listError);
+        return res.status(400).json({ error: 'Failed to list audiences', details: listError });
+      }
 
-        if (existing) {
-          targetAudienceId = existing.id;
-        } else {
-          const error = await createResponse.json();
-          return res.status(400).json({ error: 'Failed to create audience', details: error });
-        }
+      const audiences = await listResponse.json();
+      console.log('📧 Found audiences:', audiences.data?.length || 0);
+
+      const existing = audiences.data?.find(a => a.name === audienceName);
+
+      if (existing) {
+        console.log('📧 Using existing audience:', existing.id);
+        targetAudienceId = existing.id;
       } else {
+        // Create new audience
+        console.log('📧 Creating new audience...');
+        const createResponse = await fetch(`${RESEND_API_BASE}/audiences`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${RESEND_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ name: audienceName })
+        });
+
+        if (!createResponse.ok) {
+          const createError = await createResponse.text();
+          console.error('Failed to create audience:', createError);
+          return res.status(400).json({ error: 'Failed to create audience', details: createError });
+        }
+
         const newAudience = await createResponse.json();
+        console.log('📧 Created audience:', newAudience.id);
         targetAudienceId = newAudience.id;
       }
     }
