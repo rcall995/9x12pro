@@ -3965,10 +3965,10 @@ The cost is [SPOT_PRICE] for a premium spot. Interested in learning more?
     </div>
   </div>
 
-  <!-- Email Campaign Modal -->
+  <!-- Email Campaign Modal - Wizard Style -->
   <div id="emailCampaignModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-      <!-- Header -->
+      <!-- Header with Step Indicator -->
       <div class="p-4 bg-gradient-to-r from-purple-500 to-indigo-500 text-white">
         <div class="flex justify-between items-center">
           <h2 class="text-xl font-bold flex items-center gap-2">
@@ -3976,172 +3976,219 @@ The cost is [SPOT_PRICE] for a premium spot. Interested in learning more?
           </h2>
           <button onclick="closeEmailCampaignModal()" class="text-white/80 hover:text-white text-2xl">&times;</button>
         </div>
-        <p class="text-sm text-white/80 mt-1">Send emails to prospects or past customers</p>
+        <!-- Step Progress Bar -->
+        <div class="flex items-center gap-2 mt-3">
+          <div id="stepIndicator1" class="flex items-center gap-1">
+            <span class="w-6 h-6 rounded-full bg-white text-purple-600 text-xs font-bold flex items-center justify-center">1</span>
+            <span class="text-xs text-white/90 hidden sm:inline">Audience</span>
+          </div>
+          <div class="flex-1 h-0.5 bg-white/30" id="stepLine1"></div>
+          <div id="stepIndicator2" class="flex items-center gap-1 opacity-50">
+            <span class="w-6 h-6 rounded-full bg-white/30 text-white text-xs font-bold flex items-center justify-center">2</span>
+            <span class="text-xs text-white/70 hidden sm:inline">Template</span>
+          </div>
+          <div class="flex-1 h-0.5 bg-white/30" id="stepLine2"></div>
+          <div id="stepIndicator3" class="flex items-center gap-1 opacity-50">
+            <span class="w-6 h-6 rounded-full bg-white/30 text-white text-xs font-bold flex items-center justify-center">3</span>
+            <span class="text-xs text-white/70 hidden sm:inline">Customize</span>
+          </div>
+          <div class="flex-1 h-0.5 bg-white/30" id="stepLine3"></div>
+          <div id="stepIndicator4" class="flex items-center gap-1 opacity-50">
+            <span class="w-6 h-6 rounded-full bg-white/30 text-white text-xs font-bold flex items-center justify-center">4</span>
+            <span class="text-xs text-white/70 hidden sm:inline">Review</span>
+          </div>
+        </div>
       </div>
 
       <!-- Content -->
       <div class="p-6 overflow-y-auto flex-1">
-        <!-- Step 1: Select Audience -->
-        <div id="emailStep1" class="space-y-4">
-          <h3 class="font-bold text-gray-800 flex items-center gap-2">
-            <span class="w-6 h-6 rounded-full bg-purple-100 text-purple-600 text-sm flex items-center justify-center">1</span>
-            Select Audience
-          </h3>
+        <!-- Error Display -->
+        <div id="emailCampaignError" class="hidden mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm"></div>
+
+        <!-- STEP 1: Select Audience & Contacts -->
+        <div id="emailWizardStep1" class="space-y-4">
+          <h3 class="text-lg font-bold text-gray-800">Who do you want to email?</h3>
 
           <div class="grid grid-cols-2 gap-3">
             <button onclick="selectEmailAudience('prospects')" id="audienceBtn_prospects" class="p-4 border-2 border-gray-200 rounded-xl hover:border-purple-400 hover:bg-purple-50 transition-all text-left">
               <div class="text-2xl mb-2">🎯</div>
               <div class="font-semibold text-gray-800">Prospects</div>
-              <div class="text-sm text-gray-500">Queued businesses with email</div>
-              <div id="prospectCount" class="text-xs text-purple-600 font-medium mt-1">0 contacts</div>
+              <div class="text-sm text-gray-500">Queued businesses</div>
+              <div id="prospectCount" class="text-xs text-purple-600 font-medium mt-1">0 contacts with email</div>
             </button>
 
             <button onclick="selectEmailAudience('customers')" id="audienceBtn_customers" class="p-4 border-2 border-gray-200 rounded-xl hover:border-green-400 hover:bg-green-50 transition-all text-left">
               <div class="text-2xl mb-2">⭐</div>
               <div class="font-semibold text-gray-800">Past Customers</div>
               <div class="text-sm text-gray-500">Previous advertisers</div>
-              <div id="customerCount" class="text-xs text-green-600 font-medium mt-1">0 contacts</div>
+              <div id="customerCount" class="text-xs text-green-600 font-medium mt-1">0 contacts with email</div>
             </button>
           </div>
 
+          <!-- Contact Selection (shown after audience selected) -->
+          <div id="emailStepContacts" class="hidden space-y-3 mt-4 p-4 bg-gray-50 rounded-xl">
+            <div class="flex justify-between items-center">
+              <span class="font-medium text-gray-700">Select contacts to include:</span>
+              <div class="flex gap-2">
+                <button onclick="selectAllEmailContacts()" class="text-xs px-2 py-1 bg-white border hover:bg-gray-100 rounded">All</button>
+                <button onclick="deselectAllEmailContacts()" class="text-xs px-2 py-1 bg-white border hover:bg-gray-100 rounded">None</button>
+              </div>
+            </div>
+            <div id="emailContactList" class="max-h-40 overflow-y-auto bg-white border rounded-lg divide-y"></div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-gray-500" id="contactSelectionCount">0 of 0 selected</span>
+              <button onclick="syncAndContinue()" id="syncSelectedBtn" class="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-medium text-sm">
+                Continue →
+              </button>
+            </div>
+            <div id="syncStatus" class="hidden bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+              <div class="flex items-center gap-2">
+                <span class="animate-spin">⏳</span>
+                <span id="syncStatusText">Syncing contacts...</span>
+              </div>
+            </div>
+          </div>
+
           <!-- Manage Audiences Link -->
-          <div class="text-center pt-2">
+          <div class="text-center pt-2 border-t mt-4">
             <button onclick="openAudienceManager()" class="text-purple-600 hover:text-purple-700 text-sm font-medium">
               📋 View & Manage Email Lists
             </button>
           </div>
         </div>
 
-        <!-- Step 1.5: Select Contacts -->
-        <div id="emailStepContacts" class="hidden space-y-4 mt-6 pt-6 border-t">
-          <div class="flex justify-between items-center">
-            <h3 class="font-bold text-gray-800 flex items-center gap-2">
-              <span class="w-6 h-6 rounded-full bg-purple-100 text-purple-600 text-sm flex items-center justify-center">2</span>
-              Select Contacts
-            </h3>
-            <div class="flex gap-2">
-              <button onclick="selectAllEmailContacts()" class="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded">Select All</button>
-              <button onclick="deselectAllEmailContacts()" class="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded">Deselect All</button>
-            </div>
-          </div>
-
-          <div class="text-sm text-gray-500" id="contactSelectionCount">0 of 0 selected</div>
-
-          <!-- Contact List -->
-          <div id="emailContactList" class="max-h-48 overflow-y-auto border rounded-lg divide-y">
-            <!-- Populated by JavaScript -->
-          </div>
-
-          <!-- Sync Button -->
-          <button onclick="syncSelectedContacts()" id="syncSelectedBtn" class="w-full py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-medium transition-colors">
-            Sync Selected to Email List
-          </button>
-
-          <!-- Sync Status -->
-          <div id="syncStatus" class="hidden bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
-            <div class="flex items-center gap-2">
-              <span class="animate-spin">⏳</span>
-              <span id="syncStatusText">Syncing contacts...</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Step 3: Select Template -->
-        <div id="emailStep2" class="hidden space-y-4 mt-6 pt-6 border-t">
-          <h3 class="font-bold text-gray-800 flex items-center gap-2">
-            <span class="w-6 h-6 rounded-full bg-purple-100 text-purple-600 text-sm flex items-center justify-center">3</span>
-            Select Template
-          </h3>
-
-          <div class="space-y-2">
-            <label class="flex items-start gap-3 p-3 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-purple-400 transition-all">
-              <input type="radio" name="emailTemplate" value="prospect_outreach" class="mt-1" checked>
-              <div>
-                <div class="font-semibold text-gray-800">Prospect Outreach</div>
-                <div class="text-sm text-gray-500">Introduce your postcard service to new prospects</div>
-              </div>
-            </label>
-
-            <label class="flex items-start gap-3 p-3 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-purple-400 transition-all">
-              <input type="radio" name="emailTemplate" value="customer_renewal" class="mt-1">
-              <div>
-                <div class="font-semibold text-gray-800">Customer Renewal</div>
-                <div class="text-sm text-gray-500">Re-engage past customers for repeat business</div>
-              </div>
-            </label>
-
-            <label class="flex items-start gap-3 p-3 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-purple-400 transition-all">
-              <input type="radio" name="emailTemplate" value="custom" class="mt-1">
-              <div>
-                <div class="font-semibold text-gray-800">Custom Message</div>
-                <div class="text-sm text-gray-500">Write your own email content</div>
-              </div>
-            </label>
-          </div>
-        </div>
-
-        <!-- Step 4: Customize -->
-        <div id="emailStep3" class="hidden space-y-4 mt-6 pt-6 border-t">
-          <h3 class="font-bold text-gray-800 flex items-center gap-2">
-            <span class="w-6 h-6 rounded-full bg-purple-100 text-purple-600 text-sm flex items-center justify-center">4</span>
-            Customize Email
-          </h3>
+        <!-- STEP 2: Select Template -->
+        <div id="emailWizardStep2" class="hidden space-y-4">
+          <h3 class="text-lg font-bold text-gray-800">Choose your email template</h3>
+          <p class="text-sm text-gray-500">Select the type of email you want to send to <span id="step2AudienceCount" class="font-medium text-purple-600">0 contacts</span></p>
 
           <div class="space-y-3">
+            <label class="flex items-start gap-3 p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-purple-400 hover:bg-purple-50 transition-all has-[:checked]:border-purple-500 has-[:checked]:bg-purple-50">
+              <input type="radio" name="emailTemplate" value="prospect_outreach" class="mt-1" checked>
+              <div class="flex-1">
+                <div class="font-semibold text-gray-800">🎯 Prospect Outreach</div>
+                <div class="text-sm text-gray-500 mt-1">Introduce your postcard marketing service to new businesses. Great for cold outreach.</div>
+              </div>
+            </label>
+
+            <label class="flex items-start gap-3 p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-purple-400 hover:bg-purple-50 transition-all has-[:checked]:border-purple-500 has-[:checked]:bg-purple-50">
+              <input type="radio" name="emailTemplate" value="customer_renewal" class="mt-1">
+              <div class="flex-1">
+                <div class="font-semibold text-gray-800">🔄 Customer Renewal</div>
+                <div class="text-sm text-gray-500 mt-1">Re-engage past customers for repeat business. Remind them of their success.</div>
+              </div>
+            </label>
+
+            <label class="flex items-start gap-3 p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-purple-400 hover:bg-purple-50 transition-all has-[:checked]:border-purple-500 has-[:checked]:bg-purple-50">
+              <input type="radio" name="emailTemplate" value="custom" class="mt-1">
+              <div class="flex-1">
+                <div class="font-semibold text-gray-800">✏️ Custom Message</div>
+                <div class="text-sm text-gray-500 mt-1">Write your own email from scratch with full control over the content.</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- STEP 3: Customize Email -->
+        <div id="emailWizardStep3" class="hidden space-y-4">
+          <h3 class="text-lg font-bold text-gray-800">Customize your email</h3>
+          <p class="text-sm text-gray-500">Personalize the email with your details</p>
+
+          <div class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Subject Line</label>
-              <input type="text" id="emailSubject" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Grow Your Business with Local Postcard Marketing">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Subject Line <span class="text-red-500">*</span></label>
+              <input type="text" id="emailSubject" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Grow Your Business with Local Postcard Marketing">
             </div>
 
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
-                <input type="text" id="emailSenderName" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Rich">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Your Name <span class="text-red-500">*</span></label>
+                <input type="text" id="emailSenderName" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Your Name">
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Your Phone</label>
-                <input type="text" id="emailSenderPhone" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="(716) 555-1234">
+                <input type="text" id="emailSenderPhone" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="(716) 555-1234">
               </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-2 gap-4">
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Location/Area</label>
-                <input type="text" id="emailLocation" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Grand Island">
+                <input type="text" id="emailLocation" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Grand Island">
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Mail Date</label>
-                <input type="text" id="emailMailDate" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="March 15, 2026">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Next Mail Date</label>
+                <input type="text" id="emailMailDate" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="March 15, 2026">
               </div>
             </div>
 
             <!-- Custom message textarea (shown only for custom template) -->
             <div id="customMessageSection" class="hidden">
-              <label class="block text-sm font-medium text-gray-700 mb-1">Custom Message</label>
-              <textarea id="emailCustomMessage" rows="6" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Write your email message here..."></textarea>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Your Message <span class="text-red-500">*</span></label>
+              <textarea id="emailCustomMessage" rows="6" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Write your email message here..."></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 4: Review & Send -->
+        <div id="emailWizardStep4" class="hidden space-y-4">
+          <h3 class="text-lg font-bold text-gray-800">Review before sending</h3>
+
+          <!-- Summary Card -->
+          <div class="bg-gray-50 rounded-xl p-4 space-y-3">
+            <div class="flex justify-between items-center pb-2 border-b">
+              <span class="text-gray-600">Recipients</span>
+              <span id="reviewRecipientCount" class="font-bold text-purple-600">0 contacts</span>
+            </div>
+            <div class="flex justify-between items-center pb-2 border-b">
+              <span class="text-gray-600">Template</span>
+              <span id="reviewTemplate" class="font-medium">Prospect Outreach</span>
+            </div>
+            <div class="flex justify-between items-center pb-2 border-b">
+              <span class="text-gray-600">Subject</span>
+              <span id="reviewSubject" class="font-medium text-sm truncate max-w-[200px]">-</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-gray-600">From</span>
+              <span id="reviewFrom" class="font-medium">-</span>
             </div>
           </div>
 
-          <!-- Preview Button -->
-          <button onclick="previewEmailCampaign()" class="text-purple-600 hover:text-purple-700 text-sm font-medium flex items-center gap-1">
-            <span>👁️</span> Preview Email
-          </button>
-        </div>
+          <!-- Preview -->
+          <div>
+            <button onclick="previewEmailCampaign()" class="text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1">
+              <span>👁️</span> Preview Full Email
+            </button>
+            <div id="emailPreview" class="hidden mt-3">
+              <div id="emailPreviewContent" class="border rounded-lg p-4 bg-white max-h-48 overflow-y-auto text-sm"></div>
+            </div>
+          </div>
 
-        <!-- Preview Section -->
-        <div id="emailPreview" class="hidden mt-6 pt-6 border-t">
-          <h3 class="font-bold text-gray-800 mb-3">Email Preview</h3>
-          <div id="emailPreviewContent" class="border rounded-lg p-4 bg-gray-50 max-h-64 overflow-y-auto text-sm"></div>
+          <!-- Warning -->
+          <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+            <strong>⚠️ Ready to send?</strong> This will send emails to all selected contacts. This action cannot be undone.
+          </div>
+
+          <!-- Confirmation Checkbox -->
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="confirmSendCheckbox" class="w-4 h-4 text-purple-600 rounded" onchange="updateSendButtonState()">
+            <span class="text-sm text-gray-700">I've reviewed the email and want to send it now</span>
+          </label>
         </div>
       </div>
 
-      <!-- Footer -->
+      <!-- Footer with Navigation -->
       <div class="p-4 bg-gray-50 border-t flex justify-between items-center">
-        <div id="emailCampaignError" class="text-red-600 text-sm hidden"></div>
+        <button onclick="emailWizardBack()" id="emailBackBtn" class="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium hidden">
+          ← Back
+        </button>
         <div class="flex gap-2 ml-auto">
           <button onclick="closeEmailCampaignModal()" class="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium">Cancel</button>
-          <button onclick="sendEmailCampaign()" id="sendEmailBtn" class="px-6 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-lg font-bold hover:from-purple-600 hover:to-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-            Send Campaign
+          <button onclick="emailWizardNext()" id="emailNextBtn" class="hidden px-6 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-medium">
+            Next →
+          </button>
+          <button onclick="sendEmailCampaignWithConfirm()" id="sendEmailBtn" class="hidden px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-bold hover:from-green-600 hover:to-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+            🚀 Send Campaign
           </button>
         </div>
       </div>

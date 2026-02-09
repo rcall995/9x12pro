@@ -31323,9 +31323,12 @@ window.outreachQuickCall = outreachQuickCall;
 // =============================================
 
 const emailCampaignState = {
+  currentStep: 1,          // Wizard step (1-4)
   selectedAudience: null,  // 'prospects' or 'customers'
   audienceId: null,        // Resend audience ID after sync
   contacts: [],            // Contacts to sync
+  availableContacts: [],   // All contacts available
+  selectedContactIds: new Set(),
   synced: false
 };
 
@@ -31334,20 +31337,25 @@ function openEmailCampaignModal() {
   if (!modal) return;
 
   // Reset state
+  emailCampaignState.currentStep = 1;
   emailCampaignState.selectedAudience = null;
   emailCampaignState.audienceId = null;
   emailCampaignState.contacts = [];
+  emailCampaignState.availableContacts = [];
+  emailCampaignState.selectedContactIds = new Set();
   emailCampaignState.synced = false;
 
-  // Reset UI
-  document.getElementById('emailStep2')?.classList.add('hidden');
-  document.getElementById('emailStep3')?.classList.add('hidden');
+  // Reset UI - show only step 1
+  showEmailWizardStep(1);
+
+  // Reset form elements
+  document.getElementById('emailStepContacts')?.classList.add('hidden');
   document.getElementById('emailPreview')?.classList.add('hidden');
   document.getElementById('syncStatus')?.classList.add('hidden');
   document.getElementById('emailCampaignError')?.classList.add('hidden');
-  document.getElementById('sendEmailBtn').disabled = true;
   document.getElementById('audienceBtn_prospects')?.classList.remove('border-purple-500', 'bg-purple-50');
   document.getElementById('audienceBtn_customers')?.classList.remove('border-green-500', 'bg-green-50');
+  document.getElementById('confirmSendCheckbox').checked = false;
 
   // Count available contacts
   updateEmailContactCounts();
@@ -31358,7 +31366,6 @@ function openEmailCampaignModal() {
     const mailDateInput = document.getElementById('emailMailDate');
     if (locationInput) locationInput.value = state.current.Town || '';
     if (mailDateInput && state.current.Mail_Date) {
-      // Format the date nicely
       const [year, month, day] = state.current.Mail_Date.split('-');
       const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
       mailDateInput.value = `${monthNames[parseInt(month) - 1]} ${parseInt(day)}, ${year}`;
@@ -31377,6 +31384,128 @@ function openEmailCampaignModal() {
 
 function closeEmailCampaignModal() {
   document.getElementById('emailCampaignModal')?.classList.add('hidden');
+}
+
+function showEmailWizardStep(step) {
+  emailCampaignState.currentStep = step;
+
+  // Hide all steps
+  for (let i = 1; i <= 4; i++) {
+    document.getElementById(`emailWizardStep${i}`)?.classList.add('hidden');
+  }
+
+  // Show current step
+  document.getElementById(`emailWizardStep${step}`)?.classList.remove('hidden');
+
+  // Update step indicators
+  for (let i = 1; i <= 4; i++) {
+    const indicator = document.getElementById(`stepIndicator${i}`);
+    if (indicator) {
+      if (i <= step) {
+        indicator.classList.remove('opacity-50');
+        indicator.querySelector('span:first-child')?.classList.remove('bg-white/30');
+        indicator.querySelector('span:first-child')?.classList.add('bg-white', 'text-purple-600');
+      } else {
+        indicator.classList.add('opacity-50');
+        indicator.querySelector('span:first-child')?.classList.add('bg-white/30');
+        indicator.querySelector('span:first-child')?.classList.remove('bg-white', 'text-purple-600');
+      }
+    }
+  }
+
+  // Update footer buttons
+  const backBtn = document.getElementById('emailBackBtn');
+  const nextBtn = document.getElementById('emailNextBtn');
+  const sendBtn = document.getElementById('sendEmailBtn');
+
+  backBtn?.classList.toggle('hidden', step === 1);
+  nextBtn?.classList.toggle('hidden', step === 4 || step === 1);
+  sendBtn?.classList.toggle('hidden', step !== 4);
+
+  // Update send button state
+  if (step === 4) {
+    updateSendButtonState();
+    updateReviewSummary();
+  }
+}
+
+function emailWizardBack() {
+  if (emailCampaignState.currentStep > 1) {
+    showEmailWizardStep(emailCampaignState.currentStep - 1);
+  }
+}
+
+function emailWizardNext() {
+  const currentStep = emailCampaignState.currentStep;
+
+  // Validate current step before proceeding
+  if (currentStep === 2) {
+    // Template step - no validation needed
+  } else if (currentStep === 3) {
+    // Customize step - validate required fields
+    const subject = document.getElementById('emailSubject')?.value?.trim();
+    const senderName = document.getElementById('emailSenderName')?.value?.trim();
+    const template = document.querySelector('input[name="emailTemplate"]:checked')?.value;
+
+    if (!subject) {
+      showEmailError('Please enter a subject line');
+      return;
+    }
+    if (!senderName) {
+      showEmailError('Please enter your name');
+      return;
+    }
+    if (template === 'custom') {
+      const customMsg = document.getElementById('emailCustomMessage')?.value?.trim();
+      if (!customMsg) {
+        showEmailError('Please enter your custom message');
+        return;
+      }
+    }
+    hideEmailError();
+  }
+
+  if (currentStep < 4) {
+    showEmailWizardStep(currentStep + 1);
+  }
+}
+
+function updateReviewSummary() {
+  const contacts = emailCampaignState.contacts || [];
+  const template = document.querySelector('input[name="emailTemplate"]:checked')?.value || 'prospect_outreach';
+  const subject = document.getElementById('emailSubject')?.value || '-';
+  const senderName = document.getElementById('emailSenderName')?.value || '-';
+
+  const templateNames = {
+    'prospect_outreach': '🎯 Prospect Outreach',
+    'customer_renewal': '🔄 Customer Renewal',
+    'custom': '✏️ Custom Message'
+  };
+
+  document.getElementById('reviewRecipientCount').textContent = `${contacts.length} contacts`;
+  document.getElementById('reviewTemplate').textContent = templateNames[template] || template;
+  document.getElementById('reviewSubject').textContent = subject;
+  document.getElementById('reviewFrom').textContent = senderName;
+}
+
+function updateSendButtonState() {
+  const checkbox = document.getElementById('confirmSendCheckbox');
+  const sendBtn = document.getElementById('sendEmailBtn');
+  if (sendBtn) {
+    sendBtn.disabled = !checkbox?.checked;
+  }
+}
+
+function showEmailError(message) {
+  const errorEl = document.getElementById('emailCampaignError');
+  if (errorEl) {
+    errorEl.textContent = message;
+    errorEl.classList.remove('hidden');
+  }
+}
+
+function hideEmailError() {
+  document.getElementById('emailCampaignError')?.classList.add('hidden');
 }
 
 function updateEmailContactCounts() {
@@ -31520,7 +31649,89 @@ function updateContactSelectionCount() {
   }
   if (syncBtn) {
     syncBtn.disabled = selected === 0;
-    syncBtn.textContent = selected > 0 ? `Sync ${selected} Contacts to Email List` : 'Select Contacts to Sync';
+    syncBtn.textContent = selected > 0 ? `Continue →` : 'Select contacts first';
+  }
+}
+
+// Sync contacts and proceed to template selection
+async function syncAndContinue() {
+  const selectedIds = emailCampaignState.selectedContactIds || new Set();
+  const allContacts = emailCampaignState.availableContacts || [];
+  const type = emailCampaignState.selectedAudience;
+
+  // Get only selected contacts
+  const contacts = allContacts.filter(c => selectedIds.has(c.id));
+
+  if (contacts.length === 0) {
+    showEmailError('Please select at least one contact');
+    return;
+  }
+
+  hideEmailError();
+  emailCampaignState.contacts = contacts;
+
+  // Show sync status
+  const syncStatus = document.getElementById('syncStatus');
+  const syncText = document.getElementById('syncStatusText');
+  const syncBtn = document.getElementById('syncSelectedBtn');
+
+  syncStatus?.classList.remove('hidden');
+  syncText.textContent = `Syncing ${contacts.length} contacts... (this may take a moment)`;
+  if (syncBtn) syncBtn.disabled = true;
+
+  // Sync to Resend Audience
+  try {
+    const audienceName = type === 'prospects'
+      ? `Prospects - ${state.current?.Town || 'Campaign'}`
+      : `Customers - ${state.current?.Town || 'All'}`;
+
+    const response = await fetch('/api/resend/sync-contacts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        audienceName,
+        contactType: type,
+        contacts: contacts.map(c => ({
+          email: c.email,
+          businessName: c.businessName,
+          category: c.category,
+          firstName: c.businessName?.split(' ')[0] || ''
+        }))
+      })
+    });
+
+    const data = await response.json();
+    console.log('📧 Full sync response:', JSON.stringify(data, null, 2));
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to sync contacts');
+    }
+
+    emailCampaignState.audienceId = data.audienceId;
+    emailCampaignState.synced = true;
+
+    // Show sync result briefly
+    const results = data.results || {};
+    syncText.textContent = `✓ Synced ${results.added || 0} contacts${results.skipped > 0 ? ` (${results.skipped} already existed)` : ''}`;
+
+    if (results.errors && results.errors.length > 0) {
+      console.warn('📧 Sync errors:', results.errors);
+    }
+
+    // Update step 2 audience count
+    document.getElementById('step2AudienceCount').textContent = `${contacts.length} contacts`;
+
+    // Move to step 2 after brief delay
+    setTimeout(() => {
+      syncStatus?.classList.add('hidden');
+      showEmailWizardStep(2);
+    }, 1500);
+
+  } catch (error) {
+    console.error('Sync error:', error);
+    showEmailError(error.message);
+    syncStatus?.classList.add('hidden');
+    if (syncBtn) syncBtn.disabled = false;
   }
 }
 
@@ -31696,15 +31907,28 @@ async function previewEmailCampaign() {
   }
 }
 
-async function sendEmailCampaign() {
+async function sendEmailCampaignWithConfirm() {
   if (!emailCampaignState.audienceId || !emailCampaignState.synced) {
-    showEmailError('Please select and sync an audience first');
+    showEmailError('Please sync contacts first');
+    return;
+  }
+
+  const checkbox = document.getElementById('confirmSendCheckbox');
+  if (!checkbox?.checked) {
+    showEmailError('Please confirm you want to send by checking the box');
+    return;
+  }
+
+  // Final confirmation
+  const contactCount = emailCampaignState.contacts?.length || 0;
+  if (!confirm(`Send email campaign to ${contactCount} contacts?\n\nThis action cannot be undone.`)) {
     return;
   }
 
   const sendBtn = document.getElementById('sendEmailBtn');
   sendBtn.disabled = true;
-  sendBtn.textContent = 'Sending...';
+  sendBtn.textContent = '🚀 Sending...';
+  hideEmailError();
 
   const template = document.querySelector('input[name="emailTemplate"]:checked')?.value || 'prospect_outreach';
   const subject = document.getElementById('emailSubject')?.value || '';
@@ -31747,15 +31971,7 @@ async function sendEmailCampaign() {
     console.error('Send error:', error);
     showEmailError(error.message);
     sendBtn.disabled = false;
-    sendBtn.textContent = 'Send Campaign';
-  }
-}
-
-function showEmailError(message) {
-  const errorEl = document.getElementById('emailCampaignError');
-  if (errorEl) {
-    errorEl.textContent = message;
-    errorEl.classList.remove('hidden');
+    sendBtn.textContent = '🚀 Send Campaign';
   }
 }
 
@@ -32076,8 +32292,12 @@ window.selectEmailAudience = selectEmailAudience;
 window.selectAllEmailContacts = selectAllEmailContacts;
 window.deselectAllEmailContacts = deselectAllEmailContacts;
 window.syncSelectedContacts = syncSelectedContacts;
+window.syncAndContinue = syncAndContinue;
+window.emailWizardBack = emailWizardBack;
+window.emailWizardNext = emailWizardNext;
+window.updateSendButtonState = updateSendButtonState;
 window.previewEmailCampaign = previewEmailCampaign;
-window.sendEmailCampaign = sendEmailCampaign;
+window.sendEmailCampaignWithConfirm = sendEmailCampaignWithConfirm;
 window.openAudienceManager = openAudienceManager;
 window.closeAudienceManager = closeAudienceManager;
 window.viewAudienceContacts = viewAudienceContacts;
