@@ -115,10 +115,18 @@ export default async function handler(req, res) {
     };
 
     // Resend API accepts individual contact adds
-    // We'll batch them but process individually for better error handling
+    // Rate limit: 2 requests per second, so we add 600ms delay between each
     console.log('📧 Starting to sync', validContacts.length, 'contacts to audience', targetAudienceId);
 
-    for (const contact of validContacts) {
+    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    for (let i = 0; i < validContacts.length; i++) {
+      const contact = validContacts[i];
+
+      // Add delay after first request to respect rate limit (2 req/sec)
+      if (i > 0) {
+        await delay(600);
+      }
       try {
         const contactData = {
           email: contact.email.trim().toLowerCase(),

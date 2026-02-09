@@ -31591,6 +31591,7 @@ async function syncSelectedContacts() {
     });
 
     const data = await response.json();
+    console.log('📧 Full sync response:', JSON.stringify(data, null, 2));
 
     if (!response.ok) {
       throw new Error(data.error || 'Failed to sync contacts');
@@ -31600,14 +31601,18 @@ async function syncSelectedContacts() {
     emailCampaignState.synced = true;
 
     // Show detailed sync results
-    let syncMessage = `Synced ${data.results.added} contacts`;
-    if (data.results.skipped > 0) {
-      syncMessage += ` (${data.results.skipped} already existed)`;
+    const results = data.results || {};
+    let syncMessage = `Synced ${results.added || 0} contacts`;
+    if (results.skipped > 0) {
+      syncMessage += ` (${results.skipped} already existed)`;
     }
-    if (data.results.errors && data.results.errors.length > 0) {
-      syncMessage += ` - ${data.results.errors.length} failed`;
-      console.warn('Sync errors:', data.results.errors);
+    if (results.errors && results.errors.length > 0) {
+      syncMessage += ` - ${results.errors.length} failed`;
+      console.warn('📧 Sync errors:', results.errors);
+      // Show first error as alert so user sees it
+      alert(`Sync completed with errors:\n${results.errors.slice(0, 3).map(e => `${e.email}: ${e.error}`).join('\n')}`);
     }
+    console.log(`📧 Sync summary: ${results.validEmails} valid emails, ${results.added} added, ${results.skipped} skipped, ${results.errors?.length || 0} errors`);
     syncText.textContent = syncMessage;
 
     // Show next steps
@@ -31868,10 +31873,16 @@ function renderAudienceCards() {
           <h4 class="font-semibold text-gray-800">${escapeHtml(audience.name)}</h4>
           <p class="text-sm text-gray-500">${audience.contactCount || 0} contacts</p>
         </div>
-        <button onclick="viewAudienceContacts('${audience.id}')"
-                class="px-3 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded text-sm font-medium">
-          View Contacts
-        </button>
+        <div class="flex gap-2">
+          <button onclick="viewAudienceContacts('${audience.id}')"
+                  class="px-3 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded text-sm font-medium">
+            View Contacts
+          </button>
+          <button onclick="deleteAudience('${audience.id}', '${escapeHtml(audience.name).replace(/'/g, "\\'")}')"
+                  class="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded text-sm font-medium">
+            Delete
+          </button>
+        </div>
       </div>
       ${audience.created_at ? `<p class="text-xs text-gray-400 mt-2">Created: ${new Date(audience.created_at).toLocaleDateString()}</p>` : ''}
     </div>
@@ -32032,6 +32043,32 @@ async function removeSelectedFromAudience() {
   }
 }
 
+async function deleteAudience(audienceId, audienceName) {
+  if (!confirm(`Delete audience "${audienceName}"?\n\nThis will remove the audience and all its contacts from Resend.`)) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/resend/audiences/${audienceId}`, {
+      method: 'DELETE'
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || 'Failed to delete audience');
+    }
+
+    showNotification(`Deleted audience: ${audienceName}`, 'success');
+
+    // Refresh the list
+    await loadAudienceData();
+
+  } catch (error) {
+    console.error('Delete audience error:', error);
+    showNotification('Failed to delete: ' + error.message, 'error');
+  }
+}
+
 // Expose email campaign functions globally
 window.openEmailCampaignModal = openEmailCampaignModal;
 window.closeEmailCampaignModal = closeEmailCampaignModal;
@@ -32046,6 +32083,7 @@ window.closeAudienceManager = closeAudienceManager;
 window.viewAudienceContacts = viewAudienceContacts;
 window.backToAudienceList = backToAudienceList;
 window.removeSelectedFromAudience = removeSelectedFromAudience;
+window.deleteAudience = deleteAudience;
 window.outreachQuickEmail = outreachQuickEmail;
 window.outreachMarkContacted = outreachMarkContacted;
 window.outreachMoveToStage = outreachMoveToStage;
