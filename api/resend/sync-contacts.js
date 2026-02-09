@@ -135,57 +135,76 @@ export default async function handler(req, res) {
     };
 
     // Resend API accepts individual contact adds
-    // Rate limit: 2 requests per second, so we add 600ms delay between each
+    // Rate limit: 2 requests per second - use 1 second delay to be safe
     console.log('📧 Starting to sync', validContacts.length, 'contacts to audience', targetAudienceId);
 
     for (let i = 0; i < validContacts.length; i++) {
       const contact = validContacts[i];
 
-      // Add delay after first request to respect rate limit (2 req/sec)
+      // Add delay before each request (except first) to respect rate limit
       if (i > 0) {
-        await delay(600);
+        await delay(1000); // 1 second between requests
       }
-      try {
-        const contactData = {
-          email: contact.email.trim().toLowerCase(),
-          first_name: contact.firstName || contact.businessName?.split(' ')[0] || '',
-          last_name: contact.lastName || contact.businessName?.split(' ').slice(1).join(' ') || '',
-          unsubscribed: false
-        };
 
-        console.log('📧 Adding contact:', contactData.email);
+      const contactData = {
+        email: contact.email.trim().toLowerCase(),
+        first_name: contact.firstName || contact.businessName?.split(' ')[0] || '',
+        last_name: contact.lastName || contact.businessName?.split(' ').slice(1).join(' ') || '',
+        unsubscribed: false
+      };
 
-        const response = await fetch(`${RESEND_API_BASE}/audiences/${targetAudienceId}/contacts`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${RESEND_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(contactData)
-        });
+      console.log('📧 Adding contact', i + 1, 'of', validContacts.length, ':', contactData.email);
 
-        const responseText = await response.text();
-        console.log('📧 Response for', contactData.email, ':', response.status, responseText);
+      // Try up to 3 times with increasing delays for rate limits
+      let added = false;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const response = await fetch(`${RESEND_API_BASE}/audiences/${targetAudienceId}/contacts`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${RESEND_API_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(contactData)
+          });
 
-        if (response.ok) {
-          results.added++;
-        } else {
-          let error;
-          try {
-            error = JSON.parse(responseText);
-          } catch {
-            error = { message: responseText };
-          }
-          if (error.message?.includes('already exists')) {
-            results.skipped++;
+          const responseText = await response.text();
+
+          if (response.ok) {
+            results.added++;
+            added = true;
+            break;
+          } else if (response.status === 429 && attempt < 3) {
+            // Rate limited - wait and retry
+            console.log('📧 Rate limited for', contactData.email, '- waiting', attempt * 2, 'seconds...');
+            await delay(attempt * 2000);
+            continue;
           } else {
-            console.error('📧 Error adding contact:', contactData.email, error);
-            results.errors.push({ email: contact.email, error: error.message || responseText });
+            let error;
+            try {
+              error = JSON.parse(responseText);
+            } catch {
+              error = { message: responseText };
+            }
+            if (error.message?.includes('already exists')) {
+              results.skipped++;
+              added = true;
+            } else {
+              console.error('📧 Error adding contact:', contactData.email, error);
+              results.errors.push({ email: contact.email, error: error.message || responseText });
+            }
+            break;
           }
+        } catch (err) {
+          if (attempt < 3) {
+            console.log('📧 Exception for', contactData.email, '- retrying...');
+            await delay(attempt * 1000);
+            continue;
+          }
+          console.error('📧 Exception adding contact:', contact.email, err.message);
+          results.errors.push({ email: contact.email, error: err.message });
+          break;
         }
-      } catch (err) {
-        console.error('📧 Exception adding contact:', contact.email, err.message);
-        results.errors.push({ email: contact.email, error: err.message });
       }
     }
 
