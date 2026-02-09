@@ -31856,9 +31856,9 @@ async function syncSelectedContacts() {
   }
 }
 
-// ============= EMAIL TEMPLATE FUNCTIONS =============
+// ============= EMAIL CAMPAIGN TEMPLATE FUNCTIONS =============
 
-const DEFAULT_TEMPLATES = {
+const CAMPAIGN_TEMPLATES = {
   prospect_outreach: {
     name: 'Prospect Outreach',
     subject: 'Grow Your Business with Local Postcard Marketing',
@@ -31912,7 +31912,7 @@ function getTemplate(templateId) {
     return saved[templateId];
   }
   // Return default
-  return DEFAULT_TEMPLATES[templateId] || null;
+  return CAMPAIGN_TEMPLATES[templateId] || null;
 }
 
 function getSavedTemplates() {
@@ -32019,7 +32019,7 @@ function saveTemplate() {
   }
 
   // Get existing template for subject
-  const existing = getTemplate(templateId) || DEFAULT_TEMPLATES[templateId];
+  const existing = getTemplate(templateId) || CAMPAIGN_TEMPLATES[templateId];
   const subject = existing?.subject || 'Your Subject Here';
 
   saveTemplateToStorage(templateId, {
