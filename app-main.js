@@ -3098,13 +3098,13 @@ function loadClientEmailTemplate() {
 
   const template = emailTemplates[templateKey];
   if (!template) return;
-  document.getElementById('emailSubject').value = template.subject;
+  document.getElementById('campaignEmailSubject').value = template.subject;
   document.getElementById('emailBody').value = template.body;
 }
 
 function sendEmail() {
   const to = document.getElementById('emailTo').value;
-  const subject = document.getElementById('emailSubject').value;
+  const subject = document.getElementById('campaignEmailSubject').value;
   const body = document.getElementById('emailBody').value;
   
   if (!to || !subject || !body) {
@@ -15246,7 +15246,7 @@ function openSendEmailModal(leadId, event) {
 
   // Reset form
   document.getElementById('emailTemplate').value = '';
-  document.getElementById('emailSubject').value = '';
+  document.getElementById('campaignEmailSubject').value = '';
   document.getElementById('emailMessage').value = '';
 
   // Show modal
@@ -15265,7 +15265,7 @@ function closeSendEmailModal() {
 function loadProspectEmailTemplate(source) {
   // Support both original emailTemplate and renamed emailTemplatePipeline
   const templateSelect = document.getElementById(source === 'pipeline' ? 'emailTemplatePipeline' : 'emailTemplate');
-  const subjectInput = document.getElementById('emailSubject');
+  const subjectInput = document.getElementById('campaignEmailSubject');
   const messageArea = document.getElementById('emailMessage');
   if (!templateSelect) return;
   const templateValue = templateSelect.value;
@@ -15283,7 +15283,7 @@ function loadProspectEmailTemplate(source) {
 }
 
 function sendEmailMessage() {
-  const subject = document.getElementById('emailSubject').value.trim();
+  const subject = document.getElementById('campaignEmailSubject').value.trim();
   const message = document.getElementById('emailMessage').value.trim();
 
   if (!subject) {
@@ -24752,13 +24752,13 @@ function openEmailRenewal(clientId) {
   document.getElementById('emailTo').value = client.contact.email;
   
   // Replace placeholders
-  let subject = document.getElementById('emailSubject').value;
+  let subject = document.getElementById('campaignEmailSubject').value;
   let body = document.getElementById('emailBody').value;
   subject = subject.replace('{businessName}', client.businessName);
   body = body.replace('{contactName}', client.contact.name || 'there');
   body = body.replace('{campaign}', state.current ? `${state.current.Town} ${state.current.Mail_Date}` : 'our campaign');
   
-  document.getElementById('emailSubject').value = subject;
+  document.getElementById('campaignEmailSubject').value = subject;
   document.getElementById('emailBody').value = body;
 }
 
@@ -31444,7 +31444,7 @@ function emailWizardNext() {
     // Template step - no validation needed
   } else if (currentStep === 3) {
     // Customize step - validate required fields
-    const subjectEl = document.getElementById('emailSubject');
+    const subjectEl = document.getElementById('campaignEmailSubject');
     const senderNameEl = document.getElementById('emailSenderName');
     const subject = subjectEl ? subjectEl.value.trim() : '';
     const senderName = senderNameEl ? senderNameEl.value.trim() : '';
@@ -31482,7 +31482,7 @@ function emailWizardNext() {
 function updateReviewSummary() {
   const contacts = emailCampaignState.contacts || [];
   const template = document.querySelector('input[name="emailTemplate"]:checked')?.value || 'prospect_outreach';
-  const subject = document.getElementById('emailSubject')?.value || '-';
+  const subject = document.getElementById('campaignEmailSubject')?.value || '-';
   const senderName = document.getElementById('emailSenderName')?.value || '-';
 
   const templateNames = {
@@ -31858,7 +31858,7 @@ async function syncSelectedContacts() {
 
 function updateEmailSubject() {
   const template = document.querySelector('input[name="emailTemplate"]:checked')?.value || 'prospect_outreach';
-  const subjectInput = document.getElementById('emailSubject');
+  const subjectInput = document.getElementById('campaignEmailSubject');
 
   if (!subjectInput || subjectInput.value) return; // Don't overwrite if user has typed
 
@@ -31940,7 +31940,7 @@ async function sendEmailCampaignWithConfirm() {
   hideEmailError();
 
   const template = document.querySelector('input[name="emailTemplate"]:checked')?.value || 'prospect_outreach';
-  const subject = document.getElementById('emailSubject')?.value || '';
+  const subject = document.getElementById('campaignEmailSubject')?.value || '';
 
   const variables = {
     location: document.getElementById('emailLocation')?.value || '',
