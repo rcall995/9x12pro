@@ -39,6 +39,25 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'contacts array required' });
   }
 
+  // Helper for delays and retries
+  const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+  const fetchWithRetry = async (url, options, maxRetries = 3) => {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const response = await fetch(url, options);
+      if (response.ok) return response;
+
+      const text = await response.text();
+      if (response.status === 429 && attempt < maxRetries) {
+        console.log(`📧 Rate limited, waiting ${attempt * 1000}ms before retry...`);
+        await delay(attempt * 1000);
+        continue;
+      }
+      // Return failed response on last attempt or non-429 error
+      return { ok: false, status: response.status, text: () => Promise.resolve(text), json: () => Promise.resolve(JSON.parse(text)) };
+    }
+  };
+
   try {
     let targetAudienceId = audienceId;
 
@@ -47,7 +66,7 @@ export default async function handler(req, res) {
       console.log('📧 Creating/finding audience:', audienceName);
 
       // First, try to find existing audience
-      const listResponse = await fetch(`${RESEND_API_BASE}/audiences`, {
+      const listResponse = await fetchWithRetry(`${RESEND_API_BASE}/audiences`, {
         headers: { 'Authorization': `Bearer ${RESEND_API_KEY}` }
       });
 
@@ -66,9 +85,10 @@ export default async function handler(req, res) {
         console.log('📧 Using existing audience:', existing.id);
         targetAudienceId = existing.id;
       } else {
-        // Create new audience
+        // Create new audience - add delay before create to avoid rate limit
+        await delay(1000);
         console.log('📧 Creating new audience...');
-        const createResponse = await fetch(`${RESEND_API_BASE}/audiences`, {
+        const createResponse = await fetchWithRetry(`${RESEND_API_BASE}/audiences`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${RESEND_API_KEY}`,
@@ -117,8 +137,6 @@ export default async function handler(req, res) {
     // Resend API accepts individual contact adds
     // Rate limit: 2 requests per second, so we add 600ms delay between each
     console.log('📧 Starting to sync', validContacts.length, 'contacts to audience', targetAudienceId);
-
-    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
     for (let i = 0; i < validContacts.length; i++) {
       const contact = validContacts[i];
