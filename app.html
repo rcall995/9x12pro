@@ -4004,6 +4004,39 @@ The cost is [SPOT_PRICE] for a premium spot. Interested in learning more?
             </button>
           </div>
 
+          <!-- Manage Audiences Link -->
+          <div class="text-center pt-2">
+            <button onclick="openAudienceManager()" class="text-purple-600 hover:text-purple-700 text-sm font-medium">
+              📋 View & Manage Email Lists
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 1.5: Select Contacts -->
+        <div id="emailStepContacts" class="hidden space-y-4 mt-6 pt-6 border-t">
+          <div class="flex justify-between items-center">
+            <h3 class="font-bold text-gray-800 flex items-center gap-2">
+              <span class="w-6 h-6 rounded-full bg-purple-100 text-purple-600 text-sm flex items-center justify-center">2</span>
+              Select Contacts
+            </h3>
+            <div class="flex gap-2">
+              <button onclick="selectAllEmailContacts()" class="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded">Select All</button>
+              <button onclick="deselectAllEmailContacts()" class="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded">Deselect All</button>
+            </div>
+          </div>
+
+          <div class="text-sm text-gray-500" id="contactSelectionCount">0 of 0 selected</div>
+
+          <!-- Contact List -->
+          <div id="emailContactList" class="max-h-48 overflow-y-auto border rounded-lg divide-y">
+            <!-- Populated by JavaScript -->
+          </div>
+
+          <!-- Sync Button -->
+          <button onclick="syncSelectedContacts()" id="syncSelectedBtn" class="w-full py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-medium transition-colors">
+            Sync Selected to Email List
+          </button>
+
           <!-- Sync Status -->
           <div id="syncStatus" class="hidden bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
             <div class="flex items-center gap-2">
@@ -4013,10 +4046,10 @@ The cost is [SPOT_PRICE] for a premium spot. Interested in learning more?
           </div>
         </div>
 
-        <!-- Step 2: Select Template -->
+        <!-- Step 3: Select Template -->
         <div id="emailStep2" class="hidden space-y-4 mt-6 pt-6 border-t">
           <h3 class="font-bold text-gray-800 flex items-center gap-2">
-            <span class="w-6 h-6 rounded-full bg-purple-100 text-purple-600 text-sm flex items-center justify-center">2</span>
+            <span class="w-6 h-6 rounded-full bg-purple-100 text-purple-600 text-sm flex items-center justify-center">3</span>
             Select Template
           </h3>
 
@@ -4047,10 +4080,10 @@ The cost is [SPOT_PRICE] for a premium spot. Interested in learning more?
           </div>
         </div>
 
-        <!-- Step 3: Customize -->
+        <!-- Step 4: Customize -->
         <div id="emailStep3" class="hidden space-y-4 mt-6 pt-6 border-t">
           <h3 class="font-bold text-gray-800 flex items-center gap-2">
-            <span class="w-6 h-6 rounded-full bg-purple-100 text-purple-600 text-sm flex items-center justify-center">3</span>
+            <span class="w-6 h-6 rounded-full bg-purple-100 text-purple-600 text-sm flex items-center justify-center">4</span>
             Customize Email
           </h3>
 
@@ -4111,6 +4144,83 @@ The cost is [SPOT_PRICE] for a premium spot. Interested in learning more?
             Send Campaign
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audience Manager Modal -->
+  <div id="audienceManagerModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col">
+      <!-- Header -->
+      <div class="p-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white">
+        <div class="flex justify-between items-center">
+          <h2 class="text-xl font-bold flex items-center gap-2">
+            <span>📋</span> Email List Manager
+          </h2>
+          <button onclick="closeAudienceManager()" class="text-white/80 hover:text-white text-2xl">&times;</button>
+        </div>
+        <p class="text-sm text-white/80 mt-1">View and manage your Resend email audiences</p>
+      </div>
+
+      <!-- Content -->
+      <div class="p-6 overflow-y-auto flex-1">
+        <!-- Loading State -->
+        <div id="audienceManagerLoading" class="text-center py-8">
+          <span class="text-4xl animate-spin inline-block">⏳</span>
+          <p class="text-gray-500 mt-2">Loading audiences...</p>
+        </div>
+
+        <!-- Audiences List -->
+        <div id="audienceManagerContent" class="hidden space-y-6">
+          <!-- Stats -->
+          <div class="grid grid-cols-3 gap-4">
+            <div class="bg-purple-50 rounded-lg p-4 text-center">
+              <div id="totalAudiences" class="text-2xl font-bold text-purple-600">0</div>
+              <div class="text-sm text-gray-600">Audiences</div>
+            </div>
+            <div class="bg-blue-50 rounded-lg p-4 text-center">
+              <div id="totalContacts" class="text-2xl font-bold text-blue-600">0</div>
+              <div class="text-sm text-gray-600">Total Contacts</div>
+            </div>
+            <div class="bg-green-50 rounded-lg p-4 text-center">
+              <div id="contactsRemaining" class="text-2xl font-bold text-green-600">1000</div>
+              <div class="text-sm text-gray-600">Free Tier Left</div>
+            </div>
+          </div>
+
+          <!-- Audience Cards -->
+          <div id="audienceCards" class="space-y-4">
+            <!-- Populated by JavaScript -->
+          </div>
+        </div>
+
+        <!-- Audience Detail View -->
+        <div id="audienceDetailView" class="hidden">
+          <button onclick="backToAudienceList()" class="text-purple-600 hover:text-purple-700 text-sm font-medium mb-4 flex items-center gap-1">
+            ← Back to Audiences
+          </button>
+
+          <div class="flex justify-between items-center mb-4">
+            <h3 id="audienceDetailName" class="text-lg font-bold text-gray-800">Audience Name</h3>
+            <span id="audienceDetailCount" class="text-sm bg-gray-100 px-3 py-1 rounded-full">0 contacts</span>
+          </div>
+
+          <!-- Contact List -->
+          <div id="audienceContactsList" class="max-h-96 overflow-y-auto border rounded-lg divide-y">
+            <!-- Populated by JavaScript -->
+          </div>
+
+          <div class="mt-4 flex gap-2">
+            <button onclick="removeSelectedFromAudience()" id="removeFromAudienceBtn" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium disabled:opacity-50" disabled>
+              Remove Selected
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="p-4 bg-gray-50 border-t flex justify-end">
+        <button onclick="closeAudienceManager()" class="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium">Close</button>
       </div>
     </div>
   </div>

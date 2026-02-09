@@ -31381,23 +31381,25 @@ function closeEmailCampaignModal() {
 
 function updateEmailContactCounts() {
   const board = getCurrentCampaignBoard();
-  if (!board || !board.columns) return;
 
   // Count prospects (queued) with emails
-  const queued = board.columns['queued'] || [];
-  const prospectsWithEmail = queued.filter(p => {
-    const email = p?.email || p?.contact?.email || '';
-    return email && email.includes('@');
-  });
+  let prospectsWithEmail = [];
+  if (board && board.columns) {
+    const queued = board.columns['queued'] || [];
+    prospectsWithEmail = queued.filter(p => {
+      const email = p?.email || p?.contact?.email || '';
+      return email && email.includes('@');
+    });
+  }
   const prospectCountEl = document.getElementById('prospectCount');
   if (prospectCountEl) {
     prospectCountEl.textContent = `${prospectsWithEmail.length} contacts with email`;
   }
 
-  // Count past customers (proof-approved) with emails
-  const customers = board.columns['proof-approved'] || [];
-  const customersWithEmail = customers.filter(p => {
-    const email = p?.email || p?.contact?.email || '';
+  // Count customers from crmState.clients (actual paying customers)
+  const clients = Object.values(crmState.clients || {});
+  const customersWithEmail = clients.filter(c => {
+    const email = c?.contact?.email || c?.email || '';
     return email && email.includes('@');
   });
   const customerCountEl = document.getElementById('customerCount');
@@ -31421,40 +31423,157 @@ async function selectEmailAudience(type) {
     prospectBtn?.classList.remove('border-purple-500', 'bg-purple-50');
   }
 
-  // Gather contacts
-  const board = getCurrentCampaignBoard();
-  if (!board || !board.columns) return;
+  // Gather contacts based on type
+  let allContacts = [];
 
-  const columnKey = type === 'prospects' ? 'queued' : 'proof-approved';
-  const items = board.columns[columnKey] || [];
-
-  emailCampaignState.contacts = items
-    .filter(p => {
-      const email = p?.email || p?.contact?.email || '';
-      return email && email.includes('@');
-    })
-    .map(p => ({
-      email: (p.email || p.contact?.email || '').trim().toLowerCase(),
-      businessName: p.businessName || p.name || '',
-      category: p.category || ''
+  if (type === 'prospects') {
+    // Get prospects from queued column in campaign board
+    const board = getCurrentCampaignBoard();
+    if (board && board.columns) {
+      const items = board.columns['queued'] || [];
+      allContacts = items.map(p => ({
+        id: p.id || p.placeId,
+        email: (p.email || p.contact?.email || '').trim().toLowerCase(),
+        businessName: p.businessName || p.name || '',
+        category: p.category || '',
+        phone: p.phone || p.contact?.phone || ''
+      }));
+    }
+  } else {
+    // Get customers from crmState.clients (actual paying customers)
+    const clients = Object.values(crmState.clients || {});
+    allContacts = clients.map(c => ({
+      id: c.id,
+      email: (c.contact?.email || c.email || '').trim().toLowerCase(),
+      businessName: c.businessName || '',
+      category: c.category || '',
+      phone: c.contact?.phone || c.phone || '',
+      totalSpent: c.lifetime?.totalSpent || 0,
+      status: c.status || 'active'
     }));
+  }
 
-  if (emailCampaignState.contacts.length === 0) {
-    showEmailError(`No contacts with email addresses found in ${type === 'prospects' ? 'Prospect List' : 'Past Customers'}`);
+  // Filter to only those with valid emails
+  const contactsWithEmail = allContacts.filter(c => c.email && c.email.includes('@'));
+
+  if (contactsWithEmail.length === 0) {
+    showEmailError(`No contacts with email addresses found in ${type === 'prospects' ? 'Prospect List' : 'Customers'}`);
     return;
   }
+
+  // Store all available contacts and select all by default
+  emailCampaignState.availableContacts = contactsWithEmail;
+  emailCampaignState.selectedContactIds = new Set(contactsWithEmail.map(c => c.id));
+
+  // Show contact selection UI
+  renderEmailContactList();
+  document.getElementById('emailStepContacts')?.classList.remove('hidden');
+}
+
+function renderEmailContactList() {
+  const listEl = document.getElementById('emailContactList');
+  if (!listEl) return;
+
+  const contacts = emailCampaignState.availableContacts || [];
+  const selectedIds = emailCampaignState.selectedContactIds || new Set();
+  const type = emailCampaignState.selectedAudience;
+
+  listEl.innerHTML = contacts.map(c => `
+    <label class="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer">
+      <input type="checkbox"
+             class="email-contact-checkbox w-4 h-4 text-purple-600 rounded"
+             data-contact-id="${c.id}"
+             ${selectedIds.has(c.id) ? 'checked' : ''}>
+      <div class="flex-1 min-w-0">
+        <div class="font-medium text-gray-800 truncate">${escapeHtml(c.businessName || 'Unknown')}</div>
+        <div class="text-xs text-gray-500 truncate">${escapeHtml(c.email)}</div>
+      </div>
+      ${type === 'customers' && c.totalSpent ? `<span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">$${c.totalSpent.toLocaleString()}</span>` : ''}
+      ${type === 'customers' && c.status === 'inactive' ? `<span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">Inactive</span>` : ''}
+    </label>
+  `).join('');
+
+  // Add event listeners for checkboxes
+  listEl.querySelectorAll('.email-contact-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', (e) => {
+      const contactId = e.target.dataset.contactId;
+      if (e.target.checked) {
+        emailCampaignState.selectedContactIds.add(contactId);
+      } else {
+        emailCampaignState.selectedContactIds.delete(contactId);
+      }
+      updateContactSelectionCount();
+    });
+  });
+
+  updateContactSelectionCount();
+}
+
+function updateContactSelectionCount() {
+  const countEl = document.getElementById('contactSelectionCount');
+  const syncBtn = document.getElementById('syncSelectedBtn');
+  const total = emailCampaignState.availableContacts?.length || 0;
+  const selected = emailCampaignState.selectedContactIds?.size || 0;
+
+  if (countEl) {
+    countEl.textContent = `${selected} of ${total} selected`;
+  }
+  if (syncBtn) {
+    syncBtn.disabled = selected === 0;
+    syncBtn.textContent = selected > 0 ? `Sync ${selected} Contacts to Email List` : 'Select Contacts to Sync';
+  }
+}
+
+function selectAllEmailContacts() {
+  const contacts = emailCampaignState.availableContacts || [];
+  emailCampaignState.selectedContactIds = new Set(contacts.map(c => c.id));
+
+  // Update checkboxes
+  document.querySelectorAll('.email-contact-checkbox').forEach(cb => {
+    cb.checked = true;
+  });
+  updateContactSelectionCount();
+}
+
+function deselectAllEmailContacts() {
+  emailCampaignState.selectedContactIds = new Set();
+
+  // Update checkboxes
+  document.querySelectorAll('.email-contact-checkbox').forEach(cb => {
+    cb.checked = false;
+  });
+  updateContactSelectionCount();
+}
+
+async function syncSelectedContacts() {
+  const selectedIds = emailCampaignState.selectedContactIds || new Set();
+  const allContacts = emailCampaignState.availableContacts || [];
+  const type = emailCampaignState.selectedAudience;
+
+  // Get only selected contacts
+  const contacts = allContacts.filter(c => selectedIds.has(c.id));
+
+  if (contacts.length === 0) {
+    showEmailError('Please select at least one contact to sync');
+    return;
+  }
+
+  emailCampaignState.contacts = contacts;
 
   // Show sync status
   const syncStatus = document.getElementById('syncStatus');
   const syncText = document.getElementById('syncStatusText');
+  const syncBtn = document.getElementById('syncSelectedBtn');
+
   syncStatus?.classList.remove('hidden');
-  syncText.textContent = `Syncing ${emailCampaignState.contacts.length} contacts to email list...`;
+  syncText.textContent = `Syncing ${contacts.length} contacts to email list...`;
+  if (syncBtn) syncBtn.disabled = true;
 
   // Sync to Resend Audience
   try {
     const audienceName = type === 'prospects'
       ? `Prospects - ${state.current?.Town || 'Campaign'}`
-      : `Customers - ${state.current?.Town || 'Campaign'}`;
+      : `Customers - ${state.current?.Town || 'All'}`;
 
     const response = await fetch('/api/resend/sync-contacts', {
       method: 'POST',
@@ -31462,7 +31581,12 @@ async function selectEmailAudience(type) {
       body: JSON.stringify({
         audienceName,
         contactType: type,
-        contacts: emailCampaignState.contacts
+        contacts: contacts.map(c => ({
+          email: c.email,
+          businessName: c.businessName,
+          category: c.category,
+          firstName: c.businessName?.split(' ')[0] || ''
+        }))
       })
     });
 
@@ -31494,6 +31618,7 @@ async function selectEmailAudience(type) {
     console.error('Sync error:', error);
     showEmailError(error.message);
     syncStatus?.classList.add('hidden');
+    if (syncBtn) syncBtn.disabled = false;
   }
 }
 
@@ -31643,12 +31768,275 @@ function showNotification(message, type = 'info') {
   }, 5000);
 }
 
+// ============= AUDIENCE MANAGER FUNCTIONS =============
+
+let audienceManagerState = {
+  audiences: [],
+  currentAudienceId: null,
+  currentContacts: [],
+  selectedContactIds: new Set()
+};
+
+async function openAudienceManager() {
+  const modal = document.getElementById('audienceManagerModal');
+  if (!modal) return;
+
+  modal.classList.remove('hidden');
+  audienceManagerState = {
+    audiences: [],
+    currentAudienceId: null,
+    currentContacts: [],
+    selectedContactIds: new Set()
+  };
+
+  // Show loading, hide content
+  document.getElementById('audienceManagerLoading')?.classList.remove('hidden');
+  document.getElementById('audienceManagerContent')?.classList.add('hidden');
+  document.getElementById('audienceDetailView')?.classList.add('hidden');
+
+  await loadAudienceData();
+}
+
+function closeAudienceManager() {
+  document.getElementById('audienceManagerModal')?.classList.add('hidden');
+}
+
+async function loadAudienceData() {
+  try {
+    const response = await fetch('/api/resend/stats');
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to load audiences');
+    }
+
+    audienceManagerState.audiences = data.audiences || [];
+
+    // Update stats
+    document.getElementById('totalAudiences').textContent = data.totals?.audiences || 0;
+    document.getElementById('totalContacts').textContent = data.totals?.contacts || 0;
+    document.getElementById('contactsRemaining').textContent = Math.max(0, 1000 - (data.totals?.contacts || 0));
+
+    // Render audience cards
+    renderAudienceCards();
+
+    // Show content, hide loading
+    document.getElementById('audienceManagerLoading')?.classList.add('hidden');
+    document.getElementById('audienceManagerContent')?.classList.remove('hidden');
+
+  } catch (error) {
+    console.error('Load audiences error:', error);
+    document.getElementById('audienceManagerLoading').innerHTML = `
+      <div class="text-red-500">
+        <p class="font-medium">Failed to load audiences</p>
+        <p class="text-sm">${escapeHtml(error.message)}</p>
+        <button onclick="loadAudienceData()" class="mt-2 text-purple-600 hover:text-purple-700 text-sm">Try Again</button>
+      </div>
+    `;
+  }
+}
+
+function renderAudienceCards() {
+  const container = document.getElementById('audienceCards');
+  if (!container) return;
+
+  const audiences = audienceManagerState.audiences || [];
+
+  if (audiences.length === 0) {
+    container.innerHTML = `
+      <div class="text-center py-8 text-gray-500">
+        <p class="text-lg font-medium">No email audiences yet</p>
+        <p class="text-sm">Sync contacts from the Email Campaign modal to create an audience</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = audiences.map(audience => `
+    <div class="border rounded-lg p-4 hover:border-purple-300 transition-colors">
+      <div class="flex justify-between items-start">
+        <div>
+          <h4 class="font-semibold text-gray-800">${escapeHtml(audience.name)}</h4>
+          <p class="text-sm text-gray-500">${audience.contactCount || 0} contacts</p>
+        </div>
+        <button onclick="viewAudienceContacts('${audience.id}')"
+                class="px-3 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded text-sm font-medium">
+          View Contacts
+        </button>
+      </div>
+      ${audience.created_at ? `<p class="text-xs text-gray-400 mt-2">Created: ${new Date(audience.created_at).toLocaleDateString()}</p>` : ''}
+    </div>
+  `).join('');
+}
+
+async function viewAudienceContacts(audienceId) {
+  const audience = audienceManagerState.audiences.find(a => a.id === audienceId);
+  if (!audience) return;
+
+  audienceManagerState.currentAudienceId = audienceId;
+  audienceManagerState.selectedContactIds = new Set();
+
+  // Update header
+  document.getElementById('audienceDetailName').textContent = audience.name;
+  document.getElementById('audienceDetailCount').textContent = `${audience.contactCount || 0} contacts`;
+
+  // Show detail view, hide list
+  document.getElementById('audienceManagerContent')?.classList.add('hidden');
+  document.getElementById('audienceDetailView')?.classList.remove('hidden');
+
+  // Show loading in contacts list
+  const contactsList = document.getElementById('audienceContactsList');
+  contactsList.innerHTML = '<div class="p-4 text-center text-gray-500">Loading contacts...</div>';
+
+  try {
+    const response = await fetch(`/api/resend/audiences/${audienceId}/contacts`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to load contacts');
+    }
+
+    audienceManagerState.currentContacts = data.contacts || [];
+    renderAudienceContacts();
+
+  } catch (error) {
+    console.error('Load contacts error:', error);
+    contactsList.innerHTML = `
+      <div class="p-4 text-center text-red-500">
+        <p>Failed to load contacts</p>
+        <p class="text-sm">${escapeHtml(error.message)}</p>
+      </div>
+    `;
+  }
+}
+
+function renderAudienceContacts() {
+  const contactsList = document.getElementById('audienceContactsList');
+  const contacts = audienceManagerState.currentContacts || [];
+  const selectedIds = audienceManagerState.selectedContactIds;
+
+  if (contacts.length === 0) {
+    contactsList.innerHTML = '<div class="p-4 text-center text-gray-500">No contacts in this audience</div>';
+    return;
+  }
+
+  contactsList.innerHTML = contacts.map(c => `
+    <label class="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer">
+      <input type="checkbox"
+             class="audience-contact-checkbox w-4 h-4 text-purple-600 rounded"
+             data-contact-id="${c.id}"
+             ${selectedIds.has(c.id) ? 'checked' : ''}>
+      <div class="flex-1 min-w-0">
+        <div class="font-medium text-gray-800 truncate">${escapeHtml(c.first_name || '')} ${escapeHtml(c.last_name || '')}</div>
+        <div class="text-sm text-gray-500 truncate">${escapeHtml(c.email)}</div>
+      </div>
+      ${c.unsubscribed ? '<span class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded">Unsubscribed</span>' : ''}
+    </label>
+  `).join('');
+
+  // Add event listeners
+  contactsList.querySelectorAll('.audience-contact-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', (e) => {
+      const contactId = e.target.dataset.contactId;
+      if (e.target.checked) {
+        audienceManagerState.selectedContactIds.add(contactId);
+      } else {
+        audienceManagerState.selectedContactIds.delete(contactId);
+      }
+      updateRemoveButtonState();
+    });
+  });
+
+  updateRemoveButtonState();
+}
+
+function updateRemoveButtonState() {
+  const btn = document.getElementById('removeFromAudienceBtn');
+  const count = audienceManagerState.selectedContactIds.size;
+  if (btn) {
+    btn.disabled = count === 0;
+    btn.textContent = count > 0 ? `Remove ${count} Selected` : 'Remove Selected';
+  }
+}
+
+function backToAudienceList() {
+  document.getElementById('audienceDetailView')?.classList.add('hidden');
+  document.getElementById('audienceManagerContent')?.classList.remove('hidden');
+  audienceManagerState.currentAudienceId = null;
+  audienceManagerState.currentContacts = [];
+  audienceManagerState.selectedContactIds = new Set();
+}
+
+async function removeSelectedFromAudience() {
+  const audienceId = audienceManagerState.currentAudienceId;
+  const selectedIds = Array.from(audienceManagerState.selectedContactIds);
+
+  if (!audienceId || selectedIds.length === 0) return;
+
+  const btn = document.getElementById('removeFromAudienceBtn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Removing...';
+  }
+
+  try {
+    // Remove contacts one by one (Resend API limitation)
+    let removed = 0;
+    let errors = 0;
+
+    for (const contactId of selectedIds) {
+      try {
+        const response = await fetch(`/api/resend/audiences/${audienceId}/contacts/${contactId}`, {
+          method: 'DELETE'
+        });
+        if (response.ok) {
+          removed++;
+        } else {
+          errors++;
+        }
+      } catch (e) {
+        errors++;
+      }
+    }
+
+    // Show result
+    showNotification(`Removed ${removed} contacts${errors > 0 ? ` (${errors} failed)` : ''}`, removed > 0 ? 'success' : 'error');
+
+    // Refresh the contact list
+    audienceManagerState.selectedContactIds = new Set();
+    await viewAudienceContacts(audienceId);
+
+    // Update audience count in the list
+    const audience = audienceManagerState.audiences.find(a => a.id === audienceId);
+    if (audience) {
+      audience.contactCount = Math.max(0, (audience.contactCount || 0) - removed);
+      document.getElementById('audienceDetailCount').textContent = `${audience.contactCount} contacts`;
+    }
+
+  } catch (error) {
+    console.error('Remove contacts error:', error);
+    showNotification('Failed to remove contacts: ' + error.message, 'error');
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Remove Selected';
+    }
+  }
+}
+
 // Expose email campaign functions globally
 window.openEmailCampaignModal = openEmailCampaignModal;
 window.closeEmailCampaignModal = closeEmailCampaignModal;
 window.selectEmailAudience = selectEmailAudience;
+window.selectAllEmailContacts = selectAllEmailContacts;
+window.deselectAllEmailContacts = deselectAllEmailContacts;
+window.syncSelectedContacts = syncSelectedContacts;
 window.previewEmailCampaign = previewEmailCampaign;
 window.sendEmailCampaign = sendEmailCampaign;
+window.openAudienceManager = openAudienceManager;
+window.closeAudienceManager = closeAudienceManager;
+window.viewAudienceContacts = viewAudienceContacts;
+window.backToAudienceList = backToAudienceList;
+window.removeSelectedFromAudience = removeSelectedFromAudience;
 window.outreachQuickEmail = outreachQuickEmail;
 window.outreachMarkContacted = outreachMarkContacted;
 window.outreachMoveToStage = outreachMoveToStage;
