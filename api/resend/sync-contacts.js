@@ -116,6 +116,8 @@ export default async function handler(req, res) {
 
     // Resend API accepts individual contact adds
     // We'll batch them but process individually for better error handling
+    console.log('📧 Starting to sync', validContacts.length, 'contacts to audience', targetAudienceId);
+
     for (const contact of validContacts) {
       try {
         const contactData = {
@@ -124,6 +126,8 @@ export default async function handler(req, res) {
           last_name: contact.lastName || contact.businessName?.split(' ').slice(1).join(' ') || '',
           unsubscribed: false
         };
+
+        console.log('📧 Adding contact:', contactData.email);
 
         const response = await fetch(`${RESEND_API_BASE}/audiences/${targetAudienceId}/contacts`, {
           method: 'POST',
@@ -134,20 +138,32 @@ export default async function handler(req, res) {
           body: JSON.stringify(contactData)
         });
 
+        const responseText = await response.text();
+        console.log('📧 Response for', contactData.email, ':', response.status, responseText);
+
         if (response.ok) {
           results.added++;
         } else {
-          const error = await response.json();
+          let error;
+          try {
+            error = JSON.parse(responseText);
+          } catch {
+            error = { message: responseText };
+          }
           if (error.message?.includes('already exists')) {
             results.skipped++;
           } else {
-            results.errors.push({ email: contact.email, error: error.message });
+            console.error('📧 Error adding contact:', contactData.email, error);
+            results.errors.push({ email: contact.email, error: error.message || responseText });
           }
         }
       } catch (err) {
+        console.error('📧 Exception adding contact:', contact.email, err.message);
         results.errors.push({ email: contact.email, error: err.message });
       }
     }
+
+    console.log('📧 Sync complete. Added:', results.added, 'Skipped:', results.skipped, 'Errors:', results.errors.length);
 
     // Track sync in Supabase if available
     if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {

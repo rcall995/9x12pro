@@ -31599,7 +31599,16 @@ async function syncSelectedContacts() {
     emailCampaignState.audienceId = data.audienceId;
     emailCampaignState.synced = true;
 
-    syncText.textContent = `Synced ${data.results.added} contacts (${data.results.skipped} already existed)`;
+    // Show detailed sync results
+    let syncMessage = `Synced ${data.results.added} contacts`;
+    if (data.results.skipped > 0) {
+      syncMessage += ` (${data.results.skipped} already existed)`;
+    }
+    if (data.results.errors && data.results.errors.length > 0) {
+      syncMessage += ` - ${data.results.errors.length} failed`;
+      console.warn('Sync errors:', data.results.errors);
+    }
+    syncText.textContent = syncMessage;
 
     // Show next steps
     document.getElementById('emailStep2')?.classList.remove('hidden');
