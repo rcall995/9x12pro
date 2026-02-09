@@ -182,6 +182,7 @@ export default async function handler(req, res) {
     templateId,           // 'prospect_outreach' | 'customer_renewal' | 'custom'
     subject,              // Custom subject (overrides template default)
     variables,            // Template variables: { location, mailDate, campaignName, senderName, senderPhone, ctaUrl, customMessage }
+    customBody,           // Custom template body (replaces default template)
     fromName,             // Sender name
     fromEmail,            // Must be verified domain email
     replyTo               // Reply-to email
@@ -193,7 +194,37 @@ export default async function handler(req, res) {
 
   const template = TEMPLATES[templateId] || TEMPLATES.prospect_outreach;
   const emailSubject = subject || template.subject || 'A message from 10K Postcards';
-  const emailHtml = template.buildHtml(variables || {});
+
+  // If custom body provided, use it with variable substitution
+  let emailHtml;
+  if (customBody) {
+    // Replace variables in custom body
+    let processedBody = customBody
+      .replace(/\{location\}/g, variables?.location || 'your area')
+      .replace(/\{mailDate\}/g, variables?.mailDate || '')
+      .replace(/\{senderName\}/g, variables?.senderName || '')
+      .replace(/\{senderPhone\}/g, variables?.senderPhone || '')
+      .replace(/\{campaignName\}/g, variables?.campaignName || '')
+      .replace(/\n/g, '<br>');
+
+    // Wrap in HTML template
+    emailHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
+        <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+          ${processedBody}
+        </div>
+        <p style="color: #9CA3AF; font-size: 12px; text-align: center; margin-top: 20px;">
+          <a href="{{{RESEND_UNSUBSCRIBE_URL}}}" style="color: #9CA3AF;">Unsubscribe</a>
+        </p>
+      </body>
+      </html>
+    `;
+  } else {
+    emailHtml = template.buildHtml(variables || {});
+  }
 
   try {
     // Send broadcast via Resend

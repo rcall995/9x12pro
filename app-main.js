@@ -31856,6 +31856,206 @@ async function syncSelectedContacts() {
   }
 }
 
+// ============= EMAIL TEMPLATE FUNCTIONS =============
+
+const DEFAULT_TEMPLATES = {
+  prospect_outreach: {
+    name: 'Prospect Outreach',
+    subject: 'Grow Your Business with Local Postcard Marketing',
+    body: `Hi there,
+
+Are you looking to reach more customers in {location}?
+
+We're putting together our next community postcard mailer going out {mailDate}, and we'd love to feature your business!
+
+Why Postcard Marketing Works:
+• 98% open rate (vs 20% for email)
+• Reach every household in the area
+• Stand out from digital noise
+• Affordable shared advertising costs
+
+Spots are limited and fill up quickly. Reply to this email to learn more!
+
+Best regards,
+{senderName}
+{senderPhone}`
+  },
+  customer_renewal: {
+    name: 'Customer Renewal',
+    subject: 'Ready for Another Successful Campaign?',
+    body: `Hi there,
+
+Thank you for advertising with us previously! We hope your campaign brought great results.
+
+We're reaching out because our next community mailer is coming up on {mailDate}.
+
+As a Returning Advertiser:
+• Priority spot selection
+• We already have your artwork on file
+• Quick & easy renewal process
+• Build on your previous exposure
+
+Repeat advertising builds recognition and trust with local customers. Studies show it takes 7+ touchpoints before someone becomes a customer!
+
+Reply to this email to reserve your spot, or let us know if you have any questions.
+
+Best regards,
+{senderName}
+{senderPhone}`
+  }
+};
+
+function getTemplate(templateId) {
+  // Check for saved custom version first
+  const saved = JSON.parse(localStorage.getItem('emailTemplates') || '{}');
+  if (saved[templateId]) {
+    return saved[templateId];
+  }
+  // Return default
+  return DEFAULT_TEMPLATES[templateId] || null;
+}
+
+function getSavedTemplates() {
+  return JSON.parse(localStorage.getItem('emailTemplates') || '{}');
+}
+
+function saveTemplateToStorage(templateId, templateData) {
+  const saved = getSavedTemplates();
+  saved[templateId] = templateData;
+  localStorage.setItem('emailTemplates', JSON.stringify(saved));
+}
+
+function previewTemplate(templateId, event) {
+  if (event) event.stopPropagation();
+
+  const previewEl = document.getElementById(`preview_${templateId}`);
+  if (!previewEl) return;
+
+  // Toggle visibility
+  if (!previewEl.classList.contains('hidden')) {
+    previewEl.classList.add('hidden');
+    return;
+  }
+
+  // Hide other previews
+  document.querySelectorAll('[id^="preview_"]').forEach(el => el.classList.add('hidden'));
+
+  // Get template content
+  const template = getTemplate(templateId);
+  if (!template) {
+    previewEl.innerHTML = '<p class="text-gray-500">Template not found</p>';
+    previewEl.classList.remove('hidden');
+    return;
+  }
+
+  // Replace variables with placeholders for preview
+  let previewHtml = template.body
+    .replace(/\{location\}/g, '<span class="bg-purple-100 text-purple-700 px-1 rounded">[Location]</span>')
+    .replace(/\{mailDate\}/g, '<span class="bg-purple-100 text-purple-700 px-1 rounded">[Mail Date]</span>')
+    .replace(/\{senderName\}/g, '<span class="bg-purple-100 text-purple-700 px-1 rounded">[Your Name]</span>')
+    .replace(/\{senderPhone\}/g, '<span class="bg-purple-100 text-purple-700 px-1 rounded">[Your Phone]</span>')
+    .replace(/\n/g, '<br>');
+
+  previewEl.innerHTML = `
+    <div class="mb-2 pb-2 border-b">
+      <strong>Subject:</strong> ${escapeHtml(template.subject)}
+    </div>
+    <div>${previewHtml}</div>
+  `;
+  previewEl.classList.remove('hidden');
+}
+
+function editTemplate(templateId, event) {
+  if (event) event.stopPropagation();
+
+  const template = getTemplate(templateId);
+  const isCustom = getSavedTemplates()[templateId] !== undefined;
+
+  document.getElementById('editingTemplateId').value = templateId;
+  document.getElementById('templateEditorTitle').textContent = `Edit: ${template?.name || 'Template'}`;
+  document.getElementById('templateEditorName').value = template?.name || '';
+  document.getElementById('templateEditorBody').value = template?.body || '';
+
+  // Show delete button only for custom saved templates
+  const deleteBtn = document.getElementById('deleteTemplateBtn');
+  deleteBtn.classList.toggle('hidden', !isCustom);
+
+  // Update preview
+  updateTemplateEditorPreview();
+
+  document.getElementById('templateEditorModal').classList.remove('hidden');
+}
+
+function closeTemplateEditor() {
+  document.getElementById('templateEditorModal').classList.add('hidden');
+}
+
+function updateTemplateEditorPreview() {
+  const body = document.getElementById('templateEditorBody').value || '';
+  const previewEl = document.getElementById('templateEditorPreview');
+
+  let previewHtml = escapeHtml(body)
+    .replace(/\{location\}/g, '<span class="bg-purple-100 text-purple-700 px-1 rounded">Grand Island</span>')
+    .replace(/\{mailDate\}/g, '<span class="bg-purple-100 text-purple-700 px-1 rounded">March 15, 2026</span>')
+    .replace(/\{senderName\}/g, '<span class="bg-purple-100 text-purple-700 px-1 rounded">Your Name</span>')
+    .replace(/\{senderPhone\}/g, '<span class="bg-purple-100 text-purple-700 px-1 rounded">716-555-1234</span>')
+    .replace(/\n/g, '<br>');
+
+  previewEl.innerHTML = previewHtml || '<span class="text-gray-400">Start typing to see preview...</span>';
+}
+
+function saveTemplate() {
+  const templateId = document.getElementById('editingTemplateId').value;
+  const name = document.getElementById('templateEditorName').value.trim();
+  const body = document.getElementById('templateEditorBody').value.trim();
+
+  if (!name) {
+    alert('Please enter a template name');
+    return;
+  }
+  if (!body) {
+    alert('Please enter template content');
+    return;
+  }
+
+  // Get existing template for subject
+  const existing = getTemplate(templateId) || DEFAULT_TEMPLATES[templateId];
+  const subject = existing?.subject || 'Your Subject Here';
+
+  saveTemplateToStorage(templateId, {
+    name,
+    subject,
+    body,
+    modified: new Date().toISOString()
+  });
+
+  showNotification('Template saved!', 'success');
+  closeTemplateEditor();
+
+  // Refresh preview if open
+  previewTemplate(templateId);
+}
+
+function deleteCustomTemplate() {
+  const templateId = document.getElementById('editingTemplateId').value;
+
+  if (!confirm('Reset this template to the default version?')) return;
+
+  const saved = getSavedTemplates();
+  delete saved[templateId];
+  localStorage.setItem('emailTemplates', JSON.stringify(saved));
+
+  showNotification('Template reset to default', 'success');
+  closeTemplateEditor();
+}
+
+// Update preview as user types
+document.addEventListener('input', (e) => {
+  if (e.target.id === 'templateEditorBody') {
+    updateTemplateEditorPreview();
+  }
+});
+
 function updateEmailSubject() {
   const template = document.querySelector('input[name="emailTemplate"]:checked')?.value || 'prospect_outreach';
   const subjectInput = document.getElementById('campaignEmailSubject');
@@ -31939,7 +32139,7 @@ async function sendEmailCampaignWithConfirm() {
   sendBtn.textContent = '🚀 Sending...';
   hideEmailError();
 
-  const template = document.querySelector('input[name="emailTemplate"]:checked')?.value || 'prospect_outreach';
+  const templateId = document.querySelector('input[name="emailTemplate"]:checked')?.value || 'prospect_outreach';
   const subject = document.getElementById('campaignEmailSubject')?.value || '';
 
   const variables = {
@@ -31951,13 +32151,18 @@ async function sendEmailCampaignWithConfirm() {
     customMessage: document.getElementById('emailCustomMessage')?.value || ''
   };
 
+  // Check for custom template body
+  const savedTemplate = getTemplate(templateId);
+  const customBody = savedTemplate?.body || null;
+
   try {
     const response = await fetch('/api/resend/send-broadcast', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         audienceId: emailCampaignState.audienceId,
-        templateId: template,
+        customBody, // Send custom body if template was edited
+        templateId,
         subject,
         variables,
         fromName: variables.senderName || '10K Postcards'
@@ -32307,6 +32512,11 @@ window.emailWizardNext = emailWizardNext;
 window.updateSendButtonState = updateSendButtonState;
 window.previewEmailCampaign = previewEmailCampaign;
 window.sendEmailCampaignWithConfirm = sendEmailCampaignWithConfirm;
+window.previewTemplate = previewTemplate;
+window.editTemplate = editTemplate;
+window.closeTemplateEditor = closeTemplateEditor;
+window.saveTemplate = saveTemplate;
+window.deleteCustomTemplate = deleteCustomTemplate;
 window.openAudienceManager = openAudienceManager;
 window.closeAudienceManager = closeAudienceManager;
 window.viewAudienceContacts = viewAudienceContacts;
