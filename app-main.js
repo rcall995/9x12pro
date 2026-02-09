@@ -31437,28 +31437,37 @@ function emailWizardBack() {
 
 function emailWizardNext() {
   const currentStep = emailCampaignState.currentStep;
+  hideEmailError(); // Clear any previous errors
 
   // Validate current step before proceeding
   if (currentStep === 2) {
     // Template step - no validation needed
   } else if (currentStep === 3) {
     // Customize step - validate required fields
-    const subject = document.getElementById('emailSubject')?.value?.trim();
-    const senderName = document.getElementById('emailSenderName')?.value?.trim();
+    const subjectEl = document.getElementById('emailSubject');
+    const senderNameEl = document.getElementById('emailSenderName');
+    const subject = subjectEl ? subjectEl.value.trim() : '';
+    const senderName = senderNameEl ? senderNameEl.value.trim() : '';
     const template = document.querySelector('input[name="emailTemplate"]:checked')?.value;
+
+    console.log('📧 Validation - Subject:', subject, 'Sender:', senderName);
 
     if (!subject) {
       showEmailError('Please enter a subject line');
+      subjectEl?.focus();
       return;
     }
     if (!senderName) {
       showEmailError('Please enter your name');
+      senderNameEl?.focus();
       return;
     }
     if (template === 'custom') {
-      const customMsg = document.getElementById('emailCustomMessage')?.value?.trim();
+      const customMsgEl = document.getElementById('emailCustomMessage');
+      const customMsg = customMsgEl ? customMsgEl.value.trim() : '';
       if (!customMsg) {
         showEmailError('Please enter your custom message');
+        customMsgEl?.focus();
         return;
       }
     }
