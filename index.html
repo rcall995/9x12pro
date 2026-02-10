@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>9x12 Pro - The Ultimate Platform for Community Card Businesses</title>
+  <title>9x12 Pro - The Complete Platform for 9x12 Co-Op Postcard Businesses</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="The complete software platform for managing your 9x12 postcard advertising business. Auto-populate prospects, manage sales pipeline, track revenue. Built by operators, for operators." />
+  <meta name="description" content="The all-in-one platform for 9x12 co-op postcard operators. Prospect Radar, contact enrichment, Campaign Board pipeline, email campaigns, EDDM facing slips. Built by operators, for operators." />
 
   <!-- Favicons -->
   <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
   <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%234F46E5'/><text x='50' y='60' font-family='Arial' font-size='24' font-weight='bold' fill='white' text-anchor='middle'>9x12</text></svg>" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%230EA5E9'/><text x='50' y='60' font-family='Arial' font-size='24' font-weight='bold' fill='white' text-anchor='middle'>9x12</text></svg>" />
 
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -19,11 +19,11 @@
     }
     @keyframes float {
       0%, 100% { transform: translateY(0px); }
-      50% { transform: translateY(-20px); }
+      50% { transform: translateY(-10px); }
     }
     @keyframes pulse-glow {
-      0%, 100% { box-shadow: 0 0 20px rgba(99, 102, 241, 0.5); }
-      50% { box-shadow: 0 0 40px rgba(99, 102, 241, 0.8); }
+      0%, 100% { box-shadow: 0 0 20px rgba(14, 165, 233, 0.4); }
+      50% { box-shadow: 0 0 40px rgba(14, 165, 233, 0.6); }
     }
     .fade-in-up {
       animation: fadeInUp 0.8s ease-out forwards;
@@ -31,58 +31,64 @@
     .float {
       animation: float 3s ease-in-out infinite;
     }
+    .pulse-glow {
+      animation: pulse-glow 2s ease-in-out infinite;
+    }
     .delay-1 { animation-delay: 0.1s; opacity: 0; }
     .delay-2 { animation-delay: 0.2s; opacity: 0; }
     .delay-3 { animation-delay: 0.3s; opacity: 0; }
     .delay-4 { animation-delay: 0.4s; opacity: 0; }
     .delay-5 { animation-delay: 0.5s; opacity: 0; }
 
-    .gradient-text {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
     .hero-gradient {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+      background: linear-gradient(135deg, #0c4a6e 0%, #0369a1 30%, #0ea5e9 70%, #22d3ee 100%);
     }
 
     .card-hover {
       transition: all 0.3s ease;
     }
-
     .card-hover:hover {
       transform: translateY(-8px);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+    }
+
+    .gradient-text {
+      background: linear-gradient(135deg, #0ea5e9 0%, #22d3ee 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
   </style>
 </head>
 <body class="bg-gray-50">
 
-  <!-- Premium Floating Header -->
-  <header class="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-200 shadow-lg">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+  <!-- Header -->
+  <header class="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-200 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
       <div class="flex justify-between items-center">
-        <!-- Premium Logo -->
-        <a href="index.html" class="flex items-center group">
+        <!-- Logo -->
+        <a href="index.html" class="flex items-center">
           <div>
-            <div class="text-3xl font-black bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-              9×12 Pro
+            <div class="text-2xl sm:text-3xl font-black bg-gradient-to-r from-sky-600 to-cyan-500 bg-clip-text text-transparent">
+              9x12 Pro
             </div>
-            <div class="text-xs text-gray-600 font-bold tracking-wide">CO-OP POSTCARD MANAGEMENT</div>
+            <div class="text-[10px] sm:text-xs text-gray-500 font-bold tracking-wide">CO-OP POSTCARD MANAGEMENT</div>
           </div>
         </a>
 
-        <!-- CTA Buttons -->
-        <div class="flex items-center gap-4">
-          <a href="#features" class="hidden md:block px-4 py-2 text-sm font-bold text-gray-700 hover:text-indigo-600 transition">
+        <!-- Nav -->
+        <div class="flex items-center gap-3 sm:gap-4">
+          <a href="#features" class="hidden md:block px-3 py-2 text-sm font-bold text-gray-700 hover:text-sky-600 transition">
             Features
           </a>
-          <a href="/pricing.html" class="hidden md:block px-4 py-2 text-sm font-bold text-gray-700 hover:text-indigo-600 transition">
+          <a href="#pricing" class="hidden md:block px-3 py-2 text-sm font-bold text-gray-700 hover:text-sky-600 transition">
             Pricing
           </a>
-          <a href="app.html" class="px-8 py-3 text-base font-black text-white bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl hover:from-indigo-700 hover:to-purple-700 transition shadow-lg transform hover:scale-105">
-            Launch App →
+          <a href="login.html" class="px-4 py-2 text-sm font-bold text-sky-600 hover:text-sky-700 transition">
+            Log In
+          </a>
+          <a href="app.html" class="px-5 sm:px-6 py-2.5 text-sm font-black text-white bg-gradient-to-r from-sky-600 to-cyan-500 rounded-lg hover:from-sky-700 hover:to-cyan-600 transition shadow-md">
+            Launch App
           </a>
         </div>
       </div>
@@ -90,8 +96,7 @@
   </header>
 
   <!-- Hero Section -->
-  <section class="relative pt-32 pb-20 lg:pt-40 lg:pb-32 overflow-hidden hero-gradient">
-    <!-- Animated background elements -->
+  <section class="relative pt-28 pb-20 lg:pt-36 lg:pb-28 overflow-hidden hero-gradient">
     <div class="absolute inset-0 opacity-10">
       <div class="absolute top-20 left-10 w-72 h-72 bg-white rounded-full blur-3xl"></div>
       <div class="absolute top-40 right-20 w-96 h-96 bg-white rounded-full blur-3xl"></div>
@@ -101,133 +106,179 @@
     <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center">
         <!-- Trust Badge -->
-        <div class="inline-flex items-center gap-2 px-4 py-2 bg-white/20 backdrop-blur-md border border-white/30 rounded-full text-white text-sm font-bold mb-8 fade-in-up delay-1">
+        <div class="inline-flex items-center gap-2 px-4 py-2 bg-white/20 backdrop-blur-md border border-white/30 rounded-full text-white text-sm font-bold mb-6 fade-in-up delay-1">
           <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-          Built by 9×12 Operators, For 9×12 Operators
+          Built by 9x12 Operators, For 9x12 Operators
         </div>
 
         <!-- Main Headline -->
-        <h1 class="text-5xl sm:text-6xl lg:text-7xl font-black text-white mb-6 fade-in-up delay-2 leading-tight">
-          Stop Drowning in<br/>
-          <span class="text-yellow-300">Spreadsheets</span>
+        <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black text-white mb-4 fade-in-up delay-2 leading-tight">
+          Ready to Run Your Business<br/>
+          <span class="text-cyan-300">Like a 9x12 Pro?</span>
         </h1>
 
-        <p class="text-2xl sm:text-3xl lg:text-4xl font-bold text-white/90 mb-6 fade-in-up delay-3">
-          Run Your 9×12 Business Like a Pro
+        <p class="text-xl sm:text-2xl font-bold text-white/90 mb-4 fade-in-up delay-3">
+          The All-in-One Platform for 9x12 Operators
         </p>
 
-        <p class="text-xl sm:text-2xl mb-10 text-indigo-100 max-w-4xl mx-auto fade-in-up delay-4 leading-relaxed">
-          The all-in-one platform built exclusively for community card operators. Generate qualified prospects instantly, manage your pipeline, track revenue, and scale your business—all in one powerful app.
+        <p class="text-lg sm:text-xl mb-8 text-sky-100 max-w-3xl mx-auto fade-in-up delay-4 leading-relaxed">
+          Find prospects, get contact info, manage your pipeline, send outreach, track revenue &mdash; all in one place.
         </p>
 
-        <!-- CTA Buttons -->
-        <div class="flex flex-col sm:flex-row gap-4 justify-center mb-8 fade-in-up delay-5">
-          <a href="app.html" class="group px-10 py-5 text-xl font-black text-indigo-600 bg-white rounded-2xl hover:bg-gray-50 transition shadow-2xl transform hover:scale-105">
+        <!-- CTA Button -->
+        <div class="flex flex-col sm:flex-row gap-3 justify-center mb-6 fade-in-up delay-5">
+          <a href="app.html" class="group px-8 py-4 text-lg font-black text-sky-700 bg-white rounded-xl hover:bg-gray-50 transition shadow-xl pulse-glow">
             <span class="flex items-center justify-center gap-2">
-              Get Started FREE
-              <svg class="w-6 h-6 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              Start Free - No Credit Card
+              <svg class="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
               </svg>
             </span>
           </a>
-          <a href="#demo" class="px-10 py-5 text-xl font-black text-white border-4 border-white rounded-2xl hover:bg-white hover:text-indigo-600 transition transform hover:scale-105">
-            Watch Demo
-          </a>
         </div>
 
-        <!-- Trust Indicators -->
-        <div class="flex flex-wrap justify-center gap-6 text-white/90 text-sm font-bold fade-in-up delay-5">
-          <div class="flex items-center gap-2">
-            <svg class="w-5 h-5 text-green-300" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-            </svg>
-            No credit card required
+        <!-- Feature Pills -->
+        <div class="flex flex-wrap justify-center gap-3 text-sm font-bold fade-in-up delay-5">
+          <div class="px-4 py-2 bg-white/20 backdrop-blur-sm border border-white/30 rounded-full text-white">
+            Prospect Radar
           </div>
-          <div class="flex items-center gap-2">
-            <svg class="w-5 h-5 text-green-300" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-            </svg>
-            Start in 60 seconds
+          <div class="px-4 py-2 bg-white/20 backdrop-blur-sm border border-white/30 rounded-full text-white">
+            Email Finder
           </div>
-          <div class="flex items-center gap-2">
-            <svg class="w-5 h-5 text-green-300" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-            </svg>
-            Full access forever
+          <div class="px-4 py-2 bg-white/20 backdrop-blur-sm border border-white/30 rounded-full text-white">
+            Campaign Board
+          </div>
+          <div class="px-4 py-2 bg-white/20 backdrop-blur-sm border border-white/30 rounded-full text-white">
+            Email Campaigns
+          </div>
+          <div class="px-4 py-2 bg-white/20 backdrop-blur-sm border border-white/30 rounded-full text-white">
+            Facing Slips
           </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Problem/Solution Section -->
-  <section class="py-20 bg-white">
+  <!-- How It Works Section -->
+  <section class="py-16 bg-white">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="grid lg:grid-cols-2 gap-12 items-center">
+      <div class="text-center mb-12">
+        <div class="inline-block px-4 py-2 bg-sky-100 text-sky-700 font-black text-sm rounded-full mb-4">
+          HOW IT WORKS
+        </div>
+        <h2 class="text-3xl sm:text-4xl font-black text-gray-900 mb-4">
+          From Search to Sale in 4 Steps
+        </h2>
+      </div>
+
+      <div class="grid md:grid-cols-4 gap-6">
+        <!-- Step 1 -->
+        <div class="text-center">
+          <div class="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-sky-500 to-cyan-500 rounded-2xl flex items-center justify-center text-white text-2xl font-black shadow-lg">
+            1
+          </div>
+          <h3 class="font-bold text-gray-900 mb-2">Search ZIP + Category</h3>
+          <p class="text-gray-600 text-sm">Find businesses by ZIP code, radius, or neighboring ZIPs. 150+ categories.</p>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="text-center">
+          <div class="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-sky-500 to-cyan-500 rounded-2xl flex items-center justify-center text-white text-2xl font-black shadow-lg">
+            2
+          </div>
+          <h3 class="font-bold text-gray-900 mb-2">Get Contact Info</h3>
+          <p class="text-gray-600 text-sm">One-click enrichment finds emails, phone numbers, and social profiles.</p>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="text-center">
+          <div class="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-sky-500 to-cyan-500 rounded-2xl flex items-center justify-center text-white text-2xl font-black shadow-lg">
+            3
+          </div>
+          <h3 class="font-bold text-gray-900 mb-2">Manage Your Pipeline</h3>
+          <p class="text-gray-600 text-sm">6-stage Campaign Board tracks every deal from first contact to paid.</p>
+        </div>
+
+        <!-- Step 4 -->
+        <div class="text-center">
+          <div class="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-sky-500 to-cyan-500 rounded-2xl flex items-center justify-center text-white text-2xl font-black shadow-lg">
+            4
+          </div>
+          <h3 class="font-bold text-gray-900 mb-2">Send Outreach & Close</h3>
+          <p class="text-gray-600 text-sm">Email campaigns, text, call &mdash; multi-channel outreach tools to close deals.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Problem/Solution Section -->
+  <section class="py-16 bg-gradient-to-br from-gray-50 to-sky-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
         <!-- Problem Side -->
         <div>
-          <div class="inline-block px-4 py-2 bg-red-100 text-red-700 font-black text-sm rounded-full mb-6">
-            😩 THE OLD WAY
+          <div class="inline-block px-4 py-2 bg-red-100 text-red-700 font-black text-sm rounded-full mb-4">
+            THE OLD WAY
           </div>
-          <h2 class="text-4xl font-black text-gray-900 mb-6">
+          <h2 class="text-3xl sm:text-4xl font-black text-gray-900 mb-6">
             Sound Familiar?
           </h2>
-          <div class="space-y-4">
+          <div class="space-y-3">
             <div class="flex gap-3 items-start">
-              <div class="flex-shrink-0 w-8 h-8 bg-red-100 text-red-600 rounded-lg flex items-center justify-center font-bold">✕</div>
-              <p class="text-lg text-gray-700"><strong>Hours spent</strong> manually researching businesses on Google</p>
+              <div class="flex-shrink-0 w-7 h-7 bg-red-100 text-red-600 rounded-lg flex items-center justify-center text-sm font-bold">X</div>
+              <p class="text-gray-700"><strong>Hours spent</strong> manually searching Google for businesses</p>
             </div>
             <div class="flex gap-3 items-start">
-              <div class="flex-shrink-0 w-8 h-8 bg-red-100 text-red-600 rounded-lg flex items-center justify-center font-bold">✕</div>
-              <p class="text-lg text-gray-700"><strong>Lost leads</strong> buried in messy spreadsheets</p>
+              <div class="flex-shrink-0 w-7 h-7 bg-red-100 text-red-600 rounded-lg flex items-center justify-center text-sm font-bold">X</div>
+              <p class="text-gray-700"><strong>No contact info</strong> &mdash; can't find owner emails anywhere</p>
             </div>
             <div class="flex gap-3 items-start">
-              <div class="flex-shrink-0 w-8 h-8 bg-red-100 text-red-600 rounded-lg flex items-center justify-center font-bold">✕</div>
-              <p class="text-lg text-gray-700"><strong>No clue</strong> which clients are about to renew</p>
+              <div class="flex-shrink-0 w-7 h-7 bg-red-100 text-red-600 rounded-lg flex items-center justify-center text-sm font-bold">X</div>
+              <p class="text-gray-700"><strong>Lost leads</strong> buried in messy spreadsheets</p>
             </div>
             <div class="flex gap-3 items-start">
-              <div class="flex-shrink-0 w-8 h-8 bg-red-100 text-red-600 rounded-lg flex items-center justify-center font-bold">✕</div>
-              <p class="text-lg text-gray-700"><strong>Guessing</strong> if you're actually profitable this month</p>
+              <div class="flex-shrink-0 w-7 h-7 bg-red-100 text-red-600 rounded-lg flex items-center justify-center text-sm font-bold">X</div>
+              <p class="text-gray-700"><strong>Hand-writing EDDM facing slips</strong> for every mailing</p>
             </div>
             <div class="flex gap-3 items-start">
-              <div class="flex-shrink-0 w-8 h-8 bg-red-100 text-red-600 rounded-lg flex items-center justify-center font-bold">✕</div>
-              <p class="text-lg text-gray-700"><strong>Scrambling</strong> to remember who said what, when</p>
+              <div class="flex-shrink-0 w-7 h-7 bg-red-100 text-red-600 rounded-lg flex items-center justify-center text-sm font-bold">X</div>
+              <p class="text-gray-700"><strong>Guessing</strong> if you're actually profitable this month</p>
             </div>
           </div>
         </div>
 
         <!-- Solution Side -->
-        <div class="bg-gradient-to-br from-green-50 to-emerald-50 border-4 border-green-200 rounded-3xl p-8 relative">
-          <div class="absolute -top-4 -right-4 px-4 py-2 bg-green-500 text-white font-black text-sm rounded-full shadow-lg rotate-12">
-            ✨ THE PRO WAY
+        <div class="bg-gradient-to-br from-sky-50 to-cyan-50 border-2 border-sky-200 rounded-2xl p-6 sm:p-8 relative shadow-xl">
+          <div class="absolute -top-3 -right-3 px-3 py-1.5 bg-sky-500 text-white font-black text-xs rounded-full shadow-lg">
+            THE 9x12 PRO WAY
           </div>
-          <h2 class="text-4xl font-black text-gray-900 mb-6">
-            Welcome to 9×12 Pro
+          <h2 class="text-3xl sm:text-4xl font-black text-gray-900 mb-6">
+            Welcome to 9x12 Pro
           </h2>
-          <div class="space-y-4">
+          <div class="space-y-3">
             <div class="flex gap-3 items-start">
-              <div class="flex-shrink-0 w-8 h-8 bg-green-500 text-white rounded-lg flex items-center justify-center font-bold">✓</div>
-              <p class="text-lg text-gray-700"><strong>Generate 100+ qualified prospects</strong> in 60 seconds</p>
+              <div class="flex-shrink-0 w-7 h-7 bg-sky-500 text-white rounded-lg flex items-center justify-center text-sm font-bold">&#10003;</div>
+              <p class="text-gray-700"><strong>Prospect Radar:</strong> 100+ prospects in 60 seconds</p>
             </div>
             <div class="flex gap-3 items-start">
-              <div class="flex-shrink-0 w-8 h-8 bg-green-500 text-white rounded-lg flex items-center justify-center font-bold">✓</div>
-              <p class="text-lg text-gray-700"><strong>Visual pipeline</strong> keeps every lead organized</p>
+              <div class="flex-shrink-0 w-7 h-7 bg-sky-500 text-white rounded-lg flex items-center justify-center text-sm font-bold">&#10003;</div>
+              <p class="text-gray-700"><strong>Auto-find emails & phones</strong> with one-click enrichment</p>
             </div>
             <div class="flex gap-3 items-start">
-              <div class="flex-shrink-0 w-8 h-8 bg-green-500 text-white rounded-lg flex items-center justify-center font-bold">✓</div>
-              <p class="text-lg text-gray-700"><strong>Automated reminders</strong> for renewals & follow-ups</p>
+              <div class="flex-shrink-0 w-7 h-7 bg-sky-500 text-white rounded-lg flex items-center justify-center text-sm font-bold">&#10003;</div>
+              <p class="text-gray-700"><strong>6-stage Campaign Board</strong> with attempt tracking</p>
             </div>
             <div class="flex gap-3 items-start">
-              <div class="flex-shrink-0 w-8 h-8 bg-green-500 text-white rounded-lg flex items-center justify-center font-bold">✓</div>
-              <p class="text-lg text-gray-700"><strong>Real-time financials</strong> show revenue & profit instantly</p>
+              <div class="flex-shrink-0 w-7 h-7 bg-sky-500 text-white rounded-lg flex items-center justify-center text-sm font-bold">&#10003;</div>
+              <p class="text-gray-700"><strong>Multi-channel outreach:</strong> email, text, call, social</p>
             </div>
             <div class="flex gap-3 items-start">
-              <div class="flex-shrink-0 w-8 h-8 bg-green-500 text-white rounded-lg flex items-center justify-center font-bold">✓</div>
-              <p class="text-lg text-gray-700"><strong>Complete CRM</strong> with full client history</p>
+              <div class="flex-shrink-0 w-7 h-7 bg-sky-500 text-white rounded-lg flex items-center justify-center text-sm font-bold">&#10003;</div>
+              <p class="text-gray-700"><strong>EDDM Facing Slip Generator</strong> &mdash; no more hand-writing slips</p>
             </div>
           </div>
-          <a href="app.html" class="block mt-8 px-8 py-4 text-center text-lg font-black text-white bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl hover:from-green-700 hover:to-emerald-700 shadow-xl transform hover:scale-105 transition">
-            Try It FREE Now →
+          <a href="app.html" class="block mt-6 px-6 py-3 text-center font-black text-white bg-gradient-to-r from-sky-600 to-cyan-500 rounded-xl hover:from-sky-700 hover:to-cyan-600 shadow-lg transition">
+            Try It FREE Now
           </a>
         </div>
       </div>
@@ -235,409 +286,600 @@
   </section>
 
   <!-- Key Features Grid -->
-  <section id="features" class="py-20 bg-gradient-to-br from-gray-50 to-indigo-50">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="text-center mb-16">
-        <div class="inline-block px-4 py-2 bg-indigo-100 text-indigo-700 font-black text-sm rounded-full mb-6">
-          🚀 POWERFUL FEATURES
-        </div>
-        <h2 class="text-4xl sm:text-5xl font-black text-gray-900 mb-6">
-          Everything You Need.<br/>Nothing You Don't.
-        </h2>
-        <p class="text-xl text-gray-600 max-w-3xl mx-auto">
-          Purpose-built for 9×12 community card operators. Every feature solves a real problem you face daily.
-        </p>
-      </div>
-
-      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-        <!-- Feature Cards -->
-        <div class="bg-white rounded-2xl shadow-xl border-2 border-purple-100 p-8 card-hover">
-          <div class="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center text-3xl mb-4 float">
-            🔍
-          </div>
-          <h3 class="text-2xl font-black text-gray-900 mb-3">Prospect Generator</h3>
-          <p class="text-gray-600 mb-4">
-            Search Google Places by ZIP code and category. Generate 100+ qualified businesses with names, addresses, and phones in 60 seconds.
-          </p>
-          <div class="flex items-center gap-2 text-sm font-bold text-purple-600">
-            <span class="px-3 py-1 bg-purple-100 rounded-full">50 FREE searches/month</span>
-          </div>
-        </div>
-
-        <div class="bg-white rounded-2xl shadow-xl border-2 border-blue-100 p-8 card-hover">
-          <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center text-3xl mb-4 float" style="animation-delay: 0.2s;">
-            📊
-          </div>
-          <h3 class="text-2xl font-black text-gray-900 mb-3">Visual Sales Pipeline</h3>
-          <p class="text-gray-600 mb-4">
-            Kanban board tracks prospects from first contact to paid client. Drag & drop to move leads. Never lose track again.
-          </p>
-          <div class="flex items-center gap-2 text-sm font-bold text-blue-600">
-            <span class="px-3 py-1 bg-blue-100 rounded-full">Unlimited deals</span>
-          </div>
-        </div>
-
-        <div class="bg-white rounded-2xl shadow-xl border-2 border-pink-100 p-8 card-hover">
-          <div class="w-16 h-16 bg-gradient-to-br from-pink-500 to-rose-500 rounded-2xl flex items-center justify-center text-3xl mb-4 float" style="animation-delay: 0.4s;">
-            📮
-          </div>
-          <h3 class="text-2xl font-black text-gray-900 mb-3">Visual Postcard Builder</h3>
-          <p class="text-gray-600 mb-4">
-            See your entire 9×12 layout. Click spots to edit. Track status (Available, Reserved, Paid). Manage pricing per spot.
-          </p>
-          <div class="flex items-center gap-2 text-sm font-bold text-pink-600">
-            <span class="px-3 py-1 bg-pink-100 rounded-full">Front & back sides</span>
-          </div>
-        </div>
-
-        <div class="bg-white rounded-2xl shadow-xl border-2 border-green-100 p-8 card-hover">
-          <div class="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center text-3xl mb-4 float" style="animation-delay: 0.6s;">
-            👥
-          </div>
-          <h3 class="text-2xl font-black text-gray-900 mb-3">Client Database & CRM</h3>
-          <p class="text-gray-600 mb-4">
-            Store all client details. Track lifetime value. Manage multi-month contracts. Message templates. Import/export CSV.
-          </p>
-          <div class="flex items-center gap-2 text-sm font-bold text-green-600">
-            <span class="px-3 py-1 bg-green-100 rounded-full">Unlimited clients</span>
-          </div>
-        </div>
-
-        <div class="bg-white rounded-2xl shadow-xl border-2 border-orange-100 p-8 card-hover">
-          <div class="w-16 h-16 bg-gradient-to-br from-orange-500 to-amber-500 rounded-2xl flex items-center justify-center text-3xl mb-4 float" style="animation-delay: 0.8s;">
-            💰
-          </div>
-          <h3 class="text-2xl font-black text-gray-900 mb-3">Financial Dashboard</h3>
-          <p class="text-gray-600 mb-4">
-            Track revenue, expenses, and profit per postcard. Real-time P&L. Know exactly where you stand financially.
-          </p>
-          <div class="flex items-center gap-2 text-sm font-bold text-orange-600">
-            <span class="px-3 py-1 bg-orange-100 rounded-full">Tax-ready reports</span>
-          </div>
-        </div>
-
-        <div class="bg-white rounded-2xl shadow-xl border-2 border-indigo-100 p-8 card-hover">
-          <div class="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-2xl flex items-center justify-center text-3xl mb-4 float" style="animation-delay: 1s;">
-            ☁️
-          </div>
-          <h3 class="text-2xl font-black text-gray-900 mb-3">Auto-Save & Cloud Sync</h3>
-          <p class="text-gray-600 mb-4">
-            Changes save every 15 seconds. Sync to cloud for backup. Access from any device. Never lose your data.
-          </p>
-          <div class="flex items-center gap-2 text-sm font-bold text-indigo-600">
-            <span class="px-3 py-1 bg-indigo-100 rounded-full">Multi-device sync</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ROI Section -->
-  <section class="py-20 bg-white">
+  <section id="features" class="py-16 bg-white">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center mb-12">
-        <div class="inline-block px-4 py-2 bg-green-100 text-green-700 font-black text-sm rounded-full mb-6">
-          💸 RETURN ON INVESTMENT
+        <div class="inline-block px-4 py-2 bg-sky-100 text-sky-700 font-black text-sm rounded-full mb-4">
+          POWERFUL FEATURES
         </div>
-        <h2 class="text-4xl sm:text-5xl font-black text-gray-900 mb-6">
-          Save 10+ Hours Per Week
+        <h2 class="text-3xl sm:text-4xl font-black text-gray-900 mb-4">
+          Everything You Need to Scale
         </h2>
-        <p class="text-xl text-gray-600 max-w-3xl mx-auto">
-          Time is money. See how 9×12 Pro pays for itself in the first week.
+        <p class="text-lg text-gray-600 max-w-3xl mx-auto">
+          Purpose-built for 9x12 community card operators. Every feature solves a real problem you face daily.
         </p>
       </div>
 
-      <div class="grid md:grid-cols-3 gap-8 mb-12">
-        <div class="text-center p-8 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl border-2 border-indigo-200">
-          <div class="text-6xl font-black text-indigo-600 mb-2">10+</div>
-          <div class="text-xl font-bold text-gray-700 mb-2">Hours Saved</div>
-          <div class="text-gray-600">Per week on research & admin tasks</div>
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Prospect Radar -->
+        <div class="bg-white rounded-2xl shadow-lg border border-sky-100 p-6 card-hover">
+          <div class="w-14 h-14 bg-gradient-to-br from-sky-500 to-cyan-500 rounded-xl flex items-center justify-center text-2xl mb-4 float">
+            <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+          </div>
+          <h3 class="text-xl font-black text-gray-900 mb-2">Prospect Radar</h3>
+          <p class="text-gray-600 mb-3">
+            Search by ZIP code, radius, or neighboring ZIPs. 150+ business categories. Get names, addresses, phones & websites instantly.
+          </p>
+          <div class="text-sm font-bold text-sky-600">
+            <span class="px-3 py-1 bg-sky-100 rounded-full">Radius & neighbor ZIP search</span>
+          </div>
         </div>
-        <div class="text-center p-8 bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl border-2 border-green-200">
-          <div class="text-6xl font-black text-green-600 mb-2">3X</div>
-          <div class="text-xl font-bold text-gray-700 mb-2">Faster Sales</div>
-          <div class="text-gray-600">Close deals faster with organized pipeline</div>
+
+        <!-- Contact Enrichment -->
+        <div class="bg-white rounded-2xl shadow-lg border border-sky-100 p-6 card-hover relative">
+          <div class="absolute -top-2 -right-2 px-2 py-1 bg-sky-500 text-white text-xs font-black rounded-full">HOT</div>
+          <div class="w-14 h-14 bg-gradient-to-br from-cyan-500 to-teal-500 rounded-xl flex items-center justify-center text-2xl mb-4 float" style="animation-delay: 0.1s;">
+            <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+          </div>
+          <h3 class="text-xl font-black text-gray-900 mb-2">Contact Enrichment</h3>
+          <p class="text-gray-600 mb-3">
+            One-click finds owner emails, direct phone numbers, Facebook pages, and LinkedIn profiles.
+          </p>
+          <div class="text-sm font-bold text-cyan-600">
+            <span class="px-3 py-1 bg-cyan-100 rounded-full">One-click auto-lookup</span>
+          </div>
         </div>
-        <div class="text-center p-8 bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl border-2 border-orange-200">
-          <div class="text-6xl font-black text-orange-600 mb-2">$0</div>
-          <div class="text-xl font-bold text-gray-700 mb-2">Setup Cost</div>
-          <div class="text-gray-600">Start free. Upgrade when ready.</div>
+
+        <!-- Campaign Board -->
+        <div class="bg-white rounded-2xl shadow-lg border border-sky-100 p-6 card-hover relative">
+          <div class="w-14 h-14 bg-gradient-to-br from-indigo-500 to-blue-500 rounded-xl flex items-center justify-center text-2xl mb-4 float" style="animation-delay: 0.2s;">
+            <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"></path></svg>
+          </div>
+          <h3 class="text-xl font-black text-gray-900 mb-2">Campaign Board</h3>
+          <p class="text-gray-600 mb-3">
+            6-stage sales pipeline: Queued &rarr; Attempting &rarr; Negotiating &rarr; Invoice Sent &rarr; Proof Approved &rarr; Paid. Drag & drop.
+          </p>
+          <div class="text-sm font-bold text-indigo-600">
+            <span class="px-3 py-1 bg-indigo-100 rounded-full">Attempt tracking built-in</span>
+          </div>
+        </div>
+
+        <!-- Email Campaigns -->
+        <div class="bg-white rounded-2xl shadow-lg border border-sky-100 p-6 card-hover relative">
+          <div class="w-14 h-14 bg-gradient-to-br from-blue-500 to-sky-500 rounded-xl flex items-center justify-center text-2xl mb-4 float" style="animation-delay: 0.3s;">
+            <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 19v-8.93a2 2 0 01.89-1.664l7-4.666a2 2 0 012.22 0l7 4.666A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-1.14.76a2 2 0 01-2.22 0l-1.14-.76"></path></svg>
+          </div>
+          <h3 class="text-xl font-black text-gray-900 mb-2">Email Campaigns</h3>
+          <p class="text-gray-600 mb-3">
+            Send marketing emails to prospects or past customers. Built-in templates with variable merge. Track results.
+          </p>
+          <div class="text-sm font-bold text-blue-600">
+            <span class="px-3 py-1 bg-blue-100 rounded-full">Templates + variables</span>
+          </div>
+        </div>
+
+        <!-- Facing Slip Generator -->
+        <div class="bg-white rounded-2xl shadow-lg border-2 border-amber-300 p-6 card-hover relative">
+          <div class="absolute -top-2 -right-2 px-2 py-1 bg-amber-500 text-white text-xs font-black rounded-full">KEY FEATURE</div>
+          <div class="w-14 h-14 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl flex items-center justify-center text-2xl mb-4 float" style="animation-delay: 0.4s;">
+            <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+          </div>
+          <h3 class="text-xl font-black text-gray-900 mb-2">Facing Slip Generator</h3>
+          <p class="text-gray-600 mb-3">
+            Generate USPS-compliant EDDM facing slips. Import routes, auto-calculate bundles, print-ready output. No more hand-writing.
+          </p>
+          <div class="text-sm font-bold text-amber-600">
+            <span class="px-3 py-1 bg-amber-100 rounded-full">USPS-compliant & print-ready</span>
+          </div>
+        </div>
+
+        <!-- Postcard Builder -->
+        <div class="bg-white rounded-2xl shadow-lg border border-sky-100 p-6 card-hover">
+          <div class="w-14 h-14 bg-gradient-to-br from-sky-600 to-blue-600 rounded-xl flex items-center justify-center text-2xl mb-4 float" style="animation-delay: 0.5s;">
+            <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"></path></svg>
+          </div>
+          <h3 class="text-xl font-black text-gray-900 mb-2">Postcard Builder</h3>
+          <p class="text-gray-600 mb-3">
+            Visual layout of your 9x12 card. Click spots to assign advertisers. Front & back sides. Track status per spot.
+          </p>
+          <div class="text-sm font-bold text-sky-600">
+            <span class="px-3 py-1 bg-sky-100 rounded-full">Visual ad placement</span>
+          </div>
+        </div>
+
+        <!-- Client Database / CRM -->
+        <div class="bg-white rounded-2xl shadow-lg border border-sky-100 p-6 card-hover">
+          <div class="w-14 h-14 bg-gradient-to-br from-teal-500 to-cyan-500 rounded-xl flex items-center justify-center text-2xl mb-4 float" style="animation-delay: 0.6s;">
+            <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+          </div>
+          <h3 class="text-xl font-black text-gray-900 mb-2">Client Database / CRM</h3>
+          <p class="text-gray-600 mb-3">
+            Store all client details. Track lifetime value. Email past customers for renewals. Import/export CSV.
+          </p>
+          <div class="text-sm font-bold text-teal-600">
+            <span class="px-3 py-1 bg-teal-100 rounded-full">Lifetime value tracking</span>
+          </div>
+        </div>
+
+        <!-- Financial Dashboard -->
+        <div class="bg-white rounded-2xl shadow-lg border border-sky-100 p-6 card-hover">
+          <div class="w-14 h-14 bg-gradient-to-br from-emerald-500 to-green-500 rounded-xl flex items-center justify-center text-2xl mb-4 float" style="animation-delay: 0.7s;">
+            <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          </div>
+          <h3 class="text-xl font-black text-gray-900 mb-2">Financial Dashboard</h3>
+          <p class="text-gray-600 mb-3">
+            Revenue, expenses, and profit per postcard. Real-time P&L shows exactly where you stand.
+          </p>
+          <div class="text-sm font-bold text-emerald-600">
+            <span class="px-3 py-1 bg-emerald-100 rounded-full">Real-time P&L</span>
+          </div>
+        </div>
+
+        <!-- Cloud Sync -->
+        <div class="bg-white rounded-2xl shadow-lg border border-sky-100 p-6 card-hover">
+          <div class="w-14 h-14 bg-gradient-to-br from-sky-500 to-blue-500 rounded-xl flex items-center justify-center text-2xl mb-4 float" style="animation-delay: 0.8s;">
+            <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
+          </div>
+          <h3 class="text-xl font-black text-gray-900 mb-2">Cloud Sync</h3>
+          <p class="text-gray-600 mb-3">
+            Auto-saves every 15 seconds. Access from any device &mdash; phone, tablet, computer. Never lose data.
+          </p>
+          <div class="text-sm font-bold text-sky-600">
+            <span class="px-3 py-1 bg-sky-100 rounded-full">Multi-device sync</span>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Social Proof Stats -->
-  <section class="py-16 bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
+  <!-- Feature Spotlight: Facing Slip Generator -->
+  <section class="py-16 bg-gradient-to-br from-amber-50 to-orange-50">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+      <div class="grid lg:grid-cols-2 gap-12 items-center">
         <div>
-          <div class="text-5xl font-black mb-2">150+</div>
-          <div class="text-sm font-bold text-indigo-200">Potential Markets</div>
-        </div>
-        <div>
-          <div class="text-5xl font-black mb-2">1,000+</div>
-          <div class="text-sm font-bold text-indigo-200">FREE Searches/Month</div>
-        </div>
-        <div>
-          <div class="text-5xl font-black mb-2">15s</div>
-          <div class="text-sm font-bold text-indigo-200">Auto-Save Interval</div>
-        </div>
-        <div>
-          <div class="text-5xl font-black mb-2">∞</div>
-          <div class="text-sm font-bold text-indigo-200">Postcards & Clients</div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Pricing Section (Coming Soon Teaser) -->
-  <section id="pricing" class="py-20 bg-gray-50">
-    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="text-center mb-16">
-        <div class="inline-block px-4 py-2 bg-purple-100 text-purple-700 font-black text-sm rounded-full mb-6">
-          💎 SIMPLE PRICING
-        </div>
-        <h2 class="text-4xl sm:text-5xl font-black text-gray-900 mb-6">
-          Choose Your Plan
-        </h2>
-        <p class="text-xl text-gray-600 max-w-3xl mx-auto">
-          Start free with full access. Upgrade when you're ready to scale your business to the next level.
-        </p>
-      </div>
-
-      <!-- Pricing Cards Grid -->
-      <div class="grid md:grid-cols-3 gap-8 max-w-7xl mx-auto">
-
-        <!-- FREE Plan -->
-        <div class="bg-white rounded-3xl shadow-xl border-2 border-gray-200 p-8 relative">
-          <div class="text-center mb-6">
-            <div class="text-sm font-black text-gray-600 uppercase tracking-wide mb-2">Starter</div>
-            <div class="text-6xl font-black text-gray-900 mb-2">FREE</div>
-            <div class="text-lg text-gray-600 font-medium">Free Forever</div>
+          <div class="inline-block px-4 py-2 bg-amber-100 text-amber-700 font-black text-sm rounded-full mb-4">
+            OPERATOR FAVORITE
           </div>
+          <h2 class="text-3xl sm:text-4xl font-black text-gray-900 mb-4">
+            Stop Hand-Writing<br/><span class="gradient-text">Facing Slips</span>
+          </h2>
+          <p class="text-lg text-gray-600 mb-6">
+            Every 9x12 operator knows the pain of filling out EDDM facing slips by hand. Dozens of routes, hundreds of bundles &mdash; all calculated and written manually. Not anymore.
+          </p>
 
-          <div class="space-y-4 mb-8">
-            <div class="flex items-start gap-3">
-              <svg class="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-              </svg>
-              <span class="text-sm text-gray-700"><strong>50 Prospect Generator</strong> searches/month</span>
+          <div class="space-y-4">
+            <div class="flex gap-3">
+              <div class="flex-shrink-0 w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-white font-bold">1</div>
+              <div>
+                <h4 class="font-bold text-gray-900">Import Routes from USPS</h4>
+                <p class="text-gray-600 text-sm">Use the bookmarklet or manually enter your carrier routes and residential counts</p>
+              </div>
             </div>
-            <div class="flex items-start gap-3">
-              <svg class="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-              </svg>
-              <span class="text-sm text-gray-700">1 active postcard campaign</span>
+            <div class="flex gap-3">
+              <div class="flex-shrink-0 w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-white font-bold">2</div>
+              <div>
+                <h4 class="font-bold text-gray-900">Set Mailing Date & Details</h4>
+                <p class="text-gray-600 text-sm">Enter your mailing date, permit info, and mailer details</p>
+              </div>
             </div>
-            <div class="flex items-start gap-3">
-              <svg class="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-              </svg>
-              <span class="text-sm text-gray-700">Basic CRM & pipeline</span>
-            </div>
-            <div class="flex items-start gap-3">
-              <svg class="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-              </svg>
-              <span class="text-sm text-gray-700">Financial tracking</span>
-            </div>
-            <div class="flex items-start gap-3">
-              <svg class="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-              </svg>
-              <span class="text-sm text-gray-700">Email support</span>
+            <div class="flex gap-3">
+              <div class="flex-shrink-0 w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-white font-bold">3</div>
+              <div>
+                <h4 class="font-bold text-gray-900">Generate & Print</h4>
+                <p class="text-gray-600 text-sm">USPS-compliant slips, auto-calculated bundles, print-ready &mdash; done in seconds</p>
+              </div>
             </div>
           </div>
 
-          <a href="app.html" class="block w-full px-6 py-4 text-center text-base font-black text-indigo-600 bg-indigo-50 border-2 border-indigo-600 rounded-xl hover:bg-indigo-100 transition">
-            Start Free Trial
+          <a href="app.html" class="inline-block mt-8 px-6 py-3 font-black text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl hover:from-amber-600 hover:to-orange-600 shadow-lg transition">
+            Try Facing Slip Generator Free
           </a>
         </div>
 
-        <!-- PRO Plan (Most Popular) -->
-        <div class="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-3xl shadow-2xl border-4 border-indigo-300 p-8 relative transform scale-105">
-          <div class="absolute -top-4 left-1/2 -translate-x-1/2 px-6 py-2 bg-gradient-to-r from-yellow-400 to-orange-400 text-gray-900 font-black text-sm rounded-full shadow-lg">
-            ⭐ MOST POPULAR
+        <div class="bg-white rounded-2xl shadow-2xl border border-amber-200 p-6 lg:p-8">
+          <div class="text-center mb-6">
+            <div class="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-100 text-amber-700 rounded-full text-sm font-bold">
+              <span class="w-2 h-2 bg-amber-500 rounded-full"></span>
+              Facing Slip Preview
+            </div>
+          </div>
+          <div class="space-y-3">
+            <div class="p-4 bg-gray-50 rounded-xl">
+              <div class="text-xs text-gray-500 mb-1">MAILING DATE:</div>
+              <div class="font-medium text-gray-800">March 15, 2026</div>
+            </div>
+            <div class="p-4 bg-gray-50 rounded-xl">
+              <div class="text-xs text-gray-500 mb-1">ROUTES IMPORTED:</div>
+              <div class="font-medium text-gray-800">8 carrier routes &bull; 4,236 addresses</div>
+            </div>
+            <div class="p-4 bg-gray-50 rounded-xl">
+              <div class="text-xs text-gray-500 mb-1">BUNDLES CALCULATED:</div>
+              <div class="font-medium text-gray-800">17 bundles &bull; Auto-split by route</div>
+            </div>
+            <div class="p-4 bg-gray-50 rounded-xl">
+              <div class="text-xs text-gray-500 mb-1">OUTPUT:</div>
+              <div class="font-medium text-gray-800">USPS-Compliant &bull; Print-Ready PDF</div>
+            </div>
+            <div class="flex justify-center pt-2">
+              <div class="px-6 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg font-bold text-sm">
+                Generate Facing Slips
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Feature Spotlight: Campaign Board -->
+  <section class="py-16 bg-gradient-to-br from-sky-50 to-cyan-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="grid lg:grid-cols-2 gap-12 items-center">
+        <div class="order-2 lg:order-1 bg-white rounded-2xl shadow-2xl border border-sky-200 p-6 lg:p-8">
+          <div class="text-center mb-6">
+            <div class="inline-flex items-center gap-2 px-3 py-1.5 bg-sky-100 text-sky-700 rounded-full text-sm font-bold">
+              <span class="w-2 h-2 bg-sky-500 rounded-full"></span>
+              Campaign Board Preview
+            </div>
+          </div>
+          <!-- Pipeline stages visualization -->
+          <div class="flex flex-wrap gap-2 mb-4 justify-center">
+            <div class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold">Queued</div>
+            <div class="text-gray-400 flex items-center">&rarr;</div>
+            <div class="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-bold">Attempting</div>
+            <div class="text-gray-400 flex items-center">&rarr;</div>
+            <div class="px-3 py-1.5 bg-yellow-100 text-yellow-700 rounded-lg text-xs font-bold">Negotiating</div>
+            <div class="text-gray-400 flex items-center">&rarr;</div>
+            <div class="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-xs font-bold">Invoice Sent</div>
+            <div class="text-gray-400 flex items-center">&rarr;</div>
+            <div class="px-3 py-1.5 bg-cyan-100 text-cyan-700 rounded-lg text-xs font-bold">Proof Approved</div>
+            <div class="text-gray-400 flex items-center">&rarr;</div>
+            <div class="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-bold">Paid</div>
+          </div>
+          <div class="space-y-3">
+            <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
+              <div>
+                <div class="font-medium text-gray-800">Joe's Pizza</div>
+                <div class="text-xs text-gray-500">Attempt #3 &bull; Last: Email</div>
+              </div>
+              <div class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-bold">Attempting</div>
+            </div>
+            <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
+              <div>
+                <div class="font-medium text-gray-800">Main St. Dental</div>
+                <div class="text-xs text-gray-500">Attempt #1 &bull; Last: Call</div>
+              </div>
+              <div class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs font-bold">Negotiating</div>
+            </div>
+            <div class="p-4 bg-gray-50 rounded-xl flex justify-between items-center">
+              <div>
+                <div class="font-medium text-gray-800">Elite Auto Body</div>
+                <div class="text-xs text-gray-500">Invoice: $350 &bull; Sent 2d ago</div>
+              </div>
+              <div class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-bold">Invoice Sent</div>
+            </div>
+          </div>
+          <div class="mt-4 text-center text-xs text-gray-400 font-medium">Drag & drop to move between stages</div>
+        </div>
+
+        <div class="order-1 lg:order-2">
+          <div class="inline-block px-4 py-2 bg-sky-100 text-sky-700 font-black text-sm rounded-full mb-4">
+            SALES PIPELINE
+          </div>
+          <h2 class="text-3xl sm:text-4xl font-black text-gray-900 mb-4">
+            Your Sales Pipeline,<br/><span class="gradient-text">Organized</span>
+          </h2>
+          <p class="text-lg text-gray-600 mb-6">
+            Stop losing deals in spreadsheets. The 6-stage Campaign Board shows exactly where every prospect stands and what to do next.
+          </p>
+
+          <div class="space-y-4">
+            <div class="flex gap-3 items-start">
+              <div class="flex-shrink-0 w-7 h-7 bg-sky-500 text-white rounded-lg flex items-center justify-center text-sm font-bold">&#10003;</div>
+              <p class="text-gray-700"><strong>6 stages</strong> from Queued to Paid &mdash; see your whole pipeline at a glance</p>
+            </div>
+            <div class="flex gap-3 items-start">
+              <div class="flex-shrink-0 w-7 h-7 bg-sky-500 text-white rounded-lg flex items-center justify-center text-sm font-bold">&#10003;</div>
+              <p class="text-gray-700"><strong>Attempt tracking</strong> &mdash; know exactly how many times you've reached out and via which channel</p>
+            </div>
+            <div class="flex gap-3 items-start">
+              <div class="flex-shrink-0 w-7 h-7 bg-sky-500 text-white rounded-lg flex items-center justify-center text-sm font-bold">&#10003;</div>
+              <p class="text-gray-700"><strong>Channel rotation</strong> &mdash; SMS, email, call, social &mdash; rotate your outreach method</p>
+            </div>
+            <div class="flex gap-3 items-start">
+              <div class="flex-shrink-0 w-7 h-7 bg-sky-500 text-white rounded-lg flex items-center justify-center text-sm font-bold">&#10003;</div>
+              <p class="text-gray-700"><strong>Drag & drop</strong> &mdash; move prospects between stages with a simple drag</p>
+            </div>
+          </div>
+
+          <a href="app.html" class="inline-block mt-8 px-6 py-3 font-black text-white bg-gradient-to-r from-sky-600 to-cyan-500 rounded-xl hover:from-sky-700 hover:to-cyan-600 shadow-lg transition">
+            Try Campaign Board Free
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Stats Bar -->
+  <section class="py-12 bg-gradient-to-r from-sky-600 via-cyan-500 to-teal-500 text-white">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+        <div>
+          <div class="text-4xl sm:text-5xl font-black mb-1">150+</div>
+          <div class="text-sm font-bold text-sky-100">Business Categories</div>
+        </div>
+        <div>
+          <div class="text-4xl sm:text-5xl font-black mb-1">6</div>
+          <div class="text-sm font-bold text-sky-100">Pipeline Stages</div>
+        </div>
+        <div>
+          <div class="text-4xl sm:text-5xl font-black mb-1">15s</div>
+          <div class="text-sm font-bold text-sky-100">Auto-Save</div>
+        </div>
+        <div>
+          <div class="text-4xl sm:text-5xl font-black mb-1">&infin;</div>
+          <div class="text-sm font-bold text-sky-100">Multi-Device Sync</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing Section -->
+  <section id="pricing" class="py-16 bg-white">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-12">
+        <div class="inline-block px-4 py-2 bg-sky-100 text-sky-700 font-black text-sm rounded-full mb-4">
+          SIMPLE PRICING
+        </div>
+        <h2 class="text-3xl sm:text-4xl font-black text-gray-900 mb-4">
+          Start Free. Upgrade When Ready.
+        </h2>
+        <p class="text-lg text-gray-600 max-w-3xl mx-auto">
+          No credit card required. Try core features free, then upgrade to unlock everything.
+        </p>
+      </div>
+
+      <!-- Pricing Cards -->
+      <div class="grid md:grid-cols-3 gap-6">
+
+        <!-- FREE Plan -->
+        <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
+          <div class="text-center mb-6">
+            <div class="text-sm font-black text-gray-500 uppercase tracking-wide mb-2">Free</div>
+            <div class="text-5xl font-black text-gray-900 mb-1">$0</div>
+            <div class="text-gray-500">Forever free</div>
+          </div>
+
+          <div class="space-y-3 mb-6 text-sm">
+            <div class="flex items-start gap-2">
+              <svg class="w-5 h-5 text-sky-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+              <span class="text-gray-700"><strong>1</strong> Postcard Campaign</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg class="w-5 h-5 text-sky-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+              <span class="text-gray-700"><strong>1</strong> ZIP search/day</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg class="w-5 h-5 text-sky-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+              <span class="text-gray-700"><strong>25</strong> Enrichments/day</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg class="w-5 h-5 text-sky-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+              <span class="text-gray-700"><strong>5</strong> Categories/day</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg class="w-5 h-5 text-sky-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+              <span class="text-gray-700">Basic Pipeline & CRM</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg class="w-5 h-5 text-gray-300 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+              </svg>
+              <span class="text-gray-400">No email campaigns</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg class="w-5 h-5 text-gray-300 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+              </svg>
+              <span class="text-gray-400">No facing slip generator</span>
+            </div>
+          </div>
+
+          <a href="app.html" class="block w-full px-5 py-3 text-center font-bold text-sky-600 bg-sky-50 border-2 border-sky-500 rounded-xl hover:bg-sky-100 transition">
+            Start Free
+          </a>
+        </div>
+
+        <!-- PRO Plan -->
+        <div class="bg-gradient-to-br from-sky-600 to-cyan-500 rounded-2xl shadow-2xl border-2 border-sky-300 p-6 relative transform md:scale-105">
+          <div class="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1.5 bg-yellow-400 text-gray-900 font-black text-xs rounded-full shadow-lg">
+            MOST POPULAR
           </div>
 
           <div class="text-center mb-6 text-white">
-            <div class="text-sm font-black uppercase tracking-wide mb-2">Professional</div>
-            <div class="flex items-baseline justify-center gap-2 mb-2">
-              <span class="text-3xl font-bold line-through opacity-60">$99</span>
-              <span class="text-6xl font-black">$29</span>
-              <span class="text-2xl font-bold">/mo</span>
-            </div>
-            <div class="px-3 py-1 bg-yellow-400 text-gray-900 text-xs font-black rounded-full inline-block mb-2">🎉 LAUNCH SPECIAL - First 100 Customers</div>
-            <div class="text-sm font-bold text-yellow-300 mb-1">Lock in $29/mo forever!</div>
-            <div class="text-lg font-medium text-indigo-100">Everything in Free, plus:</div>
-          </div>
-
-          <div class="space-y-4 mb-8 text-white">
-            <div class="flex items-start gap-3">
-              <svg class="w-5 h-5 text-yellow-300 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-              </svg>
-              <span class="text-sm font-bold"><strong>UNLIMITED</strong> Prospect Generator access</span>
-            </div>
-            <div class="flex items-start gap-3">
-              <svg class="w-5 h-5 text-yellow-300 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-              </svg>
-              <span class="text-sm font-medium">Unlimited postcard campaigns</span>
-            </div>
-            <div class="flex items-start gap-3">
-              <svg class="w-5 h-5 text-green-300 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-              </svg>
-              <span class="text-sm font-medium">Priority email support</span>
-            </div>
-            <div class="flex items-start gap-3">
-              <svg class="w-5 h-5 text-green-300 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-              </svg>
-              <span class="text-sm font-medium">Advanced reporting & analytics <span class="ml-2 px-2 py-0.5 bg-yellow-400 text-gray-900 text-xs font-black rounded">COMING SOON</span></span>
-            </div>
-            <div class="flex items-start gap-3">
-              <svg class="w-5 h-5 text-green-300 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-              </svg>
-              <span class="text-sm font-medium">Automated email sequences <span class="ml-2 px-2 py-0.5 bg-yellow-400 text-gray-900 text-xs font-black rounded">COMING SOON</span></span>
-            </div>
-            <div class="flex items-start gap-3">
-              <svg class="w-5 h-5 text-green-300 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-              </svg>
-              <span class="text-sm font-medium">CSV import/export</span>
+            <div class="text-sm font-black uppercase tracking-wide mb-2">Pro</div>
+            <div class="flex items-baseline justify-center gap-1 mb-1">
+              <span class="text-5xl font-black">$49</span>
+              <span class="text-xl font-bold">/mo</span>
             </div>
           </div>
 
-          <a href="app.html" class="block w-full px-6 py-4 text-center text-base font-black text-indigo-600 bg-white rounded-xl hover:bg-gray-50 transition shadow-lg transform hover:scale-105">
+          <div class="space-y-3 mb-6 text-sm text-white">
+            <div class="flex items-start gap-2">
+              <svg class="w-5 h-5 text-yellow-300 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+              <span><strong>Unlimited</strong> prospect searches</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg class="w-5 h-5 text-yellow-300 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+              <span><strong>Unlimited</strong> enrichments</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg class="w-5 h-5 text-yellow-300 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+              <span><strong>5</strong> Postcard Campaigns</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg class="w-5 h-5 text-yellow-300 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+              <span><strong>Email campaigns</strong></span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg class="w-5 h-5 text-yellow-300 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+              <span><strong>Facing Slip Generator</strong></span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg class="w-5 h-5 text-cyan-200 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+              <span>Full Pipeline & CRM</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg class="w-5 h-5 text-cyan-200 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+              <span>Email support</span>
+            </div>
+          </div>
+
+          <a href="app.html" class="block w-full px-5 py-3 text-center font-black text-sky-600 bg-white rounded-xl hover:bg-gray-50 transition shadow-lg">
             Upgrade to Pro
           </a>
         </div>
 
         <!-- ENTERPRISE Plan -->
-        <div class="bg-white rounded-3xl shadow-xl border-2 border-purple-200 p-8 relative">
+        <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
           <div class="text-center mb-6">
-            <div class="text-sm font-black text-purple-600 uppercase tracking-wide mb-2">Enterprise</div>
-            <div class="flex items-baseline justify-center gap-2 mb-2">
-              <span class="text-3xl font-bold text-gray-400 line-through opacity-60">$149</span>
-              <span class="text-6xl font-black text-gray-900">$79</span>
-              <span class="text-2xl font-bold text-gray-600">/mo</span>
-            </div>
-            <div class="text-sm font-bold text-purple-600 mb-1">🎉 Launch Price - Multi-territory operators</div>
-            <div class="text-lg text-gray-600 font-medium">Everything in Pro, plus:</div>
-          </div>
-
-          <div class="space-y-4 mb-8">
-            <div class="flex items-start gap-3">
-              <svg class="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-              </svg>
-              <span class="text-sm text-gray-700"><strong>Unlimited territories</strong> (10+ postcards)</span>
-            </div>
-            <div class="flex items-start gap-3">
-              <svg class="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-              </svg>
-              <span class="text-sm text-gray-700"><strong>Multi-user access</strong> (up to 5 team members) <span class="ml-2 px-2 py-0.5 bg-yellow-400 text-gray-900 text-xs font-black rounded">COMING SOON</span></span>
-            </div>
-            <div class="flex items-start gap-3">
-              <svg class="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-              </svg>
-              <span class="text-sm text-gray-700">Priority phone support (4-hour response) <span class="ml-2 px-2 py-0.5 bg-yellow-400 text-gray-900 text-xs font-black rounded">COMING SOON</span></span>
-            </div>
-            <div class="flex items-start gap-3">
-              <svg class="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-              </svg>
-              <span class="text-sm text-gray-700">1-hour dedicated onboarding call</span>
-            </div>
-            <div class="flex items-start gap-3">
-              <svg class="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-              </svg>
-              <span class="text-sm text-gray-700">Monthly strategy & performance reviews</span>
+            <div class="text-sm font-black text-gray-500 uppercase tracking-wide mb-2">Enterprise</div>
+            <div class="flex items-baseline justify-center gap-1 mb-1">
+              <span class="text-5xl font-black text-gray-900">$99</span>
+              <span class="text-xl font-bold text-gray-600">/mo</span>
             </div>
           </div>
 
-          <a href="app.html" class="block w-full px-6 py-4 text-center text-base font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 transition shadow-lg transform hover:scale-105">
-            Contact Sales
+          <div class="space-y-3 mb-6 text-sm">
+            <div class="flex items-start gap-2">
+              <svg class="w-5 h-5 text-sky-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+              <span class="text-gray-700">Everything in Pro</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg class="w-5 h-5 text-sky-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+              <span class="text-gray-700"><strong>Unlimited</strong> Postcard Campaigns</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg class="w-5 h-5 text-sky-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+              <span class="text-gray-700"><strong>Unlimited</strong> email campaigns</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg class="w-5 h-5 text-sky-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+              <span class="text-gray-700">Priority phone & email support</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg class="w-5 h-5 text-sky-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+              <span class="text-gray-700">1-hour onboarding call</span>
+            </div>
+          </div>
+
+          <a href="app.html" class="block w-full px-5 py-3 text-center font-bold text-white bg-gradient-to-r from-gray-700 to-gray-900 rounded-xl hover:from-gray-800 hover:to-black transition">
+            Go Enterprise
           </a>
         </div>
 
       </div>
 
-      <!-- Money Back Guarantee -->
-      <div class="mt-12 text-center">
-        <div class="inline-flex items-center gap-3 px-6 py-3 bg-green-50 border-2 border-green-200 rounded-xl">
-          <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <!-- Money Back -->
+      <div class="mt-10 text-center">
+        <div class="inline-flex items-center gap-2 px-5 py-2.5 bg-sky-50 border border-sky-200 rounded-xl">
+          <svg class="w-6 h-6 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
           </svg>
-          <div class="text-left">
-            <div class="text-sm font-black text-green-900">30-Day Money-Back Guarantee</div>
-            <div class="text-xs text-green-700">Not satisfied? Get a full refund, no questions asked.</div>
-          </div>
+          <span class="text-sm font-bold text-sky-800">30-Day Money-Back Guarantee</span>
         </div>
       </div>
     </div>
   </section>
 
   <!-- Final CTA -->
-  <section class="py-24 bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 text-white relative overflow-hidden">
+  <section class="py-20 bg-gradient-to-br from-sky-900 via-blue-800 to-cyan-900 text-white relative overflow-hidden">
     <div class="absolute inset-0 opacity-10">
       <div class="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl"></div>
       <div class="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl"></div>
     </div>
 
-    <div class="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-      <h2 class="text-4xl sm:text-5xl lg:text-6xl font-black mb-6 leading-tight">
-        Ready to Run Your Business<br/>
-        Like a <span class="text-yellow-300">Pro</span>?
+    <div class="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <h2 class="text-3xl sm:text-4xl lg:text-5xl font-black mb-4 leading-tight">
+        Ready to Run Your 9x12 Business<br/>
+        <span class="text-cyan-300">Like a Pro?</span>
       </h2>
-      <p class="text-2xl mb-10 text-indigo-100 max-w-3xl mx-auto">
-        Join the growing community of 9×12 operators who stopped drowning in spreadsheets and started scaling their businesses.
+      <p class="text-xl mb-8 text-sky-100 max-w-2xl mx-auto">
+        Join the operators who stopped drowning in spreadsheets and started closing more deals with less effort.
       </p>
-      <a href="app.html" class="inline-block px-14 py-6 text-2xl font-black text-indigo-600 bg-white rounded-2xl hover:bg-gray-100 transition shadow-2xl transform hover:scale-105 mb-6">
-        Get Started FREE →
+      <a href="app.html" class="inline-block px-10 py-5 text-xl font-black text-sky-700 bg-white rounded-xl hover:bg-gray-100 transition shadow-2xl mb-4">
+        Start Free Today
       </a>
-      <p class="text-indigo-200 text-lg font-medium">
-        No credit card required • Full access • Start in 60 seconds
+      <p class="text-sky-200 text-sm">
+        No credit card required
       </p>
     </div>
   </section>
 
   <!-- Footer -->
-  <footer class="bg-gray-900 text-gray-400 py-16">
+  <footer class="bg-gray-900 text-gray-400 py-12">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center">
-        <div class="flex items-center justify-center gap-3 mb-6">
-          <div class="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center">
-            <span class="text-white font-black text-lg">9×12</span>
+        <div class="flex items-center justify-center gap-2 mb-4">
+          <div class="w-10 h-10 bg-gradient-to-br from-sky-500 to-cyan-500 rounded-lg flex items-center justify-center">
+            <span class="text-white font-black text-sm">9x12</span>
           </div>
           <div>
-            <div class="text-2xl font-black text-white">9×12 Pro</div>
-            <div class="text-xs text-gray-500 font-semibold">Community Card Platform</div>
+            <div class="text-xl font-black text-white">9x12 Pro</div>
           </div>
         </div>
-        <p class="text-sm mb-4 text-gray-300 font-medium">
-          The complete software platform for managing your 9×12 postcard advertising business.
+        <p class="text-sm mb-4 text-gray-400">
+          The complete platform for 9x12 postcard advertising businesses.
         </p>
-        <div class="flex justify-center gap-8 mb-6">
-          <a href="app.html" class="text-gray-400 hover:text-white transition font-medium">Launch App</a>
-          <a href="#features" class="text-gray-400 hover:text-white transition font-medium">Features</a>
-          <a href="#demo" class="text-gray-400 hover:text-white transition font-medium">Demo</a>
+        <div class="flex justify-center gap-6 mb-6 text-sm">
+          <a href="app.html" class="text-gray-400 hover:text-white transition">Launch App</a>
+          <a href="#features" class="text-gray-400 hover:text-white transition">Features</a>
+          <a href="#pricing" class="text-gray-400 hover:text-white transition">Pricing</a>
+          <a href="/privacy-policy.html" class="text-gray-400 hover:text-white transition">Privacy</a>
+          <a href="/terms-of-service.html" class="text-gray-400 hover:text-white transition">Terms</a>
         </div>
         <p class="text-xs text-gray-600">
-          © 2025 9×12 Pro. Built with ❤️ for 9×12 community card operators nationwide.
+          &copy; 2026 9x12 Pro. Built for community card operators nationwide.
         </p>
       </div>
     </div>
   </footer>
 
-  <!-- Smooth scroll for anchor links -->
+  <!-- Smooth scroll -->
   <script>
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
       anchor.addEventListener('click', function (e) {
