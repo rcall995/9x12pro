@@ -10,7 +10,8 @@ export const API_LIMITS = {
   brave: 2000,          // 2,000/month (free tier)
   scrapingdog: 200000,  // 200,000 credits (paid plan - adjust if different)
   serper: 2500,         // 2,500/month (free tier)
-  google_cse: 3000      // 100/day ≈ 3,000/month
+  google_cse: 3000,     // 100/day ≈ 3,000/month
+  google_places: 6000   // ~6,250/month ($200 free credit at $32/1K)
 };
 
 // Buffer to stop before hitting exact limit (avoid overage charges)

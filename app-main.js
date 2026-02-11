@@ -121,34 +121,34 @@ window.escapeHtml = escapeHtml;
 
 /* ========= SUBSCRIPTION TIER & USAGE LIMITS ========= */
 /**
- * Free Tier Limits:
- * - 1 postcard campaign
- * - 25 enrichments per day
- * - 1 zip code search per day (Prospect Radar)
- * - 5 category searches per day (Prospect Radar)
+ * Tier Limits (synced with landing page pricing):
+ * Free:       1 campaign, 500 enrichments/mo, 1 ZIP total, no email/facing slips/CSV/financials
+ * Pro:        3 campaigns, 15K enrichments/mo, 10 ZIPs/mo, 1K email sends/mo, all features
+ * Enterprise: Unlimited everything
  */
-const FREE_TIER_LIMITS = {
-  campaigns: 1,
-  enrichmentsPerDay: 25,
-  zipSearchesPerDay: 1,
-  categorySearchesPerDay: 5
+const TIER_LIMITS = {
+  free:       { campaigns: 1,        enrichmentsPerMonth: 500,      zipSearches: 1,        emailSendsPerMonth: 0,        facingSlips: false, csvExport: false, financials: false },
+  pro:        { campaigns: 3,        enrichmentsPerMonth: 15000,    zipSearches: 10,       emailSendsPerMonth: 1000,     facingSlips: true,  csvExport: true,  financials: true },
+  enterprise: { campaigns: Infinity, enrichmentsPerMonth: Infinity, zipSearches: Infinity, emailSendsPerMonth: Infinity, facingSlips: true,  csvExport: true,  financials: true }
 };
+const FREE_TIER_LIMITS = TIER_LIMITS.free; // backward compat
 
 // User's subscription info (loaded from Supabase)
 let userSubscription = {
-  tier: 'free', // 'free', 'starter', 'pro', 'enterprise'
+  tier: 'free', // 'free', 'pro', 'enterprise'
   loaded: false
 };
 
-// Today's usage (loaded from Supabase)
-let dailyUsage = {
+// Monthly usage (aggregated from daily_usage table)
+let monthlyUsage = {
   enrichments: 0,
-  zipSearches: 0,
-  categorySearches: 0,
-  zipsSearched: [],
-  categoriesSearched: [],
+  emailSends: 0,
+  zipsSearched: [], // unique ZIPs searched this month
   loaded: false
 };
+
+// Backward compat alias
+let dailyUsage = monthlyUsage;
 
 /**
  * Load user's subscription tier from Supabase
@@ -185,38 +185,52 @@ async function loadUserSubscription() {
 }
 
 /**
- * Load today's usage from Supabase
+ * Load this month's usage from Supabase (aggregated from daily_usage rows)
  */
-async function loadDailyUsage() {
+async function loadMonthlyUsage() {
   if (!window.currentAuthUser?.id) return;
 
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     const { data, error } = await supabaseClient
       .from('daily_usage')
-      .select('*')
+      .select('enrichments_used, zip_searches_used, zips_searched, email_sends_used')
       .eq('user_id', window.currentAuthUser.id)
-      .eq('usage_date', today)
-      .single();
+      .gte('usage_date', monthStart);
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows
-      console.error('Error loading daily usage:', error);
+    if (error) {
+      console.error('Error loading monthly usage:', error);
       return;
     }
 
-    if (data) {
-      dailyUsage.enrichments = data.enrichments_used || 0;
-      dailyUsage.zipSearches = data.zip_searches_used || 0;
-      dailyUsage.categorySearches = data.category_searches_used || 0;
-      dailyUsage.zipsSearched = data.zips_searched || [];
-      dailyUsage.categoriesSearched = data.categories_searched || [];
+    // Aggregate all daily rows into monthly totals
+    let totalEnrichments = 0;
+    let totalEmailSends = 0;
+    const allZips = new Set();
+
+    if (data && data.length > 0) {
+      for (const row of data) {
+        totalEnrichments += row.enrichments_used || 0;
+        totalEmailSends += row.email_sends_used || 0;
+        if (Array.isArray(row.zips_searched)) {
+          row.zips_searched.forEach(z => allZips.add(z));
+        }
+      }
     }
-    dailyUsage.loaded = true;
-    console.log('📊 Daily usage loaded:', dailyUsage);
+
+    monthlyUsage.enrichments = totalEnrichments;
+    monthlyUsage.emailSends = totalEmailSends;
+    monthlyUsage.zipsSearched = [...allZips];
+    monthlyUsage.loaded = true;
+    console.log('📊 Monthly usage loaded:', monthlyUsage);
   } catch (err) {
-    console.error('Failed to load daily usage:', err);
+    console.error('Failed to load monthly usage:', err);
   }
 }
+
+// Backward compat alias
+const loadDailyUsage = loadMonthlyUsage;
 
 /**
  * Check if user is on free tier
@@ -226,88 +240,130 @@ function isFreeTier() {
 }
 
 /**
- * Check if user can create more campaigns
+ * Check if user is on pro tier
+ */
+function isProTier() {
+  return userSubscription.tier === 'pro';
+}
+
+/**
+ * Get the limits object for the current user's tier
+ */
+function getUserTierLimits() {
+  return TIER_LIMITS[userSubscription.tier] || TIER_LIMITS.free;
+}
+
+/**
+ * Check if user can create more campaigns (enforced for ALL tiers)
  */
 function canCreateCampaign() {
-  if (!isFreeTier()) return { allowed: true };
-
-  // Count existing campaigns
+  const limits = getUserTierLimits();
   const campaigns = Object.keys(state.mailers || {}).length;
-  if (campaigns >= FREE_TIER_LIMITS.campaigns) {
+  if (campaigns >= limits.campaigns) {
     return {
       allowed: false,
-      message: `Free tier is limited to ${FREE_TIER_LIMITS.campaigns} Postcard Campaign. Upgrade to create more.`,
-      upgradeUrl: '/pricing.html'
+      message: `Your plan allows ${limits.campaigns} campaign${limits.campaigns === 1 ? '' : 's'}. Upgrade to create more.`,
+      upgradeUrl: 'register.html'
     };
   }
   return { allowed: true };
 }
 
 /**
- * Check if user can perform an enrichment
+ * Check if user can perform an enrichment (monthly limit, all tiers)
  */
 function canEnrich() {
-  if (!isFreeTier()) return { allowed: true };
-
-  if (dailyUsage.enrichments >= FREE_TIER_LIMITS.enrichmentsPerDay) {
+  const limits = getUserTierLimits();
+  if (monthlyUsage.enrichments >= limits.enrichmentsPerMonth) {
     return {
       allowed: false,
-      message: `Daily enrichment limit reached (${FREE_TIER_LIMITS.enrichmentsPerDay}/day). Upgrade for unlimited enrichments.`,
-      upgradeUrl: '/pricing.html'
+      message: `Monthly enrichment limit reached (${limits.enrichmentsPerMonth.toLocaleString()}/month). Upgrade for more enrichments.`,
+      upgradeUrl: 'register.html'
     };
   }
-  return { allowed: true, remaining: FREE_TIER_LIMITS.enrichmentsPerDay - dailyUsage.enrichments };
+  return { allowed: true, remaining: limits.enrichmentsPerMonth - monthlyUsage.enrichments };
 }
 
 /**
  * Check if user can search a zip code
+ * Free: 1 unique ZIP ever (lifetime). Pro: 10 unique ZIPs/month. Enterprise: unlimited.
  */
 function canSearchZip(zipCode) {
-  if (!isFreeTier()) return { allowed: true };
+  const limits = getUserTierLimits();
 
-  // Already searched this zip today - allow it
-  if (dailyUsage.zipsSearched.includes(zipCode)) {
+  // Already searched this zip - always allow re-searching
+  if (monthlyUsage.zipsSearched.includes(zipCode)) {
     return { allowed: true, alreadySearched: true };
   }
 
-  if (dailyUsage.zipSearches >= FREE_TIER_LIMITS.zipSearchesPerDay) {
+  if (monthlyUsage.zipsSearched.length >= limits.zipSearches) {
+    const period = isFreeTier() ? 'total' : '/month';
     return {
       allowed: false,
-      message: `Free tier is limited to ${FREE_TIER_LIMITS.zipSearchesPerDay} zip code per day. Upgrade for unlimited searches.`,
-      upgradeUrl: '/pricing.html'
+      message: `Your plan allows ${limits.zipSearches} ZIP code search${limits.zipSearches === 1 ? '' : 'es'} ${period}. Upgrade for more searches.`,
+      upgradeUrl: 'register.html'
     };
   }
   return { allowed: true };
 }
 
 /**
- * Check if user can search a category
+ * canSearchCategory - no longer limited, always allow
  */
-function canSearchCategory(category) {
-  if (!isFreeTier()) return { allowed: true };
-
-  // Already searched this category today - allow it
-  if (dailyUsage.categoriesSearched.includes(category)) {
-    return { allowed: true, alreadySearched: true };
-  }
-
-  if (dailyUsage.categorySearches >= FREE_TIER_LIMITS.categorySearchesPerDay) {
-    return {
-      allowed: false,
-      message: `Free tier is limited to ${FREE_TIER_LIMITS.categorySearchesPerDay} categories per day. Upgrade for unlimited searches.`,
-      upgradeUrl: '/pricing.html'
-    };
-  }
+function canSearchCategory() {
   return { allowed: true };
 }
 
 /**
- * Record an enrichment usage
+ * Check if user can send email campaigns
+ */
+function canSendEmail() {
+  const limits = getUserTierLimits();
+  if (limits.emailSendsPerMonth === 0) {
+    return {
+      allowed: false,
+      message: 'Email campaigns are available on Pro and Enterprise plans.',
+      upgradeUrl: 'register.html'
+    };
+  }
+  if (monthlyUsage.emailSends >= limits.emailSendsPerMonth) {
+    return {
+      allowed: false,
+      message: `Monthly email send limit reached (${limits.emailSendsPerMonth.toLocaleString()}/month). Upgrade for more sends.`,
+      upgradeUrl: 'register.html'
+    };
+  }
+  return { allowed: true, remaining: limits.emailSendsPerMonth - monthlyUsage.emailSends };
+}
+
+/**
+ * Check if user can use facing slips
+ */
+function canUseFacingSlips() {
+  return getUserTierLimits().facingSlips;
+}
+
+/**
+ * Check if user can export CSV
+ */
+function canExportCSV() {
+  return getUserTierLimits().csvExport;
+}
+
+/**
+ * Check if user can use financial dashboard
+ */
+function canUseFinancials() {
+  return getUserTierLimits().financials;
+}
+
+/**
+ * Record an enrichment usage (tracked for ALL tiers - Pro has 15K limit)
  */
 async function recordEnrichmentUsage() {
-  if (!isFreeTier() || !window.currentAuthUser?.id) return;
+  if (!window.currentAuthUser?.id) return;
 
-  dailyUsage.enrichments++;
+  monthlyUsage.enrichments++;
 
   try {
     await supabaseClient.rpc('increment_enrichment_usage', {
@@ -319,14 +375,13 @@ async function recordEnrichmentUsage() {
 }
 
 /**
- * Record a zip code search
+ * Record a zip code search (tracked for ALL tiers)
  */
 async function recordZipSearch(zipCode) {
-  if (!isFreeTier() || !window.currentAuthUser?.id) return;
+  if (!window.currentAuthUser?.id) return;
 
-  if (!dailyUsage.zipsSearched.includes(zipCode)) {
-    dailyUsage.zipSearches++;
-    dailyUsage.zipsSearched.push(zipCode);
+  if (!monthlyUsage.zipsSearched.includes(zipCode)) {
+    monthlyUsage.zipsSearched.push(zipCode);
 
     try {
       await supabaseClient.rpc('record_zip_search', {
@@ -340,23 +395,27 @@ async function recordZipSearch(zipCode) {
 }
 
 /**
- * Record a category search
+ * Record a category search - no-op, categories are no longer limited
  */
-async function recordCategorySearch(category) {
-  if (!isFreeTier() || !window.currentAuthUser?.id) return;
+function recordCategorySearch() {
+  // Categories are no longer limited - kept for backward compat
+}
 
-  if (!dailyUsage.categoriesSearched.includes(category)) {
-    dailyUsage.categorySearches++;
-    dailyUsage.categoriesSearched.push(category);
+/**
+ * Record an email send
+ */
+async function recordEmailSend(count = 1) {
+  if (!window.currentAuthUser?.id) return;
 
-    try {
-      await supabaseClient.rpc('record_category_search', {
-        p_user_id: window.currentAuthUser.id,
-        p_category: category
-      });
-    } catch (err) {
-      console.error('Failed to record category search:', err);
-    }
+  monthlyUsage.emailSends += count;
+
+  try {
+    await supabaseClient.rpc('increment_email_send_usage', {
+      p_user_id: window.currentAuthUser.id,
+      p_count: count
+    });
+  } catch (err) {
+    console.error('Failed to record email send usage:', err);
   }
 }
 
@@ -376,7 +435,7 @@ function showUpgradePrompt(message) {
           <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 text-gray-600 hover:text-gray-800">
             Maybe Later
           </button>
-          <a href="/pricing.html" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold">
+          <a href="register.html" class="px-6 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 font-semibold">
             View Plans
           </a>
         </div>
@@ -394,8 +453,27 @@ window.canCreateCampaign = canCreateCampaign;
 window.canEnrich = canEnrich;
 window.canSearchZip = canSearchZip;
 window.canSearchCategory = canSearchCategory;
+window.canSendEmail = canSendEmail;
+window.canUseFacingSlips = canUseFacingSlips;
+window.canExportCSV = canExportCSV;
+window.canUseFinancials = canUseFinancials;
 window.showUpgradePrompt = showUpgradePrompt;
 window.isFreeTier = isFreeTier;
+window.isProTier = isProTier;
+window.getUserTierLimits = getUserTierLimits;
+window.recordEmailSend = recordEmailSend;
+
+/**
+ * Open Facing Slip Generator (gated by tier)
+ */
+function openFacingSlips() {
+  if (!canUseFacingSlips()) {
+    showUpgradePrompt('Facing Slip Generator is available on Pro and Enterprise plans.');
+    return;
+  }
+  window.open('facing-slip.html', '_blank');
+}
+window.openFacingSlips = openFacingSlips;
 
 /* ========= CONFIG ========= */
 // Supabase client is initialized in HEAD section
@@ -1306,7 +1384,7 @@ function updateFinancialDashboard() {
     if (financials.metrics.breakeven) {
       spotsToBreakevenEl.innerHTML = '✓ <span class="text-green-600 font-bold">Profitable!</span>';
     } else {
-      spotsToBreakevenEl.innerHTML = `Need <span class="font-bold text-indigo-600">${financials.metrics.spotsNeeded} more spot${financials.metrics.spotsNeeded === 1 ? '' : 's'}</span> to break even`;
+      spotsToBreakevenEl.innerHTML = `Need <span class="font-bold text-sky-600">${financials.metrics.spotsNeeded} more spot${financials.metrics.spotsNeeded === 1 ? '' : 's'}</span> to break even`;
     }
   }
   
@@ -1711,20 +1789,20 @@ function renderClientList() {
         const isPipelineProspect = client.isPipelineProspect || false;
 
         return `
-          <div class="client-row bg-white border-2 ${isSelected ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200'} rounded-lg p-3 hover:shadow-lg transition relative flex flex-col min-h-[220px] overflow-hidden"
+          <div class="client-row bg-white border-2 ${isSelected ? 'border-sky-400 bg-sky-50' : 'border-gray-200'} rounded-lg p-3 hover:shadow-lg transition relative flex flex-col min-h-[220px] overflow-hidden"
                data-client-id="${esc(client.id)}"
                data-category="${esc(client.category)}"
                data-business="${esc(client.businessName.toLowerCase())}"
                data-is-client="${isActualClient}"
                data-is-prospect="${!isActualClient}">
 
-            ${isActualClient ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-green-500 to-emerald-400"></div>' : (isPipelineProspect ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-500 to-indigo-400"></div>' : '')}
+            ${isActualClient ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-green-500 to-emerald-400"></div>' : (isPipelineProspect ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-sky-500 to-cyan-400"></div>' : '')}
 
             <!-- Checkbox in top-left corner -->
             <div class="absolute top-2 left-2 z-10">
               <input
                 type="checkbox"
-                class="client-checkbox h-5 w-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"
+                class="client-checkbox h-5 w-5 text-sky-600 border-gray-300 rounded focus:ring-sky-500 cursor-pointer"
                 data-client-id="${esc(client.id)}"
                 ${isSelected ? 'checked' : ''}
               />
@@ -1741,7 +1819,7 @@ function renderClientList() {
                   ${monthlyPrice > 0 ? `<div class="text-xs text-green-600 mt-1">${formatCurrency(monthlyPrice)}/mo</div>` : ''}
                 `}
               ` : (isPipelineProspect ? `
-                <span class="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-md font-medium">Pipeline</span>
+                <span class="text-xs px-2 py-1 bg-sky-100 text-sky-700 rounded-md font-medium">Pipeline</span>
               ` : `
                 <span class="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-md font-medium">Prospect</span>
               `)}
@@ -1754,7 +1832,7 @@ function renderClientList() {
 
               <!-- Category with badge styling -->
               <div class="flex items-center gap-2 mb-2 flex-wrap">
-                ${client.category ? `<span class="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded-md font-medium">🏢 ${esc(client.category)}</span>` : '<span class="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-md">Uncategorized</span>'}
+                ${client.category ? `<span class="text-xs bg-sky-100 text-sky-700 px-2 py-1 rounded-md font-medium">🏢 ${esc(client.category)}</span>` : '<span class="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-md">Uncategorized</span>'}
                 ${client.status === 'paused' ? '<span class="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-md font-medium">⏸️ Paused</span>' : ''}
                 ${client.status === 'inactive' ? '<span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-md font-medium">❌ Inactive</span>' : ''}
               </div>
@@ -1885,9 +1963,9 @@ function toggleClientSelection(clientId) {
   if (card) {
     if (clientSelectionState.selectedIds.has(clientId)) {
       card.classList.remove('border-gray-200');
-      card.classList.add('border-indigo-400', 'bg-indigo-50');
+      card.classList.add('border-sky-400', 'bg-sky-50');
     } else {
-      card.classList.remove('border-indigo-400', 'bg-indigo-50');
+      card.classList.remove('border-sky-400', 'bg-sky-50');
       card.classList.add('border-gray-200');
     }
   }
@@ -1914,7 +1992,7 @@ function selectAllClients() {
 
     if (card) {
       card.classList.remove('border-gray-200');
-      card.classList.add('border-indigo-400', 'bg-indigo-50');
+      card.classList.add('border-sky-400', 'bg-sky-50');
     }
   });
 
@@ -1932,7 +2010,7 @@ function clearClientSelection() {
     }
 
     if (card) {
-      card.classList.remove('border-indigo-400', 'bg-indigo-50');
+      card.classList.remove('border-sky-400', 'bg-sky-50');
       card.classList.add('border-gray-200');
     }
   });
@@ -1973,7 +2051,7 @@ function selectActiveClientsForRenewal() {
       if (checkbox) checkbox.checked = true;
       if (card) {
         card.classList.remove('border-gray-200');
-        card.classList.add('border-indigo-400', 'bg-indigo-50');
+        card.classList.add('border-sky-400', 'bg-sky-50');
       }
 
       selectedCount++;
@@ -2010,7 +2088,7 @@ function selectInactiveClientsForReactivation() {
       if (checkbox) checkbox.checked = true;
       if (card) {
         card.classList.remove('border-gray-200');
-        card.classList.add('border-indigo-400', 'bg-indigo-50');
+        card.classList.add('border-sky-400', 'bg-sky-50');
       }
 
       selectedCount++;
@@ -2330,13 +2408,13 @@ function setBusinessTypeFilter(type) {
 
   // Update button states
   document.getElementById('filterAll').className = type === 'all'
-    ? 'px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors'
+    ? 'px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-medium transition-colors'
     : 'px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors';
   document.getElementById('filterProspects').className = type === 'prospects'
-    ? 'px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors'
+    ? 'px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-medium transition-colors'
     : 'px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors';
   document.getElementById('filterClients').className = type === 'clients'
-    ? 'px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors'
+    ? 'px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-medium transition-colors'
     : 'px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors';
 
   filterClients();
@@ -2875,6 +2953,10 @@ function quickAddClient() {
 /* ========= EXPORT/IMPORT FUNCTIONS ========= */
 
 function exportClientsCSV() {
+  if (!canExportCSV()) {
+    showUpgradePrompt('CSV export is available on Pro and Enterprise plans.');
+    return;
+  }
   const clients = Object.values(crmState.clients);
 
   const headers = ['Business Name', 'Category', 'Contact Name', 'First Name', 'Phone', 'Email', 'Monthly Price', 'Lifetime Spent', 'Cards Bought', 'Notes'];
@@ -4571,33 +4653,11 @@ async function searchBusinessWebsite(searchQuery, businessName, locationInfo = {
         if (braveData.error === 'quota_exceeded') {
           console.log(`🦁 Brave quota exceeded, trying Serper...`);
         } else if (braveData.error) {
-          console.log(`🦁 Brave error: ${braveData.error}, trying Serper...`);
+          console.log(`🦁 Brave error: ${braveData.error}`);
         }
       }
     } catch (e) {
       console.warn(`🦁 Brave failed:`, e.message);
-    }
-
-    // 3. Try Serper (2,500 free/month, falls back to Google CSE)
-    try {
-      const serperResponse = await fetch('/api/serper-search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: searchQuery, businessName, zipCode, city, state })
-      });
-
-      if (serperResponse.ok) {
-        const serperData = await serperResponse.json();
-        if (serperData.success && serperData.topUrl) {
-          console.log(`🔍 Serper found:`, serperData.topUrl);
-          return serperData.topUrl;
-        }
-        if (serperData.error) {
-          console.warn(`🔍 Serper error: ${serperData.error}`);
-        }
-      }
-    } catch (e) {
-      console.warn(`🔍 Serper failed:`, e.message);
     }
 
     console.log(`🔍 No website found for: "${searchQuery}"`);
@@ -4608,107 +4668,6 @@ async function searchBusinessWebsite(searchQuery, businessName, locationInfo = {
     return '';
   }
 }
-
-// Test function to check if search APIs are working
-async function testSearchAPI() {
-  console.log('🧪 Testing Search API...');
-
-  // Test 1: Simple website search
-  const test1 = await searchBusinessWebsite('Adams Heating Cooling Buffalo NY official website', 'Adams Heating');
-  console.log('Test 1 (website):', test1 || 'FAILED - no result');
-
-  // Test 2: Facebook search
-  const test2 = await searchBusinessWebsite('Adams Heating Cooling Buffalo NY site:facebook.com', 'Adams Heating');
-  console.log('Test 2 (facebook):', test2 || 'FAILED - no result');
-
-  // Test 3: Instagram search
-  const test3 = await searchBusinessWebsite('Adams Heating Cooling Buffalo NY site:instagram.com', 'Adams Heating');
-  console.log('Test 3 (instagram):', test3 || 'FAILED - no result');
-
-  alert(`Search API Test Results:\n\nWebsite: ${test1 || 'NONE'}\nFacebook: ${test2 || 'NONE'}\nInstagram: ${test3 || 'NONE'}\n\nCheck browser console for details.`);
-}
-window.testSearchAPI = testSearchAPI;
-
-// Compare Serper vs Google side-by-side
-async function compareSearchAPIs(businessName = 'Adams Heating Cooling', location = 'Buffalo NY') {
-  console.log('🧪 COMPARING SEARCH APIs: Serper vs Google');
-  console.log('==========================================');
-
-  const queries = [
-    { type: 'Website', query: `${businessName} ${location} official website` },
-    { type: 'Facebook', query: `${businessName} ${location} site:facebook.com` },
-    { type: 'Instagram', query: `${businessName} ${location} site:instagram.com` }
-  ];
-
-  const results = [];
-
-  for (const { type, query } of queries) {
-    console.log(`\n🔍 Testing: ${type}`);
-    console.log(`   Query: "${query}"`);
-
-    // Test Serper directly
-    let serperResult = null;
-    let serperError = null;
-    try {
-      const serperResp = await fetch('/api/serper-search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, businessName, forceSerper: true })
-      });
-      const serperData = await serperResp.json();
-      serperResult = serperData.topUrl;
-      if (serperData.error) serperError = serperData.error;
-      if (serperData.source) console.log(`   Serper source: ${serperData.source}`);
-    } catch (e) {
-      serperError = e.message;
-    }
-
-    // Test Google directly
-    let googleResult = null;
-    let googleError = null;
-    try {
-      const googleResp = await fetch('/api/google-search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, businessName })
-      });
-      const googleData = await googleResp.json();
-      googleResult = googleData.website || googleData.topUrl; // google-search returns 'website'
-      if (googleData.error) googleError = googleData.error;
-    } catch (e) {
-      googleError = e.message;
-    }
-
-    console.log(`   SERPER: ${serperResult || serperError || 'NO RESULT'}`);
-    console.log(`   GOOGLE: ${googleResult || googleError || 'NO RESULT'}`);
-
-    results.push({
-      type,
-      serper: serperResult || `ERROR: ${serperError || 'none'}`,
-      google: googleResult || `ERROR: ${googleError || 'none'}`
-    });
-  }
-
-  // Display results
-  let msg = 'SEARCH API COMPARISON\n';
-  msg += '=====================\n\n';
-  msg += `Business: ${businessName}, ${location}\n\n`;
-
-  for (const r of results) {
-    msg += `${r.type}:\n`;
-    msg += `  Serper: ${r.serper}\n`;
-    msg += `  Google: ${r.google}\n\n`;
-  }
-
-  msg += 'Check browser console for full details.';
-
-  console.log('\n📊 SUMMARY:');
-  console.table(results);
-
-  alert(msg);
-  return results;
-}
-window.compareSearchAPIs = compareSearchAPIs;
 
 // ============================================================================
 // ENRICHMENT PROGRESS MODAL
@@ -4766,15 +4725,17 @@ function showEnrichmentModal(totalBusinesses) {
   document.getElementById('enrichmentETA').textContent = '--';
   document.getElementById('enrichmentCurrentBusiness').innerHTML = '<span class="inline-block animate-pulse">Starting...</span>';
 
-  // Calculate time saved estimate (assume 2 min per manual lookup)
-  const manualMinutes = totalBusinesses * 2;
-  const hours = Math.floor(manualMinutes / 60);
-  const mins = manualMinutes % 60;
-  const timeText = hours > 0 ? `~${hours}h ${mins}m manually` : `~${mins} minutes manually`;
-  document.getElementById('enrichmentTimeSaved').textContent = `This would take ${timeText}`;
+  // Calculate time saved estimate (assume 2.5 min per manual lookup)
+  const totalMinutes = Math.ceil(totalBusinesses * 2.5);
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  const timeStr = hours > 0
+    ? (mins > 0 ? `${hours} hr ${mins} min` : `${hours} hr`)
+    : `${totalMinutes} min`;
+  document.getElementById('enrichmentTimeSaved').textContent = `This could take ~${timeStr} manually`;
 
   // Show modal
-  modal.classList.remove('hidden');
+  modal.style.display = 'flex';
   document.body.style.overflow = 'hidden';
 
   // Start rotating messages
@@ -4866,13 +4827,13 @@ function hideEnrichmentModal(success = true) {
 
     // Auto-close after 2 seconds
     setTimeout(() => {
-      modal.classList.add('hidden');
+      modal.style.display = 'none';
       document.body.style.overflow = '';
       resetEnrichmentModal();
     }, 2000);
   } else {
     // Close immediately
-    modal.classList.add('hidden');
+    modal.style.display = 'none';
     document.body.style.overflow = '';
     resetEnrichmentModal();
   }
@@ -4903,7 +4864,7 @@ function cancelEnrichment() {
 
   const modal = document.getElementById('enrichmentModal');
   if (modal) {
-    modal.classList.add('hidden');
+    modal.style.display = 'none';
     document.body.style.overflow = '';
   }
 
@@ -4944,61 +4905,22 @@ async function bulkEnrichBusinesses(businesses) {
 
   let success = 0;
   let failed = 0;
-  const BATCH_SIZE = 5; // Parallel batch size
-  const BATCH_DELAY = 15000; // 15s between batches
 
   try {
-    for (let i = 0; i < toEnrich.length; i += BATCH_SIZE) {
-      if (isEnrichmentCancelled()) break;
-
-      const batch = toEnrich.slice(i, i + BATCH_SIZE);
-
-      // Process batch in parallel
-      const results = await Promise.all(
-        batch.map(async (business, idx) => {
-          const businessName = business.name || business.businessName || 'Unknown';
-          updateEnrichmentProgress(i + idx + 1, businessName, false);
-
-          try {
-            // Search for website
-            const location = `${business.city || ''} ${business.state || 'NY'} ${business.zipCode || business.zip || ''}`.trim();
-            const websiteQuery = `${businessName} ${location} official website`;
-            const website = await searchBusinessWebsite(websiteQuery, businessName);
-
-            if (website) {
-              business.website = website;
-
-              // Try to scrape email from website
-              const enrichedData = await fetchSmartEnrichment(website, businessName);
-              if (enrichedData.email) {
-                business.email = enrichedData.email;
-              }
-              business.facebook = business.facebook || enrichedData.facebook || '';
-              business.instagram = business.instagram || enrichedData.instagram || '';
-              business.enriched = true;
-
-              updateEnrichmentProgress(i + idx + 1, businessName, true);
-              return { success: true, business };
-            }
-            return { success: false, business };
-          } catch (err) {
-            console.error(`Failed to enrich ${businessName}:`, err);
-            return { success: false, business };
-          }
-        })
-      );
-
-      // Count results
-      for (const r of results) {
-        if (r.success) success++;
-        else failed++;
+    const result = await enrichBusinessBatch(toEnrich, {
+      batchSize: 5,
+      findWebsite: true,
+      recordUsage: true,
+      onProgress: ({ current, total }) => {
+        if (current <= total) {
+          const biz = toEnrich[Math.min(current, toEnrich.length - 1)];
+          const name = biz?.name || biz?.businessName || 'Unknown';
+          updateEnrichmentProgress(current, name, true);
+        }
       }
-
-      // Delay between batches (except for last batch)
-      if (i + BATCH_SIZE < toEnrich.length && !isEnrichmentCancelled()) {
-        await new Promise(r => setTimeout(r, BATCH_DELAY));
-      }
-    }
+    });
+    success = result.success;
+    failed = result.failed;
   } catch (err) {
     console.error('Bulk enrichment error:', err);
   }
@@ -5034,110 +4956,168 @@ async function enrichBusinessWebsite(business) {
   const enrichCheck = canEnrich();
   if (!enrichCheck.allowed) {
     console.log('⛔ Enrichment limit reached for today');
-    // Don't show prompt for every business - just skip silently
-    // User will see the upgrade prompt if they manually try to enrich
     return;
   }
 
   const businessName = business.name || business.businessName;
-  const location = `${business.city || ''} ${business.state || 'NY'} ${business.zipCode || business.zip || ''}`.trim();
 
   try {
     console.log(`🔍 Enriching: ${businessName}`);
-    let foundItems = [];
+    const result = await enrichBusiness(business, { findWebsite: true, skipIfEnriched: false });
 
-    // Record enrichment usage for free tier
-    recordEnrichmentUsage();
-
-    // Track usage (informational - Serper primary has 2,500/month shared)
-    // No hard blocking - Serper will return errors when quota exhausted
-
-    // 1. Search for website (if not already set)
-    if (!business.website) {
-      const websiteQuery = `${businessName} ${location}`;
-      const website = await searchBusinessWebsite(websiteQuery, businessName);
-      trackEnrichmentQuery(1);
-      if (website) {
-        business.website = website;
-        foundItems.push('website');
-        console.log(`✅ Found website: ${website}`);
-      }
-    }
-
-    // 2. Search for Facebook page (if not already set) - DISABLED: unreliable results
-    if (ENABLE_SOCIAL_MEDIA_SEARCH && !business.facebook) {
-      const fbQuery = `${businessName} ${location} site:facebook.com`;
-      const fbResult = await searchBusinessWebsite(fbQuery, businessName);
-      trackEnrichmentQuery(1);
-      console.log(`🔍 Facebook search result: ${fbResult || 'none'}`);
-      // Validate: must be facebook.com and NOT instagram (Instagram uses /p/ for posts)
-      if (fbResult && fbResult.includes('facebook.com') && !fbResult.includes('instagram.com')) {
-        // Clean up the URL - try to get the page URL, not a post
-        let cleanFbUrl = fbResult;
-        // If it's a post URL, try to extract the page
-        if (fbResult.includes('/posts/') || fbResult.includes('/photos/') || fbResult.includes('/videos/')) {
-          const pageMatch = fbResult.match(/(https?:\/\/[^\/]*facebook\.com\/[^\/\?]+)/);
-          if (pageMatch) {
-            cleanFbUrl = pageMatch[1];
-            console.log(`🔄 Cleaned Facebook URL: ${cleanFbUrl}`);
-          }
-        }
-        business.facebook = cleanFbUrl;
-        foundItems.push('Facebook');
-        console.log(`✅ Found Facebook: ${cleanFbUrl}`);
-      } else if (fbResult && fbResult.includes('/p/')) {
-        // This is actually an Instagram URL, skip it
-        console.log(`⚠️ Skipped Instagram URL in Facebook search: ${fbResult}`);
-      } else if (fbResult) {
-        console.log(`⚠️ Skipped non-Facebook URL: ${fbResult}`);
-      }
-    }
-
-    // 3. Search for Instagram (if not already set) - DISABLED: unreliable results
-    if (ENABLE_SOCIAL_MEDIA_SEARCH && !business.instagram) {
-      const igQuery = `${businessName} ${location} site:instagram.com`;
-      const igResult = await searchBusinessWebsite(igQuery, businessName);
-      trackEnrichmentQuery(1);
-      // Validate: must be instagram.com, NOT facebook, prefer profile URLs not posts
-      if (igResult &&
-          igResult.includes('instagram.com') &&
-          !igResult.includes('facebook.com')) {
-        // Try to extract profile URL if it's a post URL
-        let cleanedUrl = igResult;
-        if (igResult.includes('/p/') || igResult.includes('/reel/')) {
-          // Extract username from post URL: instagram.com/username/p/xxx -> instagram.com/username
-          const match = igResult.match(/instagram\.com\/([^\/\?]+)/);
-          if (match && match[1] && !['p', 'reel', 'stories'].includes(match[1])) {
-            cleanedUrl = `https://instagram.com/${match[1]}`;
-            console.log(`🔄 Converted Instagram post to profile: ${cleanedUrl}`);
-          }
-        }
-        business.instagram = cleanedUrl;
-        foundItems.push('Instagram');
-        console.log(`✅ Found Instagram: ${cleanedUrl}`);
-      } else if (igResult) {
-        console.log(`⚠️ Skipped invalid Instagram URL: ${igResult}`);
-      }
-    }
-
-    business.enriched = true;
-
-    if (foundItems.length > 0) {
-      // Save kanban state with updated info
+    if (result.foundItems && result.foundItems.length > 0) {
       saveKanban();
-
-      // Re-render to show the updates
       renderKanban();
-
-      toast(`🔍 Found ${foundItems.join(', ')} for ${businessName}`, true);
+      toast(`🔍 Found ${result.foundItems.join(', ')} for ${businessName}`, true);
     } else {
       console.log(`⚠️ No website/social found for ${businessName}`);
     }
 
   } catch (error) {
     console.warn('Enrichment failed:', error);
+    business.enriched = true;
+  }
+}
+
+/**
+ * Unified enrichment function - single source of truth for enriching a business
+ * Handles: website finding, website scraping, social links, caching
+ * Replaces duplicated enrichment logic across 8+ functions
+ */
+async function enrichBusiness(business, options = {}) {
+  const {
+    findWebsite = true,
+    skipIfEnriched = true,
+    recordUsage = true
+  } = options;
+
+  const businessName = business.name || business.businessName || 'Unknown';
+
+  // Skip if already enriched (unless forced)
+  if (skipIfEnriched && business.enriched &&
+      (business.email || business.website || business.facebook || business.instagram)) {
+    return { business, foundItems: [] };
+  }
+
+  if (recordUsage) {
+    recordEnrichmentUsage();
+  }
+
+  const city = business.city || business.actualCity || business.town || '';
+  const state = business.state || 'NY';
+  const zipCode = business.zipCode || business.zip || business.searchedZipCode || '';
+  const location = `${city} ${state} ${zipCode}`.trim();
+  const foundItems = [];
+
+  try {
+    // 1. Find website if missing (ScrapingDog -> Brave chain)
+    if (findWebsite && !business.website) {
+      const websiteQuery = `${businessName} ${location}`;
+      const website = await searchBusinessWebsite(websiteQuery, businessName, { zipCode, city, state });
+      if (website && !website.includes('yelp.com') && !website.includes('facebook.com') && !website.includes('instagram.com')) {
+        business.website = website;
+        foundItems.push('website');
+      }
+    }
+
+    // 2. Scrape website for email, social links, contacts (uses server-side cache)
+    if (business.website) {
+      const prevFb = business.facebook;
+      const prevIg = business.instagram;
+      const enrichedData = await fetchSmartEnrichment(business.website, businessName);
+      business.email = business.email || enrichedData.email || '';
+      business.facebook = business.facebook || enrichedData.facebook || '';
+      business.instagram = business.instagram || enrichedData.instagram || '';
+      business.linkedin = business.linkedin || enrichedData.linkedin || '';
+      business.twitter = business.twitter || enrichedData.twitter || '';
+      business.contactNames = enrichedData.contactNames?.length > 0
+        ? enrichedData.contactNames
+        : (business.contactNames || []);
+      if (enrichedData.enriched) {
+        business.pagesScraped = enrichedData.pagesScraped;
+        business.enrichmentSource = '9x12pro-scraper';
+      }
+      if (enrichedData.email) foundItems.push('email');
+      if (enrichedData.facebook && !prevFb) foundItems.push('Facebook');
+      if (enrichedData.instagram && !prevIg) foundItems.push('Instagram');
+    }
+
+    // 3. Mark as enriched and calculate scores
+    business.enriched = true;
+    business.contactScore = calculateContactScore(business);
+    business.leadScore = calculateProspectScore(business);
+    business.scoreCategory = getScoreCategory(business.leadScore);
+
+  } catch (error) {
+    console.error(`Enrichment failed for ${businessName}:`, error);
     business.enriched = true; // Mark as enriched to avoid retry
   }
+
+  return { business, foundItems };
+}
+
+/**
+ * Batch enrichment - processes businesses in parallel batches
+ * @param {Array} businesses - businesses to enrich
+ * @param {Object} options - { batchSize, onProgress, findWebsite, recordUsage }
+ * @returns {Object} { success, failed, results }
+ */
+async function enrichBusinessBatch(businesses, options = {}) {
+  const {
+    batchSize = 4,
+    onProgress = null,
+    findWebsite = true,
+    recordUsage = true
+  } = options;
+
+  let successCount = 0;
+  let failedCount = 0;
+  const results = [];
+
+  for (let batchStart = 0; batchStart < businesses.length; batchStart += batchSize) {
+    const batch = businesses.slice(batchStart, batchStart + batchSize);
+
+    if (onProgress) {
+      onProgress({
+        current: batchStart,
+        total: businesses.length,
+        batchNumber: Math.floor(batchStart / batchSize) + 1,
+        phase: 'enriching'
+      });
+    }
+
+    const batchPromises = batch.map(async (business) => {
+      try {
+        const result = await enrichBusiness(business, {
+          findWebsite,
+          skipIfEnriched: true,
+          recordUsage
+        });
+        successCount++;
+        return { success: true, ...result };
+      } catch (err) {
+        console.error(`Failed to enrich ${business.name}:`, err);
+        failedCount++;
+        return { success: false, business, foundItems: [], error: err };
+      }
+    });
+
+    const batchResults = await Promise.all(batchPromises);
+    results.push(...batchResults);
+
+    // Log progress
+    console.log(`✅ Enriched ${Math.min(batchStart + batchSize, businesses.length)}/${businesses.length} businesses`);
+  }
+
+  if (onProgress) {
+    onProgress({
+      current: businesses.length,
+      total: businesses.length,
+      phase: 'complete'
+    });
+  }
+
+  return { success: successCount, failed: failedCount, results };
 }
 
 /**
@@ -5154,7 +5134,6 @@ async function enrichSingleProspect(prospectId) {
 
   // Find the prospect in placesCache
   let prospect = null;
-  let cacheKey = null;
   let isManualProspect = false;
 
   for (const key of Object.keys(placesCache.searches)) {
@@ -5163,7 +5142,6 @@ async function enrichSingleProspect(prospectId) {
       const found = cached.cachedData.find(b => b.placeId === prospectId);
       if (found) {
         prospect = found;
-        cacheKey = key;
         break;
       }
     }
@@ -5191,53 +5169,8 @@ async function enrichSingleProspect(prospectId) {
   }
 
   try {
-    // Record enrichment usage
-    recordEnrichmentUsage();
-
-    const city = prospect.city || '';
-    const state = prospect.state || 'NY';
-    const zipCode = prospect.zipCode || prospect.zip || prospect.searchedZipCode || '';
-    const location = `${city} ${state} ${zipCode}`.trim();
-    let foundItems = [];
-
-    // 1. Search for website if missing
-    if (!prospect.website) {
-      const websiteQuery = `${businessName} ${location}`;
-      const website = await searchBusinessWebsite(websiteQuery, businessName, { zipCode, city, state });
-      if (website) {
-        prospect.website = website;
-        foundItems.push('website');
-      }
-    }
-
-    // 2. Scrape email from website if we have one
-    if (prospect.website && !prospect.email) {
-      try {
-        const response = await fetch('/api/scrape-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ website: prospect.website, businessName })
-        });
-        const data = await response.json();
-        if (data.primaryEmail) {
-          prospect.email = data.primaryEmail;
-          foundItems.push('email');
-        }
-      } catch (e) {
-        console.warn('Email scrape failed:', e);
-      }
-    }
-
-    // Mark as enriched
-    prospect.enriched = true;
-
-    // Calculate contact score
-    let contactScore = 0;
-    if (prospect.phone) contactScore += 3;
-    if (prospect.email) contactScore += 4;
-    if (prospect.website) contactScore += 2;
-    if (prospect.facebook || prospect.instagram) contactScore += 1;
-    prospect.contactScore = Math.min(contactScore, 10);
+    const result = await enrichBusiness(prospect, { findWebsite: true, skipIfEnriched: false });
+    const foundItems = result.foundItems || [];
 
     // Save updated cache (different save path for manual vs cached prospects)
     if (isManualProspect) {
@@ -5251,18 +5184,12 @@ async function enrichSingleProspect(prospectId) {
 
     // Scroll to and highlight the enriched card after a short delay for DOM to update
     setTimeout(() => {
-      // Find the card by prospect ID - it's now in the enriched section
       const enrichedCard = document.querySelector(`[data-place-id="${prospectId}"]`) ||
                           document.querySelector(`[onclick*="${prospectId}"]`);
       if (enrichedCard) {
-        // Scroll into view with smooth animation
         enrichedCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-        // Add highlight animation
         enrichedCard.classList.add('ring-4', 'ring-emerald-400', 'ring-opacity-75');
         enrichedCard.style.transition = 'all 0.3s ease';
-
-        // Remove highlight after 3 seconds
         setTimeout(() => {
           enrichedCard.classList.remove('ring-4', 'ring-emerald-400', 'ring-opacity-75');
         }, 3000);
@@ -5277,10 +5204,9 @@ async function enrichSingleProspect(prospectId) {
 
   } catch (error) {
     console.error('Enrichment error:', error);
-    prospect.enriched = true; // Mark as enriched to avoid retry
+    prospect.enriched = true;
     toast(`❌ Enrichment failed for ${businessName}`, false);
 
-    // Reset button
     if (btn) {
       btn.disabled = false;
       btn.innerHTML = '🔍 Enrich';
@@ -5355,80 +5281,17 @@ window.reEnrichProspect = reEnrichProspect;
  */
 async function enrichBusinessOnMove(lead) {
   const businessName = lead.businessName || lead.name || 'Unknown';
-  const location = lead.address ? lead.address.split(',').slice(-2).join(',').trim() : '';
 
   console.log(`🎯 Enriching on move: ${businessName}`);
   toast(`🔍 Enriching ${businessName}...`, true);
 
   try {
-    // Search for website if missing
-    if (!lead.website) {
-      const websiteQuery = `${businessName} ${location} official website`;
-      const website = await searchBusinessWebsite(websiteQuery, businessName);
-      if (website && !website.includes('yelp.com') && !website.includes('facebook.com') && !website.includes('instagram.com')) {
-        lead.website = website;
-        console.log(`✅ Found website: ${website}`);
-      }
-    }
-
-    // Search for Facebook if missing - DISABLED: unreliable results
-    if (ENABLE_SOCIAL_MEDIA_SEARCH && !lead.facebook) {
-      const fbQuery = `${businessName} ${location} site:facebook.com`;
-      const fbResult = await searchBusinessWebsite(fbQuery, businessName);
-      if (fbResult && fbResult.includes('facebook.com') && !fbResult.includes('instagram.com')) {
-        let cleanFbUrl = fbResult;
-        if (fbResult.includes('/posts/') || fbResult.includes('/photos/')) {
-          const pageMatch = fbResult.match(/(https?:\/\/[^\/]*facebook\.com\/[^\/\?]+)/);
-          if (pageMatch) cleanFbUrl = pageMatch[1];
-        }
-        lead.facebook = cleanFbUrl;
-        console.log(`✅ Found Facebook: ${cleanFbUrl}`);
-      }
-    }
-
-    // Search for Instagram if missing - DISABLED: unreliable results
-    if (ENABLE_SOCIAL_MEDIA_SEARCH && !lead.instagram) {
-      const igQuery = `${businessName} ${location} site:instagram.com`;
-      const igResult = await searchBusinessWebsite(igQuery, businessName);
-      if (igResult && igResult.includes('instagram.com') && !igResult.includes('facebook.com')) {
-        let cleanedUrl = igResult;
-        if (igResult.includes('/p/') || igResult.includes('/reel/')) {
-          const match = igResult.match(/instagram\.com\/([^\/\?]+)/);
-          if (match && match[1] && !['p', 'reel', 'stories'].includes(match[1])) {
-            cleanedUrl = `https://instagram.com/${match[1]}`;
-          }
-        }
-        lead.instagram = cleanedUrl;
-        console.log(`✅ Found Instagram: ${cleanedUrl}`);
-      }
-    }
-
-    // Scrape website for email AND social links if we have a website
-    if (lead.website) {
-      const enrichedData = await fetchSmartEnrichment(lead.website, businessName);
-      lead.email = lead.email || enrichedData.email || '';
-      lead.facebook = lead.facebook || enrichedData.facebook || '';
-      lead.instagram = lead.instagram || enrichedData.instagram || '';
-      lead.linkedin = lead.linkedin || enrichedData.linkedin || '';
-      lead.twitter = lead.twitter || enrichedData.twitter || '';
-      lead.contactNames = enrichedData.contactNames || lead.contactNames || [];
-      if (enrichedData.enriched) {
-        lead.enriched = true;
-        lead.pagesScraped = enrichedData.pagesScraped;
-      }
-    }
-
-    lead.enriched = true;
+    const result = await enrichBusiness(lead, { findWebsite: true, skipIfEnriched: false });
+    const foundItems = result.foundItems || [];
 
     // Save and re-render to show new data
     await saveKanban();
     renderKanban();
-
-    const foundItems = [];
-    if (lead.website) foundItems.push('website');
-    if (lead.facebook) foundItems.push('FB');
-    if (lead.instagram) foundItems.push('IG');
-    if (lead.email) foundItems.push('email');
 
     if (foundItems.length > 0) {
       toast(`✅ Found ${foundItems.join(', ')} for ${businessName}`, true);
@@ -5459,6 +5322,24 @@ function deduplicateBusinesses(businesses) {
     }
     groups[normalizedName].push(biz);
   });
+
+  // Second pass: merge groups where one name contains another (catches "Island Deli" vs "JG's Island Deli")
+  const groupKeys = Object.keys(groups);
+  for (let i = 0; i < groupKeys.length; i++) {
+    for (let j = i + 1; j < groupKeys.length; j++) {
+      const nameA = groupKeys[i];
+      const nameB = groupKeys[j];
+      if (!groups[nameA] || !groups[nameB]) continue;
+      const shorter = nameA.length <= nameB.length ? nameA : nameB;
+      const longer = nameA.length <= nameB.length ? nameB : nameA;
+      if (shorter.length >= 6 && longer.includes(shorter)) {
+        // Merge shorter-name group into longer-name group (keep longer name as key)
+        groups[longer].push(...groups[shorter]);
+        delete groups[shorter];
+        console.log(`📍 Merged "${shorter}" into "${longer}" (name containment)`);
+      }
+    }
+  }
 
   // For each group, keep the entry with the most contact info
   const deduplicated = [];
@@ -5507,8 +5388,8 @@ const categorySearchTerms = {
 
   // CONSTRUCTION & CONTRACTORS
   'general_contractor': ['general contractor', 'home builder', 'construction company', 'remodeling contractor'],
-  'electrician': ['electrician', 'electrical contractor', 'electrical services'],
-  'plumber': ['plumber', 'plumbing', 'plumbing contractor'],
+  'electrician': ['electrician', 'electric', 'electrical', 'electrical contractor', 'electrical services', 'wiring', 'electrical repair'],
+  'plumber': ['plumber', 'plumbing', 'plumbing contractor', 'plumbing service', 'drain cleaning'],
   'roofing_contractor': ['roofing', 'roofer', 'roofing contractor', 'roof repair'],
   'hvac_contractor': ['hvac', 'heating and cooling', 'air conditioning', 'furnace repair'],
   'painter': ['painter', 'painting contractor', 'house painter'],
@@ -5628,18 +5509,9 @@ async function searchFoursquareBusinesses(zipCode, category, progressInfo = null
       return [];
     }
 
-    const categoryCheck = canSearchCategory(category);
-    if (!categoryCheck.allowed) {
-      showUpgradePrompt(categoryCheck.message);
-      return [];
-    }
-
-    // Record usage for free tier (only if this is a new search)
+    // Record usage (tracked for all tiers)
     if (!zipCheck.alreadySearched) {
       recordZipSearch(zipCode);
-    }
-    if (!categoryCheck.alreadySearched) {
-      recordCategorySearch(category);
     }
 
     // Get all search terms for this category
@@ -5676,8 +5548,19 @@ async function searchFoursquareBusinesses(zipCode, category, progressInfo = null
           businesses.forEach(biz => {
             if (!seenPlaceIds.has(biz.placeId)) {
               seenPlaceIds.add(biz.placeId);
-              // Store the original category for consistency
-              biz.category = category;
+              // Use HERE's own category classification for more accurate grouping
+              const hereCategory = biz.categories; // e.g., "Optician", "Deli", "Firewood Dealer"
+              if (hereCategory) {
+                const mappedCategory = normalizeCategory(hereCategory);
+                // Use HERE's classification if it maps to a known canonical category
+                if (mappedCategory && CATEGORY_ALIASES[mappedCategory] && mappedCategory !== 'other') {
+                  biz.category = mappedCategory;
+                } else {
+                  biz.category = category; // Fall back to search category
+                }
+              } else {
+                biz.category = category; // No HERE category, use search category
+              }
               allBusinesses.push(biz);
             }
           });
@@ -5696,9 +5579,63 @@ async function searchFoursquareBusinesses(zipCode, category, progressInfo = null
     console.log(`✅ Combined search returned ${rawBusinesses.length} unique businesses from ${searchTerms.length} queries`);
 
     // Deduplicate businesses with multiple locations (keep best contact info)
-    const businesses = deduplicateBusinesses(rawBusinesses);
+    let businesses = deduplicateBusinesses(rawBusinesses);
     if (businesses.length < rawBusinesses.length) {
       console.log(`📍 Deduplicated: ${rawBusinesses.length} → ${businesses.length} unique businesses`);
+    }
+
+    // Google Places fallback when HERE returns few results
+    if (businesses.length < 3) {
+      console.log(`📍 HERE returned only ${businesses.length} results, trying Google Places fallback...`);
+      try {
+        const primaryTerm = searchTerms[0] || category;
+        const gpResponse = await fetch('/api/google-places-search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ zipCode: zipCode, category: primaryTerm, limit: 20 })
+        });
+
+        if (gpResponse.ok) {
+          const gpData = await gpResponse.json();
+          const gpBusinesses = gpData.businesses || [];
+          console.log(`📍 Google Places returned ${gpBusinesses.length} businesses`);
+
+          if (gpBusinesses.length > 0) {
+            // Cross-source dedup: normalize name+address for comparison
+            const existingKeys = new Set(businesses.map(b =>
+              (b.name || '').toLowerCase().replace(/[^a-z0-9]/g, '') + '|' +
+              (b.address || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+            ));
+
+            let added = 0;
+            for (const gpBiz of gpBusinesses) {
+              const key = (gpBiz.name || '').toLowerCase().replace(/[^a-z0-9]/g, '') + '|' +
+                          (gpBiz.address || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+              if (!existingKeys.has(key)) {
+                // Apply same category normalization as HERE results
+                const gpCategory = gpBiz.categories;
+                if (gpCategory) {
+                  const mappedCategory = normalizeCategory(gpCategory);
+                  if (mappedCategory && CATEGORY_ALIASES[mappedCategory] && mappedCategory !== 'other') {
+                    gpBiz.category = mappedCategory;
+                  } else {
+                    gpBiz.category = category;
+                  }
+                } else {
+                  gpBiz.category = category;
+                }
+                businesses.push(gpBiz);
+                existingKeys.add(key);
+                added++;
+              }
+            }
+            console.log(`✅ Google Places fallback added ${added} new businesses (${gpBusinesses.length - added} duplicates skipped)`);
+          }
+        }
+      } catch (gpError) {
+        console.warn('⚠️ Google Places fallback failed:', gpError.message);
+      }
     }
 
     // Log enrichment stats
@@ -6459,7 +6396,7 @@ class EnrichmentQueue {
       const statusIndicator = poolCard.querySelector('.enrichment-status');
       if (statusIndicator) {
         if (update.status === 'enriching') {
-          statusIndicator.innerHTML = '<span class="text-xs text-blue-600">🎯 Enriching...</span>';
+          statusIndicator.innerHTML = '<span class="text-xs text-sky-600">🎯 Enriching...</span>';
         } else if (update.status === 'enriched' && update.data) {
           // Update card with enriched data
           this.renderEnrichedCard(poolCard, update.data);
@@ -6618,7 +6555,7 @@ async function reEnrichPipelineBusinesses() {
     top: 60px;
     left: 50%;
     transform: translateX(-50%);
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #0284c7 0%, #06b6d4 100%);
     color: white;
     padding: 16px 24px;
     border-radius: 12px;
@@ -6912,40 +6849,7 @@ function updateQuickApiUsage() {
   }
 }
 
-// Toggle all category checkboxes
-function toggleAllCategories(event) {
-  // Get the checkbox - either from event or by ID
-  let selectAllCheckbox = event?.target || document.getElementById('selectAllCategories');
-
-  if (!selectAllCheckbox) {
-    toast('Error: Select All checkbox not found', false);
-    return;
-  }
-
-  const shouldCheck = selectAllCheckbox.checked;
-
-  // Update the persistent Set directly (works even when groups are collapsed)
-  if (shouldCheck) {
-    businessCategories.forEach(cat => selectedSearchCategories.add(cat.value));
-  } else {
-    selectedSearchCategories.clear();
-  }
-
-  // Re-render to update UI
-  renderBusinessCategories();
-
-  toast(shouldCheck ? `Selected all ${businessCategories.length} categories` : 'Cleared all categories', true);
-
-  // Also update custom category input state when Select All is toggled
-  const customCategoryCheckbox = document.getElementById('enableCustomCategory');
-  const customCategoryInput = document.getElementById('bulkCustomCategory');
-  if (customCategoryCheckbox && customCategoryInput) {
-    customCategoryInput.disabled = !customCategoryCheckbox.checked;
-    if (!customCategoryCheckbox.checked) {
-      customCategoryInput.value = '';
-    }
-  }
-}
+// toggleAllCategories removed - per-group "All" checkboxes are sufficient
 
 /* ========= SALES TOOLKIT FUNCTIONS ========= */
 
@@ -7391,7 +7295,7 @@ function renderCloseDealsProspects() {
   const html = filteredProspects.map(prospect => {
     const isSelected = closeDealsState.selectedProspect?.id === prospect.id;
     const statusColors = {
-      'new': 'bg-blue-100 text-blue-700',
+      'new': 'bg-sky-100 text-sky-700',
       'contacted': 'bg-amber-100 text-amber-700',
       'interested': 'bg-green-100 text-green-700'
     };
@@ -7418,7 +7322,7 @@ function renderCloseDealsProspects() {
 
     return `
       <div onclick="selectCloseDealsProspect('${prospect.id}')"
-           class="p-3 cursor-pointer hover:bg-indigo-50 transition-all ${isSelected ? 'bg-indigo-100 border-l-4 border-indigo-500' : ''}">
+           class="p-3 cursor-pointer hover:bg-sky-50 transition-all ${isSelected ? 'bg-sky-100 border-l-4 border-sky-500' : ''}">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-lg flex-shrink-0">
             ${icon}
@@ -7987,34 +7891,21 @@ async function runBulkAutoPopulate() {
   btn.disabled = true;
   btn.innerHTML = '⏳ Searching...';
 
-  // Check free tier limits BEFORE starting searches
-  if (isFreeTier()) {
+  // Check tier limits BEFORE starting searches
+  {
+    const limits = getUserTierLimits();
     // Check zip code limits
-    const newZips = zipCodes.filter(z => !dailyUsage.zipsSearched.includes(z));
-    const allowedNewZips = FREE_TIER_LIMITS.zipSearchesPerDay - dailyUsage.zipSearches;
+    const newZips = zipCodes.filter(z => !monthlyUsage.zipsSearched.includes(z));
+    const allowedNewZips = limits.zipSearches - monthlyUsage.zipsSearched.length;
 
     if (newZips.length > allowedNewZips) {
       btn.disabled = false;
       btn.innerHTML = originalBtnText;
+      const period = isFreeTier() ? 'total' : '/month';
       if (allowedNewZips <= 0) {
-        showUpgradePrompt(`You've reached your daily limit of ${FREE_TIER_LIMITS.zipSearchesPerDay} ZIP code search. Upgrade for unlimited searches.`);
+        showUpgradePrompt(`You've reached your limit of ${limits.zipSearches} ZIP code search${limits.zipSearches === 1 ? '' : 'es'} ${period}. Upgrade for more searches.`);
       } else {
-        showUpgradePrompt(`Free tier allows ${FREE_TIER_LIMITS.zipSearchesPerDay} ZIP code per day. You're trying to search ${newZips.length} new ZIP codes. Upgrade for unlimited searches.`);
-      }
-      return;
-    }
-
-    // Check category limits
-    const newCategories = selectedCategories.filter(c => !dailyUsage.categoriesSearched.includes(c));
-    const allowedNewCategories = FREE_TIER_LIMITS.categorySearchesPerDay - dailyUsage.categorySearches;
-
-    if (newCategories.length > allowedNewCategories) {
-      btn.disabled = false;
-      btn.innerHTML = originalBtnText;
-      if (allowedNewCategories <= 0) {
-        showUpgradePrompt(`You've reached your daily limit of ${FREE_TIER_LIMITS.categorySearchesPerDay} category searches. Upgrade for unlimited searches.`);
-      } else {
-        showUpgradePrompt(`Free tier allows ${FREE_TIER_LIMITS.categorySearchesPerDay} categories per day. You're trying to search ${newCategories.length} new categories. Upgrade for unlimited searches.`);
+        showUpgradePrompt(`Your plan allows ${limits.zipSearches} ZIP code${limits.zipSearches === 1 ? '' : 's'} ${period}. You're trying to search ${newZips.length} new ZIP code${newZips.length === 1 ? '' : 's'}. Upgrade for more.`);
       }
       return;
     }
@@ -8112,92 +8003,12 @@ async function runBulkAutoPopulate() {
       business.alreadyExists = existingLeads.has(business.placeId);
     });
 
-    // AUTO-ENRICHMENT STRATEGY - ENRICH ALL BUSINESSES
-    const businessesWithWebsites = allBusinesses.filter(b => b.website && !b.enriched);
-
-    if (businessesWithWebsites.length > 0) {
-      console.log(`🎯 Enriching ${businessesWithWebsites.length} businesses...`);
-
-      // Enrich ALL businesses with websites - PARALLEL processing (4 at a time)
-      const BATCH_SIZE = 4;
-      let enrichedCount = 0;
-
-      // Process businesses in parallel batches
-      for (let batchStart = 0; batchStart < businessesWithWebsites.length; batchStart += BATCH_SIZE) {
-        const batch = businessesWithWebsites.slice(batchStart, batchStart + BATCH_SIZE);
-        btn.innerHTML = `🎯 Enriching batch ${Math.floor(batchStart / BATCH_SIZE) + 1}... (${Math.min(batchStart + BATCH_SIZE, businessesWithWebsites.length)}/${businessesWithWebsites.length})`;
-
-        // Process batch in parallel
-        const batchPromises = batch.map(async (business) => {
-          try {
-            const enrichedData = await fetchSmartEnrichment(business.website, business.name);
-
-            // Update business in cache
-            const cacheKey = `${business.searchedZipCode}-${business.category}`;
-            const cached = placesCache.searches[cacheKey];
-            if (cached && cached.cachedData) {
-              const businessIndex = cached.cachedData.findIndex(b => b.placeId === business.placeId);
-              if (businessIndex !== -1) {
-                const existing = cached.cachedData[businessIndex];
-                // IMPORTANT: Preserve existing data, only add new data from enrichment
-                cached.cachedData[businessIndex] = {
-                  ...existing,
-                  email: enrichedData.email || existing.email || '',
-                  phone: existing.phone || enrichedData.phone || '',
-                  facebook: enrichedData.facebook || existing.facebook || '',
-                  instagram: enrichedData.instagram || existing.instagram || '',
-                  linkedin: enrichedData.linkedin || existing.linkedin || '',
-                  twitter: enrichedData.twitter || existing.twitter || '',
-                  contactNames: enrichedData.contactNames?.length > 0 ? enrichedData.contactNames : (existing.contactNames || []),
-                  enriched: true,
-                  enrichmentSource: '9x12pro-scraper',
-                  pagesScraped: enrichedData.pagesScraped || 0,
-                  contactScore: calculateContactScore({
-                    phone: existing.phone || enrichedData.phone,
-                    email: enrichedData.email || existing.email,
-                    website: existing.website,
-                    facebook: enrichedData.facebook || existing.facebook,
-                    instagram: enrichedData.instagram || existing.instagram,
-                    linkedin: enrichedData.linkedin || existing.linkedin,
-                    twitter: enrichedData.twitter || existing.twitter
-                  })
-                };
-
-                cached.cachedData[businessIndex].leadScore = calculateProspectScore(cached.cachedData[businessIndex]);
-                cached.cachedData[businessIndex].scoreCategory = getScoreCategory(cached.cachedData[businessIndex].leadScore);
-              }
-            }
-            enrichedCount++;
-            return { success: true, business };
-          } catch (err) {
-            console.error(`❌ Failed to enrich ${business.name}:`, err);
-            return { success: false, business, error: err };
-          }
-        });
-
-        // Wait for batch to complete
-        const results = await Promise.all(batchPromises);
-
-        // Show errors for failed enrichments
-        results.filter(r => !r.success).forEach(r => {
-          toast(`⚠️ Couldn't enrich ${r.business.name} - continuing...`, false);
-        });
-
-        // Log progress after each batch
-        console.log(`✅ Enriched ${Math.min(batchStart + BATCH_SIZE, businessesWithWebsites.length)}/${businessesWithWebsites.length} businesses`);
-      }
-
-      // Save all enriched data to cache
-      await savePlacesCache();
-      console.log(`✅ Enrichment complete! ${enrichedCount}/${businessesWithWebsites.length} businesses enriched.`);
-    }
-
-    // Just cache results - don't auto-add to prospecting
-    // Update API usage display
+    // Skip enrichment here - show review modal immediately
+    // User selects which businesses they want, THEN we enrich only those
     updateQuickApiUsage();
 
     // Show review modal so user can select which prospects to keep
-    // (Review modal handles tracking, toasts, and tab switching)
+    // Enrichment happens AFTER selection (triggered by the modal's confirm button)
     showProspectReviewModal(allBusinesses, categorizedResults);
 
   } catch(err) {
@@ -8250,9 +8061,9 @@ function renderProspectsResults() {
       <div class="text-2xl font-bold text-gray-600">${existingBusinesses}</div>
       <div class="text-xs text-gray-800">Already in System</div>
     </div>
-    <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-3 text-center">
-      <div class="text-2xl font-bold text-indigo-600">${selectedCount}</div>
-      <div class="text-xs text-indigo-800">Selected to Add</div>
+    <div class="bg-sky-50 border border-sky-200 rounded-lg p-3 text-center">
+      <div class="text-2xl font-bold text-sky-600">${selectedCount}</div>
+      <div class="text-xs text-sky-800">Selected to Add</div>
     </div>
   `;
 
@@ -8269,7 +8080,7 @@ function renderProspectsResults() {
             ${isSelected ? 'checked' : ''}
             ${isDisabled ? 'disabled' : ''}
             onchange="toggleProspectSelection('${business.placeId}')"
-            class="mt-1 w-5 h-5 text-indigo-600 rounded cursor-pointer"
+            class="mt-1 w-5 h-5 text-sky-600 rounded cursor-pointer"
           />
           <div class="flex-1 min-w-0">
             <div class="flex items-start justify-between gap-2">
@@ -9088,23 +8899,13 @@ function selectAllInPoolGroup(groupId) {
   // Get all prospects from the pool that belong to this group
   const allProspects = [];
 
-  // Collect from rendered prospects lookup
+  // Collect from rendered prospects lookup (already filtered by ZIP, date, contact, etc.)
   Object.values(prospectPoolState.renderedProspects).forEach(prospect => {
     const category = prospect.category || '';
     const prospectGroupId = getCategoryGroup(category);
     if (prospectGroupId === groupId && !prospect.inSystem && !prospect.doNotContact) {
       const id = prospect.placeId || prospect.id;
       if (id) allProspects.push(id);
-    }
-  });
-
-  // Also check manual prospects
-  prospectPoolState.manualProspects.forEach(prospect => {
-    const category = prospect.category || '';
-    const prospectGroupId = getCategoryGroup(category);
-    if (prospectGroupId === groupId && !prospect.inSystem && !prospect.doNotContact) {
-      const id = prospect.placeId || prospect.id;
-      if (id && !allProspects.includes(id)) allProspects.push(id);
     }
   });
 
@@ -9146,10 +8947,10 @@ function renderGroupedPoolCategories(filteredByCategory) {
   return sortedGroups.map(groupId => {
     const group = groupedData[groupId];
     // Auto-expand "other" group so nothing is hidden
-    const isExpanded = expandedPoolGroups.has(groupId) || groupId === 'other';
+    const isExpanded = expandedPoolGroups.has(groupId);
     const tierInfo = CATEGORY_TIERS[group.info.tier] || CATEGORY_TIERS[3];
     const tierBadgeColor = tierInfo.color === 'green' ? 'bg-green-500' :
-                           tierInfo.color === 'blue' ? 'bg-blue-500' : 'bg-yellow-500';
+                           tierInfo.color === 'blue' ? 'bg-sky-500' : 'bg-yellow-500';
 
     // Count totals for this group
     let groupTotal = 0;
@@ -9159,6 +8960,11 @@ function renderGroupedPoolCategories(filteredByCategory) {
       groupTotal += prospects.length;
       groupEnriched += prospects.filter(p => p.isEnriched || p.enriched).length;
       groupAvailable += prospects.filter(p => !p.inSystem && !p.doNotContact).length;
+      // Always register prospects for selection (even when group is collapsed)
+      prospects.forEach(prospect => {
+        const id = prospect.placeId || prospect.id;
+        if (id) prospectPoolState.renderedProspects[id] = prospect;
+      });
     });
 
     const categoryCount = Object.keys(group.categories).length;
@@ -9206,12 +9012,12 @@ function renderPoolGroupCategories(categories) {
       <div class="ml-6 mt-4 mb-6 category-section" id="category-${category}">
         <div class="flex items-center justify-between mb-3 pb-2 border-b border-gray-200">
           <div class="flex items-center gap-3">
-            <button onclick="scrollToNextCategory('${category}')" class="p-1.5 bg-gray-100 hover:bg-indigo-100 rounded transition-colors" title="Next category">
+            <button onclick="scrollToNextCategory('${category}')" class="p-1.5 bg-gray-100 hover:bg-sky-100 rounded transition-colors" title="Next category">
               <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
             </button>
             <div>
               <h4 class="font-bold text-gray-800">${categoryName}</h4>
-              <p class="text-xs text-gray-500">${prospects.length} total • <span class="text-green-600">${enrichedCount} enriched</span> • <span class="text-blue-600">${rawCount} raw</span></p>
+              <p class="text-xs text-gray-500">${prospects.length} total • <span class="text-green-600">${enrichedCount} enriched</span> • <span class="text-sky-600">${rawCount} raw</span></p>
             </div>
           </div>
           ${availableToAdd > 0 ? `
@@ -9263,7 +9069,12 @@ function renderSinglePoolProspect(prospect) {
     if (prospect.phone) contactIcons.push(`<a href="tel:${esc(prospect.phone)}" onclick="event.stopPropagation()" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="${esc(prospect.phone)}">📞</a>`);
     if (prospect.website) contactIcons.push(`<a href="${esc(ensureHttps(prospect.website))}" onclick="event.stopPropagation()" target="_blank" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="${esc(prospect.website)}">🌐</a>`);
     if (prospect.email) contactIcons.push(`<a href="mailto:${esc(prospect.email)}" onclick="event.stopPropagation()" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="${esc(prospect.email)}">✉️</a>`);
-    if (prospect.facebook) contactIcons.push(`<a href="${esc(ensureHttps(prospect.facebook))}" onclick="event.stopPropagation()" target="_blank" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="Facebook">📘</a>`);
+    if (prospect.facebook) {
+      contactIcons.push(`<a href="${esc(ensureHttps(prospect.facebook))}" onclick="event.stopPropagation()" target="_blank" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="Facebook">📘</a>`);
+    } else {
+      const fbQ = encodeURIComponent(`${prospect.name || prospect.businessName || ''} ${prospect.city || ''} ${prospect.state || 'NY'}`);
+      contactIcons.push(`<a href="https://www.facebook.com/search/pages?q=${fbQ}" onclick="event.stopPropagation()" target="_blank" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all opacity-40 hover:opacity-100" title="Search Facebook">📘</a>`);
+    }
     if (prospect.instagram) contactIcons.push(`<a href="${esc(ensureHttps(prospect.instagram))}" onclick="event.stopPropagation()" target="_blank" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="Instagram">📷</a>`);
     if (prospect.linkedin) contactIcons.push(`<a href="${esc(ensureHttps(prospect.linkedin))}" onclick="event.stopPropagation()" target="_blank" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="LinkedIn">💼</a>`);
 
@@ -9306,7 +9117,7 @@ function renderSinglePoolProspect(prospect) {
         <div class="px-3 pb-3 flex gap-2">
           ${prospect.phone ? '<button onclick="event.stopPropagation(); sendTextMessage(\'' + prospectLookupId + '\')" class="flex-1 px-3 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 font-semibold text-xs shadow-sm">💬 Text</button>' : ''}
           ${prospect.email ? '<button onclick="event.stopPropagation(); sendPitchEmail(\'' + prospectLookupId + '\')" class="flex-1 px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 font-semibold text-xs shadow-sm">📧 Email</button>' : ''}
-          ${isEnrichedInSystem ? '<span class="flex-1 px-3 py-2 bg-gray-300 text-gray-600 rounded-lg font-semibold text-xs text-center">✓ Added</span>' : '<button onclick="event.stopPropagation(); moveProspectFromPool(\'' + (prospect.placeId || prospect.id) + '\')" class="flex-1 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold text-xs shadow-sm">Pipeline →</button>'}
+          ${isEnrichedInSystem ? '<span class="flex-1 px-3 py-2 bg-gray-300 text-gray-600 rounded-lg font-semibold text-xs text-center">✓ Added</span>' : '<button onclick="event.stopPropagation(); moveProspectFromPool(\'' + (prospect.placeId || prospect.id) + '\')" class="flex-1 px-3 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 font-semibold text-xs shadow-sm">Pipeline →</button>'}
           <button onclick="event.stopPropagation(); reEnrichProspect('${prospect.placeId || prospect.id}')" class="w-9 h-9 flex items-center justify-center bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg font-semibold text-sm transition-colors" title="Re-enrich">🔄</button>
           <button onclick="event.stopPropagation(); togglePoolDoNotContact('${prospect.placeId || prospect.id}')" class="${isPoolDoNotContact ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 hover:bg-red-500'} w-9 h-9 flex items-center justify-center text-white rounded-lg font-semibold text-sm transition-colors" title="${isPoolDoNotContact ? 'Remove DNC' : 'Do Not Contact'}">🚫</button>
           <button onclick="event.stopPropagation(); deleteBusinessPermanently('${prospect.placeId || prospect.id}')" class="w-9 h-9 flex items-center justify-center bg-red-100 hover:bg-red-500 text-red-600 hover:text-white rounded-lg font-semibold text-sm transition-colors" title="Delete permanently">🗑️</button>
@@ -9342,7 +9153,7 @@ function renderSinglePoolProspect(prospect) {
           ${prospect.isExistingClient ? '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white">Client</span>' : ''}
         </div>
       </div>
-      ${!isDisabled && !isRawDoNotContact ? '<div class="px-4 pb-3 flex gap-2"><button onclick="event.stopPropagation(); enrichSingleProspect(\'' + prospectId + '\')" id="enrich-btn-' + prospectId + '" class="flex-1 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-bold text-sm hover:from-purple-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"><span class="text-lg">🔍</span> Find Contact Info</button><button onclick="event.stopPropagation(); deleteBusinessPermanently(\'' + prospectId + '\')" class="w-10 h-10 flex items-center justify-center bg-red-100 hover:bg-red-500 text-red-600 hover:text-white rounded-lg text-sm transition-colors" title="Delete permanently">🗑️</button></div>' : ''}
+      ${!isDisabled && !isRawDoNotContact ? '<div class="px-4 pb-3 flex gap-2"><button onclick="event.stopPropagation(); enrichSingleProspect(\'' + prospectId + '\')" id="enrich-btn-' + prospectId + '" class="flex-1 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-sky-600 text-white rounded-lg font-bold text-sm hover:from-purple-700 hover:to-sky-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"><span class="text-lg">🔍</span> Find Contact Info</button><button onclick="event.stopPropagation(); deleteBusinessPermanently(\'' + prospectId + '\')" class="w-10 h-10 flex items-center justify-center bg-red-100 hover:bg-red-500 text-red-600 hover:text-white rounded-lg text-sm transition-colors" title="Delete permanently">🗑️</button></div>' : ''}
       ${isDisabled || isRawDoNotContact ? '<div class="px-4 pb-3 flex gap-2"><button onclick="event.stopPropagation(); togglePoolDoNotContact(\'' + prospectId + '\')" class="' + (isRawDoNotContact ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 hover:bg-red-500') + ' flex-1 py-2 text-white rounded-lg text-xs font-semibold transition-colors">' + (isRawDoNotContact ? '✓ Remove Do Not Contact' : '🚫 Do Not Contact') + '</button><button onclick="event.stopPropagation(); deleteBusinessPermanently(\'' + prospectId + '\')" class="w-10 h-10 flex items-center justify-center bg-red-100 hover:bg-red-500 text-red-600 hover:text-white rounded-lg text-sm transition-colors" title="Delete permanently">🗑️</button></div>' : ''}
     </div>
   `;
@@ -9414,7 +9225,7 @@ function renderBusinessCategories() {
     const isExpanded = expandedCategoryGroups.has(group.id);
     const tierInfo = CATEGORY_TIERS[group.tier];
     const tierBadgeColor = tierInfo.color === 'green' ? 'bg-green-500' :
-                           tierInfo.color === 'blue' ? 'bg-blue-500' : 'bg-yellow-500';
+                           tierInfo.color === 'blue' ? 'bg-sky-500' : 'bg-yellow-500';
 
     // Check selection state for this group
     const selectedInGroup = cats.filter(cat => checkedValues.has(cat.value)).length;
@@ -9466,13 +9277,16 @@ function renderBusinessCategories() {
 
 // Populate client category dropdowns with current businessCategories
 function populateClientCategoryDropdowns() {
+  // Sort alphabetically by label for all dropdowns
+  const sorted = [...businessCategories].sort((a, b) => a.label.localeCompare(b.label));
+  const options = sorted.map(cat =>
+    `<option value="${esc(cat.label)}">${esc(cat.label)}</option>`
+  ).join('');
+
   // Update client modal category dropdown
   const clientCategorySelect = document.getElementById('clientCategory');
   if (clientCategorySelect) {
     const currentValue = clientCategorySelect.value;
-    const options = businessCategories.map(cat =>
-      `<option value="${esc(cat.label)}">${esc(cat.label)}</option>`
-    ).join('');
     clientCategorySelect.innerHTML = `<option value="">Select category...</option>${options}`;
     if (currentValue) clientCategorySelect.value = currentValue;
   }
@@ -9481,9 +9295,6 @@ function populateClientCategoryDropdowns() {
   const businessCategorySelect = document.getElementById('businessCategory');
   if (businessCategorySelect) {
     const currentValue = businessCategorySelect.value;
-    const options = businessCategories.map(cat =>
-      `<option value="${esc(cat.label)}">${esc(cat.label)}</option>`
-    ).join('');
     businessCategorySelect.innerHTML = `<option value="">Select category...</option>${options}`;
     if (currentValue) businessCategorySelect.value = currentValue;
   }
@@ -9492,9 +9303,6 @@ function populateClientCategoryDropdowns() {
   const manualBusinessCategorySelect = document.getElementById('manualBusinessCategory');
   if (manualBusinessCategorySelect) {
     const currentValue = manualBusinessCategorySelect.value;
-    const options = businessCategories.map(cat =>
-      `<option value="${esc(cat.label)}">${esc(cat.label)}</option>`
-    ).join('');
     manualBusinessCategorySelect.innerHTML = `<option value="">Select category...</option>${options}`;
     if (currentValue) manualBusinessCategorySelect.value = currentValue;
   }
@@ -9503,9 +9311,6 @@ function populateClientCategoryDropdowns() {
   const categoryFilter = document.getElementById('categoryFilter');
   if (categoryFilter) {
     const currentValue = categoryFilter.value;
-    const options = businessCategories.map(cat =>
-      `<option value="${esc(cat.label)}">${esc(cat.label)}</option>`
-    ).join('');
     categoryFilter.innerHTML = `<option value="">All Categories</option>${options}`;
     if (currentValue) categoryFilter.value = currentValue;
   }
@@ -9632,7 +9437,7 @@ function renderCategoryInsightsContent() {
 
   container.innerHTML = `
     ${renderTierSection(1, tier1, 'bg-green-500', 'bg-green-100', 'border-green-300')}
-    ${renderTierSection(2, tier2, 'bg-blue-500', 'bg-blue-100', 'border-blue-300')}
+    ${renderTierSection(2, tier2, 'bg-sky-500', 'bg-sky-100', 'border-sky-300')}
     ${renderTierSection(3, tier3, 'bg-yellow-500', 'bg-yellow-100', 'border-yellow-300')}
 
     <div class="bg-gray-50 rounded-xl p-4 border border-gray-200">
@@ -9647,7 +9452,7 @@ function renderCategoryInsightsContent() {
           </ul>
         </div>
         <div>
-          <h5 class="font-semibold text-blue-700 mb-1">For Tier 2 (Recurring):</h5>
+          <h5 class="font-semibold text-sky-700 mb-1">For Tier 2 (Recurring):</h5>
           <ul class="list-disc list-inside text-gray-600 space-y-1">
             <li>Emphasize: "5 new monthly customers = $500+/month revenue"</li>
             <li>Highlight: building local brand recognition</li>
@@ -11820,9 +11625,18 @@ function renderProspectPool() {
           return; // Skip if business doesn't match contact filters
         }
 
-        categorizedProspects[category].push({
+        // Use business's own category if it was manually edited, otherwise use search category
+        const effectiveCategory = business.category && business.category !== category
+          ? normalizeCategory(business.category)
+          : category;
+
+        if (!categorizedProspects[effectiveCategory]) {
+          categorizedProspects[effectiveCategory] = [];
+        }
+
+        categorizedProspects[effectiveCategory].push({
           ...business,
-          category: category, // Use search category, not stored category (fixes wrong category from previous searches)
+          category: effectiveCategory,
           zipCode: searchedZipCode, // Keep track of which search found this
           actualZip: businessZip, // Store the smart-extracted ZIP
           inSystem: isInSystem
@@ -11866,14 +11680,14 @@ function renderProspectPool() {
     const shouldCheckAll = isFirstLoad || (allSelected && selectedZips.length === 0);
 
     zipCheckboxContainer.innerHTML = `
-      <label class="inline-flex items-center gap-2 px-4 py-2 bg-white border-2 rounded-lg cursor-pointer hover:bg-blue-50 hover:border-blue-400 transition-colors font-semibold ${shouldCheckAll ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}">
-        <input type="checkbox" value="all" ${shouldCheckAll ? 'checked' : ''} onchange="toggleAllZips(this)" class="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500">
+      <label class="inline-flex items-center gap-2 px-4 py-2 bg-white border-2 rounded-lg cursor-pointer hover:bg-sky-50 hover:border-sky-400 transition-colors font-semibold ${shouldCheckAll ? 'border-sky-500 bg-sky-50' : 'border-gray-300'}">
+        <input type="checkbox" value="all" ${shouldCheckAll ? 'checked' : ''} onchange="toggleAllZips(this)" class="w-4 h-4 text-sky-600 rounded focus:ring-2 focus:ring-sky-500">
         <span class="text-sm font-bold text-gray-900">ALL</span>
       </label>
     ` + sortedZips.map(zip => `
-      <div class="inline-flex items-center gap-1 px-3 py-2 bg-white border-2 rounded-lg hover:bg-indigo-50 hover:border-indigo-300 transition-colors ${selectedZips.includes(zip) ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300'}">
+      <div class="inline-flex items-center gap-1 px-3 py-2 bg-white border-2 rounded-lg hover:bg-sky-50 hover:border-sky-300 transition-colors ${selectedZips.includes(zip) ? 'border-sky-500 bg-sky-50' : 'border-gray-300'}">
         <label class="inline-flex items-center gap-2 cursor-pointer">
-          <input type="checkbox" value="${zip}" ${selectedZips.includes(zip) ? 'checked' : ''} onchange="handleZipChange(this)" class="w-4 h-4 text-indigo-600 rounded focus:ring-2 focus:ring-indigo-500">
+          <input type="checkbox" value="${zip}" ${selectedZips.includes(zip) ? 'checked' : ''} onchange="handleZipChange(this)" class="w-4 h-4 text-sky-600 rounded focus:ring-2 focus:ring-sky-500">
           <span class="text-sm font-medium text-gray-700">${zip}</span>
         </label>
         <button
@@ -11899,7 +11713,7 @@ function renderProspectPool() {
           Use the <strong>Prospect Generator</strong> to discover businesses in your area.
           They'll appear here for review before adding to your sales pipeline.
         </p>
-        <button onclick="switchTab('lead-generation')" class="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 font-black text-lg shadow-xl transform hover:scale-105 transition">
+        <button onclick="switchTab('lead-generation')" class="px-8 py-4 bg-gradient-to-r from-sky-600 to-cyan-500 text-white rounded-xl hover:from-sky-700 hover:to-cyan-600 font-black text-lg shadow-xl transform hover:scale-105 transition">
           🔍 Generate Prospects Now →
         </button>
       </div>
@@ -12148,14 +11962,17 @@ function renderProspectPool() {
     showingCount += prospects.length;
   });
 
+  // Render enrichment results chart with the same filtered data
+  renderEnrichmentResults(filteredByCategory);
+
   // Now render the real stats with accurate counts
   statsContainer.innerHTML = `
     <div class="bg-white border rounded-lg p-3 text-center">
-      <div class="text-2xl font-bold text-indigo-600">${showingCount}<span class="text-sm text-gray-400 font-normal">/${totalUnifiedCount}</span></div>
+      <div class="text-2xl font-bold text-sky-600">${showingCount}<span class="text-sm text-gray-400 font-normal">/${totalUnifiedCount}</span></div>
       <div class="text-xs text-gray-600 mt-1">Showing</div>
     </div>
-    <div class="bg-white border rounded-lg p-3 text-center cursor-pointer hover:bg-blue-50 transition-colors ${prospectPoolClientFilter === 'new' ? 'ring-2 ring-blue-500' : ''}" onclick="document.getElementById('prospectPoolClientFilter').value='new'; filterProspectPoolByClientStatus();">
-      <div class="text-2xl font-bold text-blue-600">${newProspectsCount}</div>
+    <div class="bg-white border rounded-lg p-3 text-center cursor-pointer hover:bg-sky-50 transition-colors ${prospectPoolClientFilter === 'new' ? 'ring-2 ring-sky-500' : ''}" onclick="document.getElementById('prospectPoolClientFilter').value='new'; filterProspectPoolByClientStatus();">
+      <div class="text-2xl font-bold text-sky-600">${newProspectsCount}</div>
       <div class="text-xs text-gray-600 mt-1">New Prospects</div>
     </div>
     <div class="bg-white border rounded-lg p-3 text-center cursor-pointer hover:bg-amber-50 transition-colors ${prospectPoolClientFilter === 'existing' ? 'ring-2 ring-amber-500' : ''}" onclick="document.getElementById('prospectPoolClientFilter').value='existing'; filterProspectPoolByClientStatus();">
@@ -12170,13 +11987,13 @@ function renderProspectPool() {
 
   // Render unified pool header
   container.innerHTML = `
-    <div class="bg-indigo-50 border-2 border-indigo-200 rounded-lg p-4 mb-6">
+    <div class="bg-sky-50 border-2 border-sky-200 rounded-lg p-4 mb-6">
       <div class="mb-4">
-        <h3 class="text-lg font-bold text-indigo-900">🎯 Prospect Pool</h3>
-        <p class="text-sm text-indigo-700 mt-1">All prospects organized by category - click to add to your pipeline</p>
+        <h3 class="text-lg font-bold text-sky-900">🎯 Prospect Pool</h3>
+        <p class="text-sm text-sky-700 mt-1">All prospects organized by category - click to add to your pipeline</p>
       </div>
       <div class="relative flex items-center">
-        <svg class="absolute left-2 h-4 w-4 text-indigo-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="absolute left-2 h-4 w-4 text-sky-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
         </svg>
         <input
@@ -12185,7 +12002,7 @@ function renderProspectPool() {
           placeholder="Search businesses by name..."
           oninput="filterProspectPool(this.value)"
           value="${prospectPoolSearchTerm}"
-          class="w-full py-2 border-2 border-indigo-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+          class="w-full py-2 border-2 border-sky-300 rounded-lg focus:border-sky-500 focus:outline-none"
           style="padding-left: 2rem;"
         />
       </div>
@@ -12419,107 +12236,31 @@ async function addFromProspectPool() {
 
       let newLead;
 
-      // Handle manually added businesses (with enrichment for missing contact info)
-      if (business.type === 'manual') {
-        console.log('🔵 Processing manual business:', business.businessName);
-        const manualBusinessName = business.businessName || business.name || business.title || 'Unknown Business';
-        const manualLocation = `${business.address || business.town || business.city || ''} ${business.state || 'NY'} ${business.zipCode || business.zip || ''}`.trim();
-
-        // Start with existing data from manual entry
-        let manualDetails = {
+      // Skip enrichment if business is already enriched with contact data
+      const alreadyEnriched = (business.enriched || business.isEnriched) &&
+        (business.email || business.website || business.phone || business.facebook || business.instagram);
+      if (alreadyEnriched) {
+        console.log('⚡ Skipping enrichment for already-enriched business:', businessName);
+        updateEnrichmentProgress(i + 1, businessName, true);
+        newLead = {
+          id: Date.now() + Math.random(),
+          businessName: businessName,
+          contactName: business.contactName || '',
           phone: business.phone || '',
-          website: business.website || '',
           email: business.email || '',
+          estimatedValue: 500,
+          notes: business.notes || `Address: ${business.address || 'N/A'}\nRating: ${business.rating || 'N/A'} (${business.userRatingsTotal || 0} reviews)`,
+          source: business.source || 'enriched-pool',
+          placeId: business.placeId || business.id,
+          website: business.website || '',
           facebook: business.facebook || '',
           instagram: business.instagram || '',
           linkedin: business.linkedin || '',
           twitter: business.twitter || '',
-          contactName: business.contactName || ''
-        };
-
-        // Search for website if missing
-        if (!manualDetails.website) {
-          const websiteQuery = `${manualBusinessName} ${manualLocation} official website`;
-          const website = await searchBusinessWebsite(websiteQuery, manualBusinessName);
-          if (website && !website.includes('yelp.com') && !website.includes('facebook.com') && !website.includes('instagram.com')) {
-            manualDetails.website = website;
-          }
-        }
-
-        // Search for Facebook if missing - DISABLED: unreliable results
-        if (ENABLE_SOCIAL_MEDIA_SEARCH && !manualDetails.facebook) {
-          const fbQuery = `${manualBusinessName} ${manualLocation} site:facebook.com`;
-          const fbResult = await searchBusinessWebsite(fbQuery, manualBusinessName);
-          if (fbResult && fbResult.includes('facebook.com') && !fbResult.includes('instagram.com')) {
-            let cleanFbUrl = fbResult;
-            if (fbResult.includes('/posts/') || fbResult.includes('/photos/')) {
-              const pageMatch = fbResult.match(/(https?:\/\/[^\/]*facebook\.com\/[^\/\?]+)/);
-              if (pageMatch) cleanFbUrl = pageMatch[1];
-            }
-            manualDetails.facebook = cleanFbUrl;
-          }
-        }
-
-        // Search for Instagram if missing - DISABLED: unreliable results
-        if (ENABLE_SOCIAL_MEDIA_SEARCH && !manualDetails.instagram) {
-          const igQuery = `${manualBusinessName} ${manualLocation} site:instagram.com`;
-          const igResult = await searchBusinessWebsite(igQuery, manualBusinessName);
-          if (igResult && igResult.includes('instagram.com') && !igResult.includes('facebook.com')) {
-            let cleanedUrl = igResult;
-            if (igResult.includes('/p/') || igResult.includes('/reel/')) {
-              const match = igResult.match(/instagram\.com\/([^\/\?]+)/);
-              if (match && match[1] && !['p', 'reel', 'stories'].includes(match[1])) {
-                cleanedUrl = `https://instagram.com/${match[1]}`;
-              }
-            }
-            manualDetails.instagram = cleanedUrl;
-          }
-        }
-
-        // Scrape website for email and social links if we have a website
-        let manualFoundContact = false;
-        if (manualDetails.website) {
-          const enrichedData = await fetchSmartEnrichment(manualDetails.website, manualBusinessName);
-          manualDetails.email = manualDetails.email || enrichedData.email || '';
-          manualDetails.facebook = manualDetails.facebook || enrichedData.facebook || '';
-          manualDetails.instagram = manualDetails.instagram || enrichedData.instagram || '';
-          manualDetails.linkedin = manualDetails.linkedin || enrichedData.linkedin || '';
-          manualDetails.twitter = manualDetails.twitter || enrichedData.twitter || '';
-          if (enrichedData.contactNames && enrichedData.contactNames.length > 0 && !manualDetails.contactName) {
-            manualDetails.contactName = enrichedData.contactNames[0];
-          }
-          if (manualDetails.email || manualDetails.website) {
-            manualFoundContact = true;
-          }
-        }
-        updateEnrichmentProgress(i + 1, manualBusinessName, manualFoundContact);
-
-        // Build notes for manual business
-        let manualNotes = business.notes || `Manually added business\nAddress: ${business.address || 'N/A'}\nTown: ${business.town || 'N/A'}`;
-        if (manualDetails.website && !business.website) manualNotes += `\n🌐 Website found: ${manualDetails.website}`;
-        if (manualDetails.email && !business.email) manualNotes += `\n📧 Email found: ${manualDetails.email}`;
-        if (manualDetails.facebook && !business.facebook) manualNotes += `\n📘 Facebook found: ${manualDetails.facebook}`;
-        if (manualDetails.instagram && !business.instagram) manualNotes += `\n📷 Instagram found: ${manualDetails.instagram}`;
-
-        newLead = {
-          id: Date.now() + Math.random(),
-          businessName: manualBusinessName,
-          contactName: manualDetails.contactName,
-          phone: manualDetails.phone,
-          email: manualDetails.email,
-          estimatedValue: 500,
-          notes: manualNotes,
-          source: 'manual',
-          placeId: business.id || business.placeId, // Use the manual ID or placeId for tracking
-          website: manualDetails.website,
-          facebook: manualDetails.facebook,
-          instagram: manualDetails.instagram,
-          linkedin: manualDetails.linkedin,
-          twitter: manualDetails.twitter,
           category: business.category || 'other',
           zipCode: business.zipCode || null,
           actualZip: business.actualZip || null,
-          town: business.town || business.actualCity || state.current?.Town,
+          town: business.actualCity || business.town || business.city || state.current?.Town,
           address: business.address || '',
           rating: business.rating || 0,
           userRatingsTotal: business.userRatingsTotal || 0,
@@ -12528,133 +12269,62 @@ async function addFromProspectPool() {
           interactions: [],
           enriched: true
         };
-        console.log('🔵 Created enriched manual newLead:', newLead);
       } else {
-        // Handle HERE/Foursquare businesses
-        // IMPORTANT: Use existing data from business object if already available (from cache)
-
-        // Start with data already in the business object (may be enriched from previous scraping)
-        let details = {
-          phone: business.phone || '',
-          website: business.website || '',
-          email: business.email || '',
-          facebook: business.facebook || '',
-          instagram: business.instagram || '',
-          linkedin: business.linkedin || '',
-          twitter: business.twitter || '',
-          contactNames: [],
-          source: business.source || 'here',
-          enriched: business.enriched || false
-        };
-        const location = business.address ? business.address.split(',').slice(-2).join(',').trim() : '';
-
-        // Search for website if missing
-        if (!details.website) {
-          const websiteQuery = `${businessName} ${location} official website`;
-          const website = await searchBusinessWebsite(websiteQuery, businessName);
-          if (website && !website.includes('yelp.com') && !website.includes('facebook.com') && !website.includes('instagram.com')) {
-            details.website = website;
-          }
-        }
-
-        // Search for Facebook if missing - DISABLED: unreliable results
-        if (ENABLE_SOCIAL_MEDIA_SEARCH && !details.facebook) {
-          const fbQuery = `${businessName} ${location} site:facebook.com`;
-          const fbResult = await searchBusinessWebsite(fbQuery, businessName);
-          if (fbResult && fbResult.includes('facebook.com') && !fbResult.includes('instagram.com')) {
-            let cleanFbUrl = fbResult;
-            if (fbResult.includes('/posts/') || fbResult.includes('/photos/')) {
-              const pageMatch = fbResult.match(/(https?:\/\/[^\/]*facebook\.com\/[^\/\?]+)/);
-              if (pageMatch) cleanFbUrl = pageMatch[1];
-            }
-            details.facebook = cleanFbUrl;
-          }
-        }
-
-        // Search for Instagram if missing - DISABLED: unreliable results
-        if (ENABLE_SOCIAL_MEDIA_SEARCH && !details.instagram) {
-          const igQuery = `${businessName} ${location} site:instagram.com`;
-          const igResult = await searchBusinessWebsite(igQuery, businessName);
-          if (igResult && igResult.includes('instagram.com') && !igResult.includes('facebook.com')) {
-            let cleanedUrl = igResult;
-            if (igResult.includes('/p/') || igResult.includes('/reel/')) {
-              const match = igResult.match(/instagram\.com\/([^\/\?]+)/);
-              if (match && match[1] && !['p', 'reel', 'stories'].includes(match[1])) {
-                cleanedUrl = `https://instagram.com/${match[1]}`;
-              }
-            }
-            details.instagram = cleanedUrl;
-          }
-        }
-
-        // Scrape website for email AND social links if we have a website
-        let foundContact = false;
-        if (details.website) {
-          const enrichedData = await fetchSmartEnrichment(details.website, businessName);
-          details.email = details.email || enrichedData.email || '';
-          details.facebook = details.facebook || enrichedData.facebook || '';
-          details.instagram = details.instagram || enrichedData.instagram || '';
-          details.linkedin = details.linkedin || enrichedData.linkedin || '';
-          details.twitter = details.twitter || enrichedData.twitter || '';
-          details.contactNames = enrichedData.contactNames || details.contactNames || [];
-          if (enrichedData.enriched) {
-            details.enriched = true;
-            details.pagesScraped = enrichedData.pagesScraped;
-            details.source = '9x12pro-scraper';
-          }
-          // Count as found if we got email or website
-          if (details.email || details.website) {
-            foundContact = true;
-          }
-        }
-
-        // Update modal with found status
+        // Enrich the business using unified function (handles manual + HERE businesses)
+        console.log(`🔵 Enriching business: ${businessName}`);
+        const enrichResult = await enrichBusiness(business, { findWebsite: true, skipIfEnriched: false, recordUsage: true });
+        const foundContact = !!(business.email || business.website);
         updateEnrichmentProgress(i + 1, businessName, foundContact);
 
-        details.enriched = true;
-
         // Build notes
-        let notes = `Found via ${details.source || 'Yelp'}\nAddress: ${business.address}\nRating: ${business.rating} (${business.userRatingsTotal} reviews)\n`;
-        if (details.phone) notes += `Phone: ${details.phone}\n`;
-        if (details.website) notes += `Website: ${details.website}\n`;
-        if (details.email) notes += `📧 Email: ${details.email}\n`;
-        if (details.facebook) notes += `📘 Facebook: ${details.facebook}\n`;
-        if (details.instagram) notes += `📷 Instagram: ${details.instagram}\n`;
-        if (details.linkedin) notes += `💼 LinkedIn: ${details.linkedin}\n`;
-        if (details.twitter) notes += `🐦 Twitter: ${details.twitter}\n`;
-        if (details.contactNames && details.contactNames.length > 0) {
-          notes += `👤 Contacts: ${details.contactNames.join(', ')}\n`;
+        const source = business.enrichmentSource || business.source || (business.type === 'manual' ? 'manual' : 'here');
+        let notes = business.type === 'manual'
+          ? (business.notes || `Manually added business\nAddress: ${business.address || 'N/A'}\nTown: ${business.town || 'N/A'}`)
+          : `Found via ${source}\nAddress: ${business.address}\nRating: ${business.rating} (${business.userRatingsTotal} reviews)\n`;
+
+        if (business.phone) notes += `Phone: ${business.phone}\n`;
+        if (business.website) notes += `Website: ${business.website}\n`;
+        if (business.email) notes += `📧 Email: ${business.email}\n`;
+        if (business.facebook) notes += `📘 Facebook: ${business.facebook}\n`;
+        if (business.instagram) notes += `📷 Instagram: ${business.instagram}\n`;
+        if (business.linkedin) notes += `💼 LinkedIn: ${business.linkedin}\n`;
+        if (business.twitter) notes += `🐦 Twitter: ${business.twitter}\n`;
+        if (business.contactNames && business.contactNames.length > 0) {
+          notes += `👤 Contacts: ${business.contactNames.join(', ')}\n`;
         }
-        notes += `Place ID: ${business.placeId}`;
-        if (details.source === '9x12pro-scraper' && details.enriched) {
-          notes += `\n\n✅ Enriched with Smart Scraper (${details.pagesScraped} pages scraped)`;
+        if (!business.type) {
+          notes += `Place ID: ${business.placeId}`;
+        }
+        if (business.enrichmentSource === '9x12pro-scraper' && business.pagesScraped) {
+          notes += `\n\n✅ Enriched with Smart Scraper (${business.pagesScraped} pages scraped)`;
         }
 
         newLead = {
           id: Date.now() + Math.random(),
-          businessName: business.name || business.businessName || business.title || 'Unknown Business',
-          contactName: details.contactNames && details.contactNames.length > 0 ? details.contactNames[0] : '',
-          phone: details.phone || '',
-          email: details.email || '',
+          businessName: businessName,
+          contactName: business.contactNames?.length > 0 ? business.contactNames[0] : (business.contactName || ''),
+          phone: business.phone || '',
+          email: business.email || '',
           estimatedValue: 500,
           notes: notes,
-          source: details.source || 'google-places',
-          placeId: business.placeId,
-          website: details.website || '',
-          facebook: details.facebook || '',
-          instagram: details.instagram || '',
-          linkedin: details.linkedin || '',
-          twitter: details.twitter || '',
+          source: source,
+          placeId: business.placeId || business.id,
+          website: business.website || '',
+          facebook: business.facebook || '',
+          instagram: business.instagram || '',
+          linkedin: business.linkedin || '',
+          twitter: business.twitter || '',
           category: business.category || 'other',
           zipCode: business.zipCode || null,
           actualZip: business.actualZip || null,
-          town: business.actualCity || state.current?.Town,
+          town: business.actualCity || business.town || business.city || state.current?.Town,
           address: business.address || '',
           rating: business.rating || 0,
           userRatingsTotal: business.userRatingsTotal || 0,
           mailerId: currentMailerId,
           addedDate: new Date().toISOString(),
-          interactions: []
+          interactions: [],
+          enriched: true
         };
       }
 
@@ -12823,17 +12493,21 @@ const CATEGORY_ALIASES = {
 
   'auto_repair': ['auto repair', 'car repair', 'mechanic', 'auto mechanic', 'car mechanic', 'automotive repair', 'auto service', 'car service', 'auto shop', 'garage', 'transmission', 'brake shop', 'brakes', 'muffler', 'exhaust', 'oil change', 'lube', 'tune up', 'auto body', 'body shop', 'collision', 'dent repair', 'paintless dent', 'auto electric', 'auto glass', 'windshield'],
 
-  'bakery': ['bakery', 'baker', 'bake shop', 'pastry shop', 'cake shop', 'cupcake', 'donut', 'doughnut', 'bagel', 'bread', 'pastry', 'dessert', 'sweet shop', 'confectionery'],
+  'bakery': ['bakery', 'baker', 'bake shop', 'pastry shop', 'cake shop', 'cupcake', 'donut', 'doughnut', 'bagel', 'bread', 'pastry', 'dessert', 'sweet shop', 'confectionery', 'baked goods'],
 
-  'bar': ['bar', 'pub', 'tavern', 'nightclub', 'lounge', 'sports bar', 'wine bar', 'cocktail bar', 'brewery', 'taproom', 'beer garden', 'club', 'cantina', 'saloon'],
+  'bar': ['bar', 'pub', 'tavern', 'nightclub', 'lounge', 'sports bar', 'wine bar', 'cocktail bar', 'brewery', 'taproom', 'beer garden', 'club', 'cantina', 'saloon', 'drinking establishment'],
 
   'barber': ['barber', 'barbershop', 'barber shop', 'mens haircut', 'mens grooming', 'fade', 'haircut', 'mens salon', 'gentleman'],
 
-  'cafe': ['cafe', 'coffee shop', 'coffee house', 'coffeehouse', 'espresso bar', 'tea house', 'tea room', 'bistro', 'brunch', 'breakfast'],
+  'cafe': ['cafe', 'coffee shop', 'coffee house', 'coffeehouse', 'espresso bar', 'tea house', 'tea room', 'bistro', 'brunch', 'breakfast', 'coffee', 'tea shop'],
 
   'chiropractor': ['chiropractor', 'chiropractic', 'chiropractic clinic', 'spine', 'back doctor', 'spinal', 'adjustment', 'wellness center', 'pain relief', 'physical therapy', 'pt', 'rehab', 'rehabilitation', 'sports medicine', 'acupuncture', 'holistic'],
 
+  'cleaning': ['cleaning', 'cleaner', 'cleaning service', 'maid', 'maid service', 'janitorial', 'house cleaning', 'carpet cleaning', 'window cleaning', 'pressure washing', 'power washing'],
+
   'contractor': ['contractor', 'general contractor', 'construction', 'builder', 'home builder', 'remodeling', 'renovation', 'handyman', 'home improvement', 'home repair', 'kitchen remodel', 'bathroom remodel', 'basement', 'addition', 'deck', 'patio', 'concrete', 'masonry', 'framing', 'drywall', 'carpentry', 'carpenter'],
+
+  'daycare': ['daycare', 'day care', 'childcare', 'child care', 'preschool', 'pre school', 'early childhood', 'nursery school', 'daycare/preschool', 'after school', 'learning center', 'early learning', 'kids academy', 'childrens center'],
 
   'dentist': ['dentist', 'dental', 'dental office', 'dental clinic', 'dental practice', 'orthodontist', 'oral surgeon', 'teeth', 'tooth', 'orthodontics', 'braces', 'invisalign', 'implant', 'cosmetic dentist', 'family dentist', 'pediatric dentist', 'endodontist', 'periodontist', 'dentures'],
 
@@ -12849,7 +12523,7 @@ const CATEGORY_ALIASES = {
 
   'gift_shop': ['gift shop', 'gift store', 'gifts', 'novelty', 'souvenir', 'card shop', 'boutique', 'specialty shop', 'antique', 'collectible', 'home decor', 'candle shop'],
 
-  'groomer': ['groomer', 'pet grooming', 'dog grooming', 'pet groomer', 'dog groomer', 'cat grooming', 'animal grooming', 'pet salon', 'dog wash', 'pet spa', 'mobile grooming', 'pet boarding', 'kennel', 'doggy daycare', 'dog training', 'pet sitting', 'dog walker'],
+  'groomer': ['groomer', 'pet grooming', 'dog grooming', 'pet groomer', 'dog groomer', 'cat grooming', 'animal grooming', 'pet salon', 'dog wash', 'pet spa', 'mobile grooming', 'pet boarding', 'kennel', 'dog training', 'pet sitting', 'dog walker'],
 
   'gym': ['gym', 'fitness', 'fitness center', 'health club', 'workout', 'exercise', 'crossfit', 'personal training', 'trainer', 'weight loss', 'boot camp', 'spin', 'cycling', 'barre', 'zumba', 'aerobics', 'strength training', 'bodybuilding', 'athletic club', '24 hour fitness', 'anytime fitness'],
 
@@ -12863,19 +12537,29 @@ const CATEGORY_ALIASES = {
 
   'lawyer': ['lawyer', 'attorney', 'law firm', 'legal', 'law office', 'legal service', 'paralegal', 'personal injury', 'divorce', 'family law', 'criminal defense', 'dui', 'bankruptcy', 'estate planning', 'wills', 'trusts', 'real estate attorney', 'business attorney', 'immigration', 'workers comp'],
 
+  'locksmith': ['locksmith', 'lock', 'key', 'key cutting', 'safe'],
+
   'martial_arts': ['martial arts', 'karate', 'taekwondo', 'jiu jitsu', 'mma', 'boxing', 'kickboxing', 'self defense', 'dojo', 'kung fu', 'aikido', 'judo', 'krav maga', 'muay thai', 'brazilian jiu jitsu', 'bjj', 'wrestling', 'mixed martial arts'],
 
   'nail_salon': ['nail salon', 'nails', 'manicure', 'pedicure', 'nail spa', 'nail bar', 'nail tech', 'gel nails', 'acrylic nails', 'nail art', 'lash', 'eyelash', 'lash extensions', 'brow', 'eyebrow', 'waxing', 'threading'],
 
+  'optometrist': ['optometrist', 'optician', 'optical', 'eye care', 'eye doctor', 'vision', 'eyeglasses', 'glasses', 'contact lens', 'vision center', 'eye clinic'],
+
+  'pest_control': ['pest control', 'exterminator', 'termite', 'pest', 'fumigation', 'bed bug', 'rodent', 'ant', 'wasp', 'mosquito'],
+
   'pet_store': ['pet store', 'pet shop', 'pet supplies', 'pet food', 'aquarium', 'fish store', 'reptile', 'bird', 'small animal', 'pet accessories', 'dog food', 'cat food', 'pet boutique'],
+
+  'photography': ['photography', 'photographer', 'photo studio', 'portrait', 'wedding photographer'],
 
   'pizza': ['pizza', 'pizzeria', 'pizza shop', 'pizza restaurant', 'pizza delivery', 'italian', 'pasta', 'sub shop', 'sandwich', 'wings', 'calzone', 'stromboli'],
 
   'plumber': ['plumber', 'plumbing', 'plumbing service', 'plumbing contractor', 'drain cleaning', 'pipe repair', 'water heater', 'sewer', 'septic', 'rooter', 'leak', 'faucet', 'toilet', 'garbage disposal', 'water softener', 'water filtration', 'backflow', 'gas line', 'repiping', 'hydro jetting'],
 
+  'printing': ['printing', 'print shop', 'printer', 'copy', 'sign shop', 'graphics', 'screen printing', 'embroidery'],
+
   'real_estate': ['real estate', 'realtor', 'real estate agent', 'real estate broker', 'property', 'realty', 'home sales', 'homes for sale', 'listing agent', 'buyers agent', 'property management', 'rental', 'apartment', 'commercial real estate', 'land', 'mortgage', 'home loan', 'title company', 'escrow', 'home inspection', 'appraiser'],
 
-  'restaurant': ['restaurant', 'dining', 'eatery', 'food', 'diner', 'bistro', 'grill', 'kitchen', 'steakhouse', 'seafood', 'mexican', 'chinese', 'thai', 'indian', 'japanese', 'sushi', 'korean', 'vietnamese', 'greek', 'mediterranean', 'american', 'bbq', 'barbecue', 'buffet', 'fine dining', 'casual dining', 'family restaurant', 'catering', 'food truck'],
+  'restaurant': ['restaurant', 'dining', 'eatery', 'food', 'diner', 'bistro', 'grill', 'kitchen', 'steakhouse', 'seafood', 'mexican', 'chinese', 'thai', 'indian', 'japanese', 'sushi', 'korean', 'vietnamese', 'greek', 'mediterranean', 'american', 'bbq', 'barbecue', 'buffet', 'fine dining', 'casual dining', 'family restaurant', 'catering', 'food truck', 'deli', 'delicatessen', 'snack bar', 'fast food', 'take-out', 'takeout', 'food stand', 'food service'],
 
   'roofing': ['roofing', 'roofer', 'roof repair', 'roofing contractor', 'roof replacement', 'roof installation', 'shingle', 'metal roof', 'flat roof', 'gutter', 'siding', 'soffit', 'fascia', 'roof inspection', 'roof leak', 'storm damage', 'hail damage'],
 
@@ -12953,18 +12637,19 @@ window.CATEGORY_ALIASES = CATEGORY_ALIASES;
 // Note: car_wash is now merged into auto_detailing
 const BUSINESS_CATEGORIES = [
   'accountant', 'auto_detailing', 'auto_repair', 'bakery', 'bar', 'barber',
-  'cafe', 'chiropractor', 'contractor',
-  'dentist', 'doctor', 'dry_cleaner',
+  'cafe', 'chiropractor', 'cleaning', 'contractor',
+  'daycare', 'dentist', 'doctor', 'dry_cleaner',
   'electrician',
   'florist', 'funeral_home',
   'gift_shop', 'groomer', 'gym',
   'hvac',
   'insurance',
   'jewelry',
-  'landscaping', 'lawyer',
+  'landscaping', 'lawyer', 'locksmith',
   'martial_arts',
   'nail_salon',
-  'pet_store', 'pizza', 'plumber',
+  'optometrist',
+  'pest_control', 'pet_store', 'photography', 'pizza', 'plumber', 'printing',
   'real_estate', 'restaurant', 'roofing',
   'salon', 'spa',
   'tailor', 'tire_shop',
@@ -12983,7 +12668,7 @@ function editProspectCategory(placeId, currentCategory) {
     <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
       <h3 class="text-lg font-bold text-gray-900 mb-4">Edit Category</h3>
       <p class="text-sm text-gray-600 mb-4">Current: <strong>${currentCategory.replace(/_/g, ' ')}</strong></p>
-      <select id="categorySelect" class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-sm focus:border-indigo-500 focus:outline-none mb-4">
+      <select id="categorySelect" class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-sm focus:border-sky-500 focus:outline-none mb-4">
         ${BUSINESS_CATEGORIES.map(cat => `
           <option value="${cat}" ${cat === currentCategory ? 'selected' : ''}>
             ${cat.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
@@ -12994,7 +12679,7 @@ function editProspectCategory(placeId, currentCategory) {
         <button onclick="document.getElementById('categoryEditModal').remove()" class="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg font-semibold hover:bg-gray-50">
           Cancel
         </button>
-        <button onclick="applyProspectCategoryChange('${placeId}', '${currentCategory}')" class="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700">
+        <button onclick="applyProspectCategoryChange('${placeId}', '${currentCategory}')" class="flex-1 px-4 py-2 bg-sky-600 text-white rounded-lg font-semibold hover:bg-sky-700">
           Save
         </button>
       </div>
@@ -13314,6 +12999,10 @@ window.filterProspectPool = filterProspectPool;
 /* ========= PROSPECT POOL CSV EXPORT/IMPORT ========= */
 
 function exportProspectListCSV() {
+  if (!canExportCSV()) {
+    showUpgradePrompt('CSV export is available on Pro and Enterprise plans.');
+    return;
+  }
   // Export ONLY prospects from the "Prospect List" (Campaign Board 'queued')
   const board = getCurrentCampaignBoard();
   const prospectList = board?.columns?.['queued'] || [];
@@ -13395,6 +13084,10 @@ function exportProspectListCSV() {
 }
 
 function exportProspectPoolCSV() {
+  if (!canExportCSV()) {
+    showUpgradePrompt('CSV export is available on Pro and Enterprise plans.');
+    return;
+  }
   // Collect all prospects from searches cache AND manual prospects
   const allProspects = [];
   const seenIds = new Set(); // Prevent duplicates
@@ -13848,14 +13541,14 @@ function switchCrmTab(tabName) {
     const isPitchTab = btn.dataset.crmTab === 'pitch';
 
     // Remove all active states first
-    btn.classList.remove('border-indigo-600', 'text-indigo-600', 'border-purple-600', 'text-purple-600', 'bg-white');
+    btn.classList.remove('border-sky-600', 'text-sky-600', 'border-purple-600', 'text-purple-600', 'bg-white');
 
     if (isActive) {
       btn.classList.add('bg-white');
       if (isPitchTab) {
         btn.classList.add('border-purple-600', 'text-purple-600');
       } else {
-        btn.classList.add('border-indigo-600', 'text-indigo-600');
+        btn.classList.add('border-sky-600', 'text-sky-600');
       }
       btn.classList.remove('border-transparent', 'text-gray-500', 'text-purple-500');
     } else {
@@ -13921,7 +13614,7 @@ function renderCrmActivityTimeline(interactions) {
 
   const outcomeColors = {
     interested: 'bg-green-100 text-green-700',
-    callback: 'bg-blue-100 text-blue-700',
+    callback: 'bg-sky-100 text-sky-700',
     no_answer: 'bg-yellow-100 text-yellow-700',
     voicemail: 'bg-orange-100 text-orange-700',
     not_interested: 'bg-red-100 text-red-700'
@@ -14039,14 +13732,14 @@ function openAddActivityForm() {
 
   // Reset form
   document.querySelectorAll('.activity-type-btn').forEach(btn => {
-    btn.classList.remove('border-indigo-500', 'bg-indigo-50');
+    btn.classList.remove('border-sky-500', 'bg-sky-50');
     btn.classList.add('border-gray-200');
   });
 
   // Default to 'call' type
   const callBtn = document.querySelector('[data-activity-type="call"]');
   if (callBtn) {
-    callBtn.classList.add('border-indigo-500', 'bg-indigo-50');
+    callBtn.classList.add('border-sky-500', 'bg-sky-50');
     callBtn.classList.remove('border-gray-200');
   }
   window.selectedActivityType = 'call';
@@ -14079,8 +13772,8 @@ function selectActivityType(type) {
 
   document.querySelectorAll('.activity-type-btn').forEach(btn => {
     const isSelected = btn.dataset.activityType === type;
-    btn.classList.toggle('border-indigo-500', isSelected);
-    btn.classList.toggle('bg-indigo-50', isSelected);
+    btn.classList.toggle('border-sky-500', isSelected);
+    btn.classList.toggle('bg-sky-50', isSelected);
     btn.classList.toggle('border-gray-200', !isSelected);
   });
 }
@@ -14091,9 +13784,9 @@ function selectActivityDirection(direction) {
 
   document.querySelectorAll('.direction-btn').forEach(btn => {
     const isSelected = btn.dataset.direction === direction;
-    btn.classList.toggle('border-indigo-500', isSelected);
-    btn.classList.toggle('bg-indigo-50', isSelected);
-    btn.classList.toggle('text-indigo-700', isSelected);
+    btn.classList.toggle('border-sky-500', isSelected);
+    btn.classList.toggle('bg-sky-50', isSelected);
+    btn.classList.toggle('text-sky-700', isSelected);
     btn.classList.toggle('border-gray-200', !isSelected);
   });
 }
@@ -14325,7 +14018,7 @@ function renderTags(tags) {
   }
 
   container.innerHTML = tags.map(tag => `
-    <span class="inline-flex items-center gap-1 px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm">
+    <span class="inline-flex items-center gap-1 px-3 py-1 bg-sky-100 text-sky-700 rounded-full text-sm">
       ${esc(tag)}
       <button onclick="removeTag('${esc(tag)}')" class="hover:text-red-600 ml-1">&times;</button>
     </span>
@@ -14481,10 +14174,11 @@ function openEditContactModal() {
   document.getElementById('editContactFacebook').value = currentProspectDetail.facebook || '';
   document.getElementById('editContactInstagram').value = currentProspectDetail.instagram || '';
 
-  // Populate category dropdown
+  // Populate category dropdown (alphabetized)
   const categorySelect = document.getElementById('editContactCategory');
   if (categorySelect) {
-    const options = businessCategories.map(cat =>
+    const sorted = [...businessCategories].sort((a, b) => a.label.localeCompare(b.label));
+    const options = sorted.map(cat =>
       `<option value="${esc(cat.label)}">${esc(cat.label)}</option>`
     ).join('');
     categorySelect.innerHTML = `<option value="">Select category...</option>${options}`;
@@ -15421,7 +15115,7 @@ function showQuickTemplatePickerForClient(clientId, sendType) {
           <div id="quickTemplatePreview" class="hidden">
             <div class="flex justify-between items-center mb-2">
               <label class="block text-sm font-medium text-gray-700">Preview:</label>
-              <button id="btnEditTemplate" onclick="toggleTemplateEdit()" class="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium">
+              <button id="btnEditTemplate" onclick="toggleTemplateEdit()" class="text-xs px-3 py-1 bg-sky-600 text-white rounded hover:bg-sky-700 font-medium">
                 ✏️ Edit Message
               </button>
             </div>
@@ -15456,7 +15150,7 @@ function showQuickTemplatePickerForClient(clientId, sendType) {
             <button onclick="closeQuickTemplatePicker()" class="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 font-medium">
               Cancel
             </button>
-            <button id="btnSendQuickTemplate" onclick="sendQuickTemplateFromPicker('${clientId}', '${sendType}')" class="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-medium disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
+            <button id="btnSendQuickTemplate" onclick="sendQuickTemplateFromPicker('${clientId}', '${sendType}')" class="flex-1 px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 font-medium disabled:bg-gray-300 disabled:cursor-not-allowed" disabled>
               ${sendType === 'sms' ? '📱 Send SMS' : '✉️ Send Email'}
             </button>
           </div>
@@ -15585,7 +15279,7 @@ function previewQuickTemplate(clientId, sendType) {
   } else {
     if (warningDiv) warningDiv.remove();
     sendButton.textContent = sendType === 'sms' ? '📱 Send SMS' : '✉️ Send Email';
-    sendButton.className = 'flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-medium';
+    sendButton.className = 'flex-1 px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 font-medium';
   }
 
   previewContainer.classList.remove('hidden');
@@ -15687,7 +15381,7 @@ function saveTemplateEdits() {
   } else {
     if (warningDiv) warningDiv.remove();
     sendButton.textContent = sendType === 'sms' ? '📱 Send SMS' : '✉️ Send Email';
-    sendButton.className = 'flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-medium';
+    sendButton.className = 'flex-1 px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 font-medium';
   }
 
   // Switch back to read-only view
@@ -15951,7 +15645,7 @@ async function lookupBusinessOnGoogle() {
   }
 
   statusEl.textContent = '🔍 Searching Google Places...';
-  statusEl.className = 'text-xs text-blue-600 mt-2';
+  statusEl.className = 'text-xs text-sky-600 mt-2';
 
   try {
     const service = new google.maps.places.PlacesService(document.createElement('div'));
@@ -16104,7 +15798,7 @@ function renderInteractionTimeline(interactions) {
     const typeLabel = interaction.type.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase());
 
     let html = `
-      <div class="border-l-4 border-blue-400 pl-3 py-2">
+      <div class="border-l-4 border-sky-400 pl-3 py-2">
         <div class="flex justify-between items-start mb-1">
           <div class="font-medium text-sm">${icon} ${esc(typeLabel)}</div>
           <div class="text-xs text-gray-500">${date}</div>
@@ -16409,7 +16103,7 @@ function renderTemplateCard(template) {
         </div>
       </div>
       <div class="flex items-center gap-2">
-        <button onclick="openEditTemplateModal('${template.id}')" class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">
+        <button onclick="openEditTemplateModal('${template.id}')" class="px-3 py-1.5 text-sm bg-sky-600 text-white rounded-md hover:bg-sky-700">
           Edit
         </button>
         <button onclick="confirmDeleteTemplate('${template.id}')" class="px-3 py-1.5 text-sm bg-red-50 text-red-600 border border-red-200 rounded-md hover:bg-red-100">
@@ -16514,7 +16208,7 @@ function insertVariable(variableName) {
 function showVariableMenu(event) {
   // This function can be expanded later to show a dropdown menu
   // For now, the variable buttons are always visible in the helper section
-  const helperSection = event.target.closest('.space-y-4').querySelector('.bg-blue-50');
+  const helperSection = event.target.closest('.space-y-4').querySelector('.bg-sky-50');
   if (helperSection) {
     helperSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
@@ -17469,9 +17163,9 @@ function renderCampaignBoard() {
           const label = channelLabels[respondedChannel] || respondedChannel;
           negotiatingHTML = `
             <div class="mt-2 pt-2 border-t border-gray-100">
-              <div class="bg-blue-100 border border-blue-300 rounded-lg px-2 py-1.5 text-center">
-                <div class="text-xs text-blue-800 font-medium">✅ Responded via:</div>
-                <div class="text-sm font-bold text-blue-700">${label}</div>
+              <div class="bg-sky-100 border border-sky-300 rounded-lg px-2 py-1.5 text-center">
+                <div class="text-xs text-sky-800 font-medium">✅ Responded via:</div>
+                <div class="text-sm font-bold text-sky-700">${label}</div>
               </div>
             </div>
           `;
@@ -17504,7 +17198,12 @@ function renderCampaignBoard() {
       if (item.phone) socialIcons.push(`<a href="tel:${esc(item.phone)}" onclick="event.stopPropagation()" class="px-1.5 py-0.5 bg-gray-100 rounded hover:bg-gray-200 text-sm" title="Call">📞</a>`);
       if (item.website) socialIcons.push(`<a href="${esc(ensureHttps(item.website))}" onclick="event.stopPropagation()" target="_blank" class="px-1.5 py-0.5 bg-gray-100 rounded hover:bg-gray-200 text-sm" title="Website">🌐</a>`);
       if (item.email) socialIcons.push(`<a href="mailto:${esc(item.email)}" onclick="event.stopPropagation()" class="px-1.5 py-0.5 bg-gray-100 rounded hover:bg-gray-200 text-sm" title="Email">✉️</a>`);
-      if (item.facebook) socialIcons.push(`<a href="${esc(ensureHttps(item.facebook))}" onclick="event.stopPropagation()" target="_blank" class="px-1.5 py-0.5 bg-blue-50 rounded hover:bg-blue-100 text-sm" title="Facebook">📘</a>`);
+      if (item.facebook) {
+        socialIcons.push(`<a href="${esc(ensureHttps(item.facebook))}" onclick="event.stopPropagation()" target="_blank" class="px-1.5 py-0.5 bg-sky-50 rounded hover:bg-sky-100 text-sm" title="Facebook">📘</a>`);
+      } else {
+        const fbQ = encodeURIComponent(`${item.name || item.businessName || ''} ${item.city || ''} ${item.state || 'NY'}`);
+        socialIcons.push(`<a href="https://www.facebook.com/search/pages?q=${fbQ}" onclick="event.stopPropagation()" target="_blank" class="px-1.5 py-0.5 bg-sky-50 rounded hover:bg-sky-100 text-sm opacity-40 hover:opacity-100" title="Search Facebook">📘</a>`);
+      }
 
       // Checkbox for queued and attempting column selection
       const isQueuedSelected = colKey === 'queued' && campaignBoardsState.queuedSelection.has(leadId);
@@ -17517,7 +17216,7 @@ function renderCampaignBoard() {
                onclick="event.stopPropagation(); toggleQueuedItemSelection('${leadId}')"
                ondblclick="event.stopPropagation()">
       ` : colKey === 'attempting' ? `
-        <input type="checkbox" class="attempting-item-checkbox w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 flex-shrink-0 mt-0.5"
+        <input type="checkbox" class="attempting-item-checkbox w-4 h-4 text-sky-600 rounded border-gray-300 focus:ring-sky-500 flex-shrink-0 mt-0.5"
                data-item-id="${leadId}"
                ${isAttemptingSelected ? 'checked' : ''}
                onclick="event.stopPropagation(); toggleAttemptingItemSelection('${leadId}')"
@@ -17525,7 +17224,7 @@ function renderCampaignBoard() {
       ` : '';
 
       // Different highlight colors: purple for queued, blue for attempting
-      const selectionClass = isQueuedSelected ? 'bg-purple-50 ring-2 ring-purple-300' : isAttemptingSelected ? 'bg-blue-50 ring-2 ring-blue-300' : 'bg-white';
+      const selectionClass = isQueuedSelected ? 'bg-purple-50 ring-2 ring-purple-300' : isAttemptingSelected ? 'bg-sky-50 ring-2 ring-sky-300' : 'bg-white';
 
       return `
         <div class="kanban-item campaign-board-item text-xs p-2 ${isDoNotContact ? 'bg-red-50' : selectionClass} border rounded ${hasBeenContacted ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'} relative ${isDoNotContact ? 'opacity-60' : ''} cursor-grab"
@@ -17546,7 +17245,7 @@ function renderCampaignBoard() {
               ${(item.zipCode || item.actualZip) ? `<span class="bg-gray-100 px-1.5 py-0.5 rounded">📍 ${esc(normalizeZip(item.zipCode || item.actualZip))}</span>` : ''}
             </div>
             <div class="flex gap-1 flex-shrink-0">
-              <button onclick="event.stopPropagation(); openCampaignBoardQuickAction('${leadId}', '${colKey}')" class="text-indigo-600 hover:text-indigo-800 text-sm" title="View">👁</button>
+              <button onclick="event.stopPropagation(); openCampaignBoardQuickAction('${leadId}', '${colKey}')" class="text-sky-600 hover:text-sky-800 text-sm" title="View">👁</button>
               <button onclick="event.stopPropagation(); deleteCampaignBoardItem('${leadId}', '${colKey}')" class="text-red-600 hover:text-red-800 text-sm" title="Delete">🗑</button>
             </div>
           </div>
@@ -17598,13 +17297,13 @@ function renderCampaignBoard() {
       <div class="flex items-center gap-2 mb-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
         <label class="flex items-center gap-1 cursor-pointer">
           <input type="checkbox" id="attemptingSelectAll" onchange="toggleAttemptingSelectAll(this.checked)"
-                 class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                 class="w-4 h-4 text-sky-600 rounded border-gray-300 focus:ring-sky-500"
                  ${campaignBoardsState.attemptingSelection.size === items.length && items.length > 0 ? 'checked' : ''}>
           <span class="text-xs font-medium text-gray-600">Select All</span>
         </label>
         <span id="attemptingSelectionCount" class="text-xs text-gray-500">(${campaignBoardsState.attemptingSelection.size} selected)</span>
         <button onclick="moveAttemptingSelectionToQueued()"
-                class="ml-auto px-3 py-2 text-sm font-medium rounded bg-blue-100 text-blue-700 hover:bg-blue-200 ${campaignBoardsState.attemptingSelection.size === 0 ? 'opacity-50 cursor-not-allowed' : ''}"
+                class="ml-auto px-3 py-2 text-sm font-medium rounded bg-sky-100 text-sky-700 hover:bg-sky-200 ${campaignBoardsState.attemptingSelection.size === 0 ? 'opacity-50 cursor-not-allowed' : ''}"
                 style="touch-action:manipulation"
                 ${campaignBoardsState.attemptingSelection.size === 0 ? 'disabled' : ''}>
           ⬅️ Move to Queued
@@ -17629,7 +17328,7 @@ function renderCampaignBoard() {
   // Phase headers
   const phaseHeaders = `
     <div class="flex mb-2 text-xs font-medium">
-      <div class="flex-1 text-center text-blue-700 bg-blue-50 py-1 rounded-l">📞 Contact Discovery Phase</div>
+      <div class="flex-1 text-center text-sky-700 bg-sky-50 py-1 rounded-l">📞 Contact Discovery Phase</div>
       <div class="flex-1 text-center text-yellow-700 bg-yellow-50 py-1 rounded-r">💼 Sales Pipeline Phase</div>
     </div>
   `;
@@ -17700,7 +17399,7 @@ function renderCampaignBoard() {
 
   // Daily Goal (same as legacy)
   const dailyGoalHTML = `
-    <div class="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-300 rounded-lg p-4 mb-4">
+    <div class="bg-gradient-to-r from-purple-50 to-sky-50 border-2 border-purple-300 rounded-lg p-4 mb-4">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-4">
           <div class="text-2xl">🎯</div>
@@ -17723,7 +17422,7 @@ function renderCampaignBoard() {
         </div>
       </div>
       <div class="mt-3 w-full h-3 bg-gray-200 rounded-full overflow-hidden">
-        <div class="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full transition-all duration-300" style="width: ${Math.min((dailyGoalState.todayCount / dailyGoalState.dailyGoal) * 100, 100)}%;"></div>
+        <div class="h-full bg-gradient-to-r from-purple-500 to-sky-500 rounded-full transition-all duration-300" style="width: ${Math.min((dailyGoalState.todayCount / dailyGoalState.dailyGoal) * 100, 100)}%;"></div>
       </div>
     </div>
   `;
@@ -17942,7 +17641,7 @@ function buildOutreachHistoryHTML(prospect) {
           <span class="text-purple-600 font-medium">${progress}%</span>
         </div>
         <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-          <div class="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full" style="width: ${progress}%"></div>
+          <div class="h-full bg-gradient-to-r from-purple-500 to-sky-500 rounded-full" style="width: ${progress}%"></div>
         </div>
         ${nextChannel ? `<div class="text-xs text-gray-600 mt-1">${nextChannel}</div>` : ''}
       </div>
@@ -17962,7 +17661,7 @@ function buildOutreachHistoryHTML(prospect) {
   }
 
   return `
-    <div class="p-4 border-b bg-gradient-to-r from-purple-50 to-blue-50">
+    <div class="p-4 border-b bg-gradient-to-r from-purple-50 to-sky-50">
       <div class="text-xs text-gray-600 mb-2 font-medium">📊 Outreach History</div>
       ${progressHTML}
       ${activities.length > 0 ? `
@@ -17989,18 +17688,23 @@ function openCampaignBoardBusinessModal(prospect, columnKey, board) {
 
   // Build contact info HTML
   const contactInfo = [];
-  if (prospect.phone) contactInfo.push(`<div class="flex items-center gap-2"><span class="text-gray-500">📞</span><a href="tel:${esc(prospect.phone)}" class="text-blue-600 hover:underline">${esc(prospect.phone)}</a></div>`);
-  if (prospect.email) contactInfo.push(`<div class="flex items-center gap-2"><span class="text-gray-500">✉️</span><a href="mailto:${esc(prospect.email)}" class="text-blue-600 hover:underline">${esc(prospect.email)}</a></div>`);
-  if (prospect.website) contactInfo.push(`<div class="flex items-center gap-2"><span class="text-gray-500">🌐</span><a href="${esc(ensureHttps(prospect.website))}" target="_blank" class="text-blue-600 hover:underline">${esc(prospect.website)}</a></div>`);
+  if (prospect.phone) contactInfo.push(`<div class="flex items-center gap-2"><span class="text-gray-500">📞</span><a href="tel:${esc(prospect.phone)}" class="text-sky-600 hover:underline">${esc(prospect.phone)}</a></div>`);
+  if (prospect.email) contactInfo.push(`<div class="flex items-center gap-2"><span class="text-gray-500">✉️</span><a href="mailto:${esc(prospect.email)}" class="text-sky-600 hover:underline">${esc(prospect.email)}</a></div>`);
+  if (prospect.website) contactInfo.push(`<div class="flex items-center gap-2"><span class="text-gray-500">🌐</span><a href="${esc(ensureHttps(prospect.website))}" target="_blank" class="text-sky-600 hover:underline">${esc(prospect.website)}</a></div>`);
   if (prospect.address) contactInfo.push(`<div class="flex items-center gap-2"><span class="text-gray-500">📍</span><span>${esc(prospect.address)}</span></div>`);
   if (prospect.zipCode || prospect.actualZip) contactInfo.push(`<div class="flex items-center gap-2"><span class="text-gray-500">🏷️</span><span>ZIP: ${esc(prospect.zipCode || prospect.actualZip)}</span></div>`);
   if (prospect.category) contactInfo.push(`<div class="flex items-center gap-2"><span class="text-gray-500">📁</span><span>${esc(prospect.category)}</span></div>`);
 
   // Build social links HTML
   const socialLinks = [];
-  if (prospect.facebook) socialLinks.push(`<a href="${esc(ensureHttps(prospect.facebook))}" target="_blank" class="p-2 bg-blue-100 rounded-lg hover:bg-blue-200" title="Facebook">📘</a>`);
+  if (prospect.facebook) {
+    socialLinks.push(`<a href="${esc(ensureHttps(prospect.facebook))}" target="_blank" class="p-2 bg-sky-100 rounded-lg hover:bg-sky-200" title="Facebook">📘</a>`);
+  } else {
+    const fbQ = encodeURIComponent(`${prospect.name || prospect.businessName || ''} ${prospect.city || ''} ${prospect.state || 'NY'}`);
+    socialLinks.push(`<a href="https://www.facebook.com/search/pages?q=${fbQ}" target="_blank" class="p-2 bg-sky-100 rounded-lg hover:bg-sky-200 opacity-40 hover:opacity-100" title="Search Facebook">📘</a>`);
+  }
   if (prospect.instagram) socialLinks.push(`<a href="${esc(ensureHttps(prospect.instagram))}" target="_blank" class="p-2 bg-pink-100 rounded-lg hover:bg-pink-200" title="Instagram">📷</a>`);
-  if (prospect.linkedin) socialLinks.push(`<a href="${esc(ensureHttps(prospect.linkedin))}" target="_blank" class="p-2 bg-blue-100 rounded-lg hover:bg-blue-200" title="LinkedIn">💼</a>`);
+  if (prospect.linkedin) socialLinks.push(`<a href="${esc(ensureHttps(prospect.linkedin))}" target="_blank" class="p-2 bg-sky-100 rounded-lg hover:bg-sky-200" title="LinkedIn">💼</a>`);
 
   // Build "Try Another Channel" section for Column 2 (Attempting)
   let tryAnotherChannelHTML = '';
@@ -18085,7 +17789,7 @@ function openCampaignBoardBusinessModal(prospect, columnKey, board) {
         </div>
 
         <!-- Quick Actions -->
-        <div class="p-4 bg-gradient-to-r from-purple-50 to-blue-50 border-b">
+        <div class="p-4 bg-gradient-to-r from-purple-50 to-sky-50 border-b">
           <div class="text-xs text-gray-600 mb-2 font-medium">Quick Actions</div>
           <div class="flex gap-2">
             <button onclick="toggleCampaignBoardDoNotContact('${leadId}', '${columnKey}'); closeCampaignBoardModal();"
@@ -18107,7 +17811,7 @@ function openCampaignBoardBusinessModal(prospect, columnKey, board) {
         <div class="p-4 border-b">
           <div class="flex items-center justify-between mb-2">
             <div class="text-xs text-gray-600 font-medium">Contact Info</div>
-            <button onclick="toggleCampaignBoardEditMode('${leadId}', '${columnKey}')" id="cbEditToggle" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+            <button onclick="toggleCampaignBoardEditMode('${leadId}', '${columnKey}')" id="cbEditToggle" class="text-xs text-sky-600 hover:text-sky-800 font-medium">
               ✏️ Edit
             </button>
           </div>
@@ -18142,32 +17846,32 @@ function openCampaignBoardBusinessModal(prospect, columnKey, board) {
         ${tryAnotherChannelHTML}
 
         <!-- Email Reply Templates -->
-        <div class="p-4 border-b bg-blue-50">
+        <div class="p-4 border-b bg-sky-50">
           <div class="text-xs text-gray-600 mb-2 font-medium">📧 Reply with Template</div>
           ${(prospect.email || prospect.emailAddress) ? `
             <div class="grid grid-cols-3 gap-2">
               <button onclick="openEmailWithTemplate('${esc(prospect.email || prospect.emailAddress)}', 'moreInfo', '${esc(businessName)}')"
-                      class="px-2 py-2 bg-white hover:bg-blue-100 border border-blue-200 rounded-lg text-xs font-medium text-center">
+                      class="px-2 py-2 bg-white hover:bg-sky-100 border border-sky-200 rounded-lg text-xs font-medium text-center">
                 ℹ️ More Info
               </button>
               <button onclick="openEmailWithTemplate('${esc(prospect.email || prospect.emailAddress)}', 'pricing', '${esc(businessName)}')"
-                      class="px-2 py-2 bg-white hover:bg-blue-100 border border-blue-200 rounded-lg text-xs font-medium text-center">
+                      class="px-2 py-2 bg-white hover:bg-sky-100 border border-sky-200 rounded-lg text-xs font-medium text-center">
                 💰 Pricing
               </button>
               <button onclick="openEmailWithTemplate('${esc(prospect.email || prospect.emailAddress)}', 'scheduleCall', '${esc(businessName)}')"
-                      class="px-2 py-2 bg-white hover:bg-blue-100 border border-blue-200 rounded-lg text-xs font-medium text-center">
+                      class="px-2 py-2 bg-white hover:bg-sky-100 border border-sky-200 rounded-lg text-xs font-medium text-center">
                 📞 Schedule
               </button>
               <button onclick="openEmailWithTemplate('${esc(prospect.email || prospect.emailAddress)}', 'followUp', '${esc(businessName)}')"
-                      class="px-2 py-2 bg-white hover:bg-blue-100 border border-blue-200 rounded-lg text-xs font-medium text-center">
+                      class="px-2 py-2 bg-white hover:bg-sky-100 border border-sky-200 rounded-lg text-xs font-medium text-center">
                 🔄 Follow Up
               </button>
               <button onclick="openEmailWithTemplate('${esc(prospect.email || prospect.emailAddress)}', 'proofReady', '${esc(businessName)}')"
-                      class="px-2 py-2 bg-white hover:bg-blue-100 border border-blue-200 rounded-lg text-xs font-medium text-center">
+                      class="px-2 py-2 bg-white hover:bg-sky-100 border border-sky-200 rounded-lg text-xs font-medium text-center">
                 ✅ Proof Ready
               </button>
               <button onclick="openEmailWithTemplate('${esc(prospect.email || prospect.emailAddress)}', 'invoiceSent', '${esc(businessName)}')"
-                      class="px-2 py-2 bg-white hover:bg-blue-100 border border-blue-200 rounded-lg text-xs font-medium text-center">
+                      class="px-2 py-2 bg-white hover:bg-sky-100 border border-sky-200 rounded-lg text-xs font-medium text-center">
                 📄 Invoice
               </button>
             </div>
@@ -18200,7 +17904,7 @@ function openCampaignBoardBusinessModal(prospect, columnKey, board) {
               📱 SMS
             </button>
             <button onclick="markCampaignBoardOutreach('${leadId}', '${columnKey}', 'email')"
-                    class="px-2 py-2 bg-blue-100 hover:bg-blue-200 border border-blue-300 rounded-lg text-xs font-medium">
+                    class="px-2 py-2 bg-sky-100 hover:bg-sky-200 border border-sky-300 rounded-lg text-xs font-medium">
               📧 Email
             </button>
             <button onclick="markCampaignBoardOutreach('${leadId}', '${columnKey}', 'call')"
@@ -18208,7 +17912,7 @@ function openCampaignBoardBusinessModal(prospect, columnKey, board) {
               📞 Call
             </button>
             <button onclick="markCampaignBoardOutreach('${leadId}', '${columnKey}', 'facebook')"
-                    class="px-2 py-2 bg-blue-100 hover:bg-blue-200 border border-blue-300 rounded-lg text-xs font-medium">
+                    class="px-2 py-2 bg-sky-100 hover:bg-sky-200 border border-sky-300 rounded-lg text-xs font-medium">
               📘 Facebook
             </button>
             <button onclick="markCampaignBoardOutreach('${leadId}', '${columnKey}', 'instagram')"
@@ -18216,7 +17920,7 @@ function openCampaignBoardBusinessModal(prospect, columnKey, board) {
               📷 Instagram
             </button>
             <button onclick="markCampaignBoardOutreach('${leadId}', '${columnKey}', 'linkedin')"
-                    class="px-2 py-2 bg-blue-100 hover:bg-blue-200 border border-blue-300 rounded-lg text-xs font-medium">
+                    class="px-2 py-2 bg-sky-100 hover:bg-sky-200 border border-sky-300 rounded-lg text-xs font-medium">
               💼 LinkedIn
             </button>
           </div>
@@ -19032,14 +18736,14 @@ function openCampaignConfigModal() {
 
         <div class="space-y-4">
           <!-- Target ZIP Codes -->
-          <div class="p-3 bg-blue-50 rounded-lg border border-blue-200">
-            <label class="block text-sm font-medium text-blue-800 mb-2">📍 Target ZIP Codes</label>
-            <p class="text-xs text-blue-600 mb-2">Filter the board to show only businesses in these ZIPs</p>
+          <div class="p-3 bg-sky-50 rounded-lg border border-sky-200">
+            <label class="block text-sm font-medium text-sky-800 mb-2">📍 Target ZIP Codes</label>
+            <p class="text-xs text-sky-600 mb-2">Filter the board to show only businesses in these ZIPs</p>
             <div id="targetZipsList" class="flex flex-wrap gap-2 mb-2">
               ${targetZips.length > 0 ? targetZips.map(zip => `
-                <span class="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                <span class="inline-flex items-center gap-1 px-2 py-1 bg-sky-100 text-sky-800 rounded-full text-sm">
                   ${zip}
-                  <button onclick="removeTargetZip('${zip}')" class="text-blue-600 hover:text-blue-800 font-bold">×</button>
+                  <button onclick="removeTargetZip('${zip}')" class="text-sky-600 hover:text-sky-800 font-bold">×</button>
                 </span>
               `).join('') : '<span class="text-xs text-gray-500">No target ZIPs set (showing all)</span>'}
             </div>
@@ -19050,7 +18754,7 @@ function openCampaignConfigModal() {
                   <option value="${zip}">${zip}</option>
                 `).join('')}
               </select>
-              <button onclick="addTargetZipFromSelect()" class="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Add</button>
+              <button onclick="addTargetZipFromSelect()" class="px-3 py-1 bg-sky-600 text-white text-sm rounded-lg hover:bg-sky-700">Add</button>
             </div>
             <div class="mt-2">
               <input type="text" id="manualZipInput" placeholder="Or type ZIP code" maxlength="5"
@@ -20441,7 +20145,7 @@ function updateTasksDisplay() {
         <span class="task-text">${esc(task.text)}</span>
         <input type="date" class="task-date ${overdueClass}" value="${task.dueDate}" onchange="updateTaskDate(this)" />
         <div style="display: flex; gap: 0.5rem; margin-left: auto;">
-          <button onclick="editTask(${task.id})" class="text-blue-600 hover:text-blue-800 text-xs" title="Edit task">
+          <button onclick="editTask(${task.id})" class="text-sky-600 hover:text-sky-800 text-xs" title="Edit task">
             ✎
           </button>
           <button onclick="deleteTask(${task.id})" class="text-red-600 hover:text-red-800 text-xs" title="Delete task">
@@ -20467,7 +20171,7 @@ function updateTasksDisplay() {
     overdueText.className = 'text-sm text-red-500 mb-2 font-bold';
   } else if (incompleteTasks.length > 0) {
     overdueText.textContent = `${incompleteTasks.length} Task${incompleteTasks.length > 1 ? 's' : ''} Pending`;
-    overdueText.className = 'text-sm text-blue-600 mb-2';
+    overdueText.className = 'text-sm text-sky-600 mb-2';
   } else {
     overdueText.textContent = 'All tasks complete';
     overdueText.className = 'text-sm text-green-600 mb-2';
@@ -21800,8 +21504,8 @@ function renderChannelList(listId, data, channelKey, colorClass) {
   // Color mapping for buttons
   const colorMap = {
     texted: 'green',
-    emailed: 'blue',
-    facebookMessaged: 'indigo',
+    emailed: 'sky',
+    facebookMessaged: 'sky',
     dmed: 'pink'
   };
   const btnColor = colorMap[channelKey] || 'gray';
@@ -21837,8 +21541,8 @@ function renderChannelList(listId, data, channelKey, colorClass) {
 // Render all 4 channel columns
 function renderAllContactStatusColumns() {
   renderChannelList('textedList', contactStatusState.texted, 'texted', 'green');
-  renderChannelList('emailedList', contactStatusState.emailed, 'emailed', 'blue');
-  renderChannelList('facebookList', contactStatusState.facebookMessaged, 'facebookMessaged', 'indigo');
+  renderChannelList('emailedList', contactStatusState.emailed, 'emailed', 'sky');
+  renderChannelList('facebookList', contactStatusState.facebookMessaged, 'facebookMessaged', 'sky');
   renderChannelList('instagramList', contactStatusState.dmed, 'dmed', 'pink');
 }
 
@@ -22673,20 +22377,20 @@ function openTemplatePicker() {
             </div>
             <div class="flex items-center gap-2">
               \${t.isEdited ? \`<button onclick="resetTemplate('\${channelKey}', '\${t.id}')" class="px-2 py-1 text-gray-500 hover:text-gray-700 text-sm" title="Reset to default">↺ Reset</button>\` : ''}
-              <button onclick="editTemplate('\${channelKey}', '\${t.id}')" class="px-2 py-1 text-blue-600 hover:text-blue-800 text-sm font-medium">✏️ Edit</button>
+              <button onclick="editTemplate('\${channelKey}', '\${t.id}')" class="px-2 py-1 text-sky-600 hover:text-sky-800 text-sm font-medium">✏️ Edit</button>
               <button onclick="copyTemplate('\${channelKey}', '\${t.id}')" class="px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 font-medium">Copy</button>
             </div>
           </div>
           \${t.subject ? \`
-            <div class="mb-2 bg-blue-50 px-2 py-1.5 rounded border border-blue-200">
+            <div class="mb-2 bg-sky-50 px-2 py-1.5 rounded border border-sky-200">
               <div class="flex items-center justify-between mb-0.5">
-                <span class="text-xs text-blue-600 font-medium">Subject Line:</span>
+                <span class="text-xs text-sky-600 font-medium">Subject Line:</span>
                 <button onclick="setFollowUpSubject('\${channelKey}', '\${t.id}')"
                         class="px-2 py-0.5 bg-green-600 text-white text-xs rounded hover:bg-green-700">
                   ✓ Use for Follow Up
                 </button>
               </div>
-              <div class="text-sm text-blue-900 font-semibold select-all cursor-text">\${esc(t.subject)}</div>
+              <div class="text-sm text-sky-900 font-semibold select-all cursor-text">\${esc(t.subject)}</div>
             </div>
           \` : ''}
           <pre class="text-xs text-gray-600 whitespace-pre-wrap font-sans bg-gray-50 p-2 rounded border max-h-32 overflow-y-auto">\${esc(t.body)}</pre>
@@ -22871,7 +22575,7 @@ function openTemplatePicker() {
         }
       } catch (e) {}
       statusEl.textContent = '💾 Local Mode';
-      statusEl.className = 'text-xs px-2 py-1 rounded bg-blue-100 text-blue-700';
+      statusEl.className = 'text-xs px-2 py-1 rounded bg-sky-100 text-sky-700';
       statusEl.title = 'Changes save locally. Open main app to sync to cloud.';
       return false;
     }
@@ -22934,7 +22638,7 @@ function renderTemplateList(channelKey) {
             </button>
           ` : ''}
           <button onclick="editTemplate('${channelKey}', '${t.id}')"
-                  class="px-2 py-1 text-blue-600 hover:text-blue-800 text-sm font-medium">
+                  class="px-2 py-1 text-sky-600 hover:text-sky-800 text-sm font-medium">
             ✏️ Edit
           </button>
           <button onclick="copyTemplate('${channelKey}', '${t.id}')"
@@ -23112,8 +22816,8 @@ function refreshAnalytics() {
   analyticsState.totalInterested = 0;
   analyticsState.channelStats = {
     texted: { count: 0, responses: 0, label: '📱 Text', color: 'green' },
-    emailed: { count: 0, responses: 0, label: '✉️ Email', color: 'blue' },
-    facebookMessaged: { count: 0, responses: 0, label: '📘 Facebook', color: 'indigo' },
+    emailed: { count: 0, responses: 0, label: '✉️ Email', color: 'sky' },
+    facebookMessaged: { count: 0, responses: 0, label: '📘 Facebook', color: 'sky' },
     dmed: { count: 0, responses: 0, label: '📷 Instagram', color: 'pink' },
     called: { count: 0, responses: 0, label: '📞 Call', color: 'orange' }
   };
@@ -23226,10 +22930,67 @@ function renderAnalytics() {
         `;
       }).join('');
   }
+
+}
+
+// Render enrichment results chart - shows what contact data has been found
+// Accepts filtered businesses from renderProspectPool so it respects all active filters
+function renderEnrichmentResults(filteredByCategory) {
+  const container = document.getElementById('enrichmentResultsBars');
+  const totalEl = document.getElementById('enrichmentResultsTotal');
+  if (!container) return;
+
+  // Flatten filtered categories into a single array
+  const allBusinesses = [];
+  if (filteredByCategory) {
+    Object.values(filteredByCategory).forEach(prospects => {
+      prospects.forEach(b => allBusinesses.push(b));
+    });
+  }
+
+  const total = allBusinesses.length;
+  const enriched = allBusinesses.filter(b => b.enriched || b.isEnriched).length;
+
+  // Count contact data found
+  const channels = [
+    { key: 'website',   label: '🌐 Website',   color: 'sky',    count: allBusinesses.filter(b => b.website).length },
+    { key: 'phone',     label: '📞 Phone',      color: 'green',  count: allBusinesses.filter(b => b.phone || b.phoneNumber || b.contact?.phone).length },
+    { key: 'email',     label: '✉️ Email',      color: 'purple', count: allBusinesses.filter(b => b.email || b.contact?.email).length },
+    { key: 'facebook',  label: '📘 Facebook',   color: 'blue',   count: allBusinesses.filter(b => b.facebook).length },
+    { key: 'instagram', label: '📷 Instagram',  color: 'pink',   count: allBusinesses.filter(b => b.instagram).length },
+    { key: 'linkedin',  label: '💼 LinkedIn',   color: 'sky',    count: allBusinesses.filter(b => b.linkedin).length }
+  ];
+
+  if (totalEl) {
+    totalEl.textContent = `${enriched} of ${total} enriched`;
+  }
+
+  const maxCount = Math.max(...channels.map(c => c.count), 1);
+
+  container.innerHTML = channels.map(ch => {
+    const width = Math.round((ch.count / maxCount) * 100);
+    const pct = total > 0 ? Math.round((ch.count / total) * 100) : 0;
+    return `
+      <div class="flex items-center gap-3">
+        <div class="w-24 text-sm font-medium text-gray-700">${ch.label}</div>
+        <div class="flex-1 bg-gray-100 rounded-full h-4 overflow-hidden">
+          <div class="bg-${ch.color}-500 h-full rounded-full transition-all" style="width: ${width}%"></div>
+        </div>
+        <div class="w-20 text-right text-sm">
+          <span class="font-bold text-gray-700">${ch.count}</span>
+          <span class="text-gray-400 text-xs">(${pct}%)</span>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 // Export analytics as CSV
 function exportAnalytics() {
+  if (!canExportCSV()) {
+    showUpgradePrompt('CSV export is available on Pro and Enterprise plans.');
+    return;
+  }
   const timeRange = analyticsState.timeRange ? `Last ${analyticsState.timeRange} days` : 'All time';
   const date = new Date().toISOString().split('T')[0];
 
@@ -24123,7 +23884,7 @@ function updateRevenueGoalCalculator() {
     // Color profit based on positive/negative
     const profitElement = document.getElementById("goalProfit");
     if (profit >= 0) {
-      profitElement.className = "text-lg font-bold text-blue-700";
+      profitElement.className = "text-lg font-bold text-sky-700";
     } else {
       profitElement.className = "text-lg font-bold text-red-700";
     }
@@ -24727,7 +24488,7 @@ function checkRenewals() {
           <div class="font-semibold text-sm">${esc(c.businessName)}</div>
           <div class="text-xs text-gray-500">Ready for renewal outreach</div>
         </div>
-        <button onclick="openEmailRenewal('${c.id}')" class="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+        <button onclick="openEmailRenewal('${c.id}')" class="text-xs px-3 py-1.5 bg-sky-600 text-white rounded-lg hover:bg-sky-700">
           Email
         </button>
       </div>
@@ -24883,29 +24644,7 @@ function useLightTextOn(hex){ try{ const h = hex.replace('#',''); const r=parseI
 // FilterBar removed - using built-in search in Prospect Pool instead
 // Auto-enrichment is now automatic, no checkbox needed
 
-/* ========= SELECT ALL CATEGORIES ========= */
-// Simple global function called from HTML onclick
-window.selectAllCategoriesHandler = function() {
-  const checkbox = document.getElementById('selectAllCategories');
-  if (!checkbox) {
-    console.error('Select All checkbox not found');
-    return;
-  }
-
-  const categoryCheckboxes = document.querySelectorAll('.category-checkbox');
-  console.log('selectAllCategoriesHandler:', checkbox.checked, 'categories:', categoryCheckboxes.length);
-
-  if (categoryCheckboxes.length === 0) {
-    toast('No categories available', false);
-    return;
-  }
-
-  categoryCheckboxes.forEach(cb => {
-    cb.checked = checkbox.checked;
-  });
-
-  toast(checkbox.checked ? `Selected all ${categoryCheckboxes.length} categories` : 'Cleared all categories', true);
-};
+/* ========= SELECT ALL CATEGORIES (removed - per-group "All" checkboxes are sufficient) ========= */
 
 /* ========= INIT ========= */
 document.addEventListener("DOMContentLoaded", () => {
@@ -26824,7 +26563,7 @@ function renderGettingStartedChecklist() {
           }
         </div>
         <span class="flex-1 text-sm font-medium ${isComplete ? 'text-green-800 line-through' : 'text-gray-700'}">${item.label}</span>
-        ${!isComplete ? `<button onclick="event.stopPropagation(); (${item.action.toString()})()" class="px-3 py-1 text-xs font-bold text-indigo-600 hover:bg-indigo-50 rounded transition">Go →</button>` : ''}
+        ${!isComplete ? `<button onclick="event.stopPropagation(); (${item.action.toString()})()" class="px-3 py-1 text-xs font-bold text-sky-600 hover:bg-sky-50 rounded transition">Go →</button>` : ''}
       </div>
     `;
   }).join('');
@@ -27028,6 +26767,22 @@ function renderDashboardTasks() {
 
 // ========== DASHBOARD FINANCIAL SUMMARY WIDGET ==========
 function renderDashboardFinancials() {
+  // Gate: show upgrade placeholder for users without financial access
+  const finWidget = document.getElementById('dashboardRevenueMonth')?.closest('.bg-white');
+  if (!canUseFinancials()) {
+    if (finWidget) {
+      finWidget.innerHTML = `
+        <div class="text-center py-8">
+          <div class="text-4xl mb-3">🔒</div>
+          <h4 class="text-lg font-semibold text-gray-900 mb-2">Financial Dashboard</h4>
+          <p class="text-sm text-gray-500 mb-4">Track revenue, expenses, and profit with Pro or Enterprise.</p>
+          <button onclick="showUpgradePrompt('Financial Dashboard is available on Pro and Enterprise plans.')" class="px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-semibold hover:bg-sky-700">
+            Upgrade to Unlock
+          </button>
+        </div>`;
+    }
+    return;
+  }
   if (!financialState.loaded || !financialState.transactions) return;
 
   const now = new Date();
@@ -27066,7 +26821,7 @@ function renderDashboardFinancials() {
     if (el) {
       el.textContent = (isProfit && val < 0 ? '-' : '') + formatMoney(val);
       if (isProfit) {
-        el.className = el.className.replace(/text-(green|red|blue)-600/g, '') + (val >= 0 ? ' text-blue-600' : ' text-red-600');
+        el.className = el.className.replace(/text-(green|red|blue)-600/g, '') + (val >= 0 ? ' text-sky-600' : ' text-red-600');
       }
     }
   };
@@ -27168,7 +26923,7 @@ function renderContractsExpiring() {
   if (expiringContracts.length > 5) {
     container.innerHTML += `
       <div class="text-center pt-2">
-        <button onclick="switchTab('clients')" class="text-sm text-indigo-600 hover:text-indigo-800 font-semibold">
+        <button onclick="switchTab('clients')" class="text-sm text-sky-600 hover:text-sky-800 font-semibold">
           View all ${expiringContracts.length} contracts →
         </button>
       </div>
@@ -27246,12 +27001,12 @@ function renderCardsInProgress() {
       <div class="bg-white rounded-xl cursor-pointer hover:shadow-xl transition-all duration-200 border border-gray-200 p-5"
            onclick="openPostcardCard('${campaign.Town.replace(/'/g, "\\'")}', '${campaign.Mail_Date}')"
            style="box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
-        <div class="text-sm font-bold text-blue-700 uppercase tracking-wide mb-1">${campaign.Town}</div>
+        <div class="text-sm font-bold text-sky-700 uppercase tracking-wide mb-1">${campaign.Town}</div>
         <div class="text-xs text-gray-500 mb-3">${monthName}</div>
         <div class="text-2xl font-bold text-gray-900 mb-1">${spotsSold}<span class="text-gray-400">/${totalSpots}</span></div>
         <div class="text-xs text-gray-500 mb-3">${percent}% complete</div>
         <div class="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-          <div class="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full transition-all duration-300" style="width: ${percent}%;"></div>
+          <div class="h-full bg-gradient-to-r from-sky-500 to-cyan-400 rounded-full transition-all duration-300" style="width: ${percent}%;"></div>
         </div>
       </div>
     `;
@@ -28425,7 +28180,7 @@ function updateAutoSaveStatus() {
   // Determine status
   if (autoSaveState.saving) {
     // Currently saving
-    statusDiv.className = 'flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-blue-50 border border-blue-300 text-blue-700';
+    statusDiv.className = 'flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-sky-50 border border-sky-300 text-sky-700';
     iconSpan.textContent = '☁️';
     textSpan.textContent = 'Saving...';
     saveBtn.classList.add('hidden');
@@ -28939,6 +28694,11 @@ function renderFinancialRegister() {
   const tbody = document.getElementById('financialRegisterBody');
   if (!tbody) return;
 
+  if (!canUseFinancials()) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-500">🔒 Financial Register is available on Pro and Enterprise plans. <button onclick="showUpgradePrompt(\'Financial features are available on Pro and Enterprise plans.\')" class="text-sky-600 hover:underline font-medium">Upgrade</button></td></tr>';
+    return;
+  }
+
   if (!financialState.loaded) {
     tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">Loading transactions...</td></tr>';
     return;
@@ -28993,7 +28753,7 @@ function renderFinancialRegister() {
         <td class="py-2 px-3 text-sm font-medium">$${(parseFloat(trans.balance) || 0).toFixed(2)}</td>
         <td class="py-2 px-3 text-sm text-gray-600">${trans.notes || ''}</td>
         <td class="py-2 px-3 text-sm">
-          <button onclick="editTransaction('${trans.id}')" class="text-blue-600 hover:underline text-xs mr-2">Edit</button>
+          <button onclick="editTransaction('${trans.id}')" class="text-sky-600 hover:underline text-xs mr-2">Edit</button>
           <button onclick="deleteTransaction('${trans.id}')" class="text-red-600 hover:underline text-xs">Delete</button>
         </td>
       </tr>
@@ -29007,7 +28767,7 @@ function getCategoryBadgeClass(type) {
     case 'revenue':
       return 'bg-green-100 text-green-800';
     case 'cogs':
-      return 'bg-blue-100 text-blue-800';
+      return 'bg-sky-100 text-sky-800';
     case 'operating':
       return 'bg-orange-100 text-orange-800';
     case 'owner_draw':
@@ -29248,6 +29008,10 @@ async function deleteTransaction(id) {
 
 // Export financial data to CSV
 function exportFinancialCSV() {
+  if (!canExportCSV()) {
+    showUpgradePrompt('CSV export is available on Pro and Enterprise plans.');
+    return;
+  }
   const periodFilter = document.getElementById('financialPeriodFilter')?.value || 'all';
   const categoryFilter = document.getElementById('financialCategoryFilter')?.value || 'all';
 
@@ -29381,7 +29145,7 @@ function generatePLReport() {
 
       <!-- Cost of Goods Sold Section -->
       <div class="mb-6">
-        <div class="bg-blue-50 px-4 py-2 font-semibold text-blue-900 border-b-2 border-blue-600">
+        <div class="bg-sky-50 px-4 py-2 font-semibold text-sky-900 border-b-2 border-sky-600">
           COST OF GOODS SOLD
         </div>
         <div class="pl-6 py-2">
@@ -29390,7 +29154,7 @@ function generatePLReport() {
             <span class="font-mono">$${totalCOGS.toFixed(2)}</span>
           </div>
         </div>
-        <div class="bg-blue-100 px-4 py-2 flex justify-between font-semibold text-blue-900">
+        <div class="bg-sky-100 px-4 py-2 flex justify-between font-semibold text-sky-900">
           <span>Total COGS</span>
           <span class="font-mono">$${totalCOGS.toFixed(2)}</span>
         </div>
@@ -29452,9 +29216,9 @@ function generatePLReport() {
           <div class="text-xs text-gray-600">Gross Margin</div>
           <div class="text-lg font-bold text-green-600">${totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100).toFixed(1) : '0.0'}%</div>
         </div>
-        <div class="bg-blue-50 p-3 rounded-lg">
+        <div class="bg-sky-50 p-3 rounded-lg">
           <div class="text-xs text-gray-600">Operating Margin</div>
-          <div class="text-lg font-bold text-blue-600">${totalRevenue > 0 ? ((operatingIncome / totalRevenue) * 100).toFixed(1) : '0.0'}%</div>
+          <div class="text-lg font-bold text-sky-600">${totalRevenue > 0 ? ((operatingIncome / totalRevenue) * 100).toFixed(1) : '0.0'}%</div>
         </div>
         <div class="bg-purple-50 p-3 rounded-lg">
           <div class="text-xs text-gray-600">Net Margin</div>
@@ -29689,7 +29453,7 @@ function updateBreadcrumbHighlight(tabName) {
 
   // Remove active state from all breadcrumb buttons
   document.querySelectorAll('[id^="breadcrumb-"]').forEach(btn => {
-    btn.classList.remove('bg-white', 'shadow-lg', 'ring-2', 'ring-indigo-500');
+    btn.classList.remove('bg-white', 'shadow-lg', 'ring-2', 'ring-sky-500');
     btn.classList.add('hover:bg-white', 'hover:shadow-md');
   });
 
@@ -29699,7 +29463,7 @@ function updateBreadcrumbHighlight(tabName) {
     const activeBreadcrumb = document.getElementById(breadcrumbId);
     if (activeBreadcrumb) {
       activeBreadcrumb.classList.remove('hover:bg-white', 'hover:shadow-md');
-      activeBreadcrumb.classList.add('bg-white', 'shadow-lg', 'ring-2', 'ring-indigo-500');
+      activeBreadcrumb.classList.add('bg-white', 'shadow-lg', 'ring-2', 'ring-sky-500');
     }
   }
 }
@@ -29744,7 +29508,7 @@ function showProspectSuccessModal(categorizedResults, totalCount) {
       </div>
 
       <div class="flex gap-3 sticky bottom-0 bg-white pt-4">
-        <button onclick="closeProspectSuccessModal(); switchTab('clients'); setTimeout(() => renderProspectPool(), 100);" class="flex-1 px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 font-black text-base shadow-xl transform hover:scale-105 transition">
+        <button onclick="closeProspectSuccessModal(); switchTab('clients'); setTimeout(() => renderProspectPool(), 100);" class="flex-1 px-4 py-3 bg-gradient-to-r from-sky-600 to-cyan-500 text-white rounded-xl hover:from-sky-700 hover:to-cyan-600 font-black text-base shadow-xl transform hover:scale-105 transition">
           View Businesses →
         </button>
         <button onclick="closeProspectSuccessModal();" class="px-4 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-bold transition">
@@ -29868,9 +29632,9 @@ function showProspectReviewModal(businesses, categorizedResults) {
           <p class="text-gray-600 mt-1">Found <span class="text-green-600 font-bold">${businesses.length}</span> businesses. Uncheck any you don't want to add.</p>
         </div>
         <div class="flex items-center justify-center gap-4 mt-4">
-          <button onclick="toggleAllReviewProspects(true)" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">Select All</button>
+          <button onclick="toggleAllReviewProspects(true)" class="text-sm text-sky-600 hover:text-sky-800 font-medium">Select All</button>
           <span class="text-gray-300">|</span>
-          <button onclick="toggleAllReviewProspects(false)" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">Deselect All</button>
+          <button onclick="toggleAllReviewProspects(false)" class="text-sm text-sky-600 hover:text-sky-800 font-medium">Deselect All</button>
           <span class="text-gray-300">|</span>
           <span id="reviewSelectedCount" class="text-sm text-gray-500">${businesses.length} selected</span>
         </div>
@@ -29885,7 +29649,7 @@ function showProspectReviewModal(businesses, categorizedResults) {
       <div class="p-6 border-t border-gray-200 bg-gray-50 rounded-b-3xl">
         <div class="flex gap-3">
           <button onclick="confirmProspectReview()" id="btnConfirmReview" class="flex-1 px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 font-black text-base shadow-lg transform hover:scale-105 transition">
-            ✓ Add Selected to Pool
+            ✓ Add & Enrich Selected (${businesses.length})
           </button>
           <button onclick="closeProspectReviewModal()" class="px-4 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-bold transition">
             Cancel
@@ -29939,7 +29703,7 @@ function updateReviewSelectedCount() {
   // Update button text
   const btn = document.getElementById('btnConfirmReview');
   if (btn) {
-    btn.textContent = selected > 0 ? `✓ Add ${selected} to Pool` : 'Skip All';
+    btn.textContent = selected > 0 ? `✓ Add & Enrich ${selected} Selected` : 'Skip All';
   }
 }
 
@@ -29994,25 +29758,63 @@ async function confirmProspectReview() {
   const selectedCount = selectedPlaceIds.size;
   const rejectedCount = rejectedPlaceIds.size;
 
-  closeProspectReviewModal();
+  // Get selected businesses for enrichment
+  const selectedBusinesses = pendingProspectsForReview.filter(b => selectedPlaceIds.has(b.placeId));
 
-  // Show brief success message
-  if (selectedCount > 0) {
-    toast(`✅ Added ${selectedCount} prospects to pool${rejectedCount > 0 ? `, skipped ${rejectedCount}` : ''}`, true);
-  } else {
-    toast(`Skipped all ${rejectedCount} prospects`, true);
-  }
+  closeProspectReviewModal();
 
   // Track that user generated prospects (for Getting Started checklist)
   if (selectedCount > 0) {
     markGettingStartedComplete('generate_prospects');
   }
 
-  // Switch to Businesses tab to show discovered prospects
+  if (selectedCount === 0) {
+    toast(`Skipped all ${rejectedCount} prospects`, true);
+    return;
+  }
+
+  // Immediately add to pool and switch to Businesses tab
+  toast(`✅ Added ${selectedCount} prospects to pool${rejectedCount > 0 ? `, skipped ${rejectedCount}` : ''}. Enriching...`, true);
+
   setTimeout(() => {
     switchTab('clients');
     setTimeout(() => renderProspectPool(), 100);
   }, 500);
+
+  // Now enrich only the selected businesses in the background
+  const toEnrich = selectedBusinesses.filter(b => !b.enriched);
+  if (toEnrich.length > 0) {
+    console.log(`🎯 Enriching ${toEnrich.length} selected businesses in background...`);
+
+    const enrichResult = await enrichBusinessBatch(toEnrich, {
+      batchSize: 4,
+      findWebsite: true,
+      recordUsage: true,
+      onProgress: ({ current, total, phase }) => {
+        if (phase === 'complete') {
+          toast(`✅ Enrichment complete! ${total} businesses processed.`, true);
+        }
+      }
+    });
+
+    // Update enriched data back into the cache
+    for (const result of enrichResult.results) {
+      if (!result.success) continue;
+      const business = result.business;
+      const cacheKey = `${business.searchedZipCode}-${business.category}`;
+      const cached = placesCache.searches[cacheKey];
+      if (cached && cached.cachedData) {
+        const idx = cached.cachedData.findIndex(b => b.placeId === business.placeId);
+        if (idx !== -1) {
+          cached.cachedData[idx] = { ...cached.cachedData[idx], ...business };
+        }
+      }
+    }
+
+    await savePlacesCache();
+    renderProspectPool();
+    console.log(`✅ Background enrichment done: ${enrichResult.success} success, ${enrichResult.failed} failed`);
+  }
 }
 
 // Expose review modal functions globally
@@ -30065,9 +29867,9 @@ function updateOnboardingUI() {
     if (dot) {
       if (i <= onboardingStep) {
         dot.classList.remove('bg-gray-300');
-        dot.classList.add('bg-indigo-600');
+        dot.classList.add('bg-sky-600');
       } else {
-        dot.classList.remove('bg-indigo-600');
+        dot.classList.remove('bg-sky-600');
         dot.classList.add('bg-gray-300');
       }
     }
@@ -30769,7 +30571,7 @@ function renderOutreachRow(prospect) {
         <span class="font-semibold text-gray-900">${escapeHtml(prospect.businessName || 'Unknown')}</span>
       </td>
       <td class="py-2.5 px-3">
-        <span class="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
+        <span class="px-2 py-0.5 bg-sky-100 text-sky-700 rounded text-xs font-medium">
           ${escapeHtml((prospect.category || '?').replace(/_/g, ' '))}
         </span>
       </td>
@@ -30777,10 +30579,10 @@ function renderOutreachRow(prospect) {
         ${hasPhone ? '<span class="text-green-600 font-bold">✓</span>' : '<span class="text-gray-300">—</span>'}
       </td>
       <td class="py-2.5 px-3 text-center">
-        ${hasEmail ? '<span class="text-blue-600 font-bold">✓</span>' : '<span class="text-gray-300">—</span>'}
+        ${hasEmail ? '<span class="text-sky-600 font-bold">✓</span>' : '<span class="text-gray-300">—</span>'}
       </td>
       <td class="py-2.5 px-3 text-center">
-        ${hasFB ? '<span class="text-blue-600 font-bold">✓</span>' : '<span class="text-gray-300">—</span>'}
+        ${hasFB ? '<span class="text-sky-600 font-bold">✓</span>' : '<span class="text-gray-300">—</span>'}
       </td>
       <td class="py-2.5 px-3 text-center">
         ${hasIG ? '<span class="text-pink-600 font-bold">✓</span>' : '<span class="text-gray-300">—</span>'}
@@ -30851,13 +30653,13 @@ function selectOutreachProspect(prospectId) {
     emailEl.textContent = email || '—';
     emailEl.href = email ? `mailto:${email}` : '#';
     emailEl.classList.toggle('text-gray-400', !email);
-    emailEl.classList.toggle('text-blue-600', !!email);
+    emailEl.classList.toggle('text-sky-600', !!email);
   }
   if (fbEl) {
     fbEl.textContent = prospect.facebook ? 'View Page' : '—';
     fbEl.href = prospect.facebook || '#';
     fbEl.classList.toggle('text-gray-400', !prospect.facebook);
-    fbEl.classList.toggle('text-blue-600', !!prospect.facebook);
+    fbEl.classList.toggle('text-sky-600', !!prospect.facebook);
   }
   if (igEl) {
     igEl.textContent = prospect.instagram ? 'View Profile' : '—';
@@ -31333,6 +31135,10 @@ const emailCampaignState = {
 };
 
 function openEmailCampaignModal() {
+  if (!getUserTierLimits().emailSendsPerMonth) {
+    showUpgradePrompt('Email campaigns are available on Pro and Enterprise plans.');
+    return;
+  }
   const modal = document.getElementById('emailCampaignModal');
   if (!modal) return;
 
@@ -32193,7 +31999,7 @@ function showNotification(message, type = 'info') {
   // Create a simple toast notification
   const toast = document.createElement('div');
   toast.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 text-white font-medium transform transition-all duration-300 ${
-    type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500'
+    type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-sky-500'
   }`;
   toast.textContent = message;
   document.body.appendChild(toast);

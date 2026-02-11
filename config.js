@@ -20,7 +20,7 @@
     // Google Maps API Configuration
     // This key is restricted to 9x12pro.com domain in Google Cloud Console
     googleMaps: {
-      apiKey: "AIzaSyCNzXL-8UT-JI1Dy9wBN14KtH-UDMbeOlo"
+      apiKey: "AIzaSyBtJOvXZbysELE9k-maMLmT941I_AQw2k4"
     },
 
     // Facebook API Configuration (disabled - not currently in use)
@@ -31,13 +31,13 @@
     facebook: {
       enabled: false,
       appId: "", // Disabled until needed
-      version: "v18.0",
+      version: "v19.0",
       permissions: ['email', 'public_profile']
     },
 
     // App Configuration
     app: {
-      version: "2026-02-09-v579",
+      version: "2026-02-10-v586",
       environment: window.ENV_ENVIRONMENT || "production",
       enableDebugLogs: window.ENV_DEBUG === 'true' || false
     },
