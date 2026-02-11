@@ -142,25 +142,49 @@ export default async function handler(req, res) {
 
     // Separate domain-matching emails from others
     const domainMatchEmails = [];
+    const businessNameEmails = [];
     const otherEmails = [];
+
+    // Build business name keywords for matching (e.g., "A Plus Quality Heating" -> ["plus", "quality", "heating"])
+    const bizNameWords = (businessName || '').toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '')
+      .split(/\s+/)
+      .filter(w => w.length > 2 && !['the', 'and', 'inc', 'llc', 'ltd', 'corp', 'company'].includes(w));
 
     for (const email of allEmails) {
       const emailDomain = email.toLowerCase().split('@')[1];
+      const emailLocal = email.toLowerCase().split('@')[0]; // Part before @
       // Check if email domain contains the main part of the website domain
       // e.g., voltz99.com should match info@voltz99.com
       const websiteMainDomain = websiteDomain.split('.')[0]; // "voltz99" from "voltz99.com"
       if (websiteDomain && emailDomain && emailDomain.includes(websiteMainDomain)) {
         domainMatchEmails.push(email);
         console.log(`✨ Domain match email: ${email}`);
+      } else if (bizNameWords.length >= 2) {
+        // Check if the email local part contains business name keywords
+        // e.g., "aplusqualityheating3@gmail.com" matches "A Plus Quality Heating"
+        const matchingWords = bizNameWords.filter(w => emailLocal.includes(w));
+        if (matchingWords.length >= 2) {
+          businessNameEmails.push(email);
+          console.log(`✨ Business name match email: ${email} (matched: ${matchingWords.join(', ')})`);
+        } else {
+          otherEmails.push(email);
+          console.log(`⚠️ Non-matching email (skipping): ${email} (website: ${websiteDomain})`);
+        }
       } else {
         otherEmails.push(email);
         console.log(`⚠️ Non-matching email (skipping): ${email} (website: ${websiteDomain})`);
       }
     }
 
-    // STRICT MODE: Only use domain-matching emails
+    // Priority: domain-matching emails first, then business-name-matching emails
     // This prevents returning random emails from web designers, analytics, etc.
-    const emailsToVerify = domainMatchEmails.length > 0 ? domainMatchEmails : [];
+    // while still catching legitimate business emails on Gmail/Yahoo/etc.
+    const emailsToVerify = domainMatchEmails.length > 0
+      ? domainMatchEmails
+      : businessNameEmails.length > 0
+        ? businessNameEmails
+        : [];
 
     // Step 5: SMTP verify emails (keep only valid ones)
     console.log(`📧 Found ${emailsToVerify.length} domain-matching emails, verifying...`);
