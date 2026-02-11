@@ -75,11 +75,11 @@ This is a maintenance and performance risk. The file should be split into module
   - Note: Most innerHTML is used with internally-generated data, not user input
 
 ### Day 5: Error Tracking & Monitoring (Feb 10)
-- [ ] **Add Sentry error tracking** (DEFERRED - nice to have, not blocking launch)
-  - [ ] Create Sentry account/project
-  - [ ] Add Sentry SDK to app
-  - [ ] Configure error boundaries
-  - [ ] Test error reporting
+- [x] **Add Sentry error tracking** (LIVE in app.html)
+  - [x] Create Sentry account/project
+  - [x] Add Sentry SDK to app
+  - [x] Configure error boundaries
+  - [x] Test error reporting
 
 ### Day 6-7: Testing & Buffer (Feb 11-12)
 - [ ] Security testing
@@ -214,12 +214,13 @@ This is a maintenance and performance risk. The file should be split into module
 
 *Note: Tier enforcement implemented in app-main.js v580. Limits defined in TIER_LIMITS constant.*
 
-### Active API Endpoints (Feb 10)
+### Active API Endpoints (Feb 10, 19 total)
 | Endpoint | Purpose | Env Key |
 |----------|---------|---------|
 | `/api/scrapingdog-search` | Website search (primary) | `SCRAPINGDOG_API_KEY` |
 | `/api/brave-search` | Website search (fallback) | `BRAVE_API_KEY` |
 | `/api/here-search` | Prospect Radar (business discovery) | `HERE_API_KEY` |
+| `/api/google-places-search` | Business discovery fallback | `GOOGLE_PLACES_API_KEY` |
 | `/api/enrich-contact` | Contact enrichment (scrapes directly) | — |
 | `/api/scrape-email` | Email scraping from websites | — |
 | `/api/zip-neighbors` | ZIP radius search | — |
@@ -227,7 +228,8 @@ This is a maintenance and performance risk. The file should be split into module
 | `/api/square/*` | Payments (3 endpoints, not configured) | `SQUARE_*` |
 | `/api/send-renewal-email` | Contract renewal emails (future) | `RESEND_API_KEY` |
 
-**Search chain:** ScrapingDog → Brave (2 steps, no more fallbacks)
+**Search chain:** ScrapingDog → Brave (2 steps)
+**Business discovery:** HERE → Google Places fallback (when HERE < 5 results)
 
 ### API Costs (Current)
 | API | Cost |
@@ -235,11 +237,12 @@ This is a maintenance and performance risk. The file should be split into module
 | ScrapingDog | FREE (1,000/mo) |
 | Brave Search | FREE (2,000/mo) |
 | HERE | FREE (250,000/mo) |
+| Google Places | $32/1K requests ($200/mo free credit, 6K quota) |
 | Google Maps | ~$0.003/request (client-side only) |
 | Resend | FREE (100 emails/day) |
 | Supabase | FREE tier |
 
-**Estimated cost per user:** $0.05-0.20/month
+**Estimated cost per user:** $0.05-0.20/month (Google Places mostly covered by free credit)
 
 ### Client List Location
 - Full list: `9x12_operators_FULL_LIST.csv` (265 contacts)
@@ -249,7 +252,43 @@ This is a maintenance and performance risk. The file should be split into module
 
 ## PROGRESS LOG
 
-### 2026-02-10 (v580)
+### 2026-02-10 (v586 - Evening Session)
+
+**Search Progress Modal:**
+- [x] Added "Discovering Businesses" modal matching enrichment modal design
+- [x] Gradient header, progress bar, ETA, businesses found counter, rotating messages
+- [x] Cancel button to abort long multi-ZIP searches
+- [x] Suppressed toasts during search (modal provides all feedback now)
+
+**Category Select All Bug Fix:**
+- [x] Fixed "All" checkbox not working when category group is expanded
+- [x] Root cause: DOM sync in renderBusinessCategories() was overwriting toggleGroupSelection() changes
+- [x] Extracted syncCategoryCheckboxes() and added skipSync parameter
+
+**Search Quality Improvements:**
+- [x] Added non-US phone number filter (blocks +852, +234, etc. — only +1 allowed)
+- [x] Blocked analytics/tracking junk domains in both search APIs:
+  clustrmaps.com, similarweb.com, alexa.com, semrush.com, ahrefs.com, moz.com,
+  statshow.com, worthofweb.com, siteprice.org, hypestat.com, websiteoutlook.com
+
+**Repo Cleanup:**
+- [x] Committed and pushed all pending changes to GitHub
+- [x] Removed 11 dead API endpoints and 7 dev test pages (-5,357 lines)
+- [x] GitHub repo now fully synced with production deployment
+
+**Active API Endpoints Updated (19 → +1):**
+- [x] `/api/google-places-search` added to endpoints table (Google Places fallback)
+
+---
+
+### 2026-02-10 (v580-v586)
+
+**Google Places Fallback (v586):**
+- [x] `/api/google-places-search` — Text Search (New) API, triggers when HERE < 5 results
+- [x] Cross-source dedup by normalized name+address
+- [x] Rate limited: 20 req/min, 6,000/mo quota
+- [x] Facebook search fallback links (zero API cost)
+- [x] Junk result filters: no-contact, non-Latin names, street-address-only names
 
 **Tier Enforcement Synced with Landing Page:**
 - [x] Replaced FREE_TIER_LIMITS with unified TIER_LIMITS (free/pro/enterprise)
