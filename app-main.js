@@ -5584,8 +5584,25 @@ async function searchFoursquareBusinesses(zipCode, category, progressInfo = null
       console.log(`📍 Deduplicated: ${rawBusinesses.length} → ${businesses.length} unique businesses`);
     }
 
+    // Filter out junk results (applies to all sources)
+    const preFilterCount = businesses.length;
+    const streetSuffixPattern = /^[\d\s]*(?:N\.?\s|S\.?\s|E\.?\s|W\.?\s)?(?:\w+\s){0,2}(?:Ave(?:nue)?|St(?:reet)?|Rd|Road|Dr(?:ive)?|Blvd|Boulevard|Ln|Lane|Way|Ct|Court|Pl(?:ace)?|Cir(?:cle)?|Ter(?:race)?|Hwy|Highway|Pike|Loop)\.?(?:,.*)?$/i;
+    const nonLatinPattern = /[^\u0000-\u024F\u1E00-\u1EFF]/;
+    businesses = businesses.filter(biz => {
+      // Must have at least phone or website (otherwise un-contactable)
+      if (!biz.phone && !biz.website) return false;
+      // Filter non-Latin business names (Arabic, Chinese, etc.)
+      if (nonLatinPattern.test(biz.name || '')) return false;
+      // Filter names that are just street addresses
+      if (streetSuffixPattern.test((biz.name || '').trim())) return false;
+      return true;
+    });
+    if (businesses.length < preFilterCount) {
+      console.log(`🧹 Filtered junk: ${preFilterCount} → ${businesses.length} (removed ${preFilterCount - businesses.length} no-contact/invalid entries)`);
+    }
+
     // Google Places fallback when HERE returns few results
-    if (businesses.length < 3) {
+    if (businesses.length < 5) {
       console.log(`📍 HERE returned only ${businesses.length} results, trying Google Places fallback...`);
       try {
         const primaryTerm = searchTerms[0] || category;
@@ -5636,6 +5653,18 @@ async function searchFoursquareBusinesses(zipCode, category, progressInfo = null
       } catch (gpError) {
         console.warn('⚠️ Google Places fallback failed:', gpError.message);
       }
+    }
+
+    // Final junk filter (applies to both HERE and Google Places results)
+    const preFinalFilter = businesses.length;
+    businesses = businesses.filter(biz => {
+      if (!biz.phone && !biz.website) return false;
+      if (nonLatinPattern.test(biz.name || '')) return false;
+      if (streetSuffixPattern.test((biz.name || '').trim())) return false;
+      return true;
+    });
+    if (businesses.length < preFinalFilter) {
+      console.log(`🧹 Final filter: ${preFinalFilter} → ${businesses.length} (removed ${preFinalFilter - businesses.length} junk entries)`);
     }
 
     // Log enrichment stats
