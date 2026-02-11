@@ -29,16 +29,17 @@ This is a maintenance and performance risk. The file should be split into module
 ## WEEK 1: Security & Infrastructure (Feb 6-12)
 
 ### Day 1-2: Critical Security (Feb 6-7)
-- [ ] **Rotate API keys that are still in use** (Manual - requires dashboard access)
-  - [x] ~~Anthropic API key~~ - REMOVED (no longer using AI)
+- [x] **Rotate/remove API keys** (Feb 10)
+  - [x] ~~Anthropic API key~~ - REMOVED from Vercel (no longer using AI)
   - [x] ~~Hunter.io API key~~ - REMOVED (deleted hunter-email.js)
-  - [x] ~~Outscraper API key~~ - REMOVED (never worked)
-  - [ ] Revoke Google Maps API key, generate new
-  - [ ] Revoke Yelp API key, generate new
-  - [ ] Revoke Foursquare API key, generate new
-  - [ ] Revoke Serper API key, generate new
-  - [ ] Update all keys in Vercel environment variables
+  - [x] ~~Outscraper API key~~ - REMOVED from Vercel (never worked)
+  - [x] ~~Yelp API key~~ - REMOVED from Vercel + deleted api/yelp.js, yelp-details.js (not called)
+  - [x] ~~Serper API key~~ - REMOVED from Vercel + deleted api/serper-search.js (replaced by ScrapingDog)
+  - [x] ~~Foursquare API key~~ - REMOVED from Vercel + deleted api/foursquare-search.js (not called)
+  - [x] ~~Google Custom Search~~ - REMOVED from Vercel + deleted api/google-search.js (debug only)
+  - [x] Deleted test files: debug-data.js, test-enrichment-batch.js, scrapingdog-gws-test.js, test-search-comparison.js, validate-email.js, validate-website.js
   - [x] Remove hardcoded Google Maps key from config.js (use env var)
+  - [ ] Rotate Google Maps API key (still active, only key needing rotation)
 
 - [x] **Add rate limiting to API routes**
   - [x] Created rate-limit.js library
@@ -74,7 +75,7 @@ This is a maintenance and performance risk. The file should be split into module
   - Note: Most innerHTML is used with internally-generated data, not user input
 
 ### Day 5: Error Tracking & Monitoring (Feb 10)
-- [ ] **Add Sentry error tracking**
+- [ ] **Add Sentry error tracking** (DEFERRED - nice to have, not blocking launch)
   - [ ] Create Sentry account/project
   - [ ] Add Sentry SDK to app
   - [ ] Configure error boundaries
@@ -105,8 +106,8 @@ This is a maintenance and performance risk. The file should be split into module
   - [ ] SQUARE_ENTERPRISE_PLAN_ID
   - [ ] SUPABASE_SERVICE_ROLE_KEY
 
-- [ ] **Run SQL schema in Supabase**
-  - [ ] Run sql/subscription-tables.sql in Supabase SQL Editor
+- [x] **Run SQL schema in Supabase** (Feb 10)
+  - [x] Run sql/subscription-tables.sql in Supabase SQL Editor
 
 - [x] **Payment API endpoints** (Created)
   - [x] /api/square/create-checkout.js
@@ -117,21 +118,33 @@ This is a maintenance and performance risk. The file should be split into module
   - [x] pricing.html page
 
 ### Day 11-12: Usage Quotas & Limits (Feb 16-17)
-- [ ] **Implement usage tracking**
-  - [ ] Track enrichments per user
-  - [ ] Track API calls per user
-  - [ ] Store in Supabase
+- [x] **Implement usage tracking** (DONE - v580, Feb 10)
+  - [x] Track enrichments per user (monthly)
+  - [x] Track ZIP searches per user (monthly, unique)
+  - [x] Track email sends per user (monthly)
+  - [x] Store in Supabase daily_usage table (aggregated monthly)
 
-- [ ] **Enforce plan limits**
-  - [ ] Check quota before enrichment
-  - [ ] Show usage dashboard
-  - [ ] Overage warnings
+- [x] **Enforce plan limits** (DONE - v580, Feb 10)
+  - [x] Unified TIER_LIMITS for free/pro/enterprise
+  - [x] Monthly enrichment limits (free: 500, pro: 15K, enterprise: unlimited)
+  - [x] Campaign limits enforced for all tiers (free: 1, pro: 3)
+  - [x] ZIP search limits (free: 1 total, pro: 10/mo)
+  - [x] Email campaigns gated (free: blocked, pro: 1K/mo)
+  - [x] Facing slips gated (free: blocked)
+  - [x] CSV export gated (free: blocked)
+  - [x] Financial dashboard gated (free: blocked)
+  - [x] Upgrade prompt modal with link to register.html
+  - [ ] Show usage dashboard to user (nice to have - post-launch)
 
 ### Day 13: Database & Schema (Feb 18)
 - [ ] **Supabase schema updates**
   - [x] Created sql/subscription-tables.sql
-  - [ ] Run schema in Supabase
-  - [ ] Test row-level security policies
+  - [x] Added email_sends_used column to daily_usage (Feb 10)
+  - [x] Created increment_email_send_usage RPC (Feb 10)
+  - [x] Run sql/subscription-tables.sql in Supabase (Feb 10)
+  - [x] Tables: subscriptions, payments, invoices, usage_tracking, audit_logs
+  - [x] RLS policies + service role access
+  - [x] increment_usage() function
 
 ### Day 14: Final Testing & Soft Launch (Feb 19)
 - [ ] **Pre-launch checklist**
@@ -192,27 +205,41 @@ This is a maintenance and performance risk. The file should be split into module
 
 ## NOTES
 
-### Pricing Strategy (Draft - Updated)
-| Plan | Price | Limits |
-|------|-------|--------|
-| Starter | $49/mo | 500 enrichments, 1 campaign |
-| Pro | $99/mo | 2000 enrichments, 5 campaigns |
-| Enterprise | $199/mo | Unlimited enrichments, unlimited campaigns |
+### Pricing Strategy (FINALIZED - Feb 9, synced to landing page & code)
+| Plan | Price | Enrichments | Campaigns | ZIPs | Email Sends | Facing Slips | CSV | Financials |
+|------|-------|-------------|-----------|------|-------------|--------------|-----|------------|
+| Free | $0 | 500/mo | 1 | 1 total | Blocked | No | No | No |
+| Pro | $49/mo (early bird, reg $79) | 15K/mo | 3 | 10/mo | 1K/mo | Yes | Yes | Yes |
+| Enterprise | $99/mo (early bird, reg $139) | Unlimited | Unlimited | Unlimited | Unlimited | Yes | Yes | Yes |
 
-*Note: AI generations removed from pricing - feature was deleted*
+*Note: Tier enforcement implemented in app-main.js v580. Limits defined in TIER_LIMITS constant.*
+
+### Active API Endpoints (Feb 10)
+| Endpoint | Purpose | Env Key |
+|----------|---------|---------|
+| `/api/scrapingdog-search` | Website search (primary) | `SCRAPINGDOG_API_KEY` |
+| `/api/brave-search` | Website search (fallback) | `BRAVE_API_KEY` |
+| `/api/here-search` | Prospect Radar (business discovery) | `HERE_API_KEY` |
+| `/api/enrich-contact` | Contact enrichment (scrapes directly) | — |
+| `/api/scrape-email` | Email scraping from websites | — |
+| `/api/zip-neighbors` | ZIP radius search | — |
+| `/api/resend/*` | Email campaigns (6 endpoints) | `RESEND_API_KEY` |
+| `/api/square/*` | Payments (3 endpoints, not configured) | `SQUARE_*` |
+| `/api/send-renewal-email` | Contract renewal emails (future) | `RESEND_API_KEY` |
+
+**Search chain:** ScrapingDog → Brave (2 steps, no more fallbacks)
 
 ### API Costs (Current)
 | API | Cost |
 |-----|------|
-| Yelp Fusion | FREE (5,000/day) |
-| Serper | ~$0.001/search |
-| Google Maps | ~$0.003/request |
-| Foursquare | FREE (99,000/mo) |
-| HERE | FREE (250,000/mo) |
+| ScrapingDog | FREE (1,000/mo) |
 | Brave Search | FREE (2,000/mo) |
+| HERE | FREE (250,000/mo) |
+| Google Maps | ~$0.003/request (client-side only) |
+| Resend | FREE (100 emails/day) |
 | Supabase | FREE tier |
 
-**Estimated cost per user:** $0.10-0.50/month
+**Estimated cost per user:** $0.05-0.20/month
 
 ### Client List Location
 - Full list: `9x12_operators_FULL_LIST.csv` (265 contacts)
@@ -221,6 +248,25 @@ This is a maintenance and performance risk. The file should be split into module
 ---
 
 ## PROGRESS LOG
+
+### 2026-02-10 (v580)
+
+**Tier Enforcement Synced with Landing Page:**
+- [x] Replaced FREE_TIER_LIMITS with unified TIER_LIMITS (free/pro/enterprise)
+- [x] Changed usage tracking from daily to monthly aggregation
+- [x] Added gates: email campaigns, facing slips, CSV export, financial dashboard
+- [x] Campaign/enrichment/ZIP limits enforced for ALL tiers (not just free)
+- [x] Added new functions: canSendEmail, canUseFacingSlips, canExportCSV, canUseFinancials
+- [x] Added recordEmailSend() tracking
+- [x] Updated showUpgradePrompt to link to register.html instead of pricing.html
+- [x] Updated register.html info box to match new limits
+- [x] Rebuilt landing page with accurate pricing/features (v579)
+
+**SQL run in Supabase:**
+- [x] ALTER TABLE daily_usage ADD COLUMN email_sends_used
+- [x] CREATE FUNCTION increment_email_send_usage
+
+---
 
 ### 2026-02-06 (v505-v507)
 
@@ -269,3 +315,14 @@ This is a maintenance and performance risk. The file should be split into module
 | spark-mobile.html | DELETED | Spark system removed |
 | pipelineOutreachPanel | DELETED | Orphaned UI, never displayed |
 | AI Pitch tab in CRM | DELETED | AI pitch feature removed |
+| /api/yelp.js | DELETED | Not called from app (Feb 10) |
+| /api/yelp-details.js | DELETED | Not called from app (Feb 10) |
+| /api/serper-search.js | DELETED | Replaced by ScrapingDog+Brave (Feb 10) |
+| /api/google-search.js | DELETED | Only used in debug test (Feb 10) |
+| /api/foursquare-search.js | DELETED | Not called from app (Feb 10) |
+| /api/debug-data.js | DELETED | Hardcoded Supabase keys (Feb 10) |
+| /api/test-enrichment-batch.js | DELETED | Hardcoded Supabase keys (Feb 10) |
+| /api/scrapingdog-gws-test.js | DELETED | Test file (Feb 10) |
+| /api/test-search-comparison.js | DELETED | Test file (Feb 10) |
+| /api/validate-email.js | DELETED | Only used in dev/ files (Feb 10) |
+| /api/validate-website.js | DELETED | Only used in dev/ files (Feb 10) |

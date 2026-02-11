@@ -4,6 +4,33 @@
 
 import { checkRateLimit } from './lib/rate-limit.js';
 import { validateUrl, validateStringLength } from './lib/validation.js';
+import { createClient } from '@supabase/supabase-js';
+
+let supabase = null;
+
+function getSupabase() {
+  if (!supabase) {
+    const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (url && key) {
+      supabase = createClient(url, key);
+    }
+  }
+  return supabase;
+}
+
+function normalizeDomain(websiteUrl) {
+  try {
+    let url = websiteUrl;
+    if (!url.startsWith('http')) {
+      url = 'https://' + url;
+    }
+    const urlObj = new URL(url);
+    return urlObj.hostname.toLowerCase().replace(/^www\./, '');
+  } catch (e) {
+    return websiteUrl.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
+  }
+}
 
 export default async function handler(req, res) {
   // Only allow POST requests
@@ -37,6 +64,42 @@ export default async function handler(req, res) {
 
   try {
     console.log('🔍 Enriching contact info for:', businessName || websiteUrl);
+
+    // Check enrichment cache first
+    const domain = normalizeDomain(websiteUrl);
+    const sb = getSupabase();
+    if (sb) {
+      try {
+        const { data: cached } = await sb
+          .from('enrichment_cache')
+          .select('*')
+          .eq('website_domain', domain)
+          .gt('expires_at', new Date().toISOString())
+          .single();
+
+        if (cached) {
+          console.log(`✅ Enrichment cache hit: ${domain}`);
+          return res.status(200).json({
+            email: cached.email || '',
+            allEmails: cached.all_emails || [],
+            phone: cached.phone || '',
+            allPhones: [],
+            facebook: cached.facebook || '',
+            instagram: cached.instagram || '',
+            linkedin: cached.linkedin || '',
+            twitter: cached.twitter || '',
+            contactNames: cached.contact_names || [],
+            enriched: !!(cached.email || cached.facebook || cached.instagram || cached.linkedin || cached.twitter),
+            source: '9x12pro-scraper',
+            pagesScraped: cached.pages_scraped || 0,
+            cached: true
+          });
+        }
+      } catch (cacheErr) {
+        // Cache miss or table doesn't exist yet - continue with scraping
+        console.log(`📦 Cache miss for ${domain}, proceeding with scrape`);
+      }
+    }
 
     // Step 1: Fetch the website homepage
     const homepageData = await scrapePage(websiteUrl);
@@ -132,6 +195,30 @@ export default async function handler(req, res) {
     };
 
     console.log('✅ Enrichment complete:', enrichedData);
+
+    // Cache the result for future lookups
+    if (sb) {
+      try {
+        await sb.from('enrichment_cache').upsert({
+          website_domain: domain,
+          email: enrichedData.email || '',
+          phone: enrichedData.phone || '',
+          all_emails: enrichedData.allEmails || [],
+          facebook: enrichedData.facebook || '',
+          instagram: enrichedData.instagram || '',
+          linkedin: enrichedData.linkedin || '',
+          twitter: enrichedData.twitter || '',
+          contact_names: enrichedData.contactNames || [],
+          pages_scraped: enrichedData.pagesScraped || 0,
+          cached_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        }, { onConflict: 'website_domain' });
+        console.log(`💾 Cached enrichment for: ${domain}`);
+      } catch (cacheWriteErr) {
+        console.warn('Failed to cache enrichment:', cacheWriteErr.message);
+      }
+    }
+
     return res.status(200).json(enrichedData);
 
   } catch (error) {

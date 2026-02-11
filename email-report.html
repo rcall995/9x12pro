@@ -16,7 +16,7 @@
     .category-content.collapsed { max-height: 0; }
     .business-card { transition: all 0.2s ease; }
     .business-card:hover { transform: translateX(4px); }
-    .business-card.current-target { border-left: 4px solid #6366f1; background: #eef2ff; }
+    .business-card.current-target { border-left: 4px solid #0ea5e9; background: #f0f9ff; }
     .status-badge { font-size: 0.7rem; padding: 2px 8px; border-radius: 9999px; font-weight: 600; }
     .spot-fill { transition: width 0.5s ease; }
   </style>
@@ -25,7 +25,7 @@
   <!-- Loading State -->
   <div id="loading" class="fixed inset-0 bg-white flex items-center justify-center z-50">
     <div class="text-center">
-      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600 mx-auto mb-4"></div>
       <p class="text-gray-600">Loading...</p>
     </div>
   </div>
@@ -35,7 +35,7 @@
     <div class="text-center p-8">
       <h1 class="text-2xl font-bold text-gray-800 mb-4">Login Required</h1>
       <p class="text-gray-600 mb-6">Please log in to 9x12 Pro to access this report.</p>
-      <a href="login.html" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+      <a href="login.html" class="px-6 py-3 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition">
         Go to Login
       </a>
     </div>
@@ -44,7 +44,7 @@
   <!-- Main App -->
   <div id="app" class="hidden">
     <!-- Header -->
-    <header class="bg-gradient-to-r from-indigo-600 to-purple-700 text-white shadow-lg no-print">
+    <header class="bg-gradient-to-r from-sky-600 to-cyan-500 text-white shadow-lg no-print">
       <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
         <div class="flex items-center gap-4">
           <a href="app.html" class="text-white/80 hover:text-white text-sm">&larr; Back to App</a>
@@ -66,10 +66,10 @@
           <!-- Campaign Selector -->
           <div class="flex items-center gap-2">
             <label class="text-sm font-medium text-gray-700">Campaign:</label>
-            <select id="campaign-select" onchange="loadCampaignState()" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-w-[250px]">
+            <select id="campaign-select" onchange="loadCampaignState()" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 min-w-[250px]">
               <option value="">Select a campaign...</option>
             </select>
-            <button onclick="refreshCampaigns()" class="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title="Refresh campaigns">
+            <button onclick="refreshCampaigns()" class="p-2 text-gray-500 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition" title="Refresh campaigns">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
             </button>
           </div>
@@ -78,7 +78,7 @@
           <div class="flex items-center gap-3">
             <label class="text-sm font-medium text-gray-700">Target Spots:</label>
             <input type="number" id="spot-target" value="16" min="1" max="50" onchange="updateSpotTracker()"
-                   class="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                   class="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500">
           </div>
 
           <!-- ZIP Filter -->
@@ -91,7 +91,7 @@
 
           <!-- Actions -->
           <div class="flex gap-2 flex-wrap">
-            <button onclick="saveState()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium">
+            <button onclick="saveState()" class="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition text-sm font-medium">
               Save
             </button>
             <button onclick="openAddBusinessModal()" class="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition text-sm font-medium">
@@ -103,7 +103,7 @@
             <button onclick="exportFullCSV()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium">
               Export All
             </button>
-            <button onclick="exportContactSheet()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium">
+            <button onclick="exportContactSheet()" class="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition text-sm font-medium">
               Contact Sheet
             </button>
           </div>
@@ -116,7 +116,7 @@
             <label class="text-sm font-medium text-gray-700">Search:</label>
             <div class="relative">
               <input type="text" id="business-search" onkeyup="handleSearch(event)" placeholder="Name, email, phone..."
-                     class="pl-9 pr-8 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 w-48">
+                     class="pl-9 pr-8 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 w-48">
               <svg class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
               </svg>
@@ -137,7 +137,7 @@
           <!-- Sort Options -->
           <div class="flex items-center gap-3 ml-auto">
             <label class="text-sm font-medium text-gray-700">Sort Categories:</label>
-            <select id="category-sort" onchange="renderCategories()" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+            <select id="category-sort" onchange="renderCategories()" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500">
               <option value="priority">By Priority (Default)</option>
               <option value="alpha">Alphabetical</option>
               <option value="count">By Count (Most First)</option>
@@ -145,7 +145,7 @@
             </select>
 
             <label class="text-sm font-medium text-gray-700 ml-4">Sort Businesses:</label>
-            <select id="business-sort" onchange="renderCategories()" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+            <select id="business-sort" onchange="renderCategories()" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500">
               <option value="status">By Status</option>
               <option value="rating">By Rating</option>
               <option value="reviews">By Reviews</option>
@@ -165,7 +165,7 @@
           </span>
           <div class="flex gap-4 text-sm">
             <span class="text-green-600 font-medium"><span id="stat-sold">0</span> Sold</span>
-            <span class="text-blue-600 font-medium"><span id="stat-attempting">0</span> In Progress</span>
+            <span class="text-sky-600 font-medium"><span id="stat-attempting">0</span> In Progress</span>
             <span class="text-gray-600 font-medium"><span id="stat-queue">0</span> In Queue</span>
           </div>
         </div>
@@ -188,10 +188,10 @@
     <div class="bg-white rounded-xl shadow-2xl p-6 max-w-lg w-full mx-4">
       <h3 class="text-lg font-bold text-gray-800 mb-4">Edit Notes</h3>
       <input type="hidden" id="notes-business-id">
-      <textarea id="notes-text" rows="4" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 resize-none" placeholder="Add notes about this business..."></textarea>
+      <textarea id="notes-text" rows="4" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 resize-none" placeholder="Add notes about this business..."></textarea>
       <div class="flex justify-end gap-2 mt-4">
         <button onclick="closeNotesModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">Cancel</button>
-        <button onclick="saveNotes()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">Save Notes</button>
+        <button onclick="saveNotes()" class="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition">Save Notes</button>
       </div>
     </div>
   </div>
@@ -202,10 +202,10 @@
       <h3 class="text-lg font-bold text-gray-800 mb-2">Edit Email Address</h3>
       <p class="text-sm text-gray-500 mb-4" id="edit-email-business-name"></p>
       <input type="hidden" id="edit-email-business-id">
-      <input type="email" id="edit-email-input" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="email@example.com">
+      <input type="email" id="edit-email-input" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500" placeholder="email@example.com">
       <div class="flex justify-end gap-2 mt-4">
         <button onclick="closeEditEmailModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">Cancel</button>
-        <button onclick="saveEditedEmail()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">Save Email</button>
+        <button onclick="saveEditedEmail()" class="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition">Save Email</button>
       </div>
     </div>
   </div>
@@ -326,7 +326,7 @@
     // Status definitions
     const STATUSES = {
       queue: { label: 'In Queue', color: 'gray', bg: 'bg-gray-100 text-gray-700' },
-      attempt1: { label: 'Attempt 1', color: 'blue', bg: 'bg-blue-100 text-blue-700' },
+      attempt1: { label: 'Attempt 1', color: 'blue', bg: 'bg-sky-100 text-sky-700' },
       attempt2: { label: 'Attempt 2', color: 'orange', bg: 'bg-orange-100 text-orange-700' },
       sold: { label: 'SOLD', color: 'green', bg: 'bg-green-500 text-white' },
       declined: { label: 'Declined', color: 'red', bg: 'bg-red-100 text-red-700' },
@@ -542,7 +542,7 @@
       const sortedZips = [...zips].sort();
 
       container.innerHTML = `
-        <label class="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 border border-blue-300 rounded cursor-pointer hover:bg-blue-200 ${outreachState.selectedZips.length === 0 ? 'ring-2 ring-blue-500' : ''}">
+        <label class="inline-flex items-center gap-1 px-2 py-1 text-xs bg-sky-100 border border-sky-300 rounded cursor-pointer hover:bg-sky-200 ${outreachState.selectedZips.length === 0 ? 'ring-2 ring-sky-500' : ''}">
           <input type="checkbox" ${outreachState.selectedZips.length === 0 ? 'checked' : ''} onchange="toggleAllZips(this)" class="w-3 h-3">
           <span class="font-medium">ALL</span>
         </label>
@@ -551,7 +551,7 @@
       sortedZips.forEach(zip => {
         const checked = outreachState.selectedZips.includes(zip);
         container.innerHTML += `
-          <label class="inline-flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 border border-gray-300 rounded cursor-pointer hover:bg-gray-200 ${checked ? 'ring-2 ring-indigo-500 bg-indigo-50' : ''}">
+          <label class="inline-flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 border border-gray-300 rounded cursor-pointer hover:bg-gray-200 ${checked ? 'ring-2 ring-sky-500 bg-sky-50' : ''}">
             <input type="checkbox" value="${zip}" ${checked ? 'checked' : ''} onchange="toggleZip(this)" class="w-3 h-3">
             <span>${zip}</span>
           </label>
@@ -615,7 +615,7 @@
       const sortedCats = [...categories.entries()].sort((a, b) => getCategoryPriority(a[0]) - getCategoryPriority(b[0]));
 
       container.innerHTML = `
-        <label class="inline-flex items-center gap-1 px-2 py-1 text-xs bg-indigo-100 border border-indigo-300 rounded cursor-pointer hover:bg-indigo-200 ${selectedCategories.length === 0 ? 'ring-2 ring-indigo-500' : ''}">
+        <label class="inline-flex items-center gap-1 px-2 py-1 text-xs bg-sky-100 border border-sky-300 rounded cursor-pointer hover:bg-sky-200 ${selectedCategories.length === 0 ? 'ring-2 ring-sky-500' : ''}">
           <input type="checkbox" ${selectedCategories.length === 0 ? 'checked' : ''} onchange="toggleAllCategories(this)" class="w-3 h-3">
           <span class="font-medium">ALL (${categories.size})</span>
         </label>
@@ -625,7 +625,7 @@
         const checked = selectedCategories.includes(cat);
         const shortCat = cat.length > 15 ? cat.substring(0, 15) + '...' : cat;
         container.innerHTML += `
-          <label class="inline-flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 border border-gray-300 rounded cursor-pointer hover:bg-gray-200 ${checked ? 'ring-2 ring-indigo-500 bg-indigo-50' : ''}" title="${escapeHtml(cat)}">
+          <label class="inline-flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 border border-gray-300 rounded cursor-pointer hover:bg-gray-200 ${checked ? 'ring-2 ring-sky-500 bg-sky-50' : ''}" title="${escapeHtml(cat)}">
             <input type="checkbox" value="${escapeHtml(cat)}" ${checked ? 'checked' : ''} onchange="toggleCategoryFilter(this)" class="w-3 h-3">
             <span>${escapeHtml(shortCat)} (${count})</span>
           </label>
@@ -946,7 +946,7 @@
                 <span class="text-sm text-gray-500">(${businesses.length})</span>
               </div>
               <div class="flex items-center gap-3">
-                <span class="status-badge ${soldCount > 0 ? 'bg-green-500 text-white' : attemptingCount > 0 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-600'}">
+                <span class="status-badge ${soldCount > 0 ? 'bg-green-500 text-white' : attemptingCount > 0 ? 'bg-sky-500 text-white' : 'bg-gray-200 text-gray-600'}">
                   ${soldCount > 0 ? soldCount + ' SOLD' : categoryStatus}
                 </span>
                 <svg class="w-5 h-5 text-gray-400 transform transition-transform category-chevron-${catIndex}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -992,17 +992,17 @@
           <div class="flex items-start justify-between gap-4">
             <div class="flex-1">
               <div class="flex items-center gap-2 mb-1">
-                ${isTarget && !isDone ? '<span class="text-indigo-600 font-bold">→</span>' : `<span class="text-gray-400 text-sm">${index + 1}.</span>`}
+                ${isTarget && !isDone ? '<span class="text-sky-600 font-bold">→</span>' : `<span class="text-gray-400 text-sm">${index + 1}.</span>`}
                 <span class="font-semibold text-gray-900">${escapeHtml(business.businessName || business.name || '')}</span>
                 ${business.rating ? `<span class="text-yellow-500 text-sm">⭐${business.rating}</span>` : ''}
                 ${business.userRatingsTotal ? `<span class="text-gray-400 text-xs">(${business.userRatingsTotal})</span>` : ''}
               </div>
               <div class="flex items-center gap-3 text-sm flex-wrap">
-                <a href="mailto:${escapeHtml(getDisplayEmail(business, state))}" class="text-blue-600 hover:underline">${escapeHtml(getDisplayEmail(business, state))}</a>
+                <a href="mailto:${escapeHtml(getDisplayEmail(business, state))}" class="text-sky-600 hover:underline">${escapeHtml(getDisplayEmail(business, state))}</a>
                 <button onclick="copyEmail('${escapeHtml(getDisplayEmail(business, state))}')" class="text-gray-400 hover:text-gray-600" title="Copy email">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                 </button>
-                <button onclick="openEditEmailModal('${id}', '${escapeHtml(getDisplayEmail(business, state))}')" class="text-gray-400 hover:text-blue-600" title="Edit email">
+                <button onclick="openEditEmailModal('${id}', '${escapeHtml(getDisplayEmail(business, state))}')" class="text-gray-400 hover:text-sky-600" title="Edit email">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                 </button>
                 ${state.editedEmail ? '<span class="text-xs text-green-600">(edited)</span>' : ''}
@@ -1025,7 +1025,7 @@
               <div class="flex flex-wrap gap-1 justify-end">
                 ${!isDone ? `
                   ${state.status === 'queue' ? `
-                    <button onclick="markAttempt1('${id}')" class="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700">Attempt 1</button>
+                    <button onclick="markAttempt1('${id}')" class="px-2 py-1 text-xs bg-sky-600 text-white rounded hover:bg-sky-700">Attempt 1</button>
                   ` : ''}
                   ${state.status === 'attempt1' ? `
                     <button onclick="markAttempt2('${id}')" class="px-2 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700">Attempt 2</button>

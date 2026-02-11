@@ -1,9 +1,23 @@
 // Vercel Serverless Function - HERE Places Search
-// FREE: 250,000 searches/month!
+// Free tier: ~1,000/month per API, then tiered pricing (~$0.59/1K)
 // Fast direct API - no scraping
 // Docs: https://developer.here.com/documentation/geocoding-search-api/dev_guide/topics/endpoint-discover-brief.html
 
 import { checkRateLimit } from './lib/rate-limit.js';
+
+// In-memory geocode cache: ZIP -> { lat, lng, location, timestamp }
+// Persists across requests within the same Vercel serverless instance (~5-15 min)
+const geocodeCache = {};
+const GEOCODE_CACHE_TTL = 1000 * 60 * 60; // 1 hour
+
+function getCachedGeocode(zip5) {
+  const entry = geocodeCache[zip5];
+  if (entry && (Date.now() - entry.timestamp) < GEOCODE_CACHE_TTL) {
+    return entry;
+  }
+  if (entry) delete geocodeCache[zip5];
+  return null;
+}
 
 export default async function handler(req, res) {
   // Allow both GET and POST
@@ -35,26 +49,38 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Step 1: Geocode the ZIP code to get coordinates
-    const geocodeUrl = `https://geocode.search.hereapi.com/v1/geocode?q=${encodeURIComponent(zipCode + ',USA')}&apiKey=${HERE_API_KEY}`;
+    // Step 1: Geocode the ZIP code to get coordinates (with caching)
+    const zip5 = zipCode.substring(0, 5);
+    const cached = getCachedGeocode(zip5);
+    let lat, lng, location;
 
-    console.log('🔍 HERE geocoding ZIP:', zipCode);
+    if (cached) {
+      lat = cached.lat;
+      lng = cached.lng;
+      location = cached.location;
+      console.log(`📍 ZIP ${zip5} -> ${lat}, ${lng} (cached)`);
+    } else {
+      const geocodeUrl = `https://geocode.search.hereapi.com/v1/geocode?q=${encodeURIComponent(zip5 + ',USA')}&apiKey=${HERE_API_KEY}`;
+      console.log('🔍 HERE geocoding ZIP:', zip5);
 
-    const geocodeResponse = await fetch(geocodeUrl);
-    const geocodeData = await geocodeResponse.json();
+      const geocodeResponse = await fetch(geocodeUrl);
+      const geocodeData = await geocodeResponse.json();
 
-    if (!geocodeData.items || geocodeData.items.length === 0) {
-      return res.status(400).json({
-        error: 'Could not find location for ZIP code',
-        zipCode: zipCode
-      });
+      if (!geocodeData.items || geocodeData.items.length === 0) {
+        return res.status(400).json({
+          error: 'Could not find location for ZIP code',
+          zipCode: zipCode
+        });
+      }
+
+      location = geocodeData.items[0];
+      lat = location.position.lat;
+      lng = location.position.lng;
+
+      // Cache for future requests
+      geocodeCache[zip5] = { lat, lng, location, timestamp: Date.now() };
+      console.log(`📍 ZIP ${zip5} -> ${lat}, ${lng} (fetched & cached)`);
     }
-
-    const location = geocodeData.items[0];
-    const lat = location.position.lat;
-    const lng = location.position.lng;
-
-    console.log(`📍 ZIP ${zipCode} -> ${lat}, ${lng}`);
 
     // Step 2: Search for businesses near those coordinates using Discover endpoint
     const searchQuery = category || 'businesses';
@@ -151,6 +177,7 @@ export default async function handler(req, res) {
         rating: 0,
         reviewCount: 0,
         categories: primaryCategory,
+        hereCategoryIds: (place.categories || []).map(c => c.id),
         lat: place.position?.lat || 0,
         lng: place.position?.lng || 0,
         isClosed: false,

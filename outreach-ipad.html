@@ -27,8 +27,8 @@
             transition: background-color 0.15s ease;
         }
         .prospect-item.selected {
-            background-color: #dbeafe;
-            border-left: 4px solid #3b82f6;
+            background-color: #e0f2fe;
+            border-left: 4px solid #0ea5e9;
         }
         .prospect-item.contacted {
             opacity: 0.7;
@@ -59,7 +59,7 @@
 </head>
 <body class="bg-gray-100 h-full flex flex-col">
     <!-- Header -->
-    <header class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-4 py-3 flex items-center justify-between shadow-lg flex-shrink-0">
+    <header class="bg-gradient-to-r from-sky-600 to-cyan-500 text-white px-4 py-3 flex items-center justify-between shadow-lg flex-shrink-0">
         <div class="flex items-center gap-3">
             <a href="/app.html" class="p-2 hover:bg-white/20 rounded-lg transition-colors">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -312,7 +312,7 @@
 
     <!-- Rapid Fire Modal -->
     <div id="rapidFireModal" class="fixed inset-0 bg-black/90 hidden flex-col z-50">
-        <div class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-4 flex items-center justify-between">
+        <div class="bg-gradient-to-r from-sky-600 to-cyan-500 text-white p-4 flex items-center justify-between">
             <div class="flex items-center gap-3">
                 <button onclick="closeRapidFire()" class="p-2 hover:bg-white/20 rounded-lg">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -421,7 +421,7 @@
 
             <div class="flex gap-3 mt-6">
                 <button onclick="closeResponseCapture()" class="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold">Cancel</button>
-                <button onclick="saveResponse()" class="flex-1 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl font-semibold">
+                <button onclick="saveResponse()" class="flex-1 py-3 bg-gradient-to-r from-sky-500 to-cyan-500 text-white rounded-xl font-semibold">
                     Save & Move to Negotiating
                 </button>
             </div>
@@ -1622,7 +1622,7 @@
                 <div id="contactDisplay">
                     <div class="flex items-center justify-between mb-2">
                         <span class="text-xs text-gray-500 font-medium">Contact Info</span>
-                        <button onclick="toggleHubEditMode()" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">✏️ Edit</button>
+                        <button onclick="toggleHubEditMode()" class="text-xs text-sky-600 hover:text-sky-800 font-medium">✏️ Edit</button>
                     </div>
                     <div class="grid grid-cols-2 gap-2">
                         <div class="bg-white rounded-lg p-2 border">
@@ -1822,7 +1822,7 @@
 
             const config = {
                 sms: { icon: '📱', text: 'Copy & Open Google Voice', color: 'from-green-500 to-emerald-600' },
-                email: { icon: '📧', text: 'Copy & Open Email', color: 'from-blue-500 to-blue-600' },
+                email: { icon: '📧', text: 'Copy & Open Email', color: 'from-sky-500 to-sky-600' },
                 facebook: { icon: '📘', text: 'Copy & Open FB Page', color: 'from-blue-600 to-blue-700' },
                 instagram: { icon: '📷', text: 'Copy & Open IG Profile', color: 'from-pink-500 to-purple-600' },
                 linkedin: { icon: '💼', text: 'Copy & Open LinkedIn', color: 'from-sky-500 to-sky-600' },
@@ -2725,7 +2725,7 @@
                             </span>
                         </div>
                         <div class="flex gap-2">
-                            <button onclick="startRapidFire('${zip}')" class="flex-1 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg font-semibold text-sm hover:shadow-lg transition-shadow">
+                            <button onclick="startRapidFire('${zip}')" class="flex-1 py-2 bg-gradient-to-r from-sky-500 to-cyan-500 text-white rounded-lg font-semibold text-sm hover:shadow-lg transition-shadow">
                                 ⚡ Work This ZIP
                             </button>
                             <button onclick="expandZipGroup('${zip}')" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium text-sm hover:bg-gray-300">

@@ -92,7 +92,18 @@
       "Bash(git -C \"C:/Users/rich/9x12pro\" commit -m \"$\\(cat <<''EOF''\nAdd AI Pitch tab, Edit Contact feature, remove dead code \\(v506\\)\n\n- Add AI Pitch tab to CRM modal with Text/Email generators\n- Enable Edit Contact Info for prospects \\(was \"coming soon\"\\)\n- Remove Spark system \\(~650 lines\\): spark-mobile.html, generate-comment.js\n- Remove dead APIs: hunter-email.js, outscraper.js, outscraper-search.js\n- Add rate-limit.js utility for API endpoints\n- Add TODO-LAUNCH.md for launch tracking\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git -C \"C:/Users/rich/9x12pro\" push)",
       "WebFetch(domain:serper.dev)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "WebFetch(domain:pcforms.com)",
+      "WebFetch(domain:www.templateroller.com)",
+      "WebFetch(domain:formspal.com)",
+      "Bash(while read line)",
+      "Bash(do)",
+      "Bash(if [ $line -gt 15000 ])",
+      "Bash([ $line -lt 35000 ])",
+      "Bash(then)",
+      "Bash(fi)",
+      "Bash(python -m json.tool:*)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": []

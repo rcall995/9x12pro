@@ -33,14 +33,14 @@
     }
   </style>
 </head>
-<body class="bg-gradient-to-br from-indigo-50 via-white to-purple-50 min-h-screen">
+<body class="bg-gradient-to-br from-sky-50 via-white to-purple-50 min-h-screen">
   <!-- Header -->
   <header class="bg-white shadow-sm">
     <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-      <a href="/" class="text-2xl font-bold text-indigo-600">9x12 Pro</a>
+      <a href="/" class="text-2xl font-bold text-sky-600">9x12 Pro</a>
       <div class="flex gap-4">
-        <a href="/login.html" class="px-4 py-2 text-gray-600 hover:text-indigo-600">Login</a>
-        <a href="/register.html" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Get Started</a>
+        <a href="/login.html" class="px-4 py-2 text-gray-600 hover:text-sky-600">Login</a>
+        <a href="/register.html" class="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700">Get Started</a>
       </div>
     </div>
   </header>
@@ -59,9 +59,9 @@
     </div>
 
     <!-- Pricing Cards -->
-    <div class="grid md:grid-cols-4 gap-6 max-w-6xl mx-auto">
+    <div class="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
       <!-- Free Plan -->
-      <div class="plan-card bg-white rounded-2xl shadow-lg p-6 border border-gray-200 relative">
+      <div class="plan-card bg-white rounded-2xl shadow-lg p-8 border border-gray-200 relative">
         <div class="mb-6">
           <h3 class="text-xl font-bold text-gray-900 mb-2">Free</h3>
           <p class="text-gray-500 text-sm">Try before you buy</p>
@@ -79,15 +79,23 @@
           </li>
           <li class="flex items-center gap-2">
             <span class="text-green-500">✓</span>
-            <span class="text-gray-600">25 Enrichments/day</span>
+            <span class="text-gray-600">1 ZIP Code</span>
           </li>
           <li class="flex items-center gap-2">
             <span class="text-green-500">✓</span>
-            <span class="text-gray-600">1 ZIP search/day</span>
+            <span class="text-gray-600">500 Enrichments/month</span>
           </li>
           <li class="flex items-center gap-2">
             <span class="text-green-500">✓</span>
-            <span class="text-gray-600">5 Categories/day</span>
+            <span class="text-gray-600">Basic CRM</span>
+          </li>
+          <li class="flex items-center gap-2">
+            <span class="text-red-400">✗</span>
+            <span class="text-gray-400">No Email Sends</span>
+          </li>
+          <li class="flex items-center gap-2">
+            <span class="text-red-400">✗</span>
+            <span class="text-gray-400">No Facing Slips</span>
           </li>
         </ul>
 
@@ -97,17 +105,22 @@
         </a>
       </div>
 
-      <!-- Starter Plan -->
-      <div class="plan-card bg-white rounded-2xl shadow-lg p-6 border border-gray-200 relative">
-        <div class="mb-6">
-          <h3 class="text-xl font-bold text-gray-900 mb-2">Starter</h3>
-          <p class="text-gray-500 text-sm">Perfect for getting started</p>
+      <!-- Pro Plan (Popular) -->
+      <div class="plan-card bg-white rounded-2xl shadow-xl p-8 border-2 border-sky-500 relative">
+        <div class="popular-badge bg-sky-500 text-white text-sm font-semibold px-4 py-1 rounded-full">
+          Most Popular
         </div>
 
         <div class="mb-6">
+          <h3 class="text-xl font-bold text-gray-900 mb-2">Pro</h3>
+          <p class="text-gray-500 text-sm">For growing operations</p>
+        </div>
+
+        <div class="mb-2">
           <span class="text-4xl font-bold text-gray-900">$49</span>
           <span class="text-gray-500">/month</span>
         </div>
+        <p class="text-sm text-sky-600 font-medium mb-6">Early-bird price (regular $79/mo)</p>
 
         <ul class="space-y-3 mb-8">
           <li class="flex items-center gap-2">
@@ -116,65 +129,28 @@
           </li>
           <li class="flex items-center gap-2">
             <span class="text-green-500">✓</span>
-            <span class="text-gray-600">Unlimited Enrichments</span>
+            <span class="text-gray-600">10 ZIP Codes</span>
           </li>
           <li class="flex items-center gap-2">
             <span class="text-green-500">✓</span>
-            <span class="text-gray-600">Unlimited Searches</span>
+            <span class="text-gray-600">15,000 Enrichments/month</span>
           </li>
           <li class="flex items-center gap-2">
             <span class="text-green-500">✓</span>
-            <span class="text-gray-600">Email Support</span>
-          </li>
-        </ul>
-
-        <button onclick="selectPlan('starter')"
-                class="w-full py-3 px-4 bg-gray-100 text-gray-800 font-semibold rounded-lg hover:bg-gray-200 transition">
-          Get Started
-        </button>
-      </div>
-
-      <!-- Pro Plan (Popular) -->
-      <div class="plan-card bg-white rounded-2xl shadow-xl p-8 border-2 border-indigo-500 relative">
-        <div class="popular-badge bg-indigo-500 text-white text-sm font-semibold px-4 py-1 rounded-full">
-          Most Popular
-        </div>
-
-        <div class="mb-6">
-          <h3 class="text-xl font-bold text-gray-900 mb-2">Professional</h3>
-          <p class="text-gray-500 text-sm">For growing operations</p>
-        </div>
-
-        <div class="mb-6">
-          <span class="text-4xl font-bold text-gray-900">$99</span>
-          <span class="text-gray-500">/month</span>
-        </div>
-
-        <ul class="space-y-3 mb-8">
-          <li class="flex items-center gap-2">
-            <span class="text-green-500">✓</span>
-            <span class="text-gray-600">10 Postcard Campaigns</span>
-          </li>
-          <li class="flex items-center gap-2">
-            <span class="text-green-500">✓</span>
-            <span class="text-gray-600">2,000 Business Enrichments</span>
-          </li>
-          <li class="flex items-center gap-2">
-            <span class="text-green-500">✓</span>
-            <span class="text-gray-600">CRM & Pipeline</span>
-          </li>
-          <li class="flex items-center gap-2">
-            <span class="text-green-500">✓</span>
-            <span class="text-gray-600">Priority Support</span>
+            <span class="text-gray-600">1,000 Email Sends/month</span>
           </li>
           <li class="flex items-center gap-2">
             <span class="text-green-500">✓</span>
             <span class="text-gray-600">Facing Slip Generator</span>
           </li>
+          <li class="flex items-center gap-2">
+            <span class="text-green-500">✓</span>
+            <span class="text-gray-600">Full CRM & Pipeline</span>
+          </li>
         </ul>
 
         <button onclick="selectPlan('pro')"
-                class="w-full py-3 px-4 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition">
+                class="w-full py-3 px-4 bg-sky-600 text-white font-semibold rounded-lg hover:bg-sky-700 transition">
           Get Started
         </button>
       </div>
@@ -186,19 +162,20 @@
           <p class="text-gray-500 text-sm">For power users</p>
         </div>
 
-        <div class="mb-6">
-          <span class="text-4xl font-bold text-gray-900">$199</span>
+        <div class="mb-2">
+          <span class="text-4xl font-bold text-gray-900">$99</span>
           <span class="text-gray-500">/month</span>
         </div>
+        <p class="text-sm text-sky-600 font-medium mb-6">Early-bird price (regular $139/mo)</p>
 
         <ul class="space-y-3 mb-8">
           <li class="flex items-center gap-2">
             <span class="text-green-500">✓</span>
-            <span class="text-gray-600 font-semibold">Unlimited Postcard Campaigns</span>
+            <span class="text-gray-600 font-semibold">Unlimited Campaigns</span>
           </li>
           <li class="flex items-center gap-2">
             <span class="text-green-500">✓</span>
-            <span class="text-gray-600 font-semibold">Unlimited AI Generations</span>
+            <span class="text-gray-600 font-semibold">Unlimited ZIP Codes</span>
           </li>
           <li class="flex items-center gap-2">
             <span class="text-green-500">✓</span>
@@ -206,15 +183,15 @@
           </li>
           <li class="flex items-center gap-2">
             <span class="text-green-500">✓</span>
-            <span class="text-gray-600">CRM & Pipeline</span>
+            <span class="text-gray-600 font-semibold">Unlimited Email Sends</span>
           </li>
           <li class="flex items-center gap-2">
             <span class="text-green-500">✓</span>
-            <span class="text-gray-600">Phone & Email Support</span>
+            <span class="text-gray-600">All Features Included</span>
           </li>
           <li class="flex items-center gap-2">
             <span class="text-green-500">✓</span>
-            <span class="text-gray-600">All Features</span>
+            <span class="text-gray-600">Priority Support</span>
           </li>
         </ul>
 
@@ -241,19 +218,19 @@
         </div>
 
         <div class="bg-white rounded-xl p-6 shadow-sm">
-          <h3 class="font-semibold text-lg mb-2">Is there a free trial?</h3>
-          <p class="text-gray-600">Yes! New users get 10 AI generations and 50 enrichments free to try the platform.</p>
+          <h3 class="font-semibold text-lg mb-2">Is there a free plan?</h3>
+          <p class="text-gray-600">Yes! The Free plan includes 1 campaign, 1 ZIP code, and 500 enrichments per month — no credit card required.</p>
         </div>
       </div>
     </div>
 
     <!-- CTA -->
-    <div class="mt-24 text-center bg-indigo-600 rounded-3xl p-12 text-white">
+    <div class="mt-24 text-center bg-sky-600 rounded-3xl p-12 text-white">
       <h2 class="text-3xl font-bold mb-4">Ready to grow your business?</h2>
-      <p class="text-indigo-100 mb-8 max-w-xl mx-auto">
+      <p class="text-sky-100 mb-8 max-w-xl mx-auto">
         Join hundreds of 9x12 operators who are streamlining their sales process.
       </p>
-      <a href="/register.html" class="inline-block px-8 py-4 bg-white text-indigo-600 font-semibold rounded-lg hover:bg-indigo-50 transition">
+      <a href="/register.html" class="inline-block px-8 py-4 bg-white text-sky-600 font-semibold rounded-lg hover:bg-sky-50 transition">
         Start Your Free Trial
       </a>
     </div>
