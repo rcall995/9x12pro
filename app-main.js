@@ -4872,6 +4872,181 @@ function cancelEnrichment() {
   console.log('🛑 Enrichment cancelled by user');
 }
 
+// ============================================================================
+// SEARCH PROGRESS MODAL
+// Fun, engaging UI while discovering businesses
+// ============================================================================
+
+const SEARCH_PROGRESS_MESSAGES = [
+  { icon: '🔍', text: 'Scanning local businesses...' },
+  { icon: '📍', text: 'Mapping your territory...' },
+  { icon: '📞', text: 'Checking phone numbers...' },
+  { icon: '🏢', text: 'Finding decision makers...' },
+  { icon: '🗺️', text: 'Exploring the neighborhood...' },
+  { icon: '⚡', text: 'Working at lightning speed...' },
+  { icon: '🎯', text: 'Targeting quality prospects...' },
+  { icon: '🧲', text: 'Attracting the best leads...' },
+  { icon: '🏆', text: 'Finding hidden gems...' },
+  { icon: '🚀', text: 'ProspectRadar™ locked on...' },
+  { icon: '📊', text: 'Analyzing the market...' },
+  { icon: '💎', text: 'Uncovering opportunities...' },
+];
+
+let searchProgressState = {
+  isRunning: false,
+  cancelled: false,
+  total: 0,
+  current: 0,
+  found: 0,
+  startTime: null,
+  messageInterval: null
+};
+
+function showSearchProgressModal(totalSearches) {
+  searchProgressState = {
+    isRunning: true,
+    cancelled: false,
+    total: totalSearches,
+    current: 0,
+    found: 0,
+    startTime: Date.now(),
+    messageInterval: null
+  };
+
+  const modal = document.getElementById('searchProgressModal');
+  if (!modal) return;
+
+  // Reset UI
+  document.getElementById('searchProgressBar').style.width = '0%';
+  document.getElementById('searchProgressPercent').textContent = '0%';
+  document.getElementById('searchProgressText').textContent = `Searching 0 of ${totalSearches}...`;
+  document.getElementById('searchProgressFound').textContent = '0';
+  document.getElementById('searchProgressETA').textContent = '--';
+  document.getElementById('searchProgressCurrent').innerHTML = '<span class="inline-block animate-pulse">Starting...</span>';
+
+  // Show modal
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+
+  // Start rotating messages
+  let messageIndex = 0;
+  updateSearchProgressMessage(SEARCH_PROGRESS_MESSAGES[0]);
+  searchProgressState.messageInterval = setInterval(() => {
+    messageIndex = (messageIndex + 1) % SEARCH_PROGRESS_MESSAGES.length;
+    updateSearchProgressMessage(SEARCH_PROGRESS_MESSAGES[messageIndex]);
+  }, 3000);
+}
+
+function updateSearchProgressMessage(msg) {
+  const container = document.getElementById('searchProgressMessage');
+  if (!container) return;
+  container.innerHTML = `
+    <span class="text-lg">${msg.icon}</span>
+    <p class="text-gray-700 font-medium mt-1">${msg.text}</p>
+  `;
+}
+
+function updateSearchProgress(current, searchLabel, businessCount) {
+  if (!searchProgressState.isRunning) return;
+
+  searchProgressState.current = current;
+  searchProgressState.found = businessCount;
+
+  const percent = Math.round((current / searchProgressState.total) * 100);
+  const elapsed = (Date.now() - searchProgressState.startTime) / 1000;
+  const avgTimePerSearch = elapsed / current;
+  const remaining = searchProgressState.total - current;
+  const etaSeconds = Math.round(remaining * avgTimePerSearch);
+
+  // Update UI
+  document.getElementById('searchProgressBar').style.width = `${percent}%`;
+  document.getElementById('searchProgressPercent').textContent = `${percent}%`;
+  document.getElementById('searchProgressText').textContent = `Searching ${current} of ${searchProgressState.total}...`;
+  document.getElementById('searchProgressFound').textContent = businessCount.toString();
+
+  // Format ETA
+  if (etaSeconds > 60) {
+    const mins = Math.floor(etaSeconds / 60);
+    const secs = etaSeconds % 60;
+    document.getElementById('searchProgressETA').textContent = `${mins}m ${secs}s`;
+  } else {
+    document.getElementById('searchProgressETA').textContent = `${etaSeconds}s`;
+  }
+
+  // Show current search
+  document.getElementById('searchProgressCurrent').innerHTML = `
+    <span class="text-gray-400">Searching:</span>
+    <span class="font-medium text-gray-700 ml-1">${searchLabel}</span>
+  `;
+}
+
+function hideSearchProgressModal(showSuccess = true) {
+  searchProgressState.isRunning = false;
+
+  if (searchProgressState.messageInterval) {
+    clearInterval(searchProgressState.messageInterval);
+    searchProgressState.messageInterval = null;
+  }
+
+  const modal = document.getElementById('searchProgressModal');
+  if (!modal) return;
+
+  if (showSuccess && searchProgressState.found > 0) {
+    // Show success state briefly
+    document.getElementById('searchProgressIcon').textContent = '🎉';
+    document.getElementById('searchProgressIcon').classList.remove('animate-bounce');
+    document.getElementById('searchProgressTitle').textContent = 'Search Complete!';
+    document.getElementById('searchProgressSubtitle').textContent = `Found ${searchProgressState.found} businesses`;
+    document.getElementById('searchProgressBar').style.width = '100%';
+    document.getElementById('searchProgressPercent').textContent = '100%';
+    document.getElementById('searchProgressStatus').innerHTML = '<span class="text-green-600 font-medium">✓ Done!</span>';
+    document.getElementById('searchProgressCurrent').textContent = '';
+    document.getElementById('searchProgressCancelBtn').textContent = 'Close';
+
+    // Auto-close after 1.5 seconds
+    setTimeout(() => {
+      modal.style.display = 'none';
+      document.body.style.overflow = '';
+      resetSearchProgressModal();
+    }, 1500);
+  } else {
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+    resetSearchProgressModal();
+  }
+}
+
+function resetSearchProgressModal() {
+  document.getElementById('searchProgressIcon').textContent = '🔍';
+  document.getElementById('searchProgressIcon').classList.add('animate-bounce');
+  document.getElementById('searchProgressTitle').textContent = 'Discovering Businesses';
+  document.getElementById('searchProgressSubtitle').textContent = 'ProspectRadar™ is scanning your area';
+  document.getElementById('searchProgressCancelBtn').textContent = 'Cancel';
+  document.getElementById('searchProgressStatus').innerHTML = '<span class="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse mr-2"></span>Working...';
+}
+
+function cancelSearchProgress() {
+  searchProgressState.cancelled = true;
+  searchProgressState.isRunning = false;
+
+  if (searchProgressState.messageInterval) {
+    clearInterval(searchProgressState.messageInterval);
+  }
+
+  const modal = document.getElementById('searchProgressModal');
+  if (modal) {
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  resetSearchProgressModal();
+  console.log('🛑 Search cancelled by user');
+}
+
+function isSearchCancelled() {
+  return searchProgressState.cancelled;
+}
+
 /**
  * Check if enrichment was cancelled
  */
@@ -5497,7 +5672,7 @@ async function searchFoursquareBusinesses(zipCode, category, progressInfo = null
       const cacheDate = new Date(cached.cachedUntil);
 
       if (new Date() < cacheDate) {
-        showSuccess('✅ Using cached results');
+        if (!searchProgressState.isRunning) showSuccess('✅ Using cached results');
         return cached.cachedData || cached.businesses || [];
       }
     }
@@ -5519,7 +5694,7 @@ async function searchFoursquareBusinesses(zipCode, category, progressInfo = null
     const allBusinesses = [];
     const seenPlaceIds = new Set();
 
-    showInfo(`🔍 ProspectRadar™ searching "${category}" in ${zipCode}... (${searchTerms.length} queries)`);
+    if (!searchProgressState.isRunning) showInfo(`🔍 ProspectRadar™ searching "${category}" in ${zipCode}... (${searchTerms.length} queries)`);
 
     // Search each term and combine results
     for (let i = 0; i < searchTerms.length; i++) {
@@ -5588,6 +5763,7 @@ async function searchFoursquareBusinesses(zipCode, category, progressInfo = null
     const preFilterCount = businesses.length;
     const streetSuffixPattern = /^[\d\s]*(?:N\.?\s|S\.?\s|E\.?\s|W\.?\s)?(?:\w+\s){0,2}(?:Ave(?:nue)?|St(?:reet)?|Rd|Road|Dr(?:ive)?|Blvd|Boulevard|Ln|Lane|Way|Ct|Court|Pl(?:ace)?|Cir(?:cle)?|Ter(?:race)?|Hwy|Highway|Pike|Loop)\.?(?:,.*)?$/i;
     const nonLatinPattern = /[^\u0000-\u024F\u1E00-\u1EFF]/;
+    const usPhonePattern = /^(\+?1|\(?\d{3}\)?)/; // Starts with +1 or US area code
     businesses = businesses.filter(biz => {
       // Must have at least phone or website (otherwise un-contactable)
       if (!biz.phone && !biz.website) return false;
@@ -5595,6 +5771,8 @@ async function searchFoursquareBusinesses(zipCode, category, progressInfo = null
       if (nonLatinPattern.test(biz.name || '')) return false;
       // Filter names that are just street addresses
       if (streetSuffixPattern.test((biz.name || '').trim())) return false;
+      // Filter non-US phone numbers (foreign results that slip through)
+      if (biz.phone && biz.phone.startsWith('+') && !biz.phone.startsWith('+1')) return false;
       return true;
     });
     if (businesses.length < preFilterCount) {
@@ -5661,6 +5839,7 @@ async function searchFoursquareBusinesses(zipCode, category, progressInfo = null
       if (!biz.phone && !biz.website) return false;
       if (nonLatinPattern.test(biz.name || '')) return false;
       if (streetSuffixPattern.test((biz.name || '').trim())) return false;
+      if (biz.phone && biz.phone.startsWith('+') && !biz.phone.startsWith('+1')) return false;
       return true;
     });
     if (businesses.length < preFinalFilter) {
@@ -5688,13 +5867,13 @@ async function searchFoursquareBusinesses(zipCode, category, progressInfo = null
     // Save cache to cloud
     await savePlacesCache();
 
-    showSuccess(`✅ Found ${businesses.length} businesses in ${zipCode}!`);
+    if (!searchProgressState.isRunning) showSuccess(`✅ Found ${businesses.length} businesses in ${zipCode}!`);
 
     return businesses;
 
   } catch (error) {
     console.error('ProspectRadar search error:', error);
-    showError(`❌ Search failed: ${error.message}`);
+    if (!searchProgressState.isRunning) showError(`❌ Search failed: ${error.message}`);
     return [];
   }
 }
@@ -7949,12 +8128,22 @@ async function runBulkAutoPopulate() {
     let failedSearches = 0;
     const totalSearches = zipCodes.length * selectedCategories.length;
 
+    // Show search progress modal
+    showSearchProgressModal(totalSearches);
+
     // Search each ZIP code and category combination
     for (const zipCode of zipCodes) {
       for (const category of selectedCategories) {
+        // Check if user cancelled
+        if (isSearchCancelled()) {
+          console.log('🛑 Search cancelled by user, stopping...');
+          break;
+        }
+
         try {
           const currentSearch = successfulSearches + failedSearches + 1;
           btn.innerHTML = `⏳ Searching ${category} in ${zipCode}... (${currentSearch}/${totalSearches})`;
+          updateSearchProgress(currentSearch, `${category} in ${zipCode}`, allBusinesses.length);
 
           const businesses = await searchGooglePlaces(zipCode, category, null, {
             currentSearch: currentSearch,
@@ -7981,6 +8170,9 @@ async function runBulkAutoPopulate() {
 
           successfulSearches++;
 
+          // Update found count after dedup
+          updateSearchProgress(currentSearch, `${category} in ${zipCode}`, allBusinesses.length);
+
           // Small delay between requests to be polite to the API
           await new Promise(resolve => setTimeout(resolve, 500));
         } catch (err) {
@@ -7988,6 +8180,8 @@ async function runBulkAutoPopulate() {
           failedSearches++;
         }
       }
+      // Also check cancel at outer loop level
+      if (isSearchCancelled()) break;
     }
 
     // Remove progress overlay after all searches complete
@@ -7995,6 +8189,9 @@ async function runBulkAutoPopulate() {
     if (existingProgressOverlay && existingProgressOverlay.parentNode) {
       existingProgressOverlay.remove();
     }
+
+    // Hide search progress modal
+    hideSearchProgressModal(allBusinesses.length > 0);
 
     if (allBusinesses.length === 0) {
       toast(`Searched ${selectedCategories.length} categories in ${zipCodes.length} ZIP code${zipCodes.length > 1 ? 's' : ''}. No new businesses found.`, false);
@@ -8042,12 +8239,17 @@ async function runBulkAutoPopulate() {
 
   } catch(err) {
     console.error('Bulk auto-populate error:', err);
+    hideSearchProgressModal(false);
     toast('Search failed. Please try again.', false);
   } finally {
     // Always remove progress overlay
     const progressOverlay = document.getElementById('enrichment-progress-overlay');
     if (progressOverlay && progressOverlay.parentNode) {
       progressOverlay.remove();
+    }
+    // Ensure search modal is cleaned up
+    if (searchProgressState.isRunning) {
+      hideSearchProgressModal(false);
     }
     btn.disabled = false;
     btn.innerHTML = originalBtnText;
@@ -9200,10 +9402,13 @@ function toggleCategoryGroup(groupId) {
 
 // Select/deselect all categories in a group
 function toggleGroupSelection(groupId, selectAll) {
+  // Sync DOM first before we override with group toggle
+  syncCategoryCheckboxes();
+
   // Get all categories in this group
   const groupCats = businessCategories.filter(cat => cat.group === groupId);
 
-  // Update the persistent selection state
+  // Update the persistent selection state (AFTER sync so these win)
   groupCats.forEach(cat => {
     if (selectAll) {
       selectedSearchCategories.add(cat.value);
@@ -9212,16 +9417,14 @@ function toggleGroupSelection(groupId, selectAll) {
     }
   });
 
-  // Re-render to update UI (will preserve selections from the Set)
-  renderBusinessCategories();
+  // Re-render to update UI (skip sync since we just did it)
+  renderBusinessCategories(true);
 }
 
-// Render business categories dynamically with groups
-function renderBusinessCategories() {
+// Sync visible category checkboxes into the persistent Set
+function syncCategoryCheckboxes() {
   const container = document.getElementById('categoryCheckboxContainer');
   if (!container) return;
-
-  // Sync DOM checkbox states into the persistent Set (for checkboxes that are currently visible)
   container.querySelectorAll('.category-checkbox').forEach(cb => {
     if (cb.checked) {
       selectedSearchCategories.add(cb.value);
@@ -9229,6 +9432,17 @@ function renderBusinessCategories() {
       selectedSearchCategories.delete(cb.value);
     }
   });
+}
+
+// Render business categories dynamically with groups
+function renderBusinessCategories(skipSync = false) {
+  const container = document.getElementById('categoryCheckboxContainer');
+  if (!container) return;
+
+  // Sync DOM checkbox states into the persistent Set (for checkboxes that are currently visible)
+  if (!skipSync) {
+    syncCategoryCheckboxes();
+  }
 
   // Use the persistent Set as the source of truth
   const checkedValues = selectedSearchCategories;

@@ -186,6 +186,11 @@ export default async function handler(req, res) {
       'giecom.net', '.com-place.com', 'dot-reviews.org', 'rateclubs.com',
       'giftly.com', 'carfax.com', 'autotrader.com', 'cars.com', 'cargurus.com',
 
+      // Analytics, maps, and tracking sites (NOT business websites)
+      'clustrmaps.com', 'similarweb.com', 'alexa.com', 'semrush.com',
+      'ahrefs.com', 'moz.com', 'statshow.com', 'worthofweb.com',
+      'siteprice.org', 'hypestat.com', 'websiteoutlook.com',
+
       // Search engines
       'google.com', 'bing.com', 'duckduckgo.com', 'brave.com/search'
     ];

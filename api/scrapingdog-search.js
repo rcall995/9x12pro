@@ -208,6 +208,11 @@ export default async function handler(req, res) {
       'dot-reviews.org', 'rateclubs.com', 'inssavelx.com', 'business.site',
       'giftly.com', 'carfax.com', 'autotrader.com', 'cars.com', 'cargurus.com',
 
+      // Analytics, maps, and tracking sites (NOT business websites)
+      'clustrmaps.com', 'similarweb.com', 'alexa.com', 'semrush.com',
+      'ahrefs.com', 'moz.com', 'statshow.com', 'worthofweb.com',
+      'siteprice.org', 'hypestat.com', 'websiteoutlook.com',
+
       // Search engines
       'google.com', 'bing.com', 'duckduckgo.com'
     ];
