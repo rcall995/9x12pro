@@ -225,8 +225,9 @@ export default async function handler(req, res) {
         // Validate business name appears in domain or title - STRICT matching
         if (businessName) {
           const hostname = parsedUrl.hostname.toLowerCase().replace('www.', '');
-          // Get significant words (exclude common words)
+          // Get significant words (exclude common words and location/industry words)
           const commonWords = ['the', 'and', 'inc', 'llc', 'of', 'at', 'in', 'on', 'for', 'co', 'company', 'corp', 'studio', 'shop', 'store', 'services', 'service'];
+          const locationIndustryWords = ['air', 'heating', 'cooling', 'plumbing', 'electric', 'construction', 'building', 'roofing', 'paving', 'landscaping', 'cleaning', 'painting', 'auto', 'dental', 'medical', 'law', 'tax', 'hair', 'nail', 'pizza', 'food', 'restaurant'];
           const bizWords = businessName.toLowerCase()
             .replace(/[''`´&]/g, '') // Remove apostrophes and ampersands
             .split(/\s+/)
@@ -237,8 +238,9 @@ export default async function handler(req, res) {
           const titleMatches = bizWords.filter(word => title.includes(word)).length;
           const bestMatch = Math.max(domainMatches, titleMatches);
 
-          // Require at least 2 words to match, OR if business has only 1-2 significant words, require all to match
-          const minRequired = bizWords.length <= 2 ? bizWords.length : 2;
+          // Require at least HALF the words to match (min 2), or ALL if 1-2 words
+          // This prevents "grand" + "air" matching the wrong HVAC company
+          const minRequired = bizWords.length <= 2 ? bizWords.length : Math.max(2, Math.ceil(bizWords.length / 2));
 
           if (bestMatch < minRequired) {
             console.log(`🦁 Skipping weak match: ${url} (${bestMatch}/${bizWords.length} words) for "${businessName}"`);

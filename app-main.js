@@ -3917,12 +3917,16 @@ async function loadPlacesCache() {
         // Only in local - add it
         merged[cacheKey] = local;
       } else if (local.lastFetched && cloud.lastFetched) {
-        // In both - keep the newer one
+        // In both - keep the newer one. Prefer local on tie since
+        // local is written immediately while cloud is debounced
         const localDate = new Date(local.lastFetched);
         const cloudDate = new Date(cloud.lastFetched);
-        if (localDate > cloudDate) {
+        if (localDate >= cloudDate) {
           merged[cacheKey] = local;
         }
+      } else if (local.lastFetched && !cloud.lastFetched) {
+        // Local has date, cloud doesn't - prefer local
+        merged[cacheKey] = local;
       }
     });
 
@@ -4773,9 +4777,6 @@ function updateEnrichmentProgress(current, businessName, foundContact = false) {
 
   const percent = Math.round((current / enrichmentState.total) * 100);
   const elapsed = (Date.now() - enrichmentState.startTime) / 1000;
-  const avgTimePerBusiness = elapsed / current;
-  const remaining = enrichmentState.total - current;
-  const etaSeconds = Math.round(remaining * avgTimePerBusiness);
 
   // Update UI
   document.getElementById('enrichmentProgressBar').style.width = `${percent}%`;
@@ -4783,13 +4784,20 @@ function updateEnrichmentProgress(current, businessName, foundContact = false) {
   document.getElementById('enrichmentProgressText').textContent = `Enriching ${current} of ${enrichmentState.total}...`;
   document.getElementById('enrichmentFound').textContent = enrichmentState.found.toString();
 
-  // Format ETA
-  if (etaSeconds > 60) {
-    const mins = Math.floor(etaSeconds / 60);
-    const secs = etaSeconds % 60;
-    document.getElementById('enrichmentETA').textContent = `${mins}m ${secs}s`;
+  // Format ETA (guard against division by zero when current=0)
+  if (current > 0) {
+    const avgTimePerBusiness = elapsed / current;
+    const remaining = enrichmentState.total - current;
+    const etaSeconds = Math.round(remaining * avgTimePerBusiness);
+    if (etaSeconds > 60) {
+      const mins = Math.floor(etaSeconds / 60);
+      const secs = etaSeconds % 60;
+      document.getElementById('enrichmentETA').textContent = `${mins}m ${secs}s`;
+    } else {
+      document.getElementById('enrichmentETA').textContent = `${etaSeconds}s`;
+    }
   } else {
-    document.getElementById('enrichmentETA').textContent = `${etaSeconds}s`;
+    document.getElementById('enrichmentETA').textContent = 'Calculating...';
   }
 
   // Show current business
@@ -5208,6 +5216,22 @@ async function enrichBusiness(business, options = {}) {
       business.contactNames = enrichedData.contactNames?.length > 0
         ? enrichedData.contactNames
         : (business.contactNames || []);
+
+      // Store secondary phone from website scraping (for cell numbers)
+      // The primary phone comes from HERE/Google Places, secondary from website
+      if (enrichedData.allPhones && enrichedData.allPhones.length > 0) {
+        const primaryDigits = (business.phone || '').replace(/\D/g, '');
+        // Find a phone from the website that's DIFFERENT from the primary
+        const secondaryPhone = enrichedData.allPhones.find(p => {
+          const digits = p.replace(/\D/g, '');
+          return digits !== primaryDigits && digits.length >= 10;
+        });
+        if (secondaryPhone) {
+          business.phone2 = secondaryPhone;
+          foundItems.push('phone2');
+        }
+      }
+
       if (enrichedData.enriched) {
         business.pagesScraped = enrichedData.pagesScraped;
         business.enrichmentSource = '9x12pro-scraper';
@@ -5346,6 +5370,17 @@ async function enrichSingleProspect(prospectId) {
   try {
     const result = await enrichBusiness(prospect, { findWebsite: true, skipIfEnriched: false });
     const foundItems = result.foundItems || [];
+
+    // Update lastFetched on the cache entry so local wins merge over stale cloud data
+    if (!isManualProspect) {
+      for (const key of Object.keys(placesCache.searches)) {
+        const cached = placesCache.searches[key];
+        if (cached.cachedData && cached.cachedData.some(b => b.placeId === prospectId)) {
+          cached.lastFetched = new Date().toISOString();
+          break;
+        }
+      }
+    }
 
     // Save updated cache (different save path for manual vs cached prospects)
     if (isManualProspect) {
@@ -6453,12 +6488,12 @@ function calculateContactScore(business) {
   let score = 0;
 
   if (business.phone) score += 2;
+  if (business.phone2) score += 1; // Secondary/cell phone from website
   if (business.email) score += 2;
   if (business.website) score += 2;
   if (business.facebook) score += 1;
   if (business.instagram) score += 1;
   if (business.linkedin) score += 1;
-  if (business.twitter) score += 1;
 
   return Math.min(score, 10);
 }
@@ -7266,7 +7301,8 @@ function sendTextMessage(prospectOrId) {
   const businessName = prospect.businessName || prospect.name || 'there';
   const businessType = prospect.category || 'local business';
   const zip = prospect.actualZip || prospect.zipCode || prospect.zip || '';
-  const phone = prospect.phone || '';
+  // Prefer cell/secondary phone for texting, fall back to primary
+  const phone = prospect.phone2 || prospect.phone || '';
 
   if (!phone) {
     toast('❌ No phone number found for this prospect.', false);
@@ -9186,11 +9222,13 @@ function renderGroupedPoolCategories(filteredByCategory) {
     // Count totals for this group
     let groupTotal = 0;
     let groupEnriched = 0;
+    let groupRaw = 0;
     let groupAvailable = 0;
     Object.values(group.categories).forEach(prospects => {
       groupTotal += prospects.length;
       groupEnriched += prospects.filter(p => p.isEnriched || p.enriched).length;
-      groupAvailable += prospects.filter(p => !p.inSystem && !p.doNotContact).length;
+      groupRaw += prospects.filter(p => !p.isEnriched && !p.enriched).length;
+      groupAvailable += prospects.filter(p => !p.inSystem && !p.doNotContact && (p.isEnriched || p.enriched)).length;
       // Always register prospects for selection (even when group is collapsed)
       prospects.forEach(prospect => {
         const id = prospect.placeId || prospect.id;
@@ -9214,12 +9252,13 @@ function renderGroupedPoolCategories(filteredByCategory) {
           </div>
           <div class="flex items-center gap-3">
             <span class="text-sm text-green-600 font-medium">${groupEnriched} enriched</span>
+            ${groupRaw > 0 ? `<span class="text-sm text-sky-600 font-medium">${groupRaw} raw</span>` : ''}
             ${groupAvailable > 0 ? `
               <button onclick="event.stopPropagation(); selectAllInPoolGroup('${groupId}')"
-                      class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all flex items-center gap-1">
-                <span>☑️</span> Select All ${groupAvailable}
+                      class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all flex items-center gap-1">
+                <span>☑️</span> Select ${groupAvailable}
               </button>
-            ` : '<span class="text-xs text-gray-400 italic">All in pipeline</span>'}
+            ` : (groupRaw > 0 ? '' : '<span class="text-xs text-gray-400 italic">All in pipeline</span>')}
           </div>
         </div>
         ${isExpanded ? renderPoolGroupCategories(group.categories) : ''}
@@ -9237,7 +9276,7 @@ function renderPoolGroupCategories(categories) {
     const categoryName = category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     const enrichedCount = prospects.filter(p => p.isEnriched || p.enriched).length;
     const rawCount = prospects.filter(p => !p.isEnriched && !p.enriched).length;
-    const availableToAdd = prospects.filter(p => !p.inSystem).length;
+    const availableToAdd = prospects.filter(p => !p.inSystem && (p.isEnriched || p.enriched)).length;
 
     return `
       <div class="ml-6 mt-4 mb-6 category-section" id="category-${category}">
@@ -9251,11 +9290,19 @@ function renderPoolGroupCategories(categories) {
               <p class="text-xs text-gray-500">${prospects.length} total • <span class="text-green-600">${enrichedCount} enriched</span> • <span class="text-sky-600">${rawCount} raw</span></p>
             </div>
           </div>
-          ${availableToAdd > 0 ? `
-          <button onclick="selectAllInCategory('${category}')" class="px-2 py-1 bg-purple-600 text-white text-xs font-bold rounded hover:bg-purple-700 transition-all">
-            ☑️ Select All ${availableToAdd}
-          </button>
-          ` : '<span class="text-xs text-gray-400 italic">All added</span>'}
+          <div class="flex items-center gap-2">
+            ${rawCount > 0 ? `
+            <button onclick="enrichAllInCategory('${category}')" class="px-2 py-1 bg-gradient-to-r from-purple-600 to-sky-600 text-white text-xs font-bold rounded hover:from-purple-700 hover:to-sky-700 transition-all">
+              🔍 Enrich ${rawCount} Raw
+            </button>
+            ` : ''}
+            ${enrichedCount > 0 && availableToAdd > 0 ? `
+            <button onclick="selectAllInCategory('${category}')" class="px-2 py-1 bg-emerald-600 text-white text-xs font-bold rounded hover:bg-emerald-700 transition-all">
+              ☑️ Select ${availableToAdd}
+            </button>
+            ` : ''}
+            ${availableToAdd === 0 ? '<span class="text-xs text-gray-400 italic">All added</span>' : ''}
+          </div>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           ${renderPoolProspectCards(prospects)}
@@ -9290,26 +9337,172 @@ function renderPoolProspectCards(prospects) {
     }).join('');
 }
 
+// Track the Facebook tab opened by Manual Hunt so we can close it after save/dead
+window._manualHuntFbWindow = null;
+
+// Manual Hunt: open Facebook in new tab + open edit modal for quick paste
+function manualHuntProspect(prospectId) {
+  // Look up prospect data to get the real Facebook URL (avoids HTML attribute encoding issues)
+  const prospect = prospectPoolState.renderedProspects?.[prospectId]
+    || prospectPoolState.manualProspects.find(p => String(p.id) === String(prospectId) || String(p.placeId) === String(prospectId));
+  if (prospect) {
+    // Open Facebook page — use named anchor with rel="opener" to force tab reuse
+    const fbUrl = ensureHttps(prospect.facebook);
+    let fbLink = document.getElementById('_manualHuntFbLink');
+    if (!fbLink) {
+      fbLink = document.createElement('a');
+      fbLink.id = '_manualHuntFbLink';
+      fbLink.target = 'manualHuntFb';
+      fbLink.rel = 'opener';
+      fbLink.style.display = 'none';
+      document.body.appendChild(fbLink);
+    }
+    fbLink.href = fbUrl;
+    fbLink.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+    currentProspectDetail = { ...prospect, businessName: prospect.businessName || prospect.name || 'Unknown', source: 'prospect' };
+    openEditContactModal();
+  }
+}
+
+// Mark Facebook link as dead/garbage — clears the field and re-renders the card
+async function markFacebookDead(prospectId) {
+  const matchesId = (item) => {
+    return String(item.id || '') === String(prospectId) || String(item.placeId || '') === String(prospectId);
+  };
+
+  // Update ALL matching entries in placesCache (business can appear in multiple search keys)
+  let cacheUpdated = false;
+  for (const key of Object.keys(placesCache.searches || {})) {
+    const cached = placesCache.searches[key];
+    if (cached.cachedData) {
+      const idx = cached.cachedData.findIndex(matchesId);
+      if (idx !== -1) {
+        cached.cachedData[idx].facebook = '';
+        cached.cachedData[idx].facebookDead = true;
+        cacheUpdated = true;
+      }
+    }
+  }
+  if (cacheUpdated) await savePlacesCache();
+
+  // Update campaign board
+  const board = getCurrentCampaignBoard();
+  if (board) {
+    for (const colKey of Object.keys(board.columns)) {
+      const idx = (board.columns[colKey] || []).findIndex(matchesId);
+      if (idx !== -1) {
+        board.columns[colKey][idx].facebook = '';
+        board.columns[colKey][idx].facebookDead = true;
+        await saveCampaignBoards();
+        break;
+      }
+    }
+  }
+
+  // Update manual prospects
+  const mpIdx = prospectPoolState.manualProspects.findIndex(matchesId);
+  if (mpIdx !== -1) {
+    prospectPoolState.manualProspects[mpIdx].facebook = '';
+    prospectPoolState.manualProspects[mpIdx].facebookDead = true;
+    await saveManualProspects();
+  }
+
+  // Update renderedProspects
+  if (prospectPoolState.renderedProspects?.[prospectId]) {
+    prospectPoolState.renderedProspects[prospectId].facebook = '';
+    prospectPoolState.renderedProspects[prospectId].facebookDead = true;
+  }
+
+  renderProspectPool();
+  toast('Facebook marked as dead', true);
+}
+
+// Mark Facebook as checked (no email found but link is valid) — hides Manual Hunt, keeps the FB link
+async function markFacebookChecked(prospectId) {
+  const matchesId = (item) => {
+    return String(item.id || '') === String(prospectId) || String(item.placeId || '') === String(prospectId);
+  };
+
+  // Update ALL matching entries in placesCache
+  let cacheUpdated = false;
+  for (const key of Object.keys(placesCache.searches || {})) {
+    const cached = placesCache.searches[key];
+    if (cached.cachedData) {
+      const idx = cached.cachedData.findIndex(matchesId);
+      if (idx !== -1) {
+        cached.cachedData[idx].facebookChecked = true;
+        cacheUpdated = true;
+      }
+    }
+  }
+  if (cacheUpdated) await savePlacesCache();
+
+  // Update campaign board
+  const board = getCurrentCampaignBoard();
+  if (board) {
+    for (const colKey of Object.keys(board.columns)) {
+      const idx = (board.columns[colKey] || []).findIndex(matchesId);
+      if (idx !== -1) {
+        board.columns[colKey][idx].facebookChecked = true;
+        await saveCampaignBoards();
+        break;
+      }
+    }
+  }
+
+  // Update manual prospects
+  const mpIdx = prospectPoolState.manualProspects.findIndex(matchesId);
+  if (mpIdx !== -1) {
+    prospectPoolState.manualProspects[mpIdx].facebookChecked = true;
+    await saveManualProspects();
+  }
+
+  // Update renderedProspects
+  if (prospectPoolState.renderedProspects?.[prospectId]) {
+    prospectPoolState.renderedProspects[prospectId].facebookChecked = true;
+  }
+
+  // Don't close FB tab — let it be reused by next Manual Hunt
+
+  renderProspectPool();
+  toast('Facebook checked — no email found', true);
+}
+
+// Extract social handle from full URL (e.g. facebook.com/JoesAuto → JoesAuto)
+function extractSocialHandle(url, platform) {
+  if (!url) return null;
+  try {
+    const cleaned = url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+    const parts = cleaned.split('/');
+    // parts[0] = domain, rest = path
+    if (parts.length > 1) {
+      const path = parts.slice(1).join('/').replace(/\/$/, '');
+      // Skip generic paths like "pages" or empty
+      if (path && path !== 'pages' && path !== 'in' && path !== 'company') return path;
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Extract domain from URL (strip protocol + www)
+function extractDomain(url) {
+  if (!url) return null;
+  try {
+    return url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/.*$/, '');
+  } catch (e) {
+    return null;
+  }
+}
+
 // Render a single prospect card (enriched or raw)
 function renderSinglePoolProspect(prospect) {
   const prospectLookupId = prospect.placeId || prospect.id;
 
   // For enriched prospects
   if (prospect.isEnriched || prospect.enriched) {
-    const contactIcons = [];
-    if (prospect.phone) contactIcons.push(`<a href="tel:${esc(prospect.phone)}" onclick="event.stopPropagation()" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="${esc(prospect.phone)}">📞</a>`);
-    if (prospect.website) contactIcons.push(`<a href="${esc(ensureHttps(prospect.website))}" onclick="event.stopPropagation()" target="_blank" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="${esc(prospect.website)}">🌐</a>`);
-    if (prospect.email) contactIcons.push(`<a href="mailto:${esc(prospect.email)}" onclick="event.stopPropagation()" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="${esc(prospect.email)}">✉️</a>`);
-    if (prospect.facebook) {
-      contactIcons.push(`<a href="${esc(ensureHttps(prospect.facebook))}" onclick="event.stopPropagation()" target="_blank" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="Facebook">📘</a>`);
-    } else {
-      const fbQ = encodeURIComponent(`${prospect.name || prospect.businessName || ''} ${prospect.city || ''} ${prospect.state || 'NY'}`);
-      contactIcons.push(`<a href="https://www.facebook.com/search/pages?q=${fbQ}" onclick="event.stopPropagation()" target="_blank" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all opacity-40 hover:opacity-100" title="Search Facebook">📘</a>`);
-    }
-    if (prospect.instagram) contactIcons.push(`<a href="${esc(ensureHttps(prospect.instagram))}" onclick="event.stopPropagation()" target="_blank" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="Instagram">📷</a>`);
-    if (prospect.linkedin) contactIcons.push(`<a href="${esc(ensureHttps(prospect.linkedin))}" onclick="event.stopPropagation()" target="_blank" class="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm hover:shadow-md hover:scale-110 transition-all" title="LinkedIn">💼</a>`);
-
-    let displayAddress = prospect.address || '';
+    let displayAddress = prospect.address || prospect.vicinity || '';
     let displayRating = prospect.rating || 0;
     if (!displayAddress && prospect.notes) {
       const addressMatch = prospect.notes.match(/Address:\s*([^\n]+)/);
@@ -9327,15 +9520,38 @@ function renderSinglePoolProspect(prospect) {
     const isPoolDoNotContact = prospect.doNotContact === true;
     const displayName = prospect.name || prospect.businessName || prospect.title || 'Unnamed';
 
+    // Extract display values for contact data
+    const phoneTxt = prospect.phone || null;
+    const websiteDomain = extractDomain(prospect.website);
+    const emailTxt = prospect.email || null;
+    // DEBUG: trace data for specific business
+    const fbHandle = extractSocialHandle(prospect.facebook, 'facebook');
+    const igHandle = extractSocialHandle(prospect.instagram, 'instagram');
+    const liHandle = extractSocialHandle(prospect.linkedin, 'linkedin');
+
+    // Facebook search fallback link
+    const fbQ = encodeURIComponent(`${prospect.name || prospect.businessName || ''} ${prospect.city || ''} ${prospect.state || 'NY'}`);
+    const fbSearchUrl = `https://www.facebook.com/search/pages?q=${fbQ}`;
+
+    // Build ZIP + address line
+    let locationLine = '';
+    if (isValidZip) {
+      locationLine = rawZipValue;
+      if (displayAddress) locationLine += ' · ' + displayAddress;
+    } else if (displayAddress) {
+      locationLine = displayAddress;
+    }
+
     return `
       <div class="rounded-xl overflow-hidden ${isPoolDoNotContact ? 'bg-red-50 border-2 border-red-300' : 'bg-gradient-to-br from-emerald-50 to-green-100 border-l-4 border-l-emerald-500'} ${isEnrichedInSystem || isPoolDoNotContact ? 'opacity-60' : 'hover:shadow-lg hover:scale-[1.02]'} transition-all duration-200 cursor-pointer relative" onclick="openClientModalForProspect('${prospect.id || prospect.placeId}')">
         ${isPoolDoNotContact ? '<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10"><span class="text-6xl text-red-400 font-bold opacity-30">✕</span></div>' : ''}
-        <div class="px-4 py-3 flex items-start justify-between gap-2">
+        <div class="px-4 py-3 flex items-start gap-3">
+          <input type="checkbox" ${prospectPoolState.selectedIds.has(prospectLookupId) ? 'checked' : ''} ${isEnrichedInSystem || isPoolDoNotContact ? 'disabled' : ''} onchange="event.stopPropagation(); togglePoolProspect('${prospectLookupId}')" onclick="event.stopPropagation()" class="mt-1 w-5 h-5 text-emerald-600 rounded cursor-pointer flex-shrink-0 border-2 border-gray-300" />
           <div class="flex-1 min-w-0">
             <h5 class="font-bold text-gray-900 ${isPoolDoNotContact ? 'line-through' : ''} truncate">${esc(displayName)}</h5>
             <div class="flex items-center gap-2 mt-1 text-xs text-gray-600">
-              ${isValidZip ? '<span>📍 ' + rawZipValue + '</span>' : ''}
-              ${displayRating ? '<span>⭐ ' + displayRating + '</span>' : ''}
+              ${locationLine ? '<span class="truncate">📍 ' + esc(locationLine) + '</span>' : ''}
+              ${displayRating ? '<span class="flex-shrink-0">⭐ ' + displayRating + '</span>' : ''}
             </div>
           </div>
           <div class="flex flex-col items-end gap-1">
@@ -9344,13 +9560,20 @@ function renderSinglePoolProspect(prospect) {
             <span class="px-2 py-1 rounded-lg text-xs font-bold bg-emerald-600 text-white shadow-sm">${enrichedContactScore}/10</span>
           </div>
         </div>
-        ${contactIcons.length > 0 ? '<div class="px-4 pb-2 flex gap-2 flex-wrap">' + contactIcons.join('') + '</div>' : ''}
-        <div class="px-3 pb-3 flex gap-2">
-          ${prospect.phone ? '<button onclick="event.stopPropagation(); sendTextMessage(\'' + prospectLookupId + '\')" class="flex-1 px-3 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 font-semibold text-xs shadow-sm">💬 Text</button>' : ''}
-          ${prospect.email ? '<button onclick="event.stopPropagation(); sendPitchEmail(\'' + prospectLookupId + '\')" class="flex-1 px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 font-semibold text-xs shadow-sm">📧 Email</button>' : ''}
-          ${isEnrichedInSystem ? '<span class="flex-1 px-3 py-2 bg-gray-300 text-gray-600 rounded-lg font-semibold text-xs text-center">✓ Added</span>' : '<button onclick="event.stopPropagation(); moveProspectFromPool(\'' + (prospect.placeId || prospect.id) + '\')" class="flex-1 px-3 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 font-semibold text-xs shadow-sm">Pipeline →</button>'}
+        <div class="px-4 pb-1 space-y-0.5 text-xs">
+          <div class="truncate">${phoneTxt ? '<a href="tel:' + esc(phoneTxt) + '" onclick="event.stopPropagation()" class="text-gray-800 hover:text-emerald-700">📞 ' + esc(phoneTxt) + '</a>' : '<span class="text-gray-400">📞 —</span>'}</div>
+          <div class="truncate">${websiteDomain ? '<a href="' + esc(ensureHttps(prospect.website)) + '" onclick="event.stopPropagation()" target="_blank" class="text-gray-800 hover:text-emerald-700">🌐 ' + esc(websiteDomain) + '</a>' : '<span class="text-gray-400">🌐 —</span>'}</div>
+          <div class="truncate">${emailTxt ? '<a href="mailto:' + esc(emailTxt) + '" onclick="event.stopPropagation()" class="text-gray-800 hover:text-emerald-700">✉️ ' + esc(emailTxt) + '</a>' : '<span class="text-gray-400">✉️ —</span>'}</div>
+          <div class="flex items-center gap-3 truncate">
+            ${prospect.facebook ? '<a href="' + esc(ensureHttps(prospect.facebook)) + '" onclick="event.stopPropagation()" target="_blank" class="text-gray-800 hover:text-blue-600">📘 ' + esc(fbHandle || 'Facebook') + '</a>' : (prospect.facebookDead ? '<span class="text-red-400 font-bold line-through">📘 DEAD</span>' : '<span class="text-gray-400">📘 —</span>')}
+            ${prospect.instagram ? '<a href="' + esc(ensureHttps(prospect.instagram)) + '" onclick="event.stopPropagation()" target="_blank" class="text-gray-800 hover:text-pink-600">📷 ' + esc(igHandle || 'Instagram') + '</a>' : '<span class="text-gray-400">📷 —</span>'}
+            ${prospect.linkedin ? '<a href="' + esc(ensureHttps(prospect.linkedin)) + '" onclick="event.stopPropagation()" target="_blank" class="text-gray-800 hover:text-blue-800">💼 ' + esc(liHandle || 'LinkedIn') + '</a>' : '<span class="text-gray-400">💼 —</span>'}
+          </div>
+        </div>
+        <div class="px-3 pb-3 pt-2 flex items-center justify-end gap-2">
+          ${!emailTxt && prospect.facebook && !prospect.facebookChecked ? '<button onclick="event.stopPropagation(); manualHuntProspect(\'' + (prospect.placeId || prospect.id) + '\')" class="mr-auto px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg font-bold text-xs shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 hover:scale-105">📘 Manual Hunt</button>' : ''}
+          ${!emailTxt && prospect.facebook && prospect.facebookChecked ? '<span class="mr-auto text-xs text-amber-600 font-bold">FB Checked</span>' : ''}
           <button onclick="event.stopPropagation(); reEnrichProspect('${prospect.placeId || prospect.id}')" class="w-9 h-9 flex items-center justify-center bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg font-semibold text-sm transition-colors" title="Re-enrich">🔄</button>
-          <button onclick="event.stopPropagation(); togglePoolDoNotContact('${prospect.placeId || prospect.id}')" class="${isPoolDoNotContact ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 hover:bg-red-500'} w-9 h-9 flex items-center justify-center text-white rounded-lg font-semibold text-sm transition-colors" title="${isPoolDoNotContact ? 'Remove DNC' : 'Do Not Contact'}">🚫</button>
           <button onclick="event.stopPropagation(); deleteBusinessPermanently('${prospect.placeId || prospect.id}')" class="w-9 h-9 flex items-center justify-center bg-red-100 hover:bg-red-500 text-red-600 hover:text-white rounded-lg font-semibold text-sm transition-colors" title="Delete permanently">🗑️</button>
         </div>
       </div>
@@ -11877,13 +12100,14 @@ function renderProspectPool() {
           categorizedProspects[effectiveCategory] = [];
         }
 
-        categorizedProspects[effectiveCategory].push({
+        const prospectEntry = {
           ...business,
           category: effectiveCategory,
-          zipCode: searchedZipCode, // Keep track of which search found this
-          actualZip: businessZip, // Store the smart-extracted ZIP
+          zipCode: searchedZipCode,
+          actualZip: businessZip,
           inSystem: isInSystem
-        });
+        };
+        categorizedProspects[effectiveCategory].push(prospectEntry);
         seenPlaceIds.add(business.placeId); // Mark as seen
         totalProspects++;
         if (isInSystem) alreadyInSystem++;
@@ -12088,6 +12312,40 @@ function renderProspectPool() {
       unifiedByCategory[category] = [];
     }
     categorizedProspects[rawCategory].forEach(prospect => {
+      // If this prospect has enrichment data and a duplicate already exists in unified pool,
+      // merge the enrichment data into the existing entry instead of silently dropping it
+      const isDuplicate = (prospect.placeId && unifiedSeenPlaceIds.has(prospect.placeId)) ||
+        (normalizeNameForDedup(prospect.name || prospect.businessName || prospect.title || '') &&
+         unifiedSeenNames.has(normalizeNameForDedup(prospect.name || prospect.businessName || prospect.title || '')));
+
+      if (isDuplicate && prospect.enriched) {
+        // Find the existing entry and merge enrichment data into it
+        const pName = normalizeNameForDedup(prospect.name || prospect.businessName || prospect.title || '');
+        for (const cat of Object.keys(unifiedByCategory)) {
+          const existing = unifiedByCategory[cat].find(p =>
+            (p.placeId && p.placeId === prospect.placeId) ||
+            (pName && normalizeNameForDedup(p.name || p.businessName || p.title || '') === pName)
+          );
+          if (existing) {
+            // Merge: only overwrite fields the existing entry is missing
+            if (!existing.enriched) existing.enriched = true;
+            if (!existing.isEnriched) existing.isEnriched = true;
+            if (!existing.email && prospect.email) existing.email = prospect.email;
+            if (!existing.phone && prospect.phone) existing.phone = prospect.phone;
+            if (!existing.phone2 && prospect.phone2) existing.phone2 = prospect.phone2;
+            if (!existing.website && prospect.website) existing.website = prospect.website;
+            if (!existing.facebook && prospect.facebook) existing.facebook = prospect.facebook;
+            if (!existing.instagram && prospect.instagram) existing.instagram = prospect.instagram;
+            if (!existing.linkedin && prospect.linkedin) existing.linkedin = prospect.linkedin;
+            if (!existing.contactScore || prospect.contactScore > existing.contactScore) existing.contactScore = prospect.contactScore;
+            if (!existing.leadScore || prospect.leadScore > existing.leadScore) existing.leadScore = prospect.leadScore;
+            break;
+          }
+        }
+        searchProspectsSkipped++;
+        return;
+      }
+
       // Skip if this placeId was already added
       if (prospect.placeId && unifiedSeenPlaceIds.has(prospect.placeId)) {
         searchProspectsSkipped++;
@@ -12105,7 +12363,7 @@ function renderProspectPool() {
       unifiedByCategory[category].push({
         ...prospect,
         category: category, // Use search category from cache key
-        isEnriched: false, // From search = no contact info yet
+        isEnriched: !!(prospect.enriched || prospect.email || prospect.website || prospect.phone),
         type: 'search'
       });
 
@@ -12265,6 +12523,12 @@ function renderProspectPool() {
     // Use setTimeout to ensure DOM is fully rendered
     setTimeout(function() {
       filterProspectPool(prospectPoolSearchTerm);
+      // Re-focus search input and place cursor at end
+      const searchEl = document.getElementById('prospectPoolSearch');
+      if (searchEl) {
+        searchEl.focus();
+        searchEl.setSelectionRange(searchEl.value.length, searchEl.value.length);
+      }
     }, 0);
   }
 
@@ -12425,13 +12689,21 @@ async function addFromProspectPool() {
       });
     });
 
-    // From manually added prospects
+    // From manually added prospects (use placeId || id to match checkbox order)
     prospectPoolState.manualProspects?.forEach(business => {
-      const businessId = business.id || business.placeId;
+      const businessId = business.placeId || business.id;
       if (prospectPoolState.selectedIds.has(businessId) && !seenPlaceIds.has(businessId)) {
         selectedBusinesses.push(business);
         seenPlaceIds.add(businessId);
-        console.log('🔵 Found selected manual business:', business.businessName, 'ID:', businessId);
+      }
+    });
+
+    // Fallback: check renderedProspects for any selected IDs not yet found
+    // This catches prospects that exist in the UI but aren't in cache or manualProspects
+    prospectPoolState.selectedIds.forEach(selectedId => {
+      if (!seenPlaceIds.has(selectedId) && prospectPoolState.renderedProspects?.[selectedId]) {
+        selectedBusinesses.push(prospectPoolState.renderedProspects[selectedId]);
+        seenPlaceIds.add(selectedId);
       }
     });
 
@@ -12658,7 +12930,8 @@ function selectAllInCategory(category) {
     // Only include if:
     // 1. Category matches
     // 2. Not already in system (inSystem flag)
-    if (prospectCategory === category && !prospect.inSystem) {
+    // 3. Must be enriched (raw cards need enrichment first)
+    if (prospectCategory === category && !prospect.inSystem && (prospect.isEnriched || prospect.enriched)) {
       eligibleIds.add(id);
     }
   });
@@ -12717,6 +12990,110 @@ function selectAllInCategory(category) {
   }
 }
 window.selectAllInCategory = selectAllInCategory;
+
+// Enrich all raw (unenriched) businesses in a category
+async function enrichAllInCategory(category) {
+  // Check enrichment limits
+  const enrichCheck = canEnrich();
+  if (!enrichCheck.allowed) {
+    showUpgradePrompt(enrichCheck.message);
+    return;
+  }
+
+  // Collect raw prospects from rendered data
+  const rawProspects = [];
+  Object.entries(prospectPoolState.renderedProspects || {}).forEach(([id, prospect]) => {
+    const prospectCategory = normalizeCategory(prospect.category || 'other');
+    if (prospectCategory === category && !prospect.isEnriched && !prospect.enriched) {
+      rawProspects.push(prospect);
+    }
+  });
+
+  if (rawProspects.length === 0) {
+    toast('No raw businesses to enrich in this category', false);
+    return;
+  }
+
+  // Find matching cache entries for each raw prospect (or use rendered prospect directly)
+  const toEnrich = [];
+  for (const raw of rawProspects) {
+    const pid = raw.placeId || raw.id;
+    const rawName = (raw.name || raw.businessName || raw.title || '').toLowerCase().trim();
+    let found = null;
+
+    // Try to find in placesCache by placeId/id, then by name
+    for (const key of Object.keys(placesCache.searches)) {
+      const cached = placesCache.searches[key];
+      if (cached.cachedData) {
+        found = cached.cachedData.find(b => (pid && (b.placeId === pid || b.id === pid)));
+        if (!found && rawName) {
+          found = cached.cachedData.find(b =>
+            (b.name || b.businessName || b.title || '').toLowerCase().trim() === rawName
+          );
+        }
+        if (found) break;
+      }
+    }
+
+    // Use cache entry if found (so enrichBusiness mutates it for savePlacesCache),
+    // otherwise use the rendered prospect directly — enrichment still works
+    toEnrich.push(found || raw);
+  }
+
+  if (toEnrich.length === 0) {
+    toast('No prospects to enrich', false);
+    return;
+  }
+
+  showEnrichmentModal(toEnrich.length);
+
+  let success = 0;
+  let failed = 0;
+
+  for (let i = 0; i < toEnrich.length; i++) {
+    if (isEnrichmentCancelled()) break;
+    const biz = toEnrich[i];
+    const name = biz.name || biz.businessName || 'Unknown';
+    updateEnrichmentProgress(i + 1, name, true);
+    try {
+      await enrichBusiness(biz, { findWebsite: true, skipIfEnriched: false });
+      success++;
+    } catch (err) {
+      console.warn('Enrich failed for', name, err);
+      failed++;
+    }
+  }
+
+  hideEnrichmentModal(!isEnrichmentCancelled());
+
+  if (success > 0) {
+    await savePlacesCache();
+    // Also update any matching manual prospects with enrichment data
+    for (const biz of toEnrich) {
+      if (!biz.enriched) continue;
+      const bizName = (biz.name || biz.businessName || biz.title || '').toLowerCase().trim();
+      const mp = prospectPoolState.manualProspects.find(m => {
+        if (biz.placeId && m.placeId === biz.placeId) return true;
+        const mName = (m.businessName || m.name || m.title || '').toLowerCase().trim();
+        return bizName && mName === bizName;
+      });
+      if (mp) {
+        if (!mp.email && biz.email) mp.email = biz.email;
+        if (!mp.phone && biz.phone) mp.phone = biz.phone;
+        if (!mp.website && biz.website) mp.website = biz.website;
+        if (!mp.facebook && biz.facebook) mp.facebook = biz.facebook;
+        if (!mp.instagram && biz.instagram) mp.instagram = biz.instagram;
+        if (!mp.linkedin && biz.linkedin) mp.linkedin = biz.linkedin;
+        mp.enriched = true;
+      }
+    }
+    saveManualProspects();
+  }
+
+  renderProspectPool();
+  toast(`Enriched ${success} businesses (${failed} failed)`, success > 0);
+}
+window.enrichAllInCategory = enrichAllInCategory;
 
 // Keep old function name for backwards compatibility (now just calls select)
 function addAllCategoryToKanban(category) {
@@ -13053,42 +13430,56 @@ function clearAllProspects() {
   toast(`✅ All prospects cleared for ${cardName}!`, true);
 }
 
+// Track which groups were expanded before search (to restore on clear)
+let _poolGroupsBeforeSearch = null;
+
 // Filter prospect pool by search term
 function filterProspectPool(searchTerm) {
   prospectPoolSearchTerm = searchTerm; // Save for re-renders
   const term = searchTerm.toLowerCase().trim();
 
-  // Get the prospect pool container - check both standalone and inline versions
+  // When user starts typing, expand all groups so we can filter all cards
+  if (term && _poolGroupsBeforeSearch === null) {
+    // Save current expansion state
+    _poolGroupsBeforeSearch = new Set(expandedPoolGroups);
+    // Get all group IDs and expand them
+    const container = document.getElementById('inlineProspectPoolContainer') || document.getElementById('prospectPoolContainer');
+    if (container) {
+      container.querySelectorAll('.pool-group-section').forEach(g => {
+        const gid = g.getAttribute('data-group-id');
+        if (gid) expandedPoolGroups.add(gid);
+      });
+    }
+    // Re-render with all groups expanded (search term re-applied via setTimeout in renderProspectPool)
+    renderProspectPool();
+    return;
+  }
+
+  // When search is cleared, restore original expansion state
+  if (!term && _poolGroupsBeforeSearch !== null) {
+    expandedPoolGroups = _poolGroupsBeforeSearch;
+    _poolGroupsBeforeSearch = null;
+    renderProspectPool();
+    return;
+  }
+
+  // Get the prospect pool container
   let container = document.getElementById('prospectPoolContainer');
   if (!container) {
     container = document.getElementById('inlineProspectPoolContainer');
   }
-  if (!container) {
-    console.log('🔍 filterProspectPool: No container found');
-    return;
-  }
+  if (!container) return;
 
-  // Get all category sections (with mb-8 class)
-  const categorySections = container.querySelectorAll('.mb-8');
-  console.log('🔍 filterProspectPool: Found', categorySections.length, 'category sections in', container.id);
-
-  categorySections.forEach(categorySection => {
-    // Find the grid container with all prospect cards
+  // Filter cards within expanded category sections
+  container.querySelectorAll('.category-section').forEach(categorySection => {
     const grid = categorySection.querySelector('.grid');
     if (!grid) return;
 
-    // Get all direct children of the grid (the prospect cards)
-    const prospectCards = grid.children;
-    console.log('🔍 filterProspectPool: Found', prospectCards.length, 'cards in grid');
-
     let visibleCount = 0;
 
-    Array.from(prospectCards).forEach(card => {
-      // Get the business name from h5 tag
+    Array.from(grid.children).forEach(card => {
       const businessName = card.querySelector('h5')?.textContent || '';
-      // Get all text content for searching
       const allText = card.textContent || '';
-
       const matches = businessName.toLowerCase().includes(term) || allText.toLowerCase().includes(term);
 
       if (term === '' || matches) {
@@ -13099,12 +13490,16 @@ function filterProspectPool(searchTerm) {
       }
     });
 
-    // Hide entire category if no visible prospects
-    if (visibleCount === 0 && term !== '') {
-      categorySection.style.display = 'none';
-    } else {
-      categorySection.style.display = '';
-    }
+    categorySection.style.display = (visibleCount === 0 && term !== '') ? 'none' : '';
+  });
+
+  // Hide pool-group-sections when ALL their category-sections are hidden
+  container.querySelectorAll('.pool-group-section').forEach(group => {
+    const allCats = group.querySelectorAll('.category-section');
+    const visibleCats = group.querySelectorAll('.category-section:not([style*="display: none"])');
+    // Only hide groups that HAVE categories but all are filtered out
+    // Don't hide collapsed groups (they have 0 categories)
+    group.style.display = (allCats.length > 0 && visibleCats.length === 0 && term !== '') ? 'none' : '';
   });
 }
 
@@ -13706,9 +14101,10 @@ function openProspectDetailModal(prospectData, source = 'prospect') {
   document.getElementById('btnHeaderWebsite').disabled = !website;
 
   // === CONTACT INFO TAB ===
-  document.getElementById('detailPhone').textContent = phone || '—';
+  const phone2 = prospectData.phone2 || '';
+  document.getElementById('detailPhone').textContent = phone ? (phone + (phone2 ? ` | 📱 ${phone2}` : '')) : '—';
   document.getElementById('btnContactCall').disabled = !phone;
-  document.getElementById('btnContactSMS').disabled = !phone;
+  document.getElementById('btnContactSMS').disabled = !(phone2 || phone);
 
   document.getElementById('detailEmail').textContent = email || '—';
   document.getElementById('btnContactEmail').disabled = !email;
@@ -14411,6 +14807,7 @@ function openEditContactModal() {
 
   document.getElementById('editContactName').value = currentProspectDetail.businessName || currentProspectDetail.name || '';
   document.getElementById('editContactPhone').value = currentProspectDetail.phone || '';
+  document.getElementById('editContactPhone2').value = currentProspectDetail.phone2 || '';
   document.getElementById('editContactEmail').value = currentProspectDetail.email || '';
   document.getElementById('editContactWebsite').value = currentProspectDetail.website || '';
   document.getElementById('editContactAddress').value = currentProspectDetail.address || currentProspectDetail.fullAddress || '';
@@ -14428,6 +14825,15 @@ function openEditContactModal() {
     categorySelect.value = currentProspectDetail.category || '';
   }
 
+  // Show "No Email on FB" button when prospect has Facebook but no email (Manual Hunt scenario)
+  const fbCheckedBtnWrap = document.getElementById('editContactFbCheckedBtnWrap');
+  if (fbCheckedBtnWrap) {
+    const hasFb = !!(currentProspectDetail.facebook);
+    const hasEmail = !!(currentProspectDetail.email);
+    const alreadyChecked = !!(currentProspectDetail.facebookChecked);
+    fbCheckedBtnWrap.classList.toggle('hidden', !hasFb || hasEmail || alreadyChecked);
+  }
+
   modal.style.display = 'flex';
   modal.setAttribute('aria-hidden', 'false');
 }
@@ -14438,6 +14844,7 @@ function closeEditContactModal() {
     modal.style.display = 'none';
     modal.setAttribute('aria-hidden', 'true');
   }
+  // Don't close the FB tab here — let it be reused by the next Manual Hunt
 }
 
 async function saveEditedContact() {
@@ -14452,6 +14859,7 @@ async function saveEditedContact() {
     businessName: document.getElementById('editContactName').value.trim(),
     name: document.getElementById('editContactName').value.trim(),
     phone: document.getElementById('editContactPhone').value.trim(),
+    phone2: document.getElementById('editContactPhone2').value.trim(),
     email: document.getElementById('editContactEmail').value.trim(),
     website: document.getElementById('editContactWebsite').value.trim(),
     address: document.getElementById('editContactAddress').value.trim(),
@@ -14466,93 +14874,105 @@ async function saveEditedContact() {
   }
 
   const prospectId = currentProspectDetail.id || currentProspectDetail.placeId;
-  let saved = false;
+  const prospectPlaceId = currentProspectDetail.placeId || currentProspectDetail.id;
+  const prospectName = (currentProspectDetail.businessName || currentProspectDetail.name || '').toLowerCase().trim();
+  // Match helper — checks id, placeId, AND business name for reliable lookups
+  const matchesProspect = (item) => {
+    const itemId = String(item.id || '');
+    const itemPlaceId = String(item.placeId || '');
+    const idMatch = itemId === String(prospectId) || itemPlaceId === String(prospectId) ||
+           itemId === String(prospectPlaceId) || itemPlaceId === String(prospectPlaceId);
+    if (idMatch) return true;
+    // Fallback: match by business name
+    if (prospectName) {
+      const itemName = (item.businessName || item.name || item.title || '').toLowerCase().trim();
+      if (itemName && itemName === prospectName) return true;
+    }
+    return false;
+  };
+
+  let savedToBoard = false;
+  let savedToCache = false;
 
   // 1. Try to find and update in campaign board
   const board = getCurrentCampaignBoard();
   if (board) {
     for (const colKey of Object.keys(board.columns)) {
       const items = board.columns[colKey] || [];
-      const idx = items.findIndex(item => {
-        const itemId = item.id || item.placeId;
-        return String(itemId) === String(prospectId);
-      });
+      const idx = items.findIndex(matchesProspect);
       if (idx !== -1) {
         Object.assign(items[idx], updates);
         await saveCampaignBoards();
-        saved = true;
+        savedToBoard = true;
         break;
       }
     }
   }
 
-  // 2. Try to find and update in placesCache (search results)
-  if (!saved) {
-    for (const key of Object.keys(placesCache.searches || {})) {
-      const cached = placesCache.searches[key];
-      if (cached.cachedData) {
-        const idx = cached.cachedData.findIndex(b => String(b.placeId) === String(prospectId));
-        if (idx !== -1) {
-          Object.assign(cached.cachedData[idx], updates);
-          await savePlacesCache();
-          saved = true;
-          break;
-        }
+  // 2. Always update ALL matching entries in placesCache — same business can appear in multiple search keys
+  for (const key of Object.keys(placesCache.searches || {})) {
+    const cached = placesCache.searches[key];
+    if (cached.cachedData) {
+      const idx = cached.cachedData.findIndex(matchesProspect);
+      if (idx !== -1) {
+        Object.assign(cached.cachedData[idx], updates);
+        savedToCache = true;
       }
     }
   }
+  if (savedToCache) {
+    await savePlacesCache();
+  }
 
-  // 3. Try to find and update in manual prospects
-  if (!saved) {
-    const idx = prospectPoolState.manualProspects.findIndex(p =>
-      String(p.id) === String(prospectId) || String(p.placeId) === String(prospectId)
-    );
-    if (idx !== -1) {
-      Object.assign(prospectPoolState.manualProspects[idx], updates);
-      await saveManualProspects();
-      saved = true;
-    }
+  const saved = savedToBoard || savedToCache;
+
+  // 3. Always update manual prospects too (same business can exist in both cache AND manual prospects)
+  const mpIdx = prospectPoolState.manualProspects.findIndex(matchesProspect);
+  if (mpIdx !== -1) {
+    Object.assign(prospectPoolState.manualProspects[mpIdx], updates);
+    await saveManualProspects();
   }
 
   // 4. Also update in renderedProspects lookup (for immediate UI consistency)
-  if (prospectPoolState.renderedProspects && prospectPoolState.renderedProspects[prospectId]) {
-    Object.assign(prospectPoolState.renderedProspects[prospectId], updates);
+  if (prospectPoolState.renderedProspects) {
+    // Try all possible keys
+    for (const key of [prospectId, prospectPlaceId]) {
+      if (key && prospectPoolState.renderedProspects[key]) {
+        Object.assign(prospectPoolState.renderedProspects[key], updates);
+      }
+    }
   }
 
   // Update the current prospect detail
   Object.assign(currentProspectDetail, updates);
 
-  // Update the CRM modal display
-  document.getElementById('detailBusinessName').textContent = updates.businessName || 'Unknown Business';
-  document.getElementById('detailPhone').textContent = updates.phone || '—';
-  document.getElementById('detailEmail').textContent = updates.email || '—';
-  document.getElementById('detailWebsite').textContent = updates.website || '—';
-  document.getElementById('detailAddress').textContent = updates.address || '—';
-
-  // Update category display in header if changed
-  if (updates.category) {
-    const categoryText = document.getElementById('detailCategoryText');
-    if (categoryText) categoryText.textContent = updates.category;
-  }
-
-  // Update button states
-  document.getElementById('btnContactCall').disabled = !updates.phone;
-  document.getElementById('btnContactSMS').disabled = !updates.phone;
-  document.getElementById('btnContactEmail').disabled = !updates.email;
-  document.getElementById('btnContactWebsite').disabled = !updates.website;
-  document.getElementById('btnHeaderCall').disabled = !updates.phone;
-  document.getElementById('btnHeaderSMS').disabled = !updates.phone;
-  document.getElementById('btnHeaderEmail').disabled = !updates.email;
-  document.getElementById('btnHeaderWebsite').disabled = !updates.website;
-
-  // Re-render social links
-  renderSocialLinks(currentProspectDetail);
-
-  // Re-render the campaign board to show updated info
+  // Re-render prospect pool FIRST to show updated cards immediately
+  renderProspectPool();
   renderCampaignBoard();
 
-  // Re-render prospect pool to show updated info
-  renderProspectPool();
+  // Update CRM detail modal display (safe — elements may not be visible but exist in DOM)
+  try {
+    document.getElementById('detailBusinessName').textContent = updates.businessName || 'Unknown Business';
+    document.getElementById('detailPhone').textContent = updates.phone ? (updates.phone + (updates.phone2 ? ` | 📱 ${updates.phone2}` : '')) : '—';
+    document.getElementById('detailEmail').textContent = updates.email || '—';
+    document.getElementById('detailWebsite').textContent = updates.website || '—';
+    document.getElementById('detailAddress').textContent = updates.address || '—';
+    if (updates.category) {
+      const categoryText = document.getElementById('detailCategoryText');
+      if (categoryText) categoryText.textContent = updates.category;
+    }
+    document.getElementById('btnContactCall').disabled = !updates.phone;
+    document.getElementById('btnContactSMS').disabled = !updates.phone;
+    document.getElementById('btnContactEmail').disabled = !updates.email;
+    document.getElementById('btnContactWebsite').disabled = !updates.website;
+    document.getElementById('btnHeaderCall').disabled = !updates.phone;
+    document.getElementById('btnHeaderSMS').disabled = !updates.phone;
+    document.getElementById('btnHeaderEmail').disabled = !updates.email;
+    document.getElementById('btnHeaderWebsite').disabled = !updates.website;
+    renderSocialLinks(currentProspectDetail);
+  } catch(e) {
+    console.warn('CRM modal DOM update skipped:', e.message);
+  }
 
   closeEditContactModal();
   const categoryNote = updates.category ? ` Category: ${updates.category}` : '';
@@ -16072,20 +16492,23 @@ function quickAction(type) {
         window.location.href = `tel:${prospect.phone}`;
       }
       break;
-    case 'sms':
-      if (prospect.phone) {
-        const cleanPhone = prospect.phone.replace(/\D/g, ''); // Remove non-digits
+    case 'sms': {
+      // Prefer cell/secondary phone for texting
+      const smsPhone = prospect.phone2 || prospect.phone;
+      if (smsPhone) {
+        const cleanPhone = smsPhone.replace(/\D/g, '');
 
         // Always use Google Voice for consistency across all devices
-        navigator.clipboard.writeText(prospect.phone).then(() => {
+        navigator.clipboard.writeText(smsPhone).then(() => {
           window.open(`https://voice.google.com/u/0/messages?itemId=t.+1${cleanPhone}`, '_blank');
-          toast(`📋 Phone copied! Google Voice opened for: ${prospect.phone}`, true);
+          toast(`📋 ${prospect.phone2 ? 'Cell' : 'Phone'} copied! Google Voice opened for: ${smsPhone}`, true);
         }).catch(() => {
           window.open(`https://voice.google.com/u/0/messages?itemId=t.+1${cleanPhone}`, '_blank');
-          toast(`📱 Google Voice opened. Send to: ${prospect.phone}`, true);
+          toast(`📱 Google Voice opened. Send to: ${smsPhone}`, true);
         });
       }
       break;
+    }
     case 'email':
       if (prospect.email) {
         const subject = encodeURIComponent(`Re: ${prospect.businessName}`);
@@ -17576,12 +17999,18 @@ function renderCampaignBoard() {
     </div>
   `;
 
-  // Build campaign dropdown options
+  // Build campaign dropdown options (filter archived unless toggle is on)
+  const showArchived = isShowingArchivedCampaigns();
   const campaignOptions = (state.mailers || []).map(m => {
     const mailerId = m.Mailer_ID || m.id;
+    const b = campaignBoardsState.boards[mailerId];
+    const isArchived = b && b.archived;
+    // Hide archived unless showing them, but always show the currently selected one
+    if (isArchived && !showArchived && mailerId !== state.current?.Mailer_ID) return '';
+    const suffix = isArchived ? ' (Archived)' : '';
     const name = m.Town ? `${m.Town} ${m.Mail_Date || ''}`.trim() : mailerId;
     const selected = mailerId === state.current?.Mailer_ID ? 'selected' : '';
-    return `<option value="${esc(mailerId)}" ${selected}>${esc(name)}</option>`;
+    return `<option value="${esc(mailerId)}" ${selected}>${esc(name)}${suffix}</option>`;
   }).join('');
 
   // Build global ZIP filter options
@@ -17608,8 +18037,15 @@ function renderCampaignBoard() {
     }).join('')}
   `;
 
+  // Archive state for current campaign
+  const currentMailerId = state.current?.Mailer_ID;
+  const currentBoard = currentMailerId ? campaignBoardsState.boards[currentMailerId] : null;
+  const isCurrentArchived = currentBoard && currentBoard.archived;
+  const archivedCount = getArchivedCampaignCount();
+
   // Campaign info bar with dropdown and global ZIP filter (currentView already defined above)
   const viewToggle = `
+    ${isCurrentArchived ? '<div class="bg-amber-50 border border-amber-300 rounded-lg px-4 py-2 mb-3 flex items-center justify-between"><span class="text-sm font-medium text-amber-800">📦 This campaign is archived</span><button onclick="unarchiveCampaign()" class="text-xs font-bold text-amber-700 hover:text-amber-900 bg-amber-200 hover:bg-amber-300 px-3 py-1 rounded-lg transition-colors">Unarchive</button></div>' : ''}
     <div class="flex items-center gap-3 mb-3 flex-wrap">
       <div class="flex items-center gap-2">
         <label class="text-sm font-medium text-gray-600">Campaign:</label>
@@ -17617,6 +18053,7 @@ function renderCampaignBoard() {
                 class="px-4 py-3 text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
           ${campaignOptions}
         </select>
+        ${archivedCount > 0 ? `<button onclick="toggleShowArchivedCampaigns()" class="text-xs font-medium ${showArchived ? 'text-amber-700 bg-amber-100' : 'text-gray-500 hover:text-gray-700'} px-2 py-1 rounded transition-colors" title="${showArchived ? 'Hide' : 'Show'} archived campaigns">${showArchived ? '📦 Hide' : '📦 Show'} archived (${archivedCount})</button>` : ''}
       </div>
       <div class="flex items-center gap-2">
         <label class="text-sm font-medium text-gray-600">ZIP:</label>
@@ -17637,6 +18074,7 @@ function renderCampaignBoard() {
           💰 Sales
         </button>
       </div>
+      ${!isCurrentArchived && currentMailerId ? '<button onclick="archiveCampaign()" class="px-3 py-2 text-xs font-medium text-gray-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors" title="Archive this campaign">📦 Archive</button>' : ''}
     </div>
   `;
 
@@ -24820,6 +25258,75 @@ async function deleteCurrentPostcard() {
   }
 }
 
+/* ========= ARCHIVE CAMPAIGN ========= */
+function archiveCampaign() {
+  const mailerId = state.current?.Mailer_ID;
+  if (!mailerId) {
+    toast('No campaign selected', false);
+    return;
+  }
+
+  const board = campaignBoardsState.boards[mailerId];
+  if (!board) {
+    toast('Campaign board not found', false);
+    return;
+  }
+
+  const name = state.current.Town || mailerId;
+  if (!confirm(`Archive "${name}"?\n\nIt will be hidden from the campaign dropdown but can be restored later.`)) return;
+
+  board.archived = true;
+  saveCampaignBoards();
+
+  // Auto-select next non-archived campaign
+  const nextMailer = state.mailers.find(m => {
+    const mid = m.Mailer_ID || m.id;
+    if (mid === mailerId) return false;
+    const b = campaignBoardsState.boards[mid];
+    return !b || !b.archived;
+  });
+
+  if (nextMailer) {
+    const idx = state.mailers.indexOf(nextMailer);
+    pickCampaign({ target: { value: idx.toString() } });
+  } else {
+    // All campaigns archived — clear selection
+    state.current = null;
+    renderAll();
+  }
+
+  toast(`Archived "${name}"`, true);
+  renderCampaignBoard();
+}
+
+function unarchiveCampaign() {
+  const mailerId = state.current?.Mailer_ID;
+  if (!mailerId) return;
+
+  const board = campaignBoardsState.boards[mailerId];
+  if (!board) return;
+
+  board.archived = false;
+  saveCampaignBoards();
+
+  toast(`Unarchived "${state.current.Town || mailerId}"`, true);
+  renderCampaignBoard();
+}
+
+function getArchivedCampaignCount() {
+  return Object.values(campaignBoardsState.boards).filter(b => b.archived).length;
+}
+
+function toggleShowArchivedCampaigns() {
+  const current = localStorage.getItem('showArchivedCampaigns') === 'true';
+  localStorage.setItem('showArchivedCampaigns', (!current).toString());
+  renderCampaignBoard();
+}
+
+function isShowingArchivedCampaigns() {
+  return localStorage.getItem('showArchivedCampaigns') === 'true';
+}
+
 /* ========= PERSISTED COLORS ========= */
 const POSTCARD_BG_KEY = "mailslot-postcard-bg";
 const BANNER_BG_KEY = "mailslot-banner-bg";
@@ -26107,9 +26614,19 @@ function onCampaignsLoaded(res, restoreMailerId = null){
     }
   }
 
-  // If not found or no restore ID, auto-select the most recent postcard (last in array)
+  // If not found or no restore ID, auto-select the most recent non-archived postcard
   if (selectedIndex === -1 && mailers.length > 0) {
-    selectedIndex = mailers.length - 1;
+    // Prefer non-archived campaigns
+    for (let j = mailers.length - 1; j >= 0; j--) {
+      const mid = mailers[j].Mailer_ID || mailers[j].id;
+      const b = campaignBoardsState.boards[mid];
+      if (!b || !b.archived) {
+        selectedIndex = j;
+        break;
+      }
+    }
+    // Fall back to last campaign if all are archived
+    if (selectedIndex === -1) selectedIndex = mailers.length - 1;
   }
 
   if (selectedIndex !== -1) {
@@ -29892,13 +30409,14 @@ function showProspectReviewModal(businesses, categorizedResults) {
       <div class="p-6 border-t border-gray-200 bg-gray-50 rounded-b-3xl">
         <div class="flex gap-3">
           <button onclick="confirmProspectReview()" id="btnConfirmReview" class="flex-1 px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 font-black text-base shadow-lg transform hover:scale-105 transition">
-            ✓ Add & Enrich Selected (${businesses.length})
+            ✓ Add to Pipeline & Enrich (${businesses.length})
           </button>
           <button onclick="closeProspectReviewModal()" class="px-4 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-bold transition">
             Cancel
           </button>
         </div>
-        <p class="text-xs text-gray-400 text-center mt-2">Unchecked businesses will be marked as "Not Interested"</p>
+        <p class="text-xs text-emerald-600 text-center mt-2 font-medium">Websites, emails & social profiles will be found automatically after adding</p>
+        <p class="text-xs text-gray-400 text-center mt-1">Unchecked businesses will be marked as "Not Interested"</p>
       </div>
     </div>
   `;
@@ -29946,7 +30464,7 @@ function updateReviewSelectedCount() {
   // Update button text
   const btn = document.getElementById('btnConfirmReview');
   if (btn) {
-    btn.textContent = selected > 0 ? `✓ Add & Enrich ${selected} Selected` : 'Skip All';
+    btn.textContent = selected > 0 ? `✓ Add to Pipeline & Enrich (${selected})` : 'Skip All';
   }
 }
 
@@ -32165,7 +32683,7 @@ async function previewEmailCampaign() {
   }
 }
 
-async function sendEmailCampaignWithConfirm() {
+async function sendEmailCampaignWithConfirm(bypassWarmup = false) {
   if (!emailCampaignState.audienceId || !emailCampaignState.synced) {
     showEmailError('Please sync contacts first');
     return;
@@ -32177,9 +32695,9 @@ async function sendEmailCampaignWithConfirm() {
     return;
   }
 
-  // Final confirmation
+  // Final confirmation (skip if this is a warmup bypass retry)
   const contactCount = emailCampaignState.contacts?.length || 0;
-  if (!confirm(`Send email campaign to ${contactCount} contacts?\n\nThis action cannot be undone.`)) {
+  if (!bypassWarmup && !confirm(`Send email campaign to ${contactCount} contacts?\n\nThis action cannot be undone.`)) {
     return;
   }
 
@@ -32210,25 +32728,43 @@ async function sendEmailCampaignWithConfirm() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         audienceId: emailCampaignState.audienceId,
-        customBody, // Send custom body if template was edited
+        customBody,
         templateId,
         subject,
         variables,
-        fromName: variables.senderName || '10K Postcards'
+        fromName: variables.senderName || '10K Postcards',
+        bypassWarmup
       })
     });
 
     const data = await response.json();
 
     if (!response.ok) {
+      // Handle warmup throttle — show disclaimer modal instead of a plain error
+      if (response.status === 429 && data.warmup) {
+        sendBtn.disabled = false;
+        sendBtn.textContent = '🚀 Send Campaign';
+        showWarmupDisclaimerModal(data.warmup, data.message);
+        return;
+      }
       throw new Error(data.error || data.details || 'Failed to send broadcast');
+    }
+
+    // Track email send against usage quota
+    const sentCount = data.contactCount || emailCampaignState.contacts?.length || 0;
+    if (sentCount > 0) {
+      await recordEmailSend(sentCount);
     }
 
     // Success!
     closeEmailCampaignModal();
 
-    // Show success notification
-    showNotification(`Email campaign sent to ${emailCampaignState.contacts.length} contacts!`, 'success');
+    // Show success notification with warmup info if applicable
+    let successMsg = `Email campaign sent to ${sentCount} contacts!`;
+    if (data.warmup) {
+      successMsg += ` (${data.warmup.remaining} sends remaining today)`;
+    }
+    showNotification(successMsg, 'success');
 
   } catch (error) {
     console.error('Send error:', error);
@@ -32236,6 +32772,70 @@ async function sendEmailCampaignWithConfirm() {
     sendBtn.disabled = false;
     sendBtn.textContent = '🚀 Send Campaign';
   }
+}
+
+function showWarmupDisclaimerModal(warmup, serverMessage) {
+  // Remove any existing warmup modal
+  document.getElementById('warmupDisclaimerModal')?.remove();
+
+  const w = warmup;
+  const modal = document.createElement('div');
+  modal.id = 'warmupDisclaimerModal';
+  modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-[60]';
+  modal.innerHTML = `
+    <div class="bg-white rounded-xl shadow-2xl p-6 max-w-lg mx-4">
+      <div class="flex items-start gap-3 mb-4">
+        <div class="text-3xl">&#9888;&#65039;</div>
+        <div>
+          <h3 class="text-lg font-bold text-gray-900">Domain Warmup Limit Reached</h3>
+          <p class="text-sm text-gray-500 mt-1">Sending domain: <strong>${escapeHtml(w.domain)}</strong></p>
+        </div>
+      </div>
+
+      <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+        <p class="text-sm text-amber-900 font-medium mb-2">Current warmup status:</p>
+        <div class="grid grid-cols-2 gap-2 text-sm text-amber-800">
+          <div>Domain age: <strong>Day ${w.domainAgeDays + 1}</strong></div>
+          <div>Daily limit: <strong>${w.dailyLimit} emails</strong></div>
+          <div>Sent today: <strong>${w.todaySent}</strong></div>
+          <div>Remaining: <strong>${w.remaining}</strong></div>
+        </div>
+      </div>
+
+      <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+        <p class="text-sm text-red-900 font-semibold mb-2">Blacklist Warning</p>
+        <p class="text-sm text-red-800">Sending too many emails from a new domain can cause your domain to be <strong>permanently blacklisted</strong> by email providers (Gmail, Outlook, Yahoo). Once blacklisted:</p>
+        <ul class="text-sm text-red-800 mt-2 ml-4 list-disc space-y-1">
+          <li>All emails from your domain may go to spam or be rejected</li>
+          <li>Removal from blacklists can take <strong>weeks or months</strong></li>
+          <li>Your domain reputation may never fully recover</li>
+          <li>Business emails (invoices, replies) will also be affected</li>
+        </ul>
+      </div>
+
+      <p class="text-sm text-gray-600 mb-4">If your domain has an established sending history with another email provider, it may be safe to proceed. Otherwise, we <strong>strongly recommend</strong> staying within the warmup limits.</p>
+
+      <div class="flex gap-3 justify-end">
+        <button id="warmupCancelBtn" class="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium">
+          Stay Within Limits
+        </button>
+        <button id="warmupBypassBtn" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium text-sm">
+          I Understand the Risks — Send Anyway
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  // Close on backdrop click or cancel
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+  document.getElementById('warmupCancelBtn').addEventListener('click', () => modal.remove());
+
+  // Bypass and retry
+  document.getElementById('warmupBypassBtn').addEventListener('click', () => {
+    modal.remove();
+    sendEmailCampaignWithConfirm(true);
+  });
 }
 
 function showNotification(message, type = 'info') {

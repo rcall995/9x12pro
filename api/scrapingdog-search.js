@@ -248,8 +248,9 @@ export default async function handler(req, res) {
           const hostname = new URL(url).hostname.toLowerCase().replace('www.', '');
           const matchCount = bizWords.filter(word => hostname.includes(word)).length;
 
-          // Require at least 2 words to match, OR if business has only 1-2 significant words, require all
-          const minRequired = bizWords.length <= 2 ? bizWords.length : 2;
+          // Require at least HALF the words to match (min 2), or ALL if 1-2 words
+          // This prevents "grand" + "air" matching the wrong HVAC company
+          const minRequired = bizWords.length <= 2 ? bizWords.length : Math.max(2, Math.ceil(bizWords.length / 2));
 
           if (matchCount >= minRequired) {
             website = url;

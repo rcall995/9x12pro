@@ -83,13 +83,13 @@ export default async function handler(req, res) {
             email: cached.email || '',
             allEmails: cached.all_emails || [],
             phone: cached.phone || '',
-            allPhones: [],
+            allPhones: cached.all_phones || [],
             facebook: cached.facebook || '',
             instagram: cached.instagram || '',
             linkedin: cached.linkedin || '',
             twitter: cached.twitter || '',
             contactNames: cached.contact_names || [],
-            enriched: !!(cached.email || cached.facebook || cached.instagram || cached.linkedin || cached.twitter),
+            enriched: !!(cached.email || (cached.all_phones && cached.all_phones.length) || cached.facebook || cached.instagram || cached.linkedin || cached.twitter),
             source: '9x12pro-scraper',
             pagesScraped: cached.pages_scraped || 0,
             cached: true
@@ -140,51 +140,37 @@ export default async function handler(req, res) {
       // URL parsing failed
     }
 
-    // Separate domain-matching emails from others
+    // Prioritize domain-matching emails, but accept all scraped emails
+    // If it's on the business website, it's almost certainly a valid contact email
     const domainMatchEmails = [];
-    const businessNameEmails = [];
     const otherEmails = [];
 
-    // Build business name keywords for matching (e.g., "A Plus Quality Heating" -> ["plus", "quality", "heating"])
-    const bizNameWords = (businessName || '').toLowerCase()
-      .replace(/[^a-z0-9\s]/g, '')
-      .split(/\s+/)
-      .filter(w => w.length > 2 && !['the', 'and', 'inc', 'llc', 'ltd', 'corp', 'company'].includes(w));
+    const websiteMainDomain = websiteDomain.split('.')[0]; // "voltz99" from "voltz99.com"
 
     for (const email of allEmails) {
       const emailDomain = email.toLowerCase().split('@')[1];
-      const emailLocal = email.toLowerCase().split('@')[0]; // Part before @
-      // Check if email domain contains the main part of the website domain
-      // e.g., voltz99.com should match info@voltz99.com
-      const websiteMainDomain = websiteDomain.split('.')[0]; // "voltz99" from "voltz99.com"
+      const emailLocal = email.toLowerCase().split('@')[0];
+
+      // Tier 1: email domain matches website domain (info@acmetowing.com ← acmetowing.com)
       if (websiteDomain && emailDomain && emailDomain.includes(websiteMainDomain)) {
         domainMatchEmails.push(email);
         console.log(`✨ Domain match email: ${email}`);
-      } else if (bizNameWords.length >= 2) {
-        // Check if the email local part contains business name keywords
-        // e.g., "aplusqualityheating3@gmail.com" matches "A Plus Quality Heating"
-        const matchingWords = bizNameWords.filter(w => emailLocal.includes(w));
-        if (matchingWords.length >= 2) {
-          businessNameEmails.push(email);
-          console.log(`✨ Business name match email: ${email} (matched: ${matchingWords.join(', ')})`);
-        } else {
-          otherEmails.push(email);
-          console.log(`⚠️ Non-matching email (skipping): ${email} (website: ${websiteDomain})`);
-        }
+      // Tier 2: email local part contains website domain (acmetowing3@gmail.com ← acmetowing.com)
+      } else if (websiteMainDomain && websiteMainDomain.length >= 4 && emailLocal.includes(websiteMainDomain)) {
+        domainMatchEmails.push(email);
+        console.log(`✨ Domain-in-local match email: ${email}`);
       } else {
         otherEmails.push(email);
-        console.log(`⚠️ Non-matching email (skipping): ${email} (website: ${websiteDomain})`);
+        console.log(`📧 Other email found on site: ${email}`);
       }
     }
 
-    // Priority: domain-matching emails first, then business-name-matching emails
-    // This prevents returning random emails from web designers, analytics, etc.
-    // while still catching legitimate business emails on Gmail/Yahoo/etc.
+    // Use domain-matching emails first, fall back to ALL scraped emails
+    // The extractEmails() function already filters out junk (sentry, wix, examples, etc.)
+    // so anything remaining was found on the business website and is likely valid
     const emailsToVerify = domainMatchEmails.length > 0
       ? domainMatchEmails
-      : businessNameEmails.length > 0
-        ? businessNameEmails
-        : [];
+      : otherEmails;
 
     // Step 5: SMTP verify emails (keep only valid ones)
     console.log(`📧 Found ${emailsToVerify.length} domain-matching emails, verifying...`);
@@ -201,19 +187,18 @@ export default async function handler(req, res) {
     }
 
     // Step 6: Return enriched data
-    // NOTE: We DON'T return phone numbers from scraping - Google Places data is more reliable
-    // The scraper often finds wrong numbers (partner numbers, footer numbers, etc.)
+    // Return all scraped phones so client can find cell numbers for texting
     const enrichedData = {
       email: verifiedEmails[0] || '', // Primary email
       allEmails: verifiedEmails,
-      phone: '', // Don't scrape phones - keep Google's phone number instead
-      allPhones: [], // Don't provide alternative phones - causes confusion
+      phone: '', // Don't override HERE/Google Places primary phone
+      allPhones: allPhones, // Return ALL scraped phones for secondary number detection
       facebook: socialLinks.facebook || '',
       instagram: socialLinks.instagram || '',
       linkedin: socialLinks.linkedin || '',
       twitter: socialLinks.twitter || '',
       contactNames: contactNames,
-      enriched: !!(verifiedEmails.length || Object.values(socialLinks).some(v => v)),
+      enriched: !!(verifiedEmails.length || allPhones.length || Object.values(socialLinks).some(v => v)),
       source: '9x12pro-scraper',
       pagesScraped: contactPageUrl ? 2 : 1
     };
@@ -228,6 +213,7 @@ export default async function handler(req, res) {
           email: enrichedData.email || '',
           phone: enrichedData.phone || '',
           all_emails: enrichedData.allEmails || [],
+          all_phones: enrichedData.allPhones || [],
           facebook: enrichedData.facebook || '',
           instagram: enrichedData.instagram || '',
           linkedin: enrichedData.linkedin || '',
@@ -262,41 +248,98 @@ export default async function handler(req, res) {
 }
 
 // Scrape a webpage and extract contact info
+// Strategy: plain fetch first (free), then ScrapingDog fallback (smart tier selection)
 async function scrapePage(url) {
-  try {
-    // Normalize URL
-    if (!url.startsWith('http')) {
-      url = 'https://' + url;
-    }
+  // Normalize URL
+  if (!url.startsWith('http')) {
+    url = 'https://' + url;
+  }
 
+  // Step 1: Try plain fetch (free, works on ~40% of sites)
+  let directFailed403 = false;
+  let directThinResponse = false;
+  try {
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       },
-      timeout: 10000 // 10 second timeout
+      signal: AbortSignal.timeout(8000)
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+    if (response.ok) {
+      const html = await response.text();
+      if (html.length > 500 && !isEmptyShell(html)) {
+        console.log(`📄 Direct fetch OK: ${url} (${html.length} chars)`);
+        return {
+          html,
+          emails: extractEmails(html),
+          phones: extractPhones(html),
+          socialLinks: extractSocialLinks(html, url)
+        };
+      }
+      directThinResponse = true;
+      console.log(`📄 Direct fetch thin: ${url} (${html.length} chars)`);
+    } else {
+      directFailed403 = (response.status === 403 || response.status === 401 || response.status === 406);
+      console.log(`📄 Direct fetch HTTP ${response.status}: ${url}`);
     }
-
-    const html = await response.text();
-
-    return {
-      html,
-      emails: extractEmails(html),
-      phones: extractPhones(html),
-      socialLinks: extractSocialLinks(html, url)
-    };
   } catch (error) {
-    console.error('Error scraping page:', url, error.message);
-    return {
-      html: '',
-      emails: [],
-      phones: [],
-      socialLinks: {}
-    };
+    console.log(`📄 Direct fetch error: ${url} (${error.message})`);
   }
+
+  // Step 2: ScrapingDog fallback — pick the right tier based on WHY direct fetch failed
+  const SCRAPINGDOG_API_KEY = process.env.SCRAPINGDOG_API_KEY;
+  if (!SCRAPINGDOG_API_KEY) {
+    return { html: '', emails: [], phones: [], socialLinks: {} };
+  }
+
+  // 403/blocked → static proxy is enough (1 credit, fast)
+  // Thin/JS shell → need dynamic/headless Chrome (5 credits, slower)
+  // Unknown error → try static first (cheaper)
+  const useDynamic = directThinResponse;
+
+  try {
+    const sdUrl = `https://api.scrapingdog.com/scrape?api_key=${SCRAPINGDOG_API_KEY}&url=${encodeURIComponent(url)}&dynamic=${useDynamic}`;
+    const response = await fetch(sdUrl, { signal: AbortSignal.timeout(useDynamic ? 20000 : 12000) });
+
+    if (response.ok) {
+      const html = await response.text();
+      if (html.length > 500 && !isEmptyShell(html)) {
+        console.log(`🐕 ScrapingDog ${useDynamic ? 'dynamic' : 'static'} OK: ${url} (${html.length} chars)`);
+        return {
+          html,
+          emails: extractEmails(html),
+          phones: extractPhones(html),
+          socialLinks: extractSocialLinks(html, url)
+        };
+      }
+    }
+    console.log(`🐕 ScrapingDog ${useDynamic ? 'dynamic' : 'static'} no content: ${url}`);
+  } catch (error) {
+    console.log(`🐕 ScrapingDog error: ${url} (${error.message})`);
+  }
+
+  return { html: '', emails: [], phones: [], socialLinks: {} };
+}
+
+// Check if HTML is a JS-only shell (no real content rendered)
+function isEmptyShell(html) {
+  // Remove script tags, style tags, and HTML tags to get text content
+  const textOnly = html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // If less than 100 chars of actual text, it's probably a JS shell or redirect page
+  if (textOnly.length < 100) return true;
+
+  // GoDaddy parked pages / redirect pages
+  if (html.includes('parking-lander') || html.includes('sedoparking') ||
+      html.includes('domainmarket.com') || html.includes('This domain is for sale')) return true;
+
+  return false;
 }
 
 // Extract email addresses from HTML

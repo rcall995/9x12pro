@@ -3,7 +3,7 @@
  * POST /api/resend/send-broadcast
  *
  * Sends a marketing email to all contacts in an audience.
- * Perfect for prospect outreach and customer renewal campaigns.
+ * Includes domain warmup throttling to protect new sending domains.
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -13,6 +13,27 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const RESEND_API_BASE = 'https://api.resend.com';
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+// Domain warmup schedule — graduated daily limits for new sending domains
+const WARMUP_SCHEDULE = [
+  { maxAge: 3,  limit: 20 },
+  { maxAge: 7,  limit: 50 },
+  { maxAge: 14, limit: 100 },
+  { maxAge: 30, limit: 250 },
+  { maxAge: 60, limit: 500 },
+  { maxAge: 90, limit: 1000 },
+];
+const WARMUP_MAX_LIMIT = 5000; // 91+ days
+
+// Domains that skip warmup throttling entirely
+const GRANDFATHERED_DOMAINS = ['10kpostcards.com'];
+
+function getWarmupDailyLimit(domainAgeDays) {
+  for (const tier of WARMUP_SCHEDULE) {
+    if (domainAgeDays <= tier.maxAge) return tier.limit;
+  }
+  return WARMUP_MAX_LIMIT;
+}
 
 // Email templates
 const TEMPLATES = {
@@ -185,7 +206,8 @@ export default async function handler(req, res) {
     customBody,           // Custom template body (replaces default template)
     fromName,             // Sender name
     fromEmail,            // Must be verified domain email
-    replyTo               // Reply-to email
+    replyTo,              // Reply-to email
+    bypassWarmup          // User acknowledged warmup warning and wants to send anyway
   } = req.body;
 
   if (!audienceId) {
@@ -226,20 +248,75 @@ export default async function handler(req, res) {
     emailHtml = template.buildHtml(variables || {});
   }
 
+  // Extract sending domain from fromEmail
+  const sendingDomain = (fromEmail || 'hello@10kpostcards.com').split('@')[1]?.toLowerCase() || '10kpostcards.com';
+
+  // --- Domain warmup check ---
+  let contactCount = 0;
+  let warmupInfo = null;
+
+  if (!GRANDFATHERED_DOMAINS.includes(sendingDomain)) {
+    // 1. Fetch audience contact count from Resend
+    try {
+      const contactsRes = await fetch(`${RESEND_API_BASE}/audiences/${audienceId}/contacts`, {
+        headers: { 'Authorization': `Bearer ${RESEND_API_KEY}` }
+      });
+      if (contactsRes.ok) {
+        const contactsData = await contactsRes.json();
+        contactCount = contactsData.data?.length || 0;
+      }
+    } catch (e) {
+      console.warn('Failed to fetch audience contact count:', e.message);
+    }
+
+    // 2. Check warmup limits via Supabase
+    if (SUPABASE_URL && SUPABASE_SERVICE_KEY && contactCount > 0) {
+      try {
+        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+        const { data: info, error } = await supabase.rpc('get_domain_warmup_info', { p_domain: sendingDomain });
+
+        if (!error && info) {
+          const firstSendDate = info.first_send_date ? new Date(info.first_send_date) : null;
+          const todaySent = info.today_sent || 0;
+          const domainAgeDays = firstSendDate
+            ? Math.floor((Date.now() - firstSendDate.getTime()) / (1000 * 60 * 60 * 24))
+            : 0; // New domain = day 0
+          const dailyLimit = getWarmupDailyLimit(domainAgeDays);
+          const remaining = Math.max(0, dailyLimit - todaySent);
+
+          warmupInfo = { domain: sendingDomain, domainAgeDays, dailyLimit, todaySent, remaining };
+
+          if (todaySent + contactCount > dailyLimit && !bypassWarmup) {
+            return res.status(429).json({
+              error: 'Domain warmup limit exceeded',
+              warmup: warmupInfo,
+              message: `Your domain "${sendingDomain}" can send ${dailyLimit} emails/day (day ${domainAgeDays + 1} of warmup). ${todaySent} already sent today, ${remaining} remaining. This broadcast has ${contactCount} contacts.`
+            });
+          }
+        }
+      } catch (e) {
+        // Fail-open: if Supabase query fails, allow the send
+        console.warn('Warmup check failed (allowing send):', e.message);
+      }
+    }
+  }
+
   try {
-    // Send broadcast via Resend
-    const response = await fetch(`${RESEND_API_BASE}/emails/batch`, {
+    // Send broadcast via Resend Broadcasts API
+    // Resend renamed "audiences" to "segments" — the audienceId works as segment_id
+    const response = await fetch(`${RESEND_API_BASE}/broadcasts`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${RESEND_API_KEY}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
+        segment_id: audienceId,
         from: `${fromName || '10K Postcards'} <${fromEmail || 'hello@10kpostcards.com'}>`,
-        to: `audience:${audienceId}`,
         reply_to: replyTo || fromEmail || 'hello@10kpostcards.com',
         subject: emailSubject,
-        html: emailHtml
+        html: emailHtml,
+        send: true  // Send immediately
       })
     });
 
@@ -249,7 +326,7 @@ export default async function handler(req, res) {
       console.error('Resend broadcast error:', data);
       return res.status(response.status).json({
         error: 'Failed to send broadcast',
-        details: data.message || data.error
+        details: data.message || data.error || JSON.stringify(data)
       });
     }
 
@@ -264,17 +341,30 @@ export default async function handler(req, res) {
           subject: emailSubject,
           sent_at: new Date().toISOString()
         });
+
+        // Record domain send for warmup tracking
+        if (contactCount > 0) {
+          await supabase.rpc('record_domain_send', { p_domain: sendingDomain, p_count: contactCount });
+        }
       } catch (e) {
         console.warn('Failed to track broadcast in Supabase:', e.message);
       }
+    }
+
+    // Update warmupInfo with post-send numbers
+    if (warmupInfo) {
+      warmupInfo.todaySent += contactCount;
+      warmupInfo.remaining = Math.max(0, warmupInfo.dailyLimit - warmupInfo.todaySent);
     }
 
     return res.status(200).json({
       success: true,
       broadcastId: data.id,
       audienceId,
+      contactCount,
       template: templateId,
-      subject: emailSubject
+      subject: emailSubject,
+      warmup: warmupInfo
     });
 
   } catch (error) {
