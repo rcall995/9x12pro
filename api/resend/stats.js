@@ -77,7 +77,7 @@ export default async function handler(req, res) {
           .from('email_broadcasts')
           .select('*')
           .order('sent_at', { ascending: false })
-          .limit(20);
+          .limit(50);
 
         if (audienceId) {
           query = query.eq('audience_id', audienceId);
@@ -86,6 +86,29 @@ export default async function handler(req, res) {
         const { data: broadcasts } = await query;
         stats.recentBroadcasts = broadcasts || [];
         stats.totals.emailsSent = broadcasts?.length || 0;
+
+        // Fetch engagement stats from broadcast_stats table
+        if (broadcasts && broadcasts.length > 0) {
+          const broadcastIds = broadcasts.map(b => b.resend_id).filter(Boolean);
+          if (broadcastIds.length > 0) {
+            const { data: engagementStats } = await supabase
+              .from('broadcast_stats')
+              .select('*')
+              .in('broadcast_id', broadcastIds);
+
+            if (engagementStats) {
+              const statsMap = {};
+              for (const s of engagementStats) {
+                statsMap[s.broadcast_id] = s;
+              }
+              for (const b of stats.recentBroadcasts) {
+                if (b.resend_id && statsMap[b.resend_id]) {
+                  b.stats = statsMap[b.resend_id];
+                }
+              }
+            }
+          }
+        }
 
         // Get sync history
         const { data: syncs } = await supabase

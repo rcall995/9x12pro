@@ -32532,6 +32532,19 @@ function previewTemplate(templateId, event) {
   previewEl.classList.remove('hidden');
 }
 
+function insertTemplateVar(varName) {
+  const textarea = document.getElementById('templateEditorBody');
+  if (!textarea) return;
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const text = textarea.value;
+  textarea.value = text.substring(0, start) + varName + text.substring(end);
+  textarea.selectionStart = textarea.selectionEnd = start + varName.length;
+  textarea.focus();
+  updateTemplateEditorPreview();
+}
+window.insertTemplateVar = insertTemplateVar;
+
 function editTemplate(templateId, event) {
   if (event) event.stopPropagation();
 
@@ -32563,9 +32576,10 @@ function updateTemplateEditorPreview() {
 
   let previewHtml = escapeHtml(body)
     .replace(/\{location\}/g, '<span class="bg-purple-100 text-purple-700 px-1 rounded">Grand Island</span>')
+    .replace(/\{campaignName\}/g, '<span class="bg-purple-100 text-purple-700 px-1 rounded">Grand Island March 2026 9x12</span>')
     .replace(/\{mailDate\}/g, '<span class="bg-purple-100 text-purple-700 px-1 rounded">March 15, 2026</span>')
-    .replace(/\{senderName\}/g, '<span class="bg-purple-100 text-purple-700 px-1 rounded">Your Name</span>')
-    .replace(/\{senderPhone\}/g, '<span class="bg-purple-100 text-purple-700 px-1 rounded">716-555-1234</span>')
+    .replace(/\{senderName\}/g, '<span class="bg-green-100 text-green-700 px-1 rounded">Your Name</span>')
+    .replace(/\{senderPhone\}/g, '<span class="bg-green-100 text-green-700 px-1 rounded">716-555-1234</span>')
     .replace(/\n/g, '<br>');
 
   previewEl.innerHTML = previewHtml || '<span class="text-gray-400">Start typing to see preview...</span>';
@@ -33147,6 +33161,193 @@ async function deleteAudience(audienceId, audienceName) {
     showNotification('Failed to delete: ' + error.message, 'error');
   }
 }
+
+// =============================================
+// Email Campaign Reports Modal
+// =============================================
+
+function showEmailReportsModal() {
+  // Remove existing modal
+  document.getElementById('emailReportsModal')?.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'emailReportsModal';
+  modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-[60]';
+  modal.innerHTML = `
+    <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full mx-4 max-h-[85vh] flex flex-col">
+      <!-- Header -->
+      <div class="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-t-xl px-6 py-4 flex items-center justify-between">
+        <h2 class="text-white text-lg font-bold flex items-center gap-2">
+          <span class="text-xl">&#128202;</span> Email Campaign Reports
+        </h2>
+        <button onclick="document.getElementById('emailReportsModal')?.remove()" class="text-white/80 hover:text-white text-2xl leading-none">&times;</button>
+      </div>
+
+      <!-- Content -->
+      <div id="emailReportsContent" class="p-6 overflow-y-auto flex-1">
+        <div class="flex items-center justify-center py-12">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+          <span class="ml-3 text-gray-500">Loading reports...</span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Close on backdrop click
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+
+  loadEmailReports();
+}
+
+async function loadEmailReports() {
+  const container = document.getElementById('emailReportsContent');
+  if (!container) return;
+
+  try {
+    const response = await fetch('/api/resend/stats');
+    if (!response.ok) throw new Error('Failed to load stats');
+    const data = await response.json();
+
+    const broadcasts = data.recentBroadcasts || [];
+
+    if (broadcasts.length === 0) {
+      container.innerHTML = `
+        <div class="text-center py-12">
+          <div class="text-5xl mb-3 opacity-50">&#128233;</div>
+          <h3 class="text-lg font-semibold text-gray-700 mb-2">No campaigns sent yet</h3>
+          <p class="text-gray-500 text-sm">Send your first email campaign and results will appear here.</p>
+        </div>
+      `;
+      return;
+    }
+
+    // Calculate summary totals
+    let totalSent = 0, totalDelivered = 0, totalOpened = 0, totalClicked = 0, totalBounced = 0;
+    let campaignsWithStats = 0;
+
+    for (const b of broadcasts) {
+      const s = b.stats;
+      if (s) {
+        campaignsWithStats++;
+        totalSent += s.sent || 0;
+        totalDelivered += s.delivered || 0;
+        totalOpened += s.opened || 0;
+        totalClicked += s.clicked || 0;
+        totalBounced += s.bounced || 0;
+      }
+    }
+
+    const avgOpenRate = totalDelivered > 0 ? ((totalOpened / totalDelivered) * 100).toFixed(1) : '—';
+    const avgClickRate = totalDelivered > 0 ? ((totalClicked / totalDelivered) * 100).toFixed(1) : '—';
+
+    // Build summary cards
+    let html = `
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div class="bg-purple-50 rounded-lg p-3 text-center">
+          <div class="text-2xl font-bold text-purple-700">${broadcasts.length}</div>
+          <div class="text-xs text-purple-600 font-medium">Campaigns Sent</div>
+        </div>
+        <div class="bg-green-50 rounded-lg p-3 text-center">
+          <div class="text-2xl font-bold text-green-700">${totalDelivered.toLocaleString()}</div>
+          <div class="text-xs text-green-600 font-medium">Total Delivered</div>
+        </div>
+        <div class="bg-sky-50 rounded-lg p-3 text-center">
+          <div class="text-2xl font-bold text-sky-700">${avgOpenRate}${avgOpenRate !== '—' ? '%' : ''}</div>
+          <div class="text-xs text-sky-600 font-medium">Avg Open Rate</div>
+        </div>
+        <div class="bg-amber-50 rounded-lg p-3 text-center">
+          <div class="text-2xl font-bold text-amber-700">${avgClickRate}${avgClickRate !== '—' ? '%' : ''}</div>
+          <div class="text-xs text-amber-600 font-medium">Avg Click Rate</div>
+        </div>
+      </div>
+    `;
+
+    // Build table
+    html += `
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-gray-200">
+              <th class="text-left py-2 px-2 font-semibold text-gray-600">Date</th>
+              <th class="text-left py-2 px-2 font-semibold text-gray-600">Subject</th>
+              <th class="text-center py-2 px-2 font-semibold text-gray-600">Sent</th>
+              <th class="text-center py-2 px-2 font-semibold text-gray-600">Delivered</th>
+              <th class="text-center py-2 px-2 font-semibold text-gray-600">Opens</th>
+              <th class="text-center py-2 px-2 font-semibold text-gray-600">Clicks</th>
+              <th class="text-center py-2 px-2 font-semibold text-gray-600">Bounced</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    for (const b of broadcasts) {
+      const date = b.sent_at ? new Date(b.sent_at).toLocaleDateString() : '—';
+      const subject = escapeHtml(b.subject || 'No subject').substring(0, 50);
+      const s = b.stats;
+      const contactCount = b.contact_count || 0;
+
+      if (s) {
+        const delivered = s.delivered || 0;
+        const opened = s.opened || 0;
+        const clicked = s.clicked || 0;
+        const bounced = s.bounced || 0;
+        const openPct = delivered > 0 ? ((opened / delivered) * 100).toFixed(1) : '0.0';
+        const clickPct = delivered > 0 ? ((clicked / delivered) * 100).toFixed(1) : '0.0';
+
+        html += `
+          <tr class="border-b border-gray-100 hover:bg-gray-50">
+            <td class="py-2 px-2 text-gray-500 whitespace-nowrap">${date}</td>
+            <td class="py-2 px-2 font-medium text-gray-800" title="${escapeHtml(b.subject || '')}">${subject}</td>
+            <td class="py-2 px-2 text-center">${(s.sent || contactCount).toLocaleString()}</td>
+            <td class="py-2 px-2 text-center">${delivered.toLocaleString()}</td>
+            <td class="py-2 px-2 text-center text-sky-700 font-medium">${opened.toLocaleString()} <span class="text-xs text-gray-400">(${openPct}%)</span></td>
+            <td class="py-2 px-2 text-center text-amber-700 font-medium">${clicked.toLocaleString()} <span class="text-xs text-gray-400">(${clickPct}%)</span></td>
+            <td class="py-2 px-2 text-center ${bounced > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}">${bounced}</td>
+          </tr>
+        `;
+      } else {
+        html += `
+          <tr class="border-b border-gray-100 hover:bg-gray-50">
+            <td class="py-2 px-2 text-gray-500 whitespace-nowrap">${date}</td>
+            <td class="py-2 px-2 font-medium text-gray-800" title="${escapeHtml(b.subject || '')}">${subject}</td>
+            <td class="py-2 px-2 text-center">${contactCount > 0 ? contactCount.toLocaleString() : '—'}</td>
+            <td class="py-2 px-2 text-center text-gray-400" colspan="4">
+              <span class="italic text-xs">Waiting for webhook data...</span>
+            </td>
+          </tr>
+        `;
+      }
+    }
+
+    html += `
+          </tbody>
+        </table>
+      </div>
+      <p class="text-xs text-gray-400 mt-4 text-center">
+        Open/click counts include all events (not unique). Apple Mail may inflate open rates.
+      </p>
+    `;
+
+    container.innerHTML = html;
+
+  } catch (error) {
+    console.error('Failed to load email reports:', error);
+    container.innerHTML = `
+      <div class="text-center py-12">
+        <div class="text-5xl mb-3 opacity-50">&#9888;&#65039;</div>
+        <h3 class="text-lg font-semibold text-red-700 mb-2">Failed to load reports</h3>
+        <p class="text-gray-500 text-sm mb-4">${escapeHtml(error.message)}</p>
+        <button onclick="loadEmailReports()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium">
+          Try Again
+        </button>
+      </div>
+    `;
+  }
+}
+
+window.showEmailReportsModal = showEmailReportsModal;
+window.loadEmailReports = loadEmailReports;
 
 // Expose email campaign functions globally
 window.openEmailCampaignModal = openEmailCampaignModal;

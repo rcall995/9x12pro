@@ -339,7 +339,8 @@ export default async function handler(req, res) {
           audience_id: audienceId,
           template_id: templateId,
           subject: emailSubject,
-          sent_at: new Date().toISOString()
+          sent_at: new Date().toISOString(),
+          contact_count: contactCount
         });
 
         // Record domain send for warmup tracking
